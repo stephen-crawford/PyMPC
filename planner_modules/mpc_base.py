@@ -1,4 +1,4 @@
-from planner.data_prep import logger
+from planner.src.data_prep import logger
 from utils.const import OBJECTIVE
 
 
@@ -9,21 +9,20 @@ CONFIG = read_config_file()
 
 class MPCBaseModule:
 
-  def __init__(self, solver):
-    self.solver = solver
-    self.module_type = OBJECTIVE
-    self.name = "mpc_base"
-    self.weight_names = WEIGHT_PARAMS
+ def __init__(self, solver):
+  self.solver = solver
+  self.module_type = OBJECTIVE
+  self.name = "mpc_base"
+  self.weight_names = WEIGHT_PARAMS
 
+ def update(self, state, data, module_data):
+  return
 
-  def update(self, state, data, module_data):
-    return
+ def set_parameters(self, data, module_data, k):
 
-  def set_parameters(self, data, module_data, k):
+  if (k == 0):
+   logger.log(10, "MPCBaseModule.set_parameters()")
 
-    if (k == 0):
-      logger.log(10, "MPCBaseModule.set_parameters()")
+  for weight in self.weight_names:
 
-    for weight in self.weight_names:
-
-      _solver.set_parameter(k, weight, CONFIG["weights"][weight])
+   _solver.set_parameter(k, weight, CONFIG["weights"][weight])
