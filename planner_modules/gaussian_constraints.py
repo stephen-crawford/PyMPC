@@ -23,18 +23,18 @@ class GaussianConstraints:
 
  def set_parameters(self, data, module_data, k):
 
-  set_solver_parameter_ego_disc_radius(k, self._solver._params, CONFIG["robot_radius"])
+  set_solver_parameter_ego_disc_radius(k, self.solver._params, CONFIG["robot_radius"])
   for d in range(CONFIG["n_discs"]):
-   set_solver_parameter_ego_disc_self.offset(k, self._solver._params, data.robot_area[d].self.offset, d)
+   set_solver_parameter_ego_disc_self.offset(k, self.solver._params, data.robot_area[d].self.offset, d)
 
   if k == 0: # Dummies
    for i in range(data.dynamic_obstacles.size()):
-    set_solver_parameter_gaussian_obstacle_x(k, self._solver._params, _dummy_x, i)
-    set_solver_parameter_gaussian_obstacle_y(k, self._solver._params, _dummy_y, i)
-    set_solver_parameter_gaussian_obstacle_major(k, self._solver._params, 0.1, i)
-    set_solver_parameter_gaussian_obstacle_minor(k, self._solver._params, 0.1, i)
-    set_solver_parameter_gaussian_obstacle_risk(k, self._solver._params, 0.05, i)
-    set_solver_parameter_gaussian_obstacle_r(k, self._solver._params, 0.1, i)
+    set_solver_parameter_gaussian_obstacle_x(k, self.solver._params, _dummy_x, i)
+    set_solver_parameter_gaussian_obstacle_y(k, self.solver._params, _dummy_y, i)
+    set_solver_parameter_gaussian_obstacle_major(k, self.solver._params, 0.1, i)
+    set_solver_parameter_gaussian_obstacle_minor(k, self.solver._params, 0.1, i)
+    set_solver_parameter_gaussian_obstacle_risk(k, self.solver._params, 0.05, i)
+    set_solver_parameter_gaussian_obstacle_r(k, self.solver._params, 0.1, i)
    return
 
   copied_obstacles = data.dynamic_obstacles
@@ -44,17 +44,17 @@ class GaussianConstraints:
    obstacle = copied_obstacles[i]
 
    if obstacle.prediction.type == GAUSSIAN:
-    set_solver_parameter_gaussian_obstacle_x(k, self._solver._params, obstacle.prediction.modes[0][k - 1].position(0), i)
-    set_solver_parameter_gaussian_obstacle_y(k, self._solver._params, obstacle.prediction.modes[0][k - 1].position(1), i)
+    set_solver_parameter_gaussian_obstacle_x(k, self.solver._params, obstacle.prediction.modes[0][k - 1].position(0), i)
+    set_solver_parameter_gaussian_obstacle_y(k, self.solver._params, obstacle.prediction.modes[0][k - 1].position(1), i)
 
     if obstacle.type == DYNAMIC:
-     set_solver_parameter_gaussian_obstacle_major(k, self._solver._params, obstacle.prediction.modes[0][k - 1].major_radius, i)
-     set_solver_parameter_gaussian_obstacle_minor(k, self._solver._params, obstacle.prediction.modes[0][k - 1].minor_radius, i)
+     set_solver_parameter_gaussian_obstacle_major(k, self.solver._params, obstacle.prediction.modes[0][k - 1].major_radius, i)
+     set_solver_parameter_gaussian_obstacle_minor(k, self.solver._params, obstacle.prediction.modes[0][k - 1].minor_radius, i)
     else: # Static obstacles have no uncertainty
-     set_solver_parameter_gaussian_obstacle_major(k, self._solver._params, 0.001, i)
-     set_solver_parameter_gaussian_obstacle_minor(k, self._solver._params, 0.001, i)
-    set_solver_parameter_gaussian_obstacle_risk(k, self._solver._params, CONFIG["probabilistic"]["risk"], i)
-    set_solver_parameter_gaussian_obstacle_r(k, self._solver._params, CONFIG["obstacle_radius"], i)
+     set_solver_parameter_gaussian_obstacle_major(k, self.solver._params, 0.001, i)
+     set_solver_parameter_gaussian_obstacle_minor(k, self.solver._params, 0.001, i)
+    set_solver_parameter_gaussian_obstacle_risk(k, self.solver._params, CONFIG["probabilistic"]["risk"], i)
+    set_solver_parameter_gaussian_obstacle_r(k, self.solver._params, CONFIG["obstacle_radius"], i)
 
  def is_data_ready(self, data, missing_data):
   if data.dynamic_obstacles.size() != CONFIG["max_obstacles"]:
@@ -83,9 +83,9 @@ class GaussianConstraints:
   for obstacle in data.dynamic_obstacles:
 
    k = 1
-   while k < _solver.N:
+   while k < solver.N:
 
-    ellipsoid.set_color_int(k, _solver.N, 0.5)
+    ellipsoid.set_color_int(k, solver.N, 0.5)
 
     if obstacle.type == DYNAMIC:
      chi = RosTools.exponential_quantile(0.5, 1.0 - CONFIG["probabilistic"]["risk"])

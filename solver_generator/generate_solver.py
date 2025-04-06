@@ -19,7 +19,7 @@ def generate_solver(modules, model, settings=None):
   if settings["solver_settings"]["solver"] != "acados" and settings["solver_settings"]["solver"] != "forces":
     raise IOError("Unknown solver specified in settings.yaml" "(should be 'acados' or 'forces')")
 
-  print_header(f"Creating {settings['solver_settings']['solver'].capitalize()}" f"Solver: {settings['name']}_solver")
+  print_header(f"Creating {settings['solver_settings']['solver'].capitalize()}" f"Solver: {settings['name']}solver")
 
   if settings["solver_settings"]["solver"] == "forces":
     from generate_forces_solver import generate_forces_solver

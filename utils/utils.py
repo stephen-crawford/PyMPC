@@ -1,3 +1,5 @@
+import os
+
 import math
 import time
 import yaml
@@ -11,25 +13,41 @@ import inspect
 from contextlib import contextmanager
 
 import logging
-from utils.utils import read_config_file
+
 
 # Initialize logger
 logger = logging.getLogger(__name__)
 
+def read_config_file():
+    config_path = os.path.join(os.path.dirname(__file__), "../../MPC/utils/CONFIG.yml")
+    config_path = os.path.abspath(config_path)
+    with open(config_path, 'r') as file:
+        try:
+            return yaml.safe_load(file)
+        except yaml.YAMLError as e:
+            print(f"Error reading YAML file: {e}")
+            return None
 # Read configuration
-CONFIG = read_config_file()
 
+CONFIG = read_config_file()
 SAVE_FOLDER = CONFIG["recording"]["folder"]
 SAVE_FILE = CONFIG["recording"]["file"]
 
+MOCKED_CONFIG = {
+    "max_obstacle_distance": 50.0,
+    "max_obstacles": 3,
+    "N": 5,
+    "integrator_step": 0.1,
+    "probabilistic": {"enable": False}
+}
 
-# Initialize logger
-logger = logging.getLogger(__name__)
+def set_complete_mocked_config(data):
+    global MOCKED_CONFIG
+    MOCKED_CONFIG = data
 
-# Read configuration
-CONFIG = read_config_file()
-
-
+def set_mocked_config_entry(entry, value):
+    global MOCKED_CONFIG
+    MOCKED_CONFIG[entry] = value
 
 
 # Original Python utilities - keeping these intact
@@ -42,16 +60,6 @@ def PROFILE_SCOPE(name):
         end_time = time.time()
         elapsed_time = end_time - start_time
         logging.debug(f"{name} took {elapsed_time:.6f} seconds")
-
-
-def read_config_file():
-    with open("CONFIG.yml", 'r') as file:
-        try:
-            return yaml.safe_load(file)
-        except yaml.YAMLError as e:
-            print(f"Error reading YAML file: {e}")
-            return None
-
 
 def LOG_DEBUG(message):
     logging.basicConfig(level=logging.DEBUG)  # Configure logging level

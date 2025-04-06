@@ -1,11 +1,9 @@
-from planner.src.data_prep import logger
+import logging
+
 from utils.const import OBJECTIVE
-
-
 from utils.utils import read_config_file
 
 CONFIG = read_config_file()
-
 
 class MPCBaseModule:
 
@@ -21,8 +19,8 @@ class MPCBaseModule:
  def set_parameters(self, data, module_data, k):
 
   if (k == 0):
-   logger.log(10, "MPCBaseModule.set_parameters()")
+   logging.DEBUG("MPCBaseModule.set_parameters()")
 
   for weight in self.weight_names:
 
-   _solver.set_parameter(k, weight, CONFIG["weights"][weight])
+   solver.set_parameter(k, weight, CONFIG["weights"][weight])

@@ -51,13 +51,13 @@ class LinearizedConstraints:
   k = 1
   while k < self.solver.N:
    for d in range(self._n_discs):
-    pos(self._solver.get_ego_prediction(k, "x"), self._solver.get_ego_prediction(k, "y")) # k = 0 is initial state
+    pos(self.solver.get_ego_prediction(k, "x"), self.solver.get_ego_prediction(k, "y")) # k = 0 is initial state
 
     if not self._use_guidance: # Use discs and their positions
 
      disc = data.robot_area[d]
 
-     disc_pos = disc.get_position(pos, self._solver.get_ego_prediction(k, "psi"))
+     disc_pos = disc.get_position(pos, self.solver.get_ego_prediction(k, "psi"))
      project_to_safety(copied_obstacles, k, disc_pos) # Ensure that the vehicle position is collision-free
 
      # TODO: Set projected disc position
@@ -130,30 +130,30 @@ class LinearizedConstraints:
   if k == 0:
    i = 0
    while i < self._max_obstacles + self._n_other_halfspaces:
-    set_solver_parameter_lin_constraint_a1(0, _solver._params, _dummy_a1, constraint_counter)
-    set_solver_parameter_lin_constraint_a2(0, _solver._params, _dummy_a2, constraint_counter)
-    set_solver_parameter_lin_constraint_b(0, _solver._params, _dummy_b, constraint_counter)
+    set_solver_parameter_lin_constraint_a1(0, solver._params, _dummy_a1, constraint_counter)
+    set_solver_parameter_lin_constraint_a2(0, solver._params, _dummy_a2, constraint_counter)
+    set_solver_parameter_lin_constraint_b(0, solver._params, _dummy_b, constraint_counter)
     constraint_counter+=1
     i += 1
    return
 
   for d in range(self._n_discs):
    if not self._use_guidance:
-    set_solver_parameter_ego_disc_self.offset(k, self._solver._params, data.robot_area[d].self.offset, d)
+    set_solver_parameter_ego_disc_self.offset(k, self.solver._params, data.robot_area[d].self.offset, d)
 
    i = 0
    while i < data.dynamic_obstacles.size() + self._n_other_halfspaces:
-    set_solver_parameter_lin_constraint_a1(k, _solver._params, _a1[d][k](i), constraint_counter)
-    set_solver_parameter_lin_constraint_a2(k, _solver._params, _a2[d][k](i), constraint_counter)
-    set_solver_parameter_lin_constraint_b(k, _solver._params, _b[d][k](i), constraint_counter)
+    set_solver_parameter_lin_constraint_a1(k, solver._params, _a1[d][k](i), constraint_counter)
+    set_solver_parameter_lin_constraint_a2(k, solver._params, _a2[d][k](i), constraint_counter)
+    set_solver_parameter_lin_constraint_b(k, solver._params, _b[d][k](i), constraint_counter)
     constraint_counter+=1
     i += 1
 
    i = data.dynamic_obstacles.size() + self._n_other_halfspaces
    while i < self._max_obstacles + self._n_other_halfspaces:
-    set_solver_parameter_lin_constraint_a1(k, self._solver._params, _dummy_a1, constraint_counter)
-    set_solver_parameter_lin_constraint_a2(k, self._solver._params, _dummy_a2, constraint_counter)
-    set_solver_parameter_lin_constraint_b(k, self._solver._params, _dummy_b, constraint_counter)
+    set_solver_parameter_lin_constraint_a1(k, self.solver._params, _dummy_a1, constraint_counter)
+    set_solver_parameter_lin_constraint_a2(k, self.solver._params, _dummy_a2, constraint_counter)
+    set_solver_parameter_lin_constraint_b(k, self.solver._params, _dummy_b, constraint_counter)
     constraint_counter+=1
     i += 1
  
@@ -178,7 +178,7 @@ class LinearizedConstraints:
    return
 
   k = 1
-  while k < self._solver.N:
+  while k < self.solver.N:
    for i in range(data.dynamic_obstacles.size()):
-    visualize_linear_constraint(self._a1[0][k](i), self._a2[0][k](i), self._b[0][k](i), k, self._solver.N, _name, k == _solver.N - 1 and i == data.dynamic_obstacles.size() - 1) # Publish at the end
+    visualize_linear_constraint(self._a1[0][k](i), self._a2[0][k](i), self._b[0][k](i), k, self.solver.N, _name, k == solver.N - 1 and i == data.dynamic_obstacles.size() - 1) # Publish at the end
    k +=1

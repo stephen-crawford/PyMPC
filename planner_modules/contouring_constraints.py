@@ -87,15 +87,15 @@ class ContouringConstraints:
 
 
    # Boundary
-   set_solver_parameter_width_right_a(k, self._solver._params, ra, i)
-   set_solver_parameter_width_right_b(k, self._solver._params, rb, i)
-   set_solver_parameter_width_right_c(k, self._solver._params, rc, i)
-   set_solver_parameter_width_right_d(k, self._solver._params, rd, i)
+   set_solver_parameter_width_right_a(k, self.solver._params, ra, i)
+   set_solver_parameter_width_right_b(k, self.solver._params, rb, i)
+   set_solver_parameter_width_right_c(k, self.solver._params, rc, i)
+   set_solver_parameter_width_right_d(k, self.solver._params, rd, i)
 
-   set_solver_parameter_width_left_a(k, self._solver._params, la, i)
-   set_solver_parameter_width_left_b(k, self._solver._params, lb, i)
-   set_solver_parameter_width_left_c(k, self._solver._params, lc, i)
-   set_solver_parameter_width_left_d(k, self._solver._params, ld, i)
+   set_solver_parameter_width_left_a(k, self.solver._params, la, i)
+   set_solver_parameter_width_left_b(k, self.solver._params, lb, i)
+   set_solver_parameter_width_left_c(k, self.solver._params, lc, i)
+   set_solver_parameter_width_left_d(k, self.solver._params, ld, i)
 
   if k == 1:
    logger.log(10, "ContouringConstraints::set_parameters Done")
@@ -149,8 +149,8 @@ class ContouringConstraints:
   contour_line.set_scale(0.15)
   points.set_scale(0.15, 0.15, 0.15)
 
-  for k in range(self._solver.N):
-    cur_s = self._solver.get_output(k, "spline")
+  for k in range(self.solver.N):
+    cur_s = self.solver.get_output(k, "spline")
    path_point = module_data.path.get_point(cur_s)
 
    points.set_color_int(5, 10)
@@ -164,7 +164,7 @@ class ContouringConstraints:
 
    # Visualize the contouring error
    w_cur = CONFIG["robot"]["width"] / 2.
-   pos(self._solver.get_output(k, "x"), self._solver.get_output(k, "y"))
+   pos(self.solver.get_output(k, "x"), self.solver.get_output(k, "y"))
 
    points.set_color(0., 0., 0.)
    points.add_point_marker(pos, 0.2) # Planned positions and black dots

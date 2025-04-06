@@ -7,8 +7,6 @@ from pathlib import Path
 # Import your spline implementations
 from planner.src.types import TkSpline, Spline, TwoDimensionalSpline, FourDimensionalSpline, Clothoid2D
 
-# TODO: Look into two failing tests and dimensionality of calculated derivs
-
 class TestTkSpline(unittest.TestCase):
     """Tests for the TkSpline class"""
 

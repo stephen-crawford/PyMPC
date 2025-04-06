@@ -53,17 +53,17 @@ class PathReferenceVelocity:
       c = 0.
       d = 0.
 
-     set_solver_parameterspline_va(k, self._solver._params, a, i)
-     set_solver_parameterspline_vb(k, self._solver._params, b, i)
-     set_solver_parameterspline_vc(k, self._solver._params, c, i)
-     set_solver_parameterspline_vd(k, self._solver._params, d, i)
+     set_solver_parameterspline_va(k, self.solver._params, a, i)
+     set_solver_parameterspline_vb(k, self.solver._params, b, i)
+     set_solver_parameterspline_vc(k, self.solver._params, c, i)
+     set_solver_parameterspline_vd(k, self.solver._params, d, i)
    else: # Use a constant velocity reference
     for i in range(self._n_segments):
 
-     set_solver_parameterspline_va(k, self._solver._params, 0., i)
-     set_solver_parameterspline_vb(k, self._solver._params, 0., i)
-     set_solver_parameterspline_vc(k, self._solver._params, 0., i)
-     set_solver_parameterspline_vd(k, self._solver._params, reference_velocity, i) # v = d
+     set_solver_parameterspline_va(k, self.solver._params, 0., i)
+     set_solver_parameterspline_vb(k, self.solver._params, 0., i)
+     set_solver_parameterspline_vc(k, self.solver._params, 0., i)
+     set_solver_parameterspline_vd(k, self.solver._params, reference_velocity, i) # v = d
 
  def visualize(self, data, module_data):
 

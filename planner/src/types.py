@@ -1,27 +1,136 @@
 import numpy as np
 from math import sqrt, atan2
 import logging
+from bisect import bisect_right
+from enum import Enum
+from typing import List, Optional
+
 
 logger = logging.getLogger(__name__)
 
-"""
-spline.py - Python implementation of cubic spline interpolation
-Converted from C++ implementation (spline.cpp)
-"""
+class Disc:
+    def __init__(self, offset_: float, radius_: float):
+        self.offset = offset_
+        self.radius = radius_
 
-import numpy as np
-from bisect import bisect_right
+    def get_position(self, robot_position: np.ndarray, angle: float) -> np.ndarray:
+        """Get disc position from robot position and angle"""
+        # Implementation would calculate position based on robot center and angle
+        # This is a placeholder for the actual implementation
+        return np.zeros(2)  # Replace with actual implementation
 
-"""
-spline.py - Python implementation of cubic spline interpolation
-Converted from C++ implementation (spline.cpp and spline.h)
+    def to_robot_center(self, disc_position: np.ndarray, angle: float) -> np.ndarray:
+        """Convert disc position to robot center position"""
+        # Implementation would calculate robot center based on disc position and angle
+        # This is a placeholder for the actual implementation
+        return np.zeros(2)  # Replace with actual implementation
 
-Original C++ Copyright (C) 2011, 2014 Tino Kluge (ttk448 at gmail.com)
-This is a simple cubic spline interpolation library without external dependencies
-"""
+class Halfspace:
+    def __init__(self, A: np.ndarray, b: float):
+        """Halfspace defined by Ax <= b"""
+        self.A = A
+        self.b = b
 
-import numpy as np
-from bisect import bisect_right
+# Type definition for StaticObstacle
+# In Python, we can use a simple type hint
+# StaticObstacle = List[Halfspace]
+
+class PredictionType(Enum):
+    DETERMINISTIC = 0
+    GAUSSIAN = 1
+    NONGAUSSIAN = 2
+    NONE = 3
+
+class PredictionStep:
+    def __init__(self, position: np.ndarray, angle: float, major_radius: float, minor_radius: float):
+        # Mean
+        self.position = position
+        self.angle = angle
+        # Covariance
+        self.major_radius = major_radius
+        self.minor_radius = minor_radius
+
+# Type definition for Mode
+# Mode = List[PredictionStep]
+
+class Prediction:
+    def __init__(self, type_=None):
+        self.type = type_
+        self.modes = []
+        self.probabilities = []
+
+    def empty(self) -> bool:
+        return len(self.modes) == 0
+
+class ObstacleType(Enum):
+    STATIC = 0
+    DYNAMIC = 1
+
+class DynamicObstacle:
+    def __init__(self, index: int, position: np.ndarray, angle: float, radius: float,
+                 _type: 'ObstacleType' = ObstacleType.DYNAMIC):
+        self.index = index
+        self.position = position
+        self.angle = angle
+        self.radius = radius
+        self.type = _type
+        self.prediction = Prediction()
+
+class ReferencePath:
+    def __init__(self, length: int = 10):
+        self.x = []
+        self.y = []
+        self.psi = []
+        self.v = []
+        self.s = []
+
+    def clear(self):
+        self.x = []
+        self.y = []
+        self.psi = []
+        self.v = []
+        self.s = []
+
+    def point_in_path(self, point_num: int, other_x: float, other_y: float) -> bool:
+        # Implementation would check if point is in path
+        # This is a placeholder for the actual implementation
+        return False  # Replace with actual implementation
+
+    def empty(self) -> bool:
+        return len(self.x) == 0
+
+    def has_velocity(self) -> bool:
+        return len(self.v) > 0
+
+    def has_distance(self) -> bool:
+        return len(self.s) > 0
+
+# Type definition for Boundary
+# Boundary = ReferencePath
+
+class Trajectory:
+    def __init__(self, dt: float = 0.0, length: int = 10):
+        self.dt = dt
+        self.positions = []
+
+    def add(self, p_or_x, y=None):
+        if y is None:
+            # p is an ndarray
+            p = p_or_x
+            self.positions.append(p.copy())
+        else:
+            # p_or_x is x, y is y
+            self.positions.append(np.array([p_or_x, y]))
+
+class FixedSizeTrajectory:
+    def __init__(self, size: int = 50):
+        self._size = size
+        self.positions = []
+
+    def add(self, p: np.ndarray):
+        self.positions.append(p.copy())
+        if len(self.positions) > self._size:
+            self.positions.pop(0)
 
 
 class BandMatrix:
@@ -850,3 +959,5 @@ class Clothoid2D:
             # Add distances
             for j in range(1, n_clothoid):
                 self._s.append(self._s[-1] + L / (n_clothoid - 1))
+
+

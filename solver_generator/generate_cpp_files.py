@@ -159,8 +159,8 @@ def generate_cpp_code(settings, model):
   cpp_file.write("namespace MPCPlanner{\n\n")
 
   N = settings["N"]
-  header_file.write(f" getForcesOutput(const {forces_solver_name}_output& output, const int k, const int var_index)\n")
-  cpp_file.write(f" getForcesOutput(const {forces_solver_name}_output& output, const int k, const int var_index){{\n")
+  header_file.write(f" getForcesOutput(const {forces_solver_name}output& output, const int k, const int var_index)\n")
+  cpp_file.write(f" getForcesOutput(const {forces_solver_name}output& output, const int k, const int var_index){{\n")
   for k in range(settings["N"]):
     cpp_file.write(f"\t\tif(k == {k})\n")
     if k == 0:
@@ -176,8 +176,8 @@ def generate_cpp_code(settings, model):
   cpp_file.write('throw std::runtime_error("Invalid k value for getForcesOutput")\n')
   cpp_file.write("}\n\n")
 
-  header_file.write(f"void loadForcesWarmstart({forces_solver_name}_params& params, const {forces_solver_name}_output& output)\n")
-  cpp_file.write(f"void loadForcesWarmstart({forces_solver_name}_params& params, const {forces_solver_name}_output& output){{\n")
+  header_file.write(f"void loadForcesWarmstart({forces_solver_name}_params& params, const {forces_solver_name}output& output)\n")
+  cpp_file.write(f"void loadForcesWarmstart({forces_solver_name}_params& params, const {forces_solver_name}output& output){{\n")
   if not settings["solver_settings"]["forces"]["use_sqp"]:
     cpp_file.write(f"\t\tfor (int i = 0 i < {model.nu} i++){{\n")
     cpp_file.write(f"\t\t\tparams.z_init_{add_zero_below_10(0, N)}[i] = params.x0[i]\n\t\t}}\n")

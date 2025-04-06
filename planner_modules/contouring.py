@@ -71,15 +71,15 @@ class Contouring:
     velocity_weight = None
 
   
-   set_solver_parameter_contour(k, self._solver._params, contouring_weight)
-   set_solver_parameter_lag(k, self._solver._params, lag_weight)
+   set_solver_parameter_contour(k, self.solver._params, contouring_weight)
+   set_solver_parameter_lag(k, self.solver._params, lag_weight)
 
-   set_solver_parameter_terminal_angle(k, self._solver._params, terminal_angle_weight)
-   set_solver_parameter_terminal_contouring(k, self._solver._params, terminal_contouring_weight)
+   set_solver_parameter_terminal_angle(k, self.solver._params, terminal_angle_weight)
+   set_solver_parameter_terminal_contouring(k, self.solver._params, terminal_contouring_weight)
 
    if (_dynamic_velocity_reference):
-    set_solver_parameter_velocity(k, self._solver._params, velocity_weight)
-    set_solver_parameter_reference_velocity(k, self._solver._params, reference_velocity)
+    set_solver_parameter_velocity(k, self.solver._params, velocity_weight)
+    set_solver_parameter_reference_velocity(k, self.solver._params, reference_velocity)
 
   setspline_parameters(k)
 
@@ -96,18 +96,18 @@ class Contouring:
    start = spline.get_segment_start(index)
 
 
-   set_solver_parameterspline_xa(k, self._solver._params, ax, i)
-   set_solver_parameterspline_xb(k, self._solver._params, bx, i)
-   set_solver_parameterspline_xc(k, self._solver._params, cx, i)
-   set_solver_parameterspline_xd(k, self._solver._params, dx, i)
+   set_solver_parameterspline_xa(k, self.solver._params, ax, i)
+   set_solver_parameterspline_xb(k, self.solver._params, bx, i)
+   set_solver_parameterspline_xc(k, self.solver._params, cx, i)
+   set_solver_parameterspline_xd(k, self.solver._params, dx, i)
 
-   set_solver_parameterspline_ya(k, self._solver._params, ay, i)
-   set_solver_parameterspline_yb(k, self._solver._params, by, i)
-   set_solver_parameterspline_yc(k, self._solver._params, cy, i)
-   set_solver_parameterspline_yd(k, self._solver._params, dy, i)
+   set_solver_parameterspline_ya(k, self.solver._params, ay, i)
+   set_solver_parameterspline_yb(k, self.solver._params, by, i)
+   set_solver_parameterspline_yc(k, self.solver._params, cy, i)
+   set_solver_parameterspline_yd(k, self.solver._params, dy, i)
 
    # Distance where this spline starts
-   set_solver_parameterspline_start(k, self._solver._params, start, i)
+   set_solver_parameterspline_start(k, self.solver._params, start, i)
 
 
  def on_data_received(self, data, data_name):
@@ -167,17 +167,17 @@ class Contouring:
 
   # If bounds are not supplied construct road constraints based on a set width
   if module_data.static_obstacles.empty():
-   module_data.static_obstacles.resize(_solver.N)
+   module_data.static_obstacles.resize(solver.N)
    for k in range(module_data.static_obstacles.size()):
     module_data.static_obstacles[k].reserve(2)
 
   # OLD VERSION:
   road_width_half = CONFIG["road"]["width"] / 2.
-  for k in range(_solver.N):
+  for k in range(solver.N):
 
    module_data.static_obstacles[k].clear()
 
-   cur_s = _solver.get_ego_prediction(k, "spline")
+   cur_s = solver.get_ego_prediction(k, "spline")
 
    # This is the final point and the normal vector of the path
    vector_2d path_point = spline.get_point(cur_s)
@@ -208,13 +208,13 @@ class Contouring:
  def construct_road_constraints_from_bounds(self, data, module_data):
 
   if module_data.static_obstacles.empty():
-   module_data.static_obstacles.resize(_solver.N)
+   module_data.static_obstacles.resize(solver.N)
    for k in range(module_data.static_obstacles.size()):
     module_data.static_obstacles[k].reserve(2)
 
-  for k in range(_solver.N):
+  for k in range(solver.N):
    module_data.static_obstacles[k].clear()
-   cur_s = _solver.get_ego_prediction(k, "spline")
+   cur_s = solver.get_ego_prediction(k, "spline")
 
    # left
    Al = bound_left.get_orthogonal(cur_s)
@@ -292,10 +292,10 @@ class Contouring:
   if module_data.static_obstacles.empty() or not self._add_road_constraints:
    return
 
-  for k in range(_solver.N):
+  for k in range(solver.N):
 
    for h in range(module_data.static_obstacles[k].size()):
-    visualize_linear_constraint(module_data.static_obstacles[k][h], k, _solver.N, _name + "/road_boundary_constraints", _solver.N - 1, h == module_data.static_obstacles[k].size() - 1, 0.5, 0.1)
+    visualize_linear_constraint(module_data.static_obstacles[k][h], k, solver.N, _name + "/road_boundary_constraints", solver.N - 1, h == module_data.static_obstacles[k].size() - 1, 0.5, 0.1)
 
 
  def visualize_debug_road_boundary(self, data, module_data):
@@ -307,8 +307,8 @@ class Contouring:
   # OLD VERSION:
   two_way = self._two_way_road
   road_width_half = CONFIG["road"]["width"] / 2.
-  for k in range(_solver.N):
-   cur_s = _solver.get_ego_prediction(k, "spline")
+  for k in range(solver.N):
+   cur_s = solver.get_ego_prediction(k, "spline")
    path_point = spline.get_point(cur_s)
 
    points.set_color_int(5, 10)
@@ -339,7 +339,7 @@ class Contouring:
   points = publisher.get_new_point_marker("CUBE")
   points.set_scale(0.15, 0.15, 0.15)
 
-  for k in range(_solver.N):
+  for k in range(solver.N):
 
    for i in range (self._n_segments):
     index = closest_segment + i
@@ -366,7 +366,7 @@ class Contouring:
      cy = 0.
      start = spline.parameter_length()
 
-    s = _solver.get_ego_prediction(k, "spline") - start
+    s = solver.get_ego_prediction(k, "spline") - start
     path_x.push_back(ax * s * s * s + bx * s * s + cx * s + dx)
     path_y.push_back(ay * s * s * s + by * s * s + cy * s + dy)
 
@@ -395,9 +395,9 @@ class Contouring:
   points = publisher.get_new_point_marker("CUBE")
   points.set_scale(0.15, 0.15, 0.15)
 
-  for k in range(_solver.N):
+  for k in range(solver.N):
 
-   cur_s = _solver.get_ego_prediction(k, "spline")
+   cur_s = solver.get_ego_prediction(k, "spline")
    path_point = spline.get_point(cur_s)
    points.add_point_marker(path_point)
 

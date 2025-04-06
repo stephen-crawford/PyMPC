@@ -94,7 +94,7 @@ class GuidanceConstraints:
     # Define goals along the reference path, taking into account the velocity along the path
     final_s = current_s
     for k in range(self.global_guidance_.get_config().N): # Euler integrate the velocity along the path
-      final_s += module_data.path_velocity.operator()(final_s) * self._solver.dt
+      final_s += module_data.path_velocity.operator()(final_s) * self.solver.dt
 
     n_long = self.global_guidance_.get_config().longitudinal_goals_
     n_lat = self.global_guidance_.get_config().vertical_goals_
@@ -185,7 +185,7 @@ class GuidanceConstraints:
   def set_parameters(self, data, module_data, k):
     
     if k == 0:
-      self._solver._params.solver_timeout = 0.02 # Should not do anything
+      self.solver._params.solver_timeout = 0.02 # Should not do anything
 
       logger.log(10, "Guidance Constraints does not need to set parameters")
   
@@ -221,7 +221,7 @@ class GuidanceConstraints:
       # Copy the data from the main solver
       solver = planner.local_solver
       logger.log(10, "Planner [" + planner.id + "]: Copying data from main solver")
-      solver = self._solver # Copy the main solver
+      solver = self.solver # Copy the main solver
 
       # CONSTRUCT CONSTRAINTS
       if planner.is_original_planner and not self._enable_constraints:
@@ -240,7 +240,7 @@ class GuidanceConstraints:
 
       # LOAD PARAMETERS
       logger.log(10, "Planner [" + planner.id + "]: Loading updated parameters into the solver")
-      for k in range(self._solver.N):
+      for k in range(self.solver.N):
     
         if (planner.is_original_planner)
           planner.guidance_constraints.set_parameters(empty_data_, module_data, k) # Set this solver's parameters
@@ -296,9 +296,9 @@ class GuidanceConstraints:
       # Communicate to the guidance which topology class we follow (none if it was the original planner)
       self.global_guidance_.override_selected_trajectory(best_planner.result.guidance_ID, best_planner.is_original_planner)
 
-      self._solver._output = best_solver._output # Load the solution into the main lmpcc solver
-      self._solver._info = best_solver._info
-      self._solver._params = best_solver._params
+      self.solver.output = best_solver.output # Load the solution into the main lmpcc solver
+      self.solver._info = best_solver._info
+      self.solver._params = best_solver._params
 
       return best_planner.result.exit_code # Return its exit code
 
@@ -371,7 +371,7 @@ class GuidanceConstraints:
       # Visualize the optimized trajectory
       if (planner.result.success):
         trajectory = []
-        for k in range(self._solver.N):
+        for k in range(self.solver.N):
           trajectory.add(planner.local_solver.get_output(k, "x"), planner.local_solver.get_output(k, "y"))
 
         if i == best_planner_index_:
@@ -462,11 +462,11 @@ class GuidanceConstraints:
         data_saver.add_data("original_planner_id", planner.id) # To identify which one is the original planner
       else:
 
-        # for k in range(self._solver.N):
+        # for k in range(self.solver.N):
         # {
         #   data_saver.add_data(
         #     "solver" + std::to_string(i) + "_plan" + std::to_string(k),
-        #     (_solver.get_output(k, "x"), _solver.get_output(k, "y")))
+        #     (solver.get_output(k, "x"), solver.get_output(k, "y")))
         # }
 
       # data_saver.add_data("active_constraints_" + std::to_string(planner.id), planner.guidance_constraints.NumActiveConstraints(planner.local_solver.get()))

@@ -55,17 +55,17 @@ class DecompConstraints:
 
   path = None
   s = state.get("spline")
-  for k in range(self._solver.N):
+  for k in range(self.solver.N):
    # Local path #
-   # path.emplace_back(_solver.get_ego_prediction(k, "x"), _solver.get_ego_prediction(k, "y")) # k = 0 is initial state
+   # path.emplace_back(solver.get_ego_prediction(k, "x"), solver.get_ego_prediction(k, "y")) # k = 0 is initial state
 
    # Global (reference) path #
    path_pos = module_data.path.get_point(s)
    path.emplace_back(path_pos(0), path_pos(1))
 
-   v = self._solver.get_ego_prediction(k, "v") # Use the predicted velocity
+   v = self.solver.get_ego_prediction(k, "v") # Use the predicted velocity
 
-   s += v * _solver.dt
+   s += v * solver.dt
   self._decomp_util.dilate(path, 0, False)
 
   self._decomp_util.set_constraints(_constraints, 0.) # Map is already inflated
@@ -73,7 +73,7 @@ class DecompConstraints:
 
   max_decomp_constraints = 0
 
-  for k in range(self._solver.N - 1):
+  for k in range(self.solver.N - 1):
    constraints = self._constraints[k]
    max_decomp_constraints = max(max_decomp_constraints, constraints.A_.rows())
 
@@ -123,14 +123,14 @@ class DecompConstraints:
  def set_parameters(self, data, module_data, k):
   if k == 0: # Dummies
    for d in range(self._n_discs):
-    set_solver_parameter_ego_disc_self.offset(k, self._solver._params, data.robot_area[d].self.offset, d)
+    set_solver_parameter_ego_disc_self.offset(k, self.solver._params, data.robot_area[d].self.offset, d)
 
     constraint_counter = 0
     for i in range(_max_constraints):
     
-     set_solver_parameter_decomp_a1(k, self._solver._params, _dummy_a1, constraint_counter) # These are filled from k = 1 - N
-     set_solver_parameter_decomp_a2(k, self._solver._params, _dummy_a2, constraint_counter)
-     set_solver_parameter_decomp_b(k, self._solver._params, _dummy_b, constraint_counter)
+     set_solver_parameter_decomp_a1(k, self.solver._params, _dummy_a1, constraint_counter) # These are filled from k = 1 - N
+     set_solver_parameter_decomp_a2(k, self.solver._params, _dummy_a2, constraint_counter)
+     set_solver_parameter_decomp_b(k, self.solver._params, _dummy_b, constraint_counter)
      constraint_counter+=1
    return
 
@@ -140,13 +140,13 @@ class DecompConstraints:
   
   constraint_counter = 0 # Necessary for now to map the disc and obstacle index to a single index
   for d in range(self._n_discs):
-   set_solver_parameter_ego_disc_self.offset(k, self._solver._params, data.robot_area[d].self.offset, d)
+   set_solver_parameter_ego_disc_self.offset(k, self.solver._params, data.robot_area[d].self.offset, d)
 
    for i in range(_max_constraints):
  
-    set_solver_parameter_decomp_a1(k, self._solver._params, _a1[d][k](i), constraint_counter) # These are filled from k = 1 - N
-    set_solver_parameter_decomp_a2(k, self._solver._params, _a2[d][k](i), constraint_counter)
-    set_solver_parameter_decomp_b(k, self._solver._params, _b[d][k](i), constraint_counter)
+    set_solver_parameter_decomp_a1(k, self.solver._params, _a1[d][k](i), constraint_counter) # These are filled from k = 1 - N
+    set_solver_parameter_decomp_a2(k, self.solver._params, _a2[d][k](i), constraint_counter)
+    set_solver_parameter_decomp_b(k, self.solver._params, _b[d][k](i), constraint_counter)
     constraint_counter+=1
 
  def is_data_ready(self, data, missing_data):
@@ -186,10 +186,10 @@ class DecompConstraints:
   polyline = publisher.get_new_line()
   polyline.set_scale(0.1, 0.1)
   k = 0
-  while k < self._solver.N:
+  while k < self.solver.N:
   
    poly = _polyhedrons[k]
-   polyline.set_color_int(k, self._solver.N)
+   polyline.set_color_int(k, self.solver.N)
 
    vertices = cal_vertices(poly)
    if (vertices.size() < 2)

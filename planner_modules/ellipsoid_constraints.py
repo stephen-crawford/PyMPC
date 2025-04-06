@@ -26,21 +26,21 @@ class EllipsoidConstraints:
 
  def set_parameters(self, data, module_data, k):
 
-  set_solver_parameter_ego_disc_radius(k, self._solver._params, _robot_radius)
+  set_solver_parameter_ego_disc_radius(k, self.solver._params, _robot_radius)
   for d in range(_n_discs):
-   set_solver_parameter_ego_disc_self.offset(k, self._solver._params, data.robot_area[d].self.offset, d)
+   set_solver_parameter_ego_disc_self.offset(k, self.solver._params, data.robot_area[d].self.offset, d)
 
   if k == 0: # Dummies
 
    # logger.log("Setting parameters for k = 0")
    for i in range(data.dynamic_obstacles.size()):
-    set_solver_parameter_ellipsoid_obst_x(0, self._solver._params, _dummy_x, i)
-    set_solver_parameter_ellipsoid_obst_y(0, self._solver._params, _dummy_y, i)
-    set_solver_parameter_ellipsoid_obst_psi(0, self._solver._params, 0., i)
-    set_solver_parameter_ellipsoid_obst_r(0, self._solver._params, 0.1, i)
-    set_solver_parameter_ellipsoid_obst_major(0, self._solver._params, 0., i)
-    set_solver_parameter_ellipsoid_obst_minor(0, self._solver._params, 0., i)
-    set_solver_parameter_ellipsoid_obst_chi(0, self._solver._params, 1., i)
+    set_solver_parameter_ellipsoid_obst_x(0, self.solver._params, _dummy_x, i)
+    set_solver_parameter_ellipsoid_obst_y(0, self.solver._params, _dummy_y, i)
+    set_solver_parameter_ellipsoid_obst_psi(0, self.solver._params, 0., i)
+    set_solver_parameter_ellipsoid_obst_r(0, self.solver._params, 0.1, i)
+    set_solver_parameter_ellipsoid_obst_major(0, self.solver._params, 0., i)
+    set_solver_parameter_ellipsoid_obst_minor(0, self.solver._params, 0., i)
+    set_solver_parameter_ellipsoid_obst_chi(0, self.solver._params, 1., i)
    
    return
 
@@ -53,23 +53,23 @@ class EllipsoidConstraints:
    mode = obstacle.prediction.modes[0]
 
    # The first prediction step is index 1 of the optimization problem, i.e., k-1 maps to the predictions for this stage 
-   set_solver_parameter_ellipsoid_obst_x(k, self._solver._params, mode[k - 1].position(0), i)
-   set_solver_parameter_ellipsoid_obst_y(k, self._solver._params, mode[k - 1].position(1), i)
-   set_solver_parameter_ellipsoid_obst_psi(k, self._solver._params, mode[k - 1].angle, i)
-   set_solver_parameter_ellipsoid_obst_r(k, self._solver._params, obstacle.radius, i)
+   set_solver_parameter_ellipsoid_obst_x(k, self.solver._params, mode[k - 1].position(0), i)
+   set_solver_parameter_ellipsoid_obst_y(k, self.solver._params, mode[k - 1].position(1), i)
+   set_solver_parameter_ellipsoid_obst_psi(k, self.solver._params, mode[k - 1].angle, i)
+   set_solver_parameter_ellipsoid_obst_r(k, self.solver._params, obstacle.radius, i)
 
    if obstacle.prediction.type == DETERMINISTIC:
    
-    set_solver_parameter_ellipsoid_obst_major(k, self._solver._params, 0., i)
-    set_solver_parameter_ellipsoid_obst_minor(k, self._solver._params, 0., i)
-    set_solver_parameter_ellipsoid_obst_chi(k, self._solver._params, 1., i)
+    set_solver_parameter_ellipsoid_obst_major(k, self.solver._params, 0., i)
+    set_solver_parameter_ellipsoid_obst_minor(k, self.solver._params, 0., i)
+    set_solver_parameter_ellipsoid_obst_chi(k, self.solver._params, 1., i)
    
    elif obstacle.prediction.type == GAUSSIAN:
      chi = RosTools.exponential_quantile(0.5, 1.0 - _risk)
 
-    set_solver_parameter_ellipsoid_obst_major(k, self._solver._params, mode[k - 1].major_radius, i)
-    set_solver_parameter_ellipsoid_obst_minor(k, self._solver._params, mode[k - 1].minor_radius, i)
-    set_solver_parameter_ellipsoid_obst_chi(k, self._solver._params, chi, i)
+    set_solver_parameter_ellipsoid_obst_major(k, self.solver._params, mode[k - 1].major_radius, i)
+    set_solver_parameter_ellipsoid_obst_minor(k, self.solver._params, mode[k - 1].minor_radius, i)
+    set_solver_parameter_ellipsoid_obst_chi(k, self.solver._params, chi, i)
 
 
   if k == 1:

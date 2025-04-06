@@ -27,7 +27,7 @@ class ScenarioConstraints:
  def update(self, state, data, module_data):
 
   for solver in _scenario_solvers:
-   solver.solver = *_solver # Copy the main solver, including its initial guess
+   solver.solver = *solver # Copy the main solver, including its initial guess
    solver.scenario_module.update(data, module_data)
 
 
@@ -45,10 +45,10 @@ class ScenarioConstraints:
    solver.solver._params.solver_timeout = _planning_time - used_time.count() - 0.008
 
    # Copy solver parameters and initial guess
-   solver.solver = *_solver # Copy the main solver
+   solver.solver = *solver # Copy the main solver
 
    # Set the scenario constraint parameters for each solver
-   for k in range(_solver.N):
+   for k in range(solver.N):
 
     solver.scenario_module.set_parameters(data, k)
 
@@ -70,9 +70,9 @@ class ScenarioConstraints:
   if (_best_solver == None) # No feasible solution
    return _scenario_solvers.front().exit_code
 
-  _solver._output = _best_solver.solver._output # Load the solution into the main lmpcc solver
-  _solver._info = _best_solver.solver._info
-  self._solver._params = _best_solver.solver._params
+  solver.output = _best_solver.solver.output # Load the solution into the main lmpcc solver
+  solver._info = _best_solver.solver._info
+  self.solver._params = _best_solver.solver._params
 
   return _best_solver.exit_code
 
@@ -91,7 +91,7 @@ class ScenarioConstraints:
 #pragma omp parallel for num_threads(4)
     for solver in _scenario_solvers: # Draw different samples for all solvers
 
-     solver.scenario_module.get_sampler().integrate_and_translate_to_mean_and_variance(data.dynamic_obstacles, _solver.dt)
+     solver.scenario_module.get_sampler().integrate_and_translate_to_mean_and_variance(data.dynamic_obstacles, solver.dt)
 
 
  def is_data_ready(self, data, missing_data):
@@ -138,7 +138,7 @@ class ScenarioConstraints:
   for solver in _scenario_solvers:
    if (solver.exit_code == 1)
 
-    for k in range(_solver.N):
+    for k in range(solver.N):
      trajectory.add(solver.solver.get_output(k, "x"), solver.solver.get_output(k, "y"))
 
     visualize_trajectory(trajectory, _name + "/optimized_trajectories", False, 0.2, solver.solver._solver_id, 2 * _scenario_solvers.size())
