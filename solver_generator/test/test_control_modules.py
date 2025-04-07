@@ -5,23 +5,23 @@ sys.path.append(os.path.join(sys.path[0], "..", "..", "mpc_planner_modules", "sc
 
 import numpy as np
 
-from util.parameters import Parameters
-from solver_model import ContouringSecondOrderUnicycleModel
+from solver_generator.util.parameters import Parameters
+from solver_generator.solver_model import ContouringSecondOrderUnicycleModel
 
-from control_modules import ModuleManager, ObjectiveModule, ConstraintModule
-from solver_definition import define_parameters, objective, constraints, constraint_lower_bounds, constraint_upper_bounds, constraint_number
+from solver_generator.control_modules import ModuleManager, ObjectiveModule, ConstraintModule
+from solver_generator.solver_definition import define_parameters, objective, constraints, constraint_lower_bounds, constraint_upper_bounds, constraint_number
 
-from contouring import ContouringModule
-from path_reference_velocity import PathReferenceVelocityModule
-from ellipsoid_constraints import EllipsoidConstraintModule
+from planner_modules.contouring import Contouring
+from planner_modules.path_reference_velocity import PathReferenceVelocity
+from planner_modules.ellipsoid_constraints import EllipsoidConstraints
 
-from mpc_base import MPCBaseModule
-from curvature_aware_contouring import CurvatureAwareContouringModule
-from goal_module import GoalModule
-from gaussian_constraints import GaussianConstraintModule
-from guidance_constraints import GuidanceConstraintModule
-from linearized_constraints import LinearizedConstraintModule
-from scenario_constraints import ScenarioConstraintModule
+from planner_modules.mpc_base import MPCBaseModule
+from planner_modules.curvature_aware_contouring import CurvatureAwareContouring
+from planner_modules.goal_module import GoalModule
+from planner_modules.gaussian_constraints import GaussianConstraints
+from planner_modules.guidance_constraints import GuidanceConstraints
+from planner_modules.linearized_constraints import LinearizedConstraints
+from planner_modules.scenario_constraints import ScenarioConstraints
 
 
 def test_module_manager_objective():
@@ -34,13 +34,13 @@ def test_module_manager_objective():
 
   modules = ModuleManager()
   modules.add_module(
-    ContouringModule(settings)
+    Contouring(settings)
   ) # Adds weights to the overall weight list
 
   assert len(modules.modules) == 1
   assert modules.modules[0].module_name == "Contouring"
 
-  modules.add_module(PathReferenceVelocityModule(settings))
+  modules.add_module(PathReferenceVelocity(settings))
 
   assert len(modules.modules) == 2
 
@@ -73,7 +73,7 @@ def test_module_manager_constraints():
 
 
   modules = ModuleManager()
-  modules.add_module(EllipsoidConstraintModule(settings))
+  modules.add_module(EllipsoidConstraints(settings))
 
   assert len(modules.modules) == 1
 
@@ -125,12 +125,12 @@ def test_all_modules():
               cost_function=lambda x, w: w[0] * (x-w[1])**2) 
 
   modules.add_module(GoalModule(settings))
-  modules.add_module(ContouringModule(settings))
-  modules.add_module(CurvatureAwareContouringModule(settings))
-  modules.add_module(PathReferenceVelocityModule(settings))
+  modules.add_module(Contouring(settings))
+  modules.add_module(CurvatureAwareContouring(settings))
+  modules.add_module(PathReferenceVelocity(settings))
 
-  modules.add_module(GaussianConstraintModule(settings))
-  modules.add_module(EllipsoidConstraintModule(settings))
-  modules.add_module(GuidanceConstraintModule(settings))
-  modules.add_module(LinearizedConstraintModule(settings))
-  modules.add_module(ScenarioConstraintModule(settings))
+  modules.add_module(GaussianConstraints(settings))
+  modules.add_module(EllipsoidConstraints(settings))
+  modules.add_module(GuidanceConstraints(settings))
+  modules.add_module(LinearizedConstraints(settings))
+  modules.add_module(ScenarioConstraints(settings))

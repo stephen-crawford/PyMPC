@@ -1,11 +1,8 @@
 import copy
-import numpy as np
+import casadi as cd
 
-import casadi as cd # Acados
-
-from util.files import write_to_yaml, parameter_map_path, load_settings
-from util.logging import print_value, print_header
-
+from solver_generator.util.files import write_to_yaml, parameter_map_path, load_settings
+from solver_generator.util.logging import print_value, print_header
 
 class Parameters:
 
@@ -95,30 +92,3 @@ class Parameters:
         print_value(f"{idx}", f"{param}", tab=True)
     print("----------")
 
-
-class AcadosParameters(Parameters):
-
-  def __init__(self):
-    super().__init__()
-
-  def load_acados_parameters(self):
-
-    self._p = []
-    for param in self._params.keys():
-      par = cd.SX.sym(param, 1)
-      self._p.append(par)
-
-    self.load(self._p)
-
-  def get_acados_parameters(self):
-    result = None
-    for param in self._params.keys():
-      if result is None:
-        result = self.get(param)
-      else:
-        result = cd.vertcat(result, self.get(param))
-
-    return result
-
-  def get_acados_p(self):
-    return self._p

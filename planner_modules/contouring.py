@@ -1,408 +1,234 @@
+from functools import partial
 from math import exp
 from venv import logger
 
+from solver.solver_interface import set_solver_parameter
 from utils.const import OBJECTIVE
-from utils.utils import read_config_file, profile_scope, LOG_DEBUG, PROFILE_SCOPE
+from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE, distance
+from planner.src.types import *
 
 CONFIG = read_config_file()
 
 
 class Contouring:
 
- def __init__(self, solver):
-  self.module_type = OBJECTIVE
-  self.solver = solver
-  self.name = "contouring"
-  self.controller = (self.module_type, solver, self.name)
-  LOG_DEBUG("Initializing contouring module")
-  self.get_num_segments = CONFIG["contouring"]["get_num_segments"]
+    def __init__(self, solver):
+        self.module_type = OBJECTIVE
+        self.solver = solver
+        self.name = "contouring"
+        self.controller = (self.module_type, solver, self.name)
+        LOG_DEBUG("Initializing contouring module")
+
+        # Configuration options from CONFIG
+        self.get_num_segments = CONFIG["contouring"]["get_num_segments"]
+        self.add_road_constraints = CONFIG["contouring"]["add_road_constraints"]
+        self.two_way_road = CONFIG["road"]["two_way"]
+        self.dynamic_velocity_reference = CONFIG["contouring"]["dynamic_velocity_reference"]
+
+        # Initialize class attributes
+        self.spline = None  # Will be set by on_data_received
+        self.closest_point = 0
+        self.closest_segment = 0
+        self.bound_left = None
+        self.bound_right = None
+        self.n_segments = self.get_num_segments  # This was missing
+
+        self.set_solver_param = partial(set_solver_parameter, settings=CONFIG)
+
+        LOG_DEBUG("Contouring module successfully initialized")
+
+    def update(self, state, real_time_data, module_data):
+        PROFILE_SCOPE("Contouring update")
+        LOG_DEBUG("Updating contouring module")
+
+        if self.spline is None:
+            LOG_DEBUG("No spline available yet")
+            return
+
+        # Update the closest point
+        closest_s, self.closest_segment = self.spline.find_closest_point(state.getPos(), self.closest_segment)
+
+        if module_data.path is None and self.spline is not None:
+            module_data.path = self.spline
+
+        state.set("spline", closest_s)  # Initialize the spline state
+        module_data.current_path_segment = self.closest_segment
+
+        if self.add_road_constraints:
+            self.construct_road_constraints(real_time_data, module_data)
+
+    def set_parameters(self, data, module_data, k):
+        # Retrieve weights once
+        if k == 0:
+            contouring_weight = CONFIG["weights"]["contour"]
+            lag_weight = CONFIG["weights"]["lag"]
+
+            terminal_angle_weight = CONFIG["weights"]["terminal_angle"]
+            terminal_contouring_weight = CONFIG["weights"]["terminal_contouring"]
+
+            if self.dynamic_velocity_reference:
+                reference_velocity = CONFIG["weights"]["reference_velocity"]
+                velocity_weight = CONFIG["weights"]["velocity"]
+            else:
+                velocity_weight = None
+
+            self.set_solver_param(self.solver.params, "contour", contouring_weight, k)
+            self.set_solver_param(self.solver.params, "lag", lag_weight, k)
+            self.set_solver_param(self.solver.params, "terminal_angle", terminal_angle_weight, k)
+            self.set_solver_param(self.solver.params, "terminal_contouring", terminal_contouring_weight, k)
+
+            if self.dynamic_velocity_reference:
+                self.set_solver_param(self.solver.params, "reference_velocity", velocity_weight, k)
+                self.set_solver_param(self.solver.params, "velocity", velocity_weight, k)
+
+        self.set_spline_parameters(k)
+
+    def set_spline_parameters(self, k):
+        if self.spline is None:
+            return
+
+        # Set spline parameters for each segment
+        for i in range(self.n_segments):
+            # Calculate the index for the spline segment
+            index = self.closest_segment + i
+
+            if index >= self.spline.get_num_segments():
+                # Use the last segment if we're past the end
+                index = self.spline.get_num_segments() - 1
+
+            # Retrieve spline parameters
+            ax, bx, cx, dx, ay, by, cy, dy = self.spline.get_parameters(index)
+
+            # Get the start position of the spline segment
+            start = self.spline.get_segment_start(index)
+
+            # Set solver parameters for each spline coefficient
+            self.set_solver_param(self.solver.params, "spline_a", ax, k, index=i)
+            self.set_solver_param(self.solver.params, "spline_b", bx, k, index=i)
+            self.set_solver_param(self.solver.params, "spline_c", cx, k, index=i)
+            self.set_solver_param(self.solver.params, "spline_d", dx, k, index=i)
 
-  # boolean configuration options
-  self.add_road_constraints = CONFIG["contouring"]["add_road_constraints"]
-  self.two_way_road = CONFIG["road"]["two_way"]
-  self.dynamic_velocity_reference = CONFIG["contouring"]["dynamic_velocity_reference"]
+            self.set_solver_param(self.solver.params, "spline_ya", ay, k, index=i)
+            self.set_solver_param(self.solver.params, "spline_yb", by, k, index=i)
+            self.set_solver_param(self.solver.params, "spline_yc", cy, k, index=i)
+            self.set_solver_param(self.solver.params, "spline_yd", dy, k, index=i)
 
+            # Set solver parameter for spline segment start
+            self.set_solver_param(self.solver.params, "spline_start", start, k, index=i)
 
-  self.spline = None
-  self.closest_segment = 0
-  self.bound_left = None
-  self.bound_right = None
+    def on_data_received(self, data, data_name):
+        if data_name == "reference_path":
+            LOG_DEBUG( "Received Reference Path")
 
-  logger.log(10, "Contouring module successfully initialized")
+            # Construct a spline from the given points
+            if data.reference_path.s.empty():
+                self.spline = TwoDimensionalSpline(data.reference_path.x, data.reference_path.y)
+            else:
+                self.spline = TwoDimensionalSpline(data.reference_path.x, data.reference_path.y, data.reference_path.s)
 
+            if self.add_road_constraints and (not data.left_bound.empty() and not data.right_bound.empty()):
+                # Add bounds
+                self.bound_left = TwoDimensionalSpline(
+                    data.left_bound.x,
+                    data.left_bound.y,
+                    self.spline.getTVector())
 
- def update(self, state, data, module_data):
+                self.bound_right = TwoDimensionalSpline(
+                    data.right_bound.x,
+                    data.right_bound.y,
+                    self.spline.getTVector())
 
+                # update the road width
+                CONFIG["road"]["width"] = distance(self.bound_left.get_point(0), self.bound_right.get_point(0))
 
-  PROFILE_SCOPE("Contouring update")
-  LOG_DEBUG("Updating contouring module")
+            self.closest_segment = 0
 
-  # update the closest point
-  closest_s = None
-  spline = find_closest_point(self, state.getPos(), self.closest_segment, closest_s)
+    def is_data_ready(self, data, missing_data):
+        if data.reference_path.x.empty():
+            missing_data += "Reference Path "
 
-  if (module_data.path.get() == None and spline.get() != None):
-    module_data.path = spline
+        return not data.reference_path.x.empty()
 
-  state.set("spline", closest_s) # We need to initialize the spline state here
+    def is_objective_reached(self, state, data):
+        if self.spline is None:
+            return False
 
-  module_data.current_path_segment = closest_segment
+        # Check if we reached the end of the spline
+        return distance(state.getPos(), self.spline.get_point(self.spline.parameter_length())) < 1.0
 
-  if (_add_road_constraints):
-   construct_road_constraints(data, module_data)
+    def construct_road_constraints(self, data, module_data):
+        LOG_DEBUG( "Constructing road constraints.")
 
+        if self.bound_left is None or self.bound_right is None:
+            self.construct_road_constraints_from_centerline(data, module_data)
+        else:
+            self.construct_road_constraints_from_bounds(data, module_data)
 
+    def construct_road_constraints_from_centerline(self, data, module_data):
+        # If bounds are not supplied construct road constraints based on a set width
+        if module_data.static_obstacles.empty():
+            module_data.static_obstacles.resize(self.solver.N)
+            for k in range(module_data.static_obstacles.size()):
+                module_data.static_obstacles[k].reserve(2)
 
- def set_parameters(self, data, module_data, k):
+        # Get road width
+        road_width_half = CONFIG["road"]["width"] / 2.0
 
-  # Retrieve weights once
+        for k in range(self.solver.N):
+            module_data.static_obstacles[k].clear()
 
-  if k == 0:
-   contouring_weight = CONFIG["weights"]["contour"]
-   lag_weight = CONFIG["weights"]["lag"]
+            cur_s = self.solver.get_ego_prediction(k, "spline")
 
-   terminal_angle_weight = CONFIG["weights"]["terminal_angle"]
-   terminal_contouring_weight = CONFIG["weights"]["terminal_contouring"]
+            # This is the final point and the normal vector of the path
+            path_point = self.spline.get_point(cur_s)
+            dpath = self.spline.get_orthogonal(cur_s)
 
-   if self._dynamic_velocity_reference:
-    reference_velocity = CONFIG["weights"]["reference_velocity"]
-    velocity_weight = CONFIG["weights"]["velocity"]
-   else:
-    velocity_weight = None
+            # left HALFSPACE
+            A = self.spline.get_orthogonal(cur_s)
+            if self.two_way_road:
+                width_times = 3.0
+            else:
+                width_times = 1.0
 
-  
-   set_solver_parameter_contour(k, self.solver._params, contouring_weight)
-   set_solver_parameter_lag(k, self.solver._params, lag_weight)
+            # line is parallel to the spline
+            boundary_left = path_point + dpath * (width_times * road_width_half - data.robot_area[0].radius)
 
-   set_solver_parameter_terminal_angle(k, self.solver._params, terminal_angle_weight)
-   set_solver_parameter_terminal_contouring(k, self.solver._params, terminal_contouring_weight)
+            b = A.transpose() * boundary_left
 
-   if (_dynamic_velocity_reference):
-    set_solver_parameter_velocity(k, self.solver._params, velocity_weight)
-    set_solver_parameter_reference_velocity(k, self.solver._params, reference_velocity)
+            module_data.static_obstacles[k].emplace_back(A, b)
 
-  setspline_parameters(k)
+            # right HALFSPACE
+            A = self.spline.get_orthogonal(cur_s)
 
- def setspline_parameters(self, k):
+            boundary_right = path_point - dpath * (road_width_half - data.robot_area[0].radius)
+            b = A.transpose() * boundary_right
 
-  for i in range(self.get_num_segments):
+            module_data.static_obstacles[k].emplace_back(-A, -b)
 
-   index = closest_segment + i
+    def construct_road_constraints_from_bounds(self, data, module_data):
+        if module_data.static_obstacles.empty():
+            module_data.static_obstacles.resize(self.solver.N)
+            for k in range(module_data.static_obstacles.size()):
+                module_data.static_obstacles[k].reserve(2)
 
-   spline.get_parameters(index,
-               ax, bx, cx, dx,
-               ay, by, cy, dy)
+        for k in range(self.solver.N):
+            module_data.static_obstacles[k].clear()
+            cur_s = self.solver.get_ego_prediction(k, "spline")
 
-   start = spline.get_segment_start(index)
+            # left
+            Al = self.bound_left.get_orthogonal(cur_s)
+            bl = Al.transpose() * (self.bound_left.get_point(cur_s) + Al * data.robot_area[0].radius)
+            module_data.static_obstacles[k].emplace_back(-Al, -bl)
 
+            # right HALFSPACE
+            Ar = self.bound_right.get_orthogonal(cur_s)
+            br = Ar.transpose() * (self.bound_right.get_point(cur_s) - Ar * data.robot_area[0].radius)
+            module_data.static_obstacles[k].emplace_back(Ar, br)
 
-   set_solver_parameterspline_xa(k, self.solver._params, ax, i)
-   set_solver_parameterspline_xb(k, self.solver._params, bx, i)
-   set_solver_parameterspline_xc(k, self.solver._params, cx, i)
-   set_solver_parameterspline_xd(k, self.solver._params, dx, i)
+    # Visualization methods would need to be adapted to your visualization system
+    # I've commented them out as they rely on undefined components
 
-   set_solver_parameterspline_ya(k, self.solver._params, ay, i)
-   set_solver_parameterspline_yb(k, self.solver._params, by, i)
-   set_solver_parameterspline_yc(k, self.solver._params, cy, i)
-   set_solver_parameterspline_yd(k, self.solver._params, dy, i)
-
-   # Distance where this spline starts
-   set_solver_parameterspline_start(k, self.solver._params, start, i)
-
-
- def on_data_received(self, data, data_name):
-  if data_name == "reference_path":
-
-   logger.log(10, "Received Reference Path")
-
-   # Construct a spline from the given points
-   if (data.reference_path.s.empty()):
-    spline = make_shared(RosTools.Spline2D(data.reference_path.x, data.reference_path.y))
-   else:
-    spline = make_shared(RosTools.Spline2D(data.reference_path.x, data.reference_path.y, data.reference_path.s))
-
-   if self._add_road_constraints and (not data.left_bound.empty() and not data.right_bound.empty()):
-
-    # Add bounds
-    bound_left = make_unique(RosTools.Spline2D(
-      data.left_bound.x,
-      data.left_bound.y,
-      spline.getTVector()))
-    bound_right = make_unique(RosTools.Spline2D>(
-      data.right_bound.x,
-      data.right_bound.y,
-      spline.getTVector()))
-
-    # update the road width
-    CONFIG["road"]["width"] = RosTools.distance(bound_left.get_point(0), bound_right.get_point(0))
-
-   closest_segment = -1
-
- def is_data_ready(self, data, missing_data):
-
-  if (data.reference_path.x.empty()):
-   missing_data += "Reference Path "
-
-  return data.reference_path.x.empty()
-
- def is_objective_reached(self, state, data):
-
-  if not spline:
-   return False
-
-  # Check if we reached the end of the spline
-  return RosTools.distance(self, state.getPos(), spline.get_point(spline.parameter_length())) < 1.0
-
- def construct_road_constraints(self, data, module_data):
-
-  logger.log(10, "Constructing road constraints.")
-
-  if data.left_bound.empty() or data.right_bound.empty():
-   construct_road_constraints_from_centerline(data, module_data)
-  else:
-   construct_road_constraints_from_bounds(data, module_data)
-
-
- def construct_road_constraints_from_centerline(self, data, module_data):
-
-  # If bounds are not supplied construct road constraints based on a set width
-  if module_data.static_obstacles.empty():
-   module_data.static_obstacles.resize(solver.N)
-   for k in range(module_data.static_obstacles.size()):
-    module_data.static_obstacles[k].reserve(2)
-
-  # OLD VERSION:
-  road_width_half = CONFIG["road"]["width"] / 2.
-  for k in range(solver.N):
-
-   module_data.static_obstacles[k].clear()
-
-   cur_s = solver.get_ego_prediction(k, "spline")
-
-   # This is the final point and the normal vector of the path
-   vector_2d path_point = spline.get_point(cur_s)
-   vector_2d dpath = spline.get_orthogonal(cur_s)
-
-   # left HALFSPACE
-   A = spline.get_orthogonal(cur_s)
-   if self._two_way_road:
-    width_times = 3.0
-   else:
-    width_times = 1.0
-
-   # line is parallel to the spline
-   boundary_left = path_point + dpath * (width_times * road_width_half - data.robot_area[0].radius)
-
-   b = A.transpose() * boundary_left
-
-   module_data.static_obstacles[k].emplace_back(A, b)
-
-   # right HALFSPACE
-   A = spline.get_orthogonal(cur_s) # Vector2d(-path_dy, path_dx) # line is parallel to the spline
-
-   boundary_right = path_point - dpath * (road_width_half - data.robot_area[0].radius)
-   b = A.transpose() * boundary_right # And lies on the boundary point
-
-   module_data.static_obstacles[k].emplace_back(-A, -b)
-
- def construct_road_constraints_from_bounds(self, data, module_data):
-
-  if module_data.static_obstacles.empty():
-   module_data.static_obstacles.resize(solver.N)
-   for k in range(module_data.static_obstacles.size()):
-    module_data.static_obstacles[k].reserve(2)
-
-  for k in range(solver.N):
-   module_data.static_obstacles[k].clear()
-   cur_s = solver.get_ego_prediction(k, "spline")
-
-   # left
-   Al = bound_left.get_orthogonal(cur_s)
-   bl = Al.transpose() * (bound_left.get_point(cur_s) + Al * data.robot_area[0].radius)
-   module_data.static_obstacles[k].emplace_back(-Al, -bl)
-
-   # right HALFSPACE
-   Ar = bound_right.get_orthogonal(cur_s)
-   br = Ar.transpose() * (bound_right.get_point(cur_s) - Ar * data.robot_area[0].radius)
-   module_data.static_obstacles[k].emplace_back(Ar, br)
-
- def visualize(self, data, module_data):
-
-  if spline.get() == None:
-   return
-
-  if data.reference_path.empty():
-   return
-
-  logger.log(10, "Contouring::Visualize")
-
-  visualize_reference_path(data, module_data)
-  visualize_road_constraints(data, module_data)
-
-  if (CONFIG["debug_visuals"]):
-   visualize_current_segment(data, module_data)
-   visualize_debug_road_boundary(data, module_data)
-   visualize_debug_gluedsplines(data, module_data)
-   visualize_allspline_indices(data, module_data)
-   visualize_tracked_section(data, module_data)
-
-
- def visualize_current_segment(self, data, module_data):
-
-  # Visualize the current points
-  publisher_current = VISUALS.missing_data(_name + "/current")
-  cur_point = publisher_current.get_new_point_marker("CUBE")
-  cur_point.set_color_int(10)
-  cur_point.set_scale(0.3, 0.3, 0.3)
-  cur_point.add_point_marker(spline.get_point(spline.get_segment_start(closest_segment)), 0.0)
-  publisher_current.publish()
-
- def visualize_tracked_section(self, data, module_data):
-
-  # Visualize the current points
-  publisher = VISUALS.missing_data(_name + "/tracked_path")
-  line = publisher.get_new_line()
-
-  line.set_solor_nt(10)
-  line.set_scale(0.3, 0.3, 0.3)
-
-  i = closest_segment
-  while i < closest_segment + _n_segments:
-
-   s_start = spline.get_segment_start(i)
-   s = s_start + 1.0
-   while s < spline.get_segment_start(i + 1):
-
-    if (s > 0):
-     line.add_line(spline.get_point(s - 1.0), spline.get_point(s))
-    s += 1.0
-
-   i+=1
-
-  publisher.publish()
-
- # Move to data visualization
- def visualize_reference_path(self, data, module_data):
-
-  visualize_path_points(data.reference_path, _name + "/path", False)
-  visualizespline(*spline, _name + "/path", True)
-
- def visualize_road_constraints(self, data, module_data):
-
-  if module_data.static_obstacles.empty() or not self._add_road_constraints:
-   return
-
-  for k in range(solver.N):
-
-   for h in range(module_data.static_obstacles[k].size()):
-    visualize_linear_constraint(module_data.static_obstacles[k][h], k, solver.N, _name + "/road_boundary_constraints", solver.N - 1, h == module_data.static_obstacles[k].size() - 1, 0.5, 0.1)
-
-
- def visualize_debug_road_boundary(self, data, module_data):
-
-  publisher = VISUALS.missing_data(_name + "/road_boundary_points")
-  points = publisher.get_new_point_marker("CUBE")
-  points.set_scale(0.15, 0.15, 0.15)
-
-  # OLD VERSION:
-  two_way = self._two_way_road
-  road_width_half = CONFIG["road"]["width"] / 2.
-  for k in range(solver.N):
-   cur_s = solver.get_ego_prediction(k, "spline")
-   path_point = spline.get_point(cur_s)
-
-   points.set_color_int(5, 10)
-   points.add_point_marker(path_point)
-
-   dpath = spline.get_orthogonal(cur_s)
-
-   if two_way:
-    width_times = 3.0 # 3w for lane
-   else:
-    width_times = 1.0
-
-   # line is parallel to the spline
-   boundary_left = path_point + dpath * (width_times * road_width_half - data.robot_area[0].radius)
-
-   boundary_right = path_point - dpath * (road_width_half - data.robot_area[0].radius)
-
-   points.set_color(0., 0., 0.)
-   points.add_point_marker(boundary_left)
-   points.add_point_marker(boundary_right)
-
-  publisher.publish()
-
- def visualize_debug_gluedsplines(self, data,module_data):
-
-  # Plot how the optimization joins the splines together to debug its internal contouring error computation
-  publisher = VISUALS.missing_data(_name + "/gluedspline_points")
-  points = publisher.get_new_point_marker("CUBE")
-  points.set_scale(0.15, 0.15, 0.15)
-
-  for k in range(solver.N):
-
-   for i in range (self._n_segments):
-    index = closest_segment + i
-
-
-    if (index < spline.get_num_segments()):
-     spline.get_parameters(index, ax, bx, cx, dx, ay, by, cy, dy)
-
-     start = spline.get_segment_start(index)
-    else:
-     # If we are beyond the spline, we should use the last spline
-     spline.get_parameters(spline.get_num_segments() - 1, ax, bx, cx, dx, ay, by, cy, dy)
-
-     start = spline.get_segment_start(spline.get_num_segments() - 1)
-
-     # We should use very small splines at the end location
-     # x = d_x
-     # y = d_y
-     ax = 0.
-     bx = 0.
-     cx = 0.
-     ay = 0.
-     by = 0.
-     cy = 0.
-     start = spline.parameter_length()
-
-    s = solver.get_ego_prediction(k, "spline") - start
-    path_x.push_back(ax * s * s * s + bx * s * s + cx * s + dx)
-    path_y.push_back(ay * s * s * s + by * s * s + cy * s + dy)
-
-    # No lambda for the first segment (it is not glued to anything prior)
-    if (i > 0):
-     lambdas.push_back(1.0 / (1.0 + exp((s + 0.02) / 0.1))) # Sigmoid
-
-
-   cur_path_x = path_x.back()
-   cur_path_y = path_y.back()
-   p = path_x.size() - 1
-   while p > 0:
-    # Glue with the previous path
-    cur_path_x = lambdas[p - 1] * path_x[p - 1] + (1.0 - lambdas[p - 1]) * cur_path_x
-    cur_path_y = lambdas[p - 1] * path_y[p - 1] + (1.0 - lambdas[p - 1]) * cur_path_y
-    p -= 1
-
-   points.add_point_marker(Vector2d(cur_path_x, cur_path_y))
-  publisher.publish()
-
-
- def visualize_allspline_indices(self, data, module_data):
-
-  # Plot how the optimization joins the splines together to debug its internal contouring error computation
-  publisher = VISUALS.missing_data(_name + "/spline_variables")
-  points = publisher.get_new_point_marker("CUBE")
-  points.set_scale(0.15, 0.15, 0.15)
-
-  for k in range(solver.N):
-
-   cur_s = solver.get_ego_prediction(k, "spline")
-   path_point = spline.get_point(cur_s)
-   points.add_point_marker(path_point)
-
-  publisher.publish()
-
- def reset(self):
-  spline.reset()
-  closest_segment = 0
+    def reset(self):
+        if hasattr(self, 'spline') and self.spline is not None:
+            self.spline.reset()
+        self.closest_segment = 0

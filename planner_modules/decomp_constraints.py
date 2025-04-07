@@ -12,7 +12,7 @@ class DecompConstraints:
   self.solver = solver
   self.module_type = CONSTRAINT
   self.name = "decomp_constraints"
-  logger.log(10, "Initializing Decomp Constraints")
+  LOG_DEBUG( "Initializing Decomp Constraints")
   self._get_num_segments = CONFIG["contouring"]["get_num_segments"]
   self._decomp_util = make_unique(EllipsoidDecomp2D)
 
@@ -38,12 +38,12 @@ class DecompConstraints:
     self._a2[d][k] = x_dim_array(_max_constraints)
     self._b[d][k] = x_dim_array(_max_constraints)
   
-  logger.log(10, "Decomp Constraints successfully initialized")
+  LOG_DEBUG( "Decomp Constraints successfully initialized")
 
  def update(self, state, data, module_data):
 
   PROFILE_SCOPE("DecompConstraints.update")
-  logger.log(10, "DecompConstraints.update")
+  LOG_DEBUG( "DecompConstraints.update")
 
   _dummy_b = state.get("x") + 100.
 
@@ -95,11 +95,11 @@ class DecompConstraints:
   if max_decomp_constraints > _max_constraints:
    logger.log("Maximum number of decomp util constraints exceeds specification: " + max_decomp_constraints + " > " + _max_constraints)
 
-  logger.log(10, "DecompConstraints::update done")
+  LOG_DEBUG( "DecompConstraints::update done")
 
  def get_occupied_grid_cells(self, data):
   PROFILE_FUNCTION()
-  logger.log(10, "get_occupied_grid_cells")
+  LOG_DEBUG( "get_occupied_grid_cells")
 
   costmap = data.costmap
 
@@ -135,7 +135,7 @@ class DecompConstraints:
    return
 
   if k == 1:
-   logger.log(10, "DecompConstraints::set_parameters")
+   LOG_DEBUG( "DecompConstraints::set_parameters")
 
   
   constraint_counter = 0 # Necessary for now to map the disc and obstacle index to a single index
@@ -211,7 +211,7 @@ class DecompConstraints:
   if not CONFIG["debug_visuals"]:
    return
 
-  logger.log(10, "DecompConstraints.Visualize")
+  LOG_DEBUG( "DecompConstraints.Visualize")
 
   map_publisher = VISUALS.get_publisher("map")
   point = map_publisher.get_new_point_marker("CUBE")

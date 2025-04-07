@@ -28,4 +28,4 @@ class State:
     it = _model_map.begin()
     for it !=_model_map.end():
       if (str(it.second[0]) == "x"):
-      logger.log(10, it.first + get(it.first))
+      LOG_DEBUG( it.first + get(it.first))

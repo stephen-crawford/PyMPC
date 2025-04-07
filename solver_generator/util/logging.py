@@ -42,7 +42,7 @@ def print_header(msg):
 class TimeTracker:
 
   def __init__(self, name):
-    self._name = name
+    self.name = name
     self._times = []
 
   def add(self, timing):
@@ -52,7 +52,7 @@ class TimeTracker:
     return np.mean(self._times), np.max(self._times), len(self._times)
 
   def print_stats(self):
-    print(f"--- Computation Times {self._name} ---")
+    print(f"--- Computation Times {self.name} ---")
     print_value("Mean", f"{np.mean(self._times):.1f} ms", tab=True)
     print_value("Max", f"{np.max(self._times):.1f} ms", tab=True)
     print_value("Number of calls", len(self._times), tab=True)

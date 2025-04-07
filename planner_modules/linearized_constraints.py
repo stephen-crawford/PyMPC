@@ -13,7 +13,7 @@ class LinearizedConstraints:
   self.solver = solver
   self.name = "linearized_constraints"
   self.controller = (self.module_type, solver, self.name)
-  Logger.log(10, "Initializing Linearized Constraints")
+  LOG_DEBUG( "Initializing Linearized Constraints")
   self._n_discs = CONFIG["n_discs"] # Is overwritten to 1 for topology constraints  
   self._n_other_halfspaces = CONFIG["linearized_constraints"]["add_halfspaces"]
   self._max_obstacles = CONFIG["max_obstacles"]
@@ -30,7 +30,7 @@ class LinearizedConstraints:
     self._a2[d][k] = Eigen.ArrayXd(n_constraints)
     self._b[d][k] = Eigen.ArrayXd(n_constraints)
   self._num_obstacles = 0
-  Logger.log(10, "Linearized Constraints successfully initialized")
+  LOG_DEBUG( "Linearized Constraints successfully initialized")
 
 
  def setTopologyConstraints(self):
@@ -39,7 +39,7 @@ class LinearizedConstraints:
 
  def update(self, state, data, module_data):
   
-  logger.log(10, "LinearizedConstraints::update")
+  LOG_DEBUG( "LinearizedConstraints::update")
 
   _dummy_b = state.get("x") + 100.
 
@@ -91,7 +91,7 @@ class LinearizedConstraints:
      self._b[d][k](obs_id) = self._a1[d][k](obs_id) * obstacle_pos(0) + self._a2[d][k](obs_id) * obstacle_pos(1) - (radius + CONFIG["robot_radius"])
 
     if not module_data.static_obstacles.empty() and module_data.static_obstacles[k].size() < self._n_other_halfspaces:
-     logger.log(10, self._n_other_halfspaces + " halfspaces expected, but " + module_data.static_obstacles[k].size() + " are present")
+     LOG_DEBUG( self._n_other_halfspaces + " halfspaces expected, but " + module_data.static_obstacles[k].size() + " are present")
 
 
     if not module_data.static_obstacles.empty():
@@ -104,7 +104,7 @@ class LinearizedConstraints:
       self._a2[d][k](obs_id) = module_data.static_obstacles[k][h].A(1)
       self._b[d][k](obs_id) = module_data.static_obstacles[k][h].b
      
-  logger.log(10, "LinearizedConstraints.update done")
+  LOG_DEBUG( "LinearizedConstraints.update done")
 
  def project_to_safety(self, copied_obstacles, k, pos):
   if copied_obstacles.empty() # There is no anchor
@@ -180,5 +180,5 @@ class LinearizedConstraints:
   k = 1
   while k < self.solver.N:
    for i in range(data.dynamic_obstacles.size()):
-    visualize_linear_constraint(self._a1[0][k](i), self._a2[0][k](i), self._b[0][k](i), k, self.solver.N, _name, k == solver.N - 1 and i == data.dynamic_obstacles.size() - 1) # Publish at the end
+    visualize_linear_constraint(self._a1[0][k](i), self._a2[0][k](i), self._b[0][k](i), k, self.solver.N, name, k == solver.N - 1 and i == data.dynamic_obstacles.size() - 1) # Publish at the end
    k +=1

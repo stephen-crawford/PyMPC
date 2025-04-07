@@ -13,7 +13,7 @@ class ScenarioConstraints:
   self.solver = solver
   self.name = "scenario_constraints"
   self.controller = (self.module_type, solver, self.name)
-  Logger.log(10, "Initializing Scenario Constraints")
+  LOG_DEBUG( "Initializing Scenario Constraints")
 
   self._planning_time = 1. / CONFIG["control_frequency"]
 
@@ -22,7 +22,7 @@ class ScenarioConstraints:
 
    _scenario_solvers.emplace_back(make_unique(ScenarioSolver(i))) # May need an integer input
 
-  Logger.log(10, "Scenario Constraints successfully initialized")
+  LOG_DEBUG( "Scenario Constraints successfully initialized")
 
  def update(self, state, data, module_data):
 
@@ -77,14 +77,14 @@ class ScenarioConstraints:
   return _best_solver.exit_code
 
  def on_data_received(self, data, data_name):
-  logger.log(10, "ScenarioConstraints.on_data_received()")
+  LOG_DEBUG( "ScenarioConstraints.on_data_received()")
 
   if data_name == "dynamic obstacles":
 
    # Check if uncertainty was provided
    for obs in data.dynamic_obstacles:
 
-    PYMPC_ASSERT(obs.prediction.type != DETERMINISTIC, "When using Scenario Constraints, the predictions should have a non-zero uncertainty. If you are using pedestrian_simulator, set `process_noise` in config/configuration.yaml to a non-zero value to add uncertainty.")
+    PYMPC_ASSERT(obs.prediction.type != DETERMINISTIC, "When using Scenario Constraints, the predictions should have a non-zero uncertainty. If you are using pedestrian_simulator, set `process_noise` in config/configuration.yml to a non-zero value to add uncertainty.")
 
    if (_SCENARIO_CONFIG.enable_safe_horizon_):
 
@@ -126,7 +126,7 @@ class ScenarioConstraints:
 
   bool visualize_all = False
 
-  logger.log(10, "ScenarioConstraints.visualize")
+  LOG_DEBUG( "ScenarioConstraints.visualize")
 
   if (visualize_all):
    for solver in _scenario_solvers:
@@ -141,6 +141,6 @@ class ScenarioConstraints:
     for k in range(solver.N):
      trajectory.add(solver.solver.get_output(k, "x"), solver.solver.get_output(k, "y"))
 
-    visualize_trajectory(trajectory, _name + "/optimized_trajectories", False, 0.2, solver.solver._solver_id, 2 * _scenario_solvers.size())
+    visualize_trajectory(trajectory, name + "/optimized_trajectories", False, 0.2, solver.solver._solver_id, 2 * _scenario_solvers.size())
 
-  VISUALS.missing_data(_name + "/optimized_trajectories").publish()
+  VISUALS.missing_data(name + "/optimized_trajectories").publish()

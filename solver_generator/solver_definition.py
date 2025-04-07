@@ -5,11 +5,11 @@ import casadi as cd
 def define_parameters(modules, params, settings):
 
   # Define parameters for objectives and constraints (in order)
-  for module in modules.modules:
+  for module in modules:
     if module.type == "objective":
       module.define_parameters(params)
 
-  for module in modules.modules:
+  for module in modules:
     if module.type == "constraint":
       module.define_parameters(params)
 
@@ -23,7 +23,7 @@ def objective(modules, z, p, model, settings, stage_idx):
   params.load(p)
   model.load(z)
 
-  for module in modules.modules:
+  for module in modules:
     if module.type == "objective":
       cost += module.get_value(model, params, settings, stage_idx)
 
@@ -51,7 +51,7 @@ def constraints(modules, z, p, model, settings, stage_idx):
 
 def constraint_upper_bounds(modules):
   ub = []
-  for module in modules.modules:
+  for module in modules:
     if module.type == "constraint":
       for constraint in module.constraints:
         ub += constraint.get_upper_bound()
@@ -60,7 +60,7 @@ def constraint_upper_bounds(modules):
 
 def constraint_lower_bounds(modules):
   lb = []
-  for module in modules.modules:
+  for module in modules:
     if module.type == "constraint":
       for constraint in module.constraints:
         lb += constraint.get_lower_bound()
@@ -69,7 +69,7 @@ def constraint_lower_bounds(modules):
 
 def constraint_number(modules):
   nh = 0
-  for module in modules.modules:
+  for module in modules:
     if module.type == "constraint":
       for constraint in module.constraints:
         nh += constraint.nh

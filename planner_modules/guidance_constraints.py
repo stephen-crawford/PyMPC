@@ -13,7 +13,7 @@ class GuidanceConstraints:
     self.solver = solver
     self.module_type = CONSTRAINT
     self.name = "guidance_constraints"
-    logger.log(10, "Initializing Guidance Constraints")
+    LOG_DEBUG( "Initializing Guidance Constraints")
 
     self.self.global_guidance_ = GlobalGuidance()
     self.debug_visuals_ = CONFIG["debug_visuals"]
@@ -30,21 +30,21 @@ class GuidanceConstraints:
 
     PYMPC_ASSERT(n_solvers > 0 or _use_tmpcpp, "Guidance constraints cannot run with 0 paths and T-MPC+=1 disabled!")
 
-    logger.log(10, "Solvers count: " + self.n_solvers)
+    LOG_DEBUG( "Solvers count: " + self.n_solvers)
     for i in range(self.n_solvers):
       planners_.emplace_back(i)
 
     if self._use_tmpcpp: # ADD IT AS FIRST PLAN
-      logger.log(10, "Using T-MPC+=1 (Adding the non-guided planner in parallel)")
+      LOG_DEBUG( "Using T-MPC+=1 (Adding the non-guided planner in parallel)")
       self.planners_.emplace_back(self.n_solvers, True)
 
-    logger.log(10, "Guidance Constraints successfully initialized")
+    LOG_DEBUG( "Guidance Constraints successfully initialized")
 
   def update(self, state, data, module_data):
-    logger.log(10, "Guidance Constraints.update")
+    LOG_DEBUG( "Guidance Constraints.update")
 
     if module_data.path == None:
-      logger.log(10, "Path data not yet available")
+      LOG_DEBUG( "Path data not yet available")
       return
 
     # Convert static obstacles
@@ -66,13 +66,13 @@ class GuidanceConstraints:
       self.global_guidance_.set_reference_velocity(CONFIG["weights"]["reference_velocity"]
 
     if not CONFIG["enable_output"]:
-      logger.log(10, "Not propagating nodes (output is disabled)")
+      LOG_DEBUG( "Not propagating nodes (output is disabled)")
       self.global_guidance_.do_not_propagate_nodes()
 
     # Set the goals for the guidance planner
     set_goals(self, state, module_data)
 
-    logger.log(10, "Running Guidance Search")
+    LOG_DEBUG( "Running Guidance Search")
     self.global_guidance_.update() # The main update 
 
     map_guidance_trajectories_to_planners()
@@ -82,7 +82,7 @@ class GuidanceConstraints:
     empty_data_.dynamic_obstacles.clear()
 
   def set_goals(self, state, module_data):
-    logger.log(10, "Setting guidance planner goals")
+    LOG_DEBUG( "Setting guidance planner goals")
 
     current_s = state.get("spline")
     robot_radius = CONFIG["robot_radius"]
@@ -187,7 +187,7 @@ class GuidanceConstraints:
     if k == 0:
       self.solver._params.solver_timeout = 0.02 # Should not do anything
 
-      logger.log(10, "Guidance Constraints does not need to set parameters")
+      LOG_DEBUG( "Guidance Constraints does not need to set parameters")
   
 
   def optimize(self, state, data, module_data):
@@ -196,7 +196,7 @@ class GuidanceConstraints:
     omp_set_nested(1)
     omp_set_max_active_levels(2)
     omp_set_dynamic(0)
-    logger.log(10, "Guidance Constraints.optimize")
+    LOG_DEBUG( "Guidance Constraints.optimize")
 
     if not self._use_tmpcpp and not self.global_guidance_.succeeded():
       return 0
@@ -220,7 +220,7 @@ class GuidanceConstraints:
 
       # Copy the data from the main solver
       solver = planner.local_solver
-      logger.log(10, "Planner [" + planner.id + "]: Copying data from main solver")
+      LOG_DEBUG( "Planner [" + planner.id + "]: Copying data from main solver")
       solver = self.solver # Copy the main solver
 
       # CONSTRUCT CONSTRAINTS
@@ -228,7 +228,7 @@ class GuidanceConstraints:
         planner.guidance_constraints.update(self, state, empty_data_, module_data)
         planner.safety_constraints.update(self, state, data, module_data) # updates collision avoidance constraints
       else:
-        logger.log(10, "Planner [" + planner.id + "]: Loading guidance into the solver and constructing constraints")
+        LOG_DEBUG( "Planner [" + planner.id + "]: Loading guidance into the solver and constructing constraints")
 
         if (CONFIG["t-mpc"]["warmstart_with_mpc_solution"] and planner.existing_guidance)
           planner.local_solver.initializeWarmstart(self, state, shift_forward)
@@ -239,7 +239,7 @@ class GuidanceConstraints:
         planner.safety_constraints.update(self, state, data, module_data)  # updates collision avoidance constraints
 
       # LOAD PARAMETERS
-      logger.log(10, "Planner [" + planner.id + "]: Loading updated parameters into the solver")
+      LOG_DEBUG( "Planner [" + planner.id + "]: Loading updated parameters into the solver")
       for k in range(self.solver.N):
     
         if (planner.is_original_planner)
@@ -256,10 +256,10 @@ class GuidanceConstraints:
       # SOLVE OPTIMIZATION
       # if (enable_guidance_warmstart_)
       planner.local_solver.load_warm_start()
-      logger.log(10, "Planner [" + planner.id + "]: Solving ...")
+      LOG_DEBUG( "Planner [" + planner.id + "]: Solving ...")
       planner.result.exit_code = solver.solve()
       # solver_results_[i].exit_code =ellipsoidal_constraints_[solver.solver_id_].Optimize(solver.get()) # IF THIS OPTIMIZATION EXISTS!
-      logger.log(10, "Planner [" + planner.id + "]: Done! (exitcode = " + planner.result.exit_code + ")")
+      LOG_DEBUG( "Planner [" + planner.id + "]: Done! (exitcode = " + planner.result.exit_code + ")")
 
       # ANALYSIS AND PROCESSING
       planner.result.success = planner.result.exit_code == 1
@@ -286,7 +286,7 @@ class GuidanceConstraints:
       best_planner_index_ = find_best_planner()
       if best_planner_index_ == -1:
 
-        logger.log(10, "Failed to find a feasible trajectory in any of the " + std::to_string(planners_.size()) + " optimizations.")
+        LOG_DEBUG( "Failed to find a feasible trajectory in any of the " + std::to_string(planners_.size()) + " optimizations.")
         return planners_[0].result.exit_code
 
       best_planner = self.planners_[best_planner_index_]
@@ -345,7 +345,7 @@ class GuidanceConstraints:
   def visualize(self, data, module_data):
   
     PROFILE_SCOPE("GuidanceConstraints::Visualize")
-    logger.log(10, "Guidance Constraints: Visualize()")
+    LOG_DEBUG( "Guidance Constraints: Visualize()")
 
     # self.global_guidance_.Visualize(highlight_selected_guidance_, visualized_guidance_trajectory_nr_)
     if (not(self._use_tmpcpp and self.global_guidance_.get_config().n_paths_ == 0)): # If global guidance
@@ -365,7 +365,7 @@ class GuidanceConstraints:
         initial_trajectory = []
         for k in range(planner.local_solver.N): 
           initial_trajectory.add(planner.local_solver.get_ego_prediction(k, "x"), planner.local_solver.get_ego_prediction(k, "y"))
-        visualize_trajectory(initial_trajectory, self._name + "/warmstart_trajectories", False, 0.2, 20, 20)
+        visualize_trajectory(initial_trajectory, self.name + "/warmstart_trajectories", False, 0.2, 20, 20)
 
 
       # Visualize the optimized trajectory
@@ -375,18 +375,18 @@ class GuidanceConstraints:
           trajectory.add(planner.local_solver.get_output(k, "x"), planner.local_solver.get_output(k, "y"))
 
         if i == best_planner_index_:
-          visualize_trajectory(trajectory, _name + "/optimized_trajectories", False, 1.0, -1, 12, True, False)
+          visualize_trajectory(trajectory, name + "/optimized_trajectories", False, 1.0, -1, 12, True, False)
         elif (planner.is_original_planner):
-          visualize_trajectory(trajectory, _name + "/optimized_trajectories", False, 1.0, 11, 12, True, False)
+          visualize_trajectory(trajectory, name + "/optimized_trajectories", False, 1.0, 11, 12, True, False)
         else:
-          visualize_trajectory(trajectory, _name + "/optimized_trajectories", False, 1.0, planner.result.color, self.global_guidance_.get_config().n_paths_, True, False)
+          visualize_trajectory(trajectory, name + "/optimized_trajectories", False, 1.0, planner.result.color, self.global_guidance_.get_config().n_paths_, True, False)
         # else if (!planner.existing_guidance) # Visualizes new homotopy classes
-        # visualize_trajectory(trajectory, _name + "/optimized_trajectories", False, 0.2, 11, 12, True, False)
+        # visualize_trajectory(trajectory, name + "/optimized_trajectories", False, 0.2, 11, 12, True, False)
       
 
-      VISUALS.missing_data(_name + "/optimized_trajectories").publish()
+      VISUALS.missing_data(name + "/optimized_trajectories").publish()
       if (CONFIG["debug_visuals"]):
-        VISUALS.missing_data(_name + "/warmstart_trajectories").publish()
+        VISUALS.missing_data(name + "/warmstart_trajectories").publish()
 
   def is_data_ready(self, data, missing_data):
 
@@ -405,7 +405,7 @@ class GuidanceConstraints:
 
     if data_name == "goal": # New
 
-      logger.log(10, "Goal input is not yet implemented for T-MPC")
+      LOG_DEBUG( "Goal input is not yet implemented for T-MPC")
 
       # start = self.global_guidance_.GetStart()
       # std::vector<> x = {start(0), data.goal(0)}
@@ -417,7 +417,7 @@ class GuidanceConstraints:
 
     # We wait for both the obstacles and state to arrive before we compute here
     if data_name == "dynamic obstacles":
-      logger.log(10, "Guidance Constraints: Received dynamic obstacles")
+      LOG_DEBUG( "Guidance Constraints: Received dynamic obstacles")
 
       # #pragma omp parallel for num_threads(8)
       for planner in self.planners_:

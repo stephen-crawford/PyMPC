@@ -12,12 +12,12 @@ class EllipsoidConstraints:
   self.solver = solver
   self.module_type = CONSTRAINT
   self.name = "ellipsoid_constraints"
-  logger.log(10, "Initializing Ellipsoid Constraints")
+  LOG_DEBUG( "Initializing Ellipsoid Constraints")
   self._get_num_segments = CONFIG["contouring"]["get_num_segments"]
   self._n_discs = CONFIG["n_discs"]
   self._robot_radius = CONFIG["robot_radius"]
   self._risk = CONFIG["probabilistic"]["risk"]
-  logger.log(10, "Ellipsoid Constraints successfully initialized")
+  LOG_DEBUG( "Ellipsoid Constraints successfully initialized")
 
  def update(self, state, data, module_data):
 
@@ -45,7 +45,7 @@ class EllipsoidConstraints:
    return
 
   if k == 1:
-   logger.log(10, "EllipsoidConstraints::set_parameters")
+   LOG_DEBUG( "EllipsoidConstraints::set_parameters")
 
   for i in range(data.dynamic_obstacles.size()):
   
@@ -73,7 +73,7 @@ class EllipsoidConstraints:
 
 
   if k == 1:
-   logger.log(10, "EllipsoidConstraints::set_parameters Done")
+   LOG_DEBUG( "EllipsoidConstraints::set_parameters Done")
 
  def is_data_ready(self, data, missing_data):
   if data.robot_area.size() == 0:

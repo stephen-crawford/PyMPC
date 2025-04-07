@@ -26,7 +26,7 @@ class ROSNavigationPlanner:
 
       self.initialized_ = True
 
-      logger.log(10, "Started ROSNavigation Planner")
+      LOG_DEBUG( "Started ROSNavigation Planner")
 
       VISUALS.init(general_node_handler)
 
@@ -68,7 +68,7 @@ class ROSNavigationPlanner:
     # check if plugin is initialized
     if not self.initialized:
 
-      logger.log(10, "ROS planner has not been initialized, please call initialize() before using this planner")
+      LOG_DEBUG( "ROS planner has not been initialized, please call initialize() before using this planner")
       return False
 
 
@@ -86,7 +86,7 @@ class ROSNavigationPlanner:
 
   def compute_velocity_commands(self, cmd_vel):
     if not self.initialized:
-      logger.log(10, "This planner has not been initialized")
+      LOG_DEBUG( "This planner has not been initialized")
       return False
 
     path = make_shared(Path)
@@ -102,7 +102,7 @@ class ROSNavigationPlanner:
 
 
   def initialize_subscribers_and_publishers(self, node_handler):
-    logger.log(10, "initializeSubscribersAndPublishers")
+    LOG_DEBUG( "initializeSubscribersAndPublishers")
 
     _state_sub = node_handler.subscribe("/input/state", 5, bind(state_callback, self, _1))
 
@@ -144,7 +144,7 @@ class ROSNavigationPlanner:
     #   costmap_.setCost(mx + i, my, costmap_2d::LETHAL_OBSTACLE)
     # }
 
-    logger.log(10, "Starting pedestrian simulator")
+    LOG_DEBUG( "Starting pedestrian simulator")
     i = 0
     while i < 20:
       horizon_msg = None
@@ -172,21 +172,21 @@ class ROSNavigationPlanner:
   def is_goal_reached(self):
 
     if not self.initialized:
-      logger.log(10, "This planner has not been initialized")
+      LOG_DEBUG( "This planner has not been initialized")
       return False
 
     goal_reached = _planner.is_objective_reached(_state, _data) and not done_ # Activate once
     if (goal_reached):
-      logger.log(10, "Goal Reached!")
+      LOG_DEBUG( "Goal Reached!")
       done_ = True
       self.reset()
 
     return goal_reached
 
   def rotate_to_goal(self, cmd_vel):
-    logger.log(10, "Rotating to the goal")
+    LOG_DEBUG( "Rotating to the goal")
     if not _data.goal_received:
-      logger.log(10, "Waiting for the goal")
+      LOG_DEBUG( "Waiting for the goal")
       return
     goal_angle = 0.
 
@@ -209,7 +209,7 @@ class ROSNavigationPlanner:
         cmd_vel.angular.z = 0.
 
     else:
-      logger.log(10, "Robot rotated and is ready to follow the path")
+      LOG_DEBUG( "Robot rotated and is ready to follow the path")
       _rotate_to_goal = False
 
   def loop(self, cmd_vel):
@@ -220,7 +220,7 @@ class ROSNavigationPlanner:
 
     data.planning_start_time = system_clock.now()
 
-    logger.log(10, "============= Loop =============")
+    LOG_DEBUG( "============= Loop =============")
 
     if _timeout_timer.hasFinished():
     
@@ -244,7 +244,7 @@ class ROSNavigationPlanner:
       # Publish the command
       cmd_vel.linear.x = _planner.get_solution(1, "v") # = x1
       cmd_vel.angular.z = _planner.get_solution(0, "w") # = u0
-      logger.log(10, "Commanded v: " + cmd.linear.x)
+      LOG_DEBUG( "Commanded v: " + cmd.linear.x)
       LOG_VALUE_DEBUG(10, "Commanded w: " + cmd.angular.z)
     else:
       deceleration = CONFIG["deceleration_at_infeasible"]
@@ -275,11 +275,11 @@ class ROSNavigationPlanner:
       self._planner.visualize(state, data)
       visualize()
     
-    logger.log(10, "============= End Loop =============")
+    LOG_DEBUG( "============= End Loop =============")
 
   def state_callback(self, msg):
   
-    logger.log(10, "State callback")
+    LOG_DEBUG( "State callback")
     self._state.set("x", msg.pose.pose.position.x)
     self._state.set("y", msg.pose.pose.position.y)
     self._state.set("psi", RosTools.quaternion_to_angle(msg.pose.pose.orientation))
@@ -287,11 +287,11 @@ class ROSNavigationPlanner:
 
     if (abs(msg.pose.pose.orientation.x) > (M_PI / 8.) or abs(msg.pose.pose.orientation.y) > (M_PI / 8.)):
 
-      logger.log(10, "Detected flipped robot. Resetting.")
+      LOG_DEBUG( "Detected flipped robot. Resetting.")
       reset(False) # Reset without success
 
   def state_pose_callback(self, msg):
-    logger.log(10, "State callback")
+    LOG_DEBUG( "State callback")
 
     self._state.set("x", msg.pose.position.x)
     self._state.set("y", msg.pose.position.y)
@@ -299,12 +299,12 @@ class ROSNavigationPlanner:
     self._state.set("v", msg.pose.position.z)
 
     if (abs(msg.pose.orientation.x) > (M_PI / 8.) or abs(msg.pose.orientation.y) > (M_PI / 8.)):
-      logger.log(10, "Detected flipped robot. Resetting.")
+      LOG_DEBUG( "Detected flipped robot. Resetting.")
       reset(False) # Reset without success
   
 
   def goal_callback(self, msg):
-    logger.log(10, "Goal callback")
+    LOG_DEBUG( "Goal callback")
 
     self._data.goal(0) = msg.pose.position.x
     self._data.goal(1) = msg.pose.position.y
@@ -327,7 +327,7 @@ class ROSNavigationPlanner:
     return True
 
   def path_callback(self, msg):
-    logger.log(10, "Path callback")
+    LOG_DEBUG( "Path callback")
 
     downsample = CONFIG["downsample_path"]
 
@@ -363,7 +363,7 @@ class ROSNavigationPlanner:
     self._planner.on_data_received(_data, "reference_path")
 
   def obstacle_callback(self, msg):
-    logger.log(10, "Obstacle callback")
+    LOG_DEBUG( "Obstacle callback")
 
     self._data.dynamic_obstacles.clear()
 
@@ -407,7 +407,7 @@ class ROSNavigationPlanner:
     publisher.publish()
 
   def reset(self, success):
-    logger.log(10, "Resetting")
+    LOG_DEBUG( "Resetting")
     l(_reset_mutex)
 
     _reset_simulation_client.call(_reset_msg)
@@ -430,12 +430,12 @@ class ROSNavigationPlanner:
     _timeout_timer.start()
 
   def collision_callback(self, msg):
-    logger.log(10, "Collision callback")
+    LOG_DEBUG( "Collision callback")
 
     _data.intrusion = (float)(msg.data)
 
     if (_data.intrusion > 0.)
-      logger.log(10, "Collision detected (Intrusion: " + _data.intrusion + ")")
+      LOG_DEBUG( "Collision detected (Intrusion: " + _data.intrusion + ")")
 
   def publish_pose(self):
     pose.pose.position.x = _state.get("x")

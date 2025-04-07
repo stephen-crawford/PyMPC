@@ -1,19 +1,15 @@
-import os
-
-import math
-import time
-import yaml
-import logging
-import random
-import numpy as np
-import threading
 import datetime
-import functools
 import inspect
+import logging
+import os
+import random
+import threading
+import time
 from contextlib import contextmanager
 
-import logging
-
+import math
+import numpy as np
+import yaml
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -24,7 +20,7 @@ def read_config_file():
     with open(config_path, 'r') as file:
         try:
             return yaml.safe_load(file)
-        except yaml.YAMLError as e:
+        except yaml.ymlError as e:
             print(f"Error reading YAML file: {e}")
             return None
 # Read configuration
@@ -568,6 +564,7 @@ class ExperimentManager:
         self.data_saver.save_data(self.SAVE_FOLDER, self.SAVE_FILE)
 
     def on_task_complete(self, objective_reached):
+
         self.data_saver.add_data("reset", self.control_iteration)
         self.data_saver.add_data(
             "metric_duration",
@@ -580,7 +577,7 @@ class ExperimentManager:
 
         num_experiments = int(CONFIG["recording"]["num_experiments"])
         if self.experiment_counter % num_experiments == 0 and self.experiment_counter > 0:
-            self.export_data()  # Fixed: was passing arguments incorrectly
+            self.export_data()
 
         if self.experiment_counter >= num_experiments:
             logger.info(f"Completed {num_experiments} experiments.")

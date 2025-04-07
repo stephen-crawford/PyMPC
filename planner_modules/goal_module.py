@@ -13,8 +13,8 @@ class GoalModule:
     self.solver = solver
     self.module_type = OBJECTIVE
     self.name = "goal_module"
-    logger.log(10, "Initializing Goal Module")
-    logger.log(10, "Goal Module successfully initialized")
+    LOG_DEBUG( "Initializing Goal Module")
+    LOG_DEBUG( "Goal Module successfully initialized")
 
   def update(self, state, data, module_data):
     return
@@ -23,7 +23,7 @@ class GoalModule:
   
     
     if k == 0:
-      logger.log(10, "Goal Module.set_parameters()")
+      LOG_DEBUG( "Goal Module.set_parameters()")
 
     set_solver_parameter_goal_x(k, self.solver._params, data.goal(0))
     set_solver_parameter_goal_y(k, self.solver._params, data.goal(1))
@@ -49,7 +49,7 @@ class GoalModule:
     if not data.goal_received:
       return
 
-    publisher = VISUALS.get_publisher(_name)
+    publisher = VISUALS.get_publisher(name)
     sphere = publisher.get_new_point_marker("SPHERE")
 
     sphere.set_color_int(5)

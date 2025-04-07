@@ -88,7 +88,7 @@ class ROSMarker:
         p = Point()
         p.x = v[0]
         p.y = v[1]
-        p.z = v[2]
+        p.z = v[2] if len(v) > 2 else 0.0
         return p
 
     @staticmethod
@@ -285,6 +285,11 @@ class ROSLine(ROSMarker):
             point1 = self.vec_to_point(p1)
             point2 = self.vec_to_point(p2)
             self.add_line_points(point1, point2)
+        elif isinstance(p1, np.ndarray) and len(p1) == 2 and z is None:
+            # Handle 2D points with default z=0
+            point1 = self.vec_to_point(np.array([p1[0], p1[1], 0.0]))
+            point2 = self.vec_to_point(np.array([p2[0], p2[1], 0.0]))
+            self.add_line_points(point1, point2)
         elif isinstance(p1, Point) and isinstance(p2, Point):
             # Handle Point messages
             self.add_line_points(p1, p2)
@@ -374,6 +379,13 @@ class ROSPointMarker(ROSMarker):
         elif isinstance(p, np.ndarray) and len(p) == 3:
             # Handle 3D point
             result = self.vec_to_point(p)
+            self.add_point_from_msg(result)
+        elif isinstance(p, np.ndarray) and len(p) == 2 and z is None:
+            # Handle 2D point with default z=0
+            result = Point()
+            result.x = p[0]
+            result.y = p[1]
+            result.z = 0.0
             self.add_point_from_msg(result)
         elif isinstance(p, Point):
             # Handle Point message
@@ -550,6 +562,13 @@ class ROSModelMarker(ROSMarker):
             # Handle 3D point
             result = self.vec_to_point(p)
             self.add_point_from_msg(result)
+        elif isinstance(p, np.ndarray) and len(p) == 2 and z is None:
+            # Handle 2D point with default z=0
+            result = Point()
+            result.x = p[0]
+            result.y = p[1]
+            result.z = 0.0
+            self.add_point_from_msg(result)
         elif isinstance(p, Point):
             # Handle Point message
             self.add_point_from_msg(p)
@@ -570,3 +589,46 @@ class ROSModelMarker(ROSMarker):
 
         # Add to publisher
         self.ros_publisher_.add(self.marker_)
+
+
+# New class to manage publishers - similar to how C++ implementation works
+class ROSVisualsManager:
+    def __init__(self, node, frame_id="map"):
+        self.node = node
+        self.frame_id = frame_id
+        self.publishers = {}
+
+    def getPublisher(self, name):
+        """Get or create a publisher with the given name"""
+        if name not in self.publishers:
+            # Create new publisher
+            self.publishers[name] = ROSMarkerPublisher(self.node, f"/visualization/{name}", self.frame_id)
+        return self.publishers[name]
+
+
+# Singleton instance for visualizer
+class VisualizerSingleton:
+    _instance = None
+
+    @classmethod
+    def initialize(cls, node, frame_id="map"):
+        """Initialize the visualizer singleton"""
+        if cls._instance is None:
+            cls._instance = ROSVisualsManager(node, frame_id)
+        return cls._instance
+
+    @classmethod
+    def getInstance(cls):
+        """Get the visualizer singleton instance"""
+        if cls._instance is None:
+            raise RuntimeError("Visualizer singleton not initialized")
+        return cls._instance
+
+
+# Global VISUALS accessor - matches C++ usage
+def get_visualizer():
+    return VisualizerSingleton.getInstance()
+
+
+# Define a global VISUALS variable when imported
+VISUALS = None

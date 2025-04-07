@@ -1,14 +1,17 @@
 import sys, os
+
+from solver_generator import solver_model
+
 sys.path.append(os.path.join(sys.path[0],'..'))
 
 import numpy as np
 import casadi
 
-from util.parameters import Parameters
-from util.files import load_settings, get_package_path, parameter_map_path, write_to_yaml
-from util.logging import print_value, print_header, print_success, print_warning, print_path
+from solver_generator.util.parameters import Parameters
+from solver_generator.util.files import load_settings, get_package_path, parameter_map_path, write_to_yaml
+from solver_generator.util.logging import print_value, print_header, print_success, print_warning, print_path
 
-import solver_model
+import solver_generator.solver_model
 
 def test_parameters():
   params = Parameters()

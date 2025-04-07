@@ -14,8 +14,8 @@ class GaussianConstraints:
   self.name = "gaussian_constraints"
    
  
-  logger.log(10, "Initializing Gaussian Constraints")
-  logger.log(10, "Gaussian Constraints successfully initialized")
+  LOG_DEBUG( "Initializing Gaussian Constraints")
+  LOG_DEBUG( "Gaussian Constraints successfully initialized")
 
  def update(self, state, data, module_data):
   _dummy_x = state.get("x") + 100.
@@ -75,8 +75,8 @@ class GaussianConstraints:
  def visualize(self, data,module_data):
 
   PROFILE_SCOPE("GuidanceConstraints::Visualize")
-  logger.log(10, "GaussianConstraints.visualize")
-  publisher = VISUALS.missing_data(_name)
+  LOG_DEBUG( "GaussianConstraints.visualize")
+  publisher = VISUALS.missing_data(name)
 
   ellipsoid = publisher.get_new_point_marker("CYLINDER")
 

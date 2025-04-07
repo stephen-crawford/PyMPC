@@ -1,99 +1,90 @@
-from planner.src.data_prep import logger
+from functools import partial
+
+from planner.src.types import TwoDimensionalSpline
+from solver.solver_interface import set_solver_parameter
 from utils.const import OBJECTIVE
-
-
-from utils.utils import read_config_file
+from utils.utils import read_config_file, LOG_DEBUG
+from utils.visualizer import VISUALS
 
 CONFIG = read_config_file()
 
 
 class PathReferenceVelocity:
 
-  def __init__(self, solver):
-    self.solver = solver
-    self.module_type = OBJECTIVE
-    self.name = "path_reference_velocity"
-    logger.log(10, "Initializing Path Reference Velocity")
-    logger.log(10, "Path Reference Velocity successfully initialized")
-    self._n_segments = CONFIG["contouring"]["get_num_segments"]
+    def __init__(self, solver):
+        self.solver = solver
+        self.module_type = OBJECTIVE
+        self.name = "path_reference_velocity"
+        LOG_DEBUG("Initializing Path Reference Velocity")
+        LOG_DEBUG("Path Reference Velocity successfully initialized")
+        self.n_segments = CONFIG["contouring"]["get_num_segments"]
+        self.velocity_spline = None
+        self.set_solver_param = partial(set_solver_parameter, settings=CONFIG)
 
-  def update(self, state, data, module_data):
-   if module_data.path_velocity == None and _velocityspline != None:
-    module_data.path_velocity = _velocityspline
+    def update(self, state, data, module_data):
+        if module_data.path_velocity is None and self.velocity_spline is not None:
+            module_data.path_velocity = self.velocity_spline
 
-  def on_data_received(self, data, data_name):
-   if data_name == "reference_path":
+    def on_data_received(self, data, data_name):
+        if data_name == "reference_path":
+            LOG_DEBUG("Received Reference Path")
+            if data.reference_path.hasVelocity():
+                self.velocity_spline.set_points(data.reference_path.s, data.reference_path.v)
 
-    logger.log("Received Reference Path")
+    def set_parameters(self, data, module_data, k):
+        reference_velocity = 0.0
+        if k == 0:
+            reference_velocity = CONFIG["weights"]["reference_velocity"]
 
-    if data.reference_path.hasVelocity():
-     _velocityspline = make_shared()
-     _velocityspline.set_points(data.reference_path.s, data.reference_path.v)
+        if data.reference_path.hasVelocity():  # Use a spline-based velocity reference
+            LOG_DEBUG("Using spline-based reference velocity")
+            for i in range(self.n_segments):
+                index = module_data.current_path_segment + i
 
+                if index < self.velocity_spline.m_x_.size() - 1:
+                    a, b, c, d = self.velocity_spline.get_parameters(index)
+                else:
+                    # Brake at the end
+                    a = b = c = 0.0
+                    d = 0.0
 
-  def set_parameters(self, data, module_data, k):
+                self.set_solver_param(self.solver.params, "spline_va", a, k, i)
+                self.set_solver_param(self.solver.params, "spline_vb", b, k, i)
+                self.set_solver_param(self.solver.params, "spline_vc", c, k, i)
+                self.set_solver_param(self.solver.params, "spline_vd", d, k, i)
+        else:
+            for i in range(self.n_segments):
+                self.set_solver_param(self.solver.params, "spline_va", 0.0, k, i)
+                self.set_solver_param(self.solver.params, "spline_vb", 0.0, k, i)
+                self.set_solver_param(self.solver.params, "spline_vc", 0.0, k, i)
+                self.set_solver_param(self.solver.params, "spline_vd", reference_velocity, k, i)
 
-   # Retrieve once
-   if k == 0:
-    # velocity_weight = CONFIG["weights"]["velocity"]
-    reference_velocity = CONFIG["weights"]["reference_velocity"]
-  
-   if data.reference_path.hasVelocity(): # Use a spline-based velocity reference
-  
-    logger.log(10, "Using spline-based reference velocity")
-    for i in range(self._n_segments):
-     index = module_data.current_path_segment + i
+    def visualize(self, data, module_data):
+        if data.reference_path.empty() or data.reference_path.s.empty():
+            return
 
-     if index < velocityspline.m_x_.size() - 1:
-      _velocityspline.get_parameters(index, a, b, c, d)
-     else:
-      # Brake at the end
-      a = 0.
-      b = 0.
-      c = 0.
-      d = 0.
+        if not CONFIG["debug_visuals"]:
+            return
 
-     set_solver_parameterspline_va(k, self.solver._params, a, i)
-     set_solver_parameterspline_vb(k, self.solver._params, b, i)
-     set_solver_parameterspline_vc(k, self.solver._params, c, i)
-     set_solver_parameterspline_vd(k, self.solver._params, d, i)
-   else: # Use a constant velocity reference
-    for i in range(self._n_segments):
+        LOG_DEBUG("PathReferenceVelocity.Visualize")
 
-     set_solver_parameterspline_va(k, self.solver._params, 0., i)
-     set_solver_parameterspline_vb(k, self.solver._params, 0., i)
-     set_solver_parameterspline_vc(k, self.solver._params, 0., i)
-     set_solver_parameterspline_vd(k, self.solver._params, reference_velocity, i) # v = d
+        publisher = VISUALS.get_publisher("path_velocity")
+        line = publisher.get_new_line()
+        line.set_scale(0.25, 0.25, 0.1)
 
- def visualize(self, data, module_data):
+        spline_xy = TwoDimensionalSpline(data.reference_path.x, data.reference_path.y, data.reference_path.s)
 
-  if data.reference_path.empty() or data.reference_path.s.empty():
-   return
+        prev = []
+        prev_v = 0.0
+        for s in range(self.velocity_spline.m_x_.back()):
+            cur = spline_xy.get_point(s)
+            v = self.velocity_spline.operator()(s)
 
-  if not CONFIG["debug_visuals"]:
-   return
+            if s > 0.0:
+                line.set_color(0, (v + prev_v) / (2.0 * 3.0 * 2.0), 0.0)
+                line.add_line(prev, cur)
 
-  logger.log(10, "PathReferenceVelocity.Visualize")
+            prev = cur
+            prev_v = v
 
-  # Only for debugging
-  publisher = VISUALS.get_publisher("path_velocity")
-  line = publisher.get_new_line()
-
-  line.set_scale(0.25, 0.25, 0.1)
-  spline_xy = make_unique(data.reference_path.x, data.reference_path.y, data.reference_path.s)
-
-  prev = []
-  prev_v = 0.
-  for s in range(_velocityspline.m_x_.back()):
-
-   cur = spline_xy.getPoint(s)
-   v = _velocityspline.operator()(s)
-
-   if s > 0.:
-    line.set_color(0, (v + prev_v) / (2. * 3. * 2.), 0.)
-    line.add_line(prev, cur)
-
-   prev = cur
-   prev_v = v
-
-  publisher.publish()
+        publisher.publish()
