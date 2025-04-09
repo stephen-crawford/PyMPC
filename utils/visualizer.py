@@ -605,6 +605,46 @@ class ROSVisualsManager:
             self.publishers[name] = ROSMarkerPublisher(self.node, f"/visualization/{name}", self.frame_id)
         return self.publishers[name]
 
+def visualize_linear_constraint(a1, a2, b, k, N, topic_name, publish, alpha, thickness):
+    publisher = VISUALS.get_publisher(topic_name)
+    line = publisher.get_new_line()
+    line.set_color_from_index(k, N, alpha)  # Assuming equivalent of setColorInt
+    line.set_scale(thickness)
+
+    if abs(a1) < 1e-3 and abs(a2) < 1e-3:
+        return publisher
+
+    line_length = 1e6
+    p1 = np.zeros(2)
+    p2 = np.zeros(2)
+
+    if abs(a2) >= 1e-3:
+        p1[0] = -line_length
+        p1[1] = (b - a1 * p1[0]) / a2
+
+        p2[0] = line_length
+        p2[1] = (b - a1 * p2[0]) / a2
+    else:
+        p1[1] = -line_length
+        p1[0] = (b - a2 * p1[1]) / a1
+
+        p2[1] = line_length
+        p2[0] = (b - a2 * p2[1]) / a1
+
+    line.add_line(p1.tolist(), p2.tolist())
+
+    if publish:
+        publisher.publish()
+
+    return publisher
+
+def visualize_linear_constraint_from_halfspace(halfspace, k, N, topic_name, publish, alpha, thickness):
+    return visualize_linear_constraint(
+        halfspace.A[0], halfspace.A[1], halfspace.b,
+        k, N, topic_name, publish, alpha, thickness
+    )
+
+
 
 # Singleton instance for visualizer
 class VisualizerSingleton:

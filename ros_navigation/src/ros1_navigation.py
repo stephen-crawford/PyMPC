@@ -33,7 +33,7 @@ class ROSNavigationPlanner:
       # Initialize the configuration
       get_configuration_instance().initialize(SYSTEM_CONFIG_PATH(__FILE__, "settings"))
 
-      _data.robot_area = Disc(0., CONFIG["robot_radius"])
+      _data.robot_area = Disc(0., CONFIG["n_discs"])
 
       # Initialize the planner
       _planner = make_unique(Planner)

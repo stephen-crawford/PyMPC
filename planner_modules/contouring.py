@@ -1,11 +1,9 @@
 from functools import partial
-from math import exp
-from venv import logger
 
+from planner.src.types import *
 from solver.solver_interface import set_solver_parameter
 from utils.const import OBJECTIVE
 from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE, distance
-from planner.src.types import *
 
 CONFIG = read_config_file()
 

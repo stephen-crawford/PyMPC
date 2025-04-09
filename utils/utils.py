@@ -588,3 +588,391 @@ class ExperimentManager:
 
     def set_start_experiment(self):
         self.iteration_at_last_reset = self.control_iteration
+
+
+import numpy as np
+from typing import List, Tuple, Optional
+from dataclasses import dataclass
+
+
+class Hyperplane2D:
+    """Class representing a 2D hyperplane (line) with a point and normal vector."""
+
+    def __init__(self, point: np.ndarray, normal: np.ndarray):
+        """
+        Initialize hyperplane with a point and normal vector.
+
+        Args:
+            point: A point on the hyperplane
+            normal: Normal vector to the hyperplane
+        """
+        self.point = np.array(point, dtype=float)
+        self.normal = np.array(normal, dtype=float)
+        self.normal = self.normal / np.linalg.norm(self.normal)  # Normalize
+
+    def distance(self, point: np.ndarray) -> float:
+        """Calculate signed distance from point to hyperplane."""
+        return np.dot(self.normal, point - self.point)
+
+
+class Polyhedron:
+    """Class representing a polyhedron (polygon in 2D) as a set of hyperplanes."""
+
+    def __init__(self, dim: int = 2):
+        """Initialize empty polyhedron."""
+        self.dim = dim
+        self.hyperplanes_list = []
+
+    def add(self, hp: Hyperplane2D) -> None:
+        """Add a hyperplane to the polyhedron."""
+        self.hyperplanes_list.append(hp)
+
+    def hyperplanes(self) -> List[Hyperplane2D]:
+        """Get the list of hyperplanes."""
+        return self.hyperplanes_list
+
+    @property
+    def vertices(self) -> List[np.ndarray]:
+        """Calculate vertices of the polyhedron (in 2D)."""
+        if self.dim != 2 or len(self.hyperplanes_list) < 3:
+            return []
+
+        # Find vertices by intersecting adjacent hyperplanes
+        vertices = []
+        n = len(self.hyperplanes_list)
+
+        for i in range(n):
+            h1 = self.hyperplanes_list[i]
+            h2 = self.hyperplanes_list[(i + 1) % n]
+
+            # Find intersection of two lines
+            # Using linear algebra to solve:
+            # p = p1 + t1 * (normal1 rotated 90°)
+            # p = p2 + t2 * (normal2 rotated 90°)
+
+            # Rotate normals by 90°
+            dir1 = np.array([-h1.normal[1], h1.normal[0]])
+            dir2 = np.array([-h2.normal[1], h2.normal[0]])
+
+            # Set up system of equations
+            A = np.column_stack((dir1, -dir2))
+            if np.linalg.det(A) == 0:  # Parallel lines
+                continue
+
+            b = h2.point - h1.point
+            t = np.linalg.solve(A, b)
+
+            vertex = h1.point + t[0] * dir1
+            vertices.append(vertex)
+
+        return vertices
+
+
+class Ellipsoid:
+    """Class representing an ellipsoid."""
+
+    def __init__(self, center: np.ndarray = None, axes: np.ndarray = None, rotation: np.ndarray = None):
+        """
+        Initialize ellipsoid with center, semi-axes lengths, and rotation.
+
+        Args:
+            center: Center point of the ellipsoid
+            axes: Semi-axes lengths
+            rotation: Rotation matrix for the ellipsoid
+        """
+        self.center = np.zeros(2) if center is None else np.array(center)
+        self.axes = np.ones(2) if axes is None else np.array(axes)
+        self.rotation = np.eye(2) if rotation is None else np.array(rotation)
+
+    def contains(self, point: np.ndarray) -> bool:
+        """Check if a point is inside the ellipsoid."""
+        p_centered = point - self.center
+        p_rotated = self.rotation.T @ p_centered
+
+        # Check if point satisfies ellipsoid equation
+        return sum((p_rotated / self.axes) ** 2) <= 1
+
+
+class LineSegment:
+    """Class representing a line segment."""
+
+    def __init__(self, p1: np.ndarray, p2: np.ndarray):
+        """
+        Initialize line segment with two endpoints.
+
+        Args:
+            p1: First endpoint
+            p2: Second endpoint
+        """
+        self.p1 = np.array(p1, dtype=float)
+        self.p2 = np.array(p2, dtype=float)
+        self.dim = len(p1)
+        self.local_bbox = np.zeros(self.dim)
+        self.obs = []
+        self.ellipsoid = None
+        self.polyhedron = None
+
+    def set_local_bbox(self, bbox: np.ndarray) -> None:
+        """Set local bounding box dimensions."""
+        self.local_bbox = np.array(bbox)
+
+    def set_obs(self, obs: List[np.ndarray]) -> None:
+        """Set obstacle points."""
+        self.obs = [np.array(o) for o in obs]
+
+    def dilate(self, offset_x: float = 0.0) -> None:
+        """
+        Dilate the line segment to create ellipsoid and polyhedron.
+
+        Args:
+            offset_x: Offset added to the long semi-axis
+        """
+        # Calculate ellipsoid parameters
+        center = (self.p1 + self.p2) / 2
+        direction = self.p2 - self.p1
+        length = np.linalg.norm(direction)
+
+        if length < 1e-6:  # Avoid division by zero
+            direction = np.array([1.0, 0.0])
+            length = 1.0
+
+        direction = direction / length  # Normalize
+
+        # Semi-major axis is half the length plus offset
+        a = length / 2 + offset_x
+
+        # Find closest obstacle to determine semi-minor axis
+        b = float('inf')
+        for obs_point in self.obs:
+            # Skip obstacles outside local bounding box
+            if any(abs(obs_point[i] - center[i]) > self.local_bbox[i] for i in range(self.dim)):
+                continue
+
+            # Project obstacle onto line
+            t = np.dot(obs_point - self.p1, direction)
+            t = max(0, min(length, t))  # Clamp to line segment
+            proj = self.p1 + t * direction
+
+            # Distance from obstacle to line
+            dist = np.linalg.norm(obs_point - proj)
+            b = min(b, dist)
+
+        # If no close obstacles found, use default value
+        if b == float('inf'):
+            b = a  # Default to circle if no obstacles
+
+        # Create rotation matrix (2D rotation)
+        rot = np.column_stack((direction, np.array([-direction[1], direction[0]])))
+
+        # Create ellipsoid
+        self.ellipsoid = Ellipsoid(center, np.array([a, b]), rot)
+
+        # Create polyhedron from ellipsoid
+        self.polyhedron = self._generate_polyhedron(center, a, b, rot)
+
+    def _generate_polyhedron(self, center, a, b, rot, num_sides=8):
+        """
+        Generate polyhedron approximation of the ellipsoid.
+
+        Args:
+            center: Center of ellipsoid
+            a: Semi-major axis length
+            b: Semi-minor axis length
+            rot: Rotation matrix
+            num_sides: Number of sides for approximation
+
+        Returns:
+            Polyhedron object
+        """
+        poly = Polyhedron(self.dim)
+
+        # Generate approximating hyperplanes around ellipsoid
+        for i in range(num_sides):
+            angle = 2 * np.pi * i / num_sides
+            # Point on ellipsoid
+            p_ellipse = np.array([a * np.cos(angle), b * np.sin(angle)])
+            p_rotated = rot @ p_ellipse
+            point = center + p_rotated
+
+            # Normal to ellipsoid at this point (gradient of ellipsoid function)
+            normal = np.array([np.cos(angle) / a, np.sin(angle) / b])
+            normal = rot @ normal
+            normal = normal / np.linalg.norm(normal)  # Normalize
+
+            poly.add(Hyperplane2D(point, normal))
+
+        return poly
+
+    def get_ellipsoid(self) -> Ellipsoid:
+        """Get the ellipsoid."""
+        return self.ellipsoid
+
+    def get_polyhedron(self) -> Polyhedron:
+        """Get the polyhedron."""
+        return self.polyhedron
+
+
+class LinearConstraint:
+    """Class representing linear constraints Ax ≤ b."""
+
+    def __init__(self, point: np.ndarray = None, hyperplanes: List[Hyperplane2D] = None):
+        """
+        Initialize linear constraints.
+
+        Args:
+            point: Reference point
+            hyperplanes: List of hyperplanes
+        """
+        self.point = np.zeros(2) if point is None else np.array(point)
+        self.A_ = np.zeros((0, 2))  # Empty matrix initially
+        self.b_ = np.zeros(0)  # Empty vector initially
+
+        if hyperplanes:
+            self._setup_constraints(hyperplanes)
+
+    def _setup_constraints(self, hyperplanes: List[Hyperplane2D]) -> None:
+        """Setup A and b matrices from hyperplanes."""
+        n = len(hyperplanes)
+        self.A_ = np.zeros((n, 2))
+        self.b_ = np.zeros(n)
+
+        for i, hp in enumerate(hyperplanes):
+            self.A_[i] = hp.normal
+            self.b_[i] = np.dot(hp.normal, hp.point)
+
+
+class EllipsoidDecomp:
+    """
+    EllipsoidDecomp takes input as a given path and finds the Safe Flight Corridor
+    around it using Ellipsoids.
+    """
+
+    def __init__(self, origin: np.ndarray = None, dim: np.ndarray = None):
+        """
+        Initialize EllipsoidDecomp.
+
+        Args:
+            origin: The origin of the global bounding box
+            dim: The dimension of the global bounding box
+        """
+        self.obs_ = []
+        self.path_ = []
+        self.lines_ = []
+        self.ellipsoids_ = []
+        self.polyhedrons_ = []
+        self.local_bbox_ = np.zeros(2)
+
+        # Global bounding box
+        self.global_bbox_min_ = np.zeros(2) if origin is None else np.array(origin)
+        self.global_bbox_max_ = np.zeros(2) if origin is None or dim is None else np.array(origin) + np.array(dim)
+
+    def set_obs(self, obs: List[np.ndarray]) -> None:
+        """Set obstacle points."""
+        self.obs_ = [np.array(o) for o in obs]
+
+    def set_local_bbox(self, bbox: np.ndarray) -> None:
+        """Set dimension of local bounding box."""
+        self.local_bbox_ = np.array(bbox)
+
+    def get_path(self) -> List[np.ndarray]:
+        """Get the path that is used for dilation."""
+        return self.path_
+
+    def get_polyhedrons(self) -> List[Polyhedron]:
+        """Get the Safe Flight Corridor."""
+        return self.polyhedrons_
+
+    def get_ellipsoids(self) -> List[Ellipsoid]:
+        """Get the ellipsoids."""
+        return self.ellipsoids_
+
+    def get_constraints(self) -> List[LinearConstraint]:
+        """
+        Get the constraints of SFC as Ax ≤ b.
+
+        Returns:
+            List of LinearConstraint objects
+        """
+        constraints = []
+        for i in range(len(self.polyhedrons_)):
+            if i + 1 >= len(self.path_):
+                continue
+
+            pt = (self.path_[i] + self.path_[i + 1]) / 2
+            constraints.append(LinearConstraint(pt, self.polyhedrons_[i].hyperplanes()))
+
+        return constraints
+
+    def set_constraints(self, constraints_out: list, offset: float = 0.0) -> None:
+        """
+        Set constraints, primarily for compatibility with original code.
+
+        Args:
+            constraints_out: Output list to store constraints
+            offset: Offset value
+        """
+        constraints = self.get_constraints()
+
+        # Make sure the output list has enough space
+        while len(constraints_out) < len(constraints):
+            constraints_out.append(None)
+
+        # Copy constraints to output
+        for i, constraint in enumerate(constraints):
+            constraints_out[i] = constraint
+
+    def dilate(self, path: List[np.ndarray], offset_x: float = 0.0, safe_check: bool = True) -> None:
+        """
+        Decomposition thread.
+
+        Args:
+            path: The path to dilate
+            offset_x: Offset added to the long semi-axis
+            safe_check: Safety check flag (not used in this implementation)
+        """
+        if len(path) <= 1:
+            return
+
+        N = len(path) - 1
+        self.lines_ = []
+        self.ellipsoids_ = []
+        self.polyhedrons_ = []
+
+        for i in range(N):
+            line = LineSegment(path[i], path[i + 1])
+            line.set_local_bbox(self.local_bbox_)
+            line.set_obs(self.obs_)
+            line.dilate(offset_x)
+
+            self.lines_.append(line)
+            self.ellipsoids_.append(line.get_ellipsoid())
+            self.polyhedrons_.append(line.get_polyhedron())
+
+            # Add global bounding box if defined
+            if np.linalg.norm(self.global_bbox_min_) != 0 or np.linalg.norm(self.global_bbox_max_) != 0:
+                self._add_global_bbox(self.polyhedrons_[-1])
+
+        self.path_ = [np.array(p) for p in path]
+
+    def _add_global_bbox(self, poly: Polyhedron) -> None:
+        """
+        Add global bounding box constraints to polyhedron.
+
+        Args:
+            poly: Polyhedron to modify
+        """
+        # Add bound along X axis
+        poly.add(Hyperplane2D(np.array([self.global_bbox_max_[0], 0]), np.array([1, 0])))
+        poly.add(Hyperplane2D(np.array([self.global_bbox_min_[0], 0]), np.array([-1, 0])))
+
+        # Add bound along Y axis
+        poly.add(Hyperplane2D(np.array([0, self.global_bbox_max_[1]]), np.array([0, 1])))
+        poly.add(Hyperplane2D(np.array([0, self.global_bbox_min_[1]]), np.array([0, -1])))
+
+
+# Define the 2D version explicitly
+class EllipsoidDecomp2D(EllipsoidDecomp):
+    """2D version of EllipsoidDecomp."""
+
+    def __init__(self, origin=None, dim=None):
+        super().__init__(origin, dim)

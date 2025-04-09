@@ -23,7 +23,7 @@ enable_output: true
 control_frequency: 20
 deceleration_at_infeasible: 3.0
 max_obstacles: 3
-robot_radius: 0.325
+n_discs: 0.325
 robot:
   length: 0.65
   width: 0.65

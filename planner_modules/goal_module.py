@@ -1,8 +1,7 @@
-from planner.src.data_prep import logger
 from utils.const import OBJECTIVE
 
-
-from utils.utils import read_config_file
+from utils.utils import read_config_file, LOG_DEBUG, distance
+from utils.visualizer import VISUALS
 
 CONFIG = read_config_file()
 
@@ -41,7 +40,7 @@ class GoalModule:
       return False
 
     # Check if we reached the goal
-    return RosTools.distance(self, state.get_pos(), data.goal) < 1.0
+    return distance(self, state.get_pos(), data.goal) < 1.0
 
 
   def visualize(self, data, module_data):
@@ -49,7 +48,7 @@ class GoalModule:
     if not data.goal_received:
       return
 
-    publisher = VISUALS.get_publisher(name)
+    publisher = VISUALS.get_publisher(self.name)
     sphere = publisher.get_new_point_marker("SPHERE")
 
     sphere.set_color_int(5)

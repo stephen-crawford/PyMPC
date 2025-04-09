@@ -1,4 +1,3 @@
-from functools import partial
 import logging
 import numpy as np
 from scipy.interpolate import CubicSpline
