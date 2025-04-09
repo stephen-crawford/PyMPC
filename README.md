@@ -18,16 +18,6 @@ A modular and extensible Python port of the [TUD-AMR MPC Planner](https://github
 
 ---
 
-## Structure
-
-PyMPC/ ├── models/ # Dynamics models (e.g., Unicycle, Bicycle) ├── constraints/ # Constraint definitions (bounds, obstacles, etc.) ├── math_utils/ # Linear algebra, interpolation, Jacobians, etc. ├── solvers/ # Solver interfaces (CasADi, OSQP, etc.) ├── planner/ # Core MPC planner logic ├── tests/ # Unit tests └── examples/ # Example use cases and simulations
-
-yaml
-Copy
-Edit
-
----
-
 ## 🛠 Installation
 
 ```bash
