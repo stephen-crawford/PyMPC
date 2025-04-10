@@ -1,5 +1,6 @@
 name: "dingo"
 N: 30
+dt: 0.1
 integrator_step: 0.1
 n_discs: 1
 

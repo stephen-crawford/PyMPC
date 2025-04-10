@@ -20,7 +20,7 @@ class Planner:
 
   def _init_modules(self):
     for module in self._modules:
-      module.initialize(self._solver)
+      module.__init__(self._solver)
 
   def solve_mpc(self, state, data):
     logger.info("planner.solve_mpc")

@@ -7,6 +7,13 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Dict, Tuple, Optional
 
+from planner.src.planner import Planner
+from planner.src.types import PredictionType, Prediction, DynamicObstacle, TwoDimensionalSpline
+from planner_modules.scenario_constraints import ScenarioConstraints
+from solver.casadi_solver import CasADiSolver
+from solver.state import State
+from utils.utils import Timer, Benchmarker
+
 # Constants
 SCREEN_WIDTH = 1000
 SCREEN_HEIGHT = 700
@@ -37,124 +44,6 @@ CONFIG = {
 	"shift_previous_solution_forward": True,
 	"enable_output": True,
 }
-
-
-# Utility classes to match your framework
-class Timer:
-	def __init__(self, duration):
-		self.duration = duration
-		self.start_time = time.time()
-
-	def has_finished(self):
-		return (time.time() - self.start_time) >= self.duration
-
-	def start(self):
-		self.start_time = time.time()
-
-
-class Benchmarker:
-	def __init__(self, name):
-		self.name = name
-		self.start_time = None
-		self.last_duration = 0
-
-	def start(self):
-		self.start_time = time.time()
-
-	def stop(self):
-		if self.start_time:
-			self.last_duration = time.time() - self.start_time
-			self.start_time = None
-
-	def is_running(self):
-		return self.start_time is not None
-
-	def cancel(self):
-		self.start_time = None
-
-	def get_last(self):
-		return self.last_duration
-
-
-class PredictionType(Enum):
-	DETERMINISTIC = 0
-	UNCERTAIN = 1
-
-
-# Types to model your framework
-@dataclass
-class Vector2D:
-	x: float
-	y: float
-
-	def norm(self):
-		return math.sqrt(self.x ** 2 + self.y ** 2)
-
-
-@dataclass
-class State:
-	x: float = 0.0
-	y: float = 0.0
-	v: float = 0.0
-	heading: float = 0.0
-
-	def getPos(self):
-		return np.array([self.x, self.y])
-
-	def getVel(self):
-		return np.array([self.v * math.cos(self.heading), self.v * math.sin(self.heading)])
-
-	def get(self, key, default=0.0):
-		return getattr(self, key, default)
-
-	def reset(self):
-		self.x = 0.0
-		self.y = 0.0
-		self.v = 0.0
-		self.heading = 0.0
-
-
-@dataclass
-class Prediction:
-	mean: List[Vector2D] = None
-	covariance: List[np.ndarray] = None
-	timestamps: List[float] = None
-	type: PredictionType = PredictionType.DETERMINISTIC
-
-	def __post_init__(self):
-		if self.mean is None:
-			self.mean = []
-		if self.covariance is None:
-			self.covariance = []
-		if self.timestamps is None:
-			self.timestamps = []
-
-	def empty(self):
-		return len(self.mean) == 0
-
-
-@dataclass
-class DynamicObstacle:
-	id: int
-	position: Vector2D
-	velocity: Vector2D
-	radius: float
-	prediction: Prediction
-
-
-@dataclass
-class PlannerData:
-	dynamic_obstacles: List[DynamicObstacle]
-	planning_start_time: float
-
-	def __init__(self):
-		self.dynamic_obstacles = []
-		self.planning_start_time = time.time()
-
-	def reset(self):
-		self.dynamic_obstacles = []
-		self.planning_start_time = time.time()
-
 
 class Trajectory:
 	def __init__(self, dt=None, N=None):
@@ -334,7 +223,7 @@ class ScenarioSampler:
 
 class ScenarioSolver:
 	def __init__(self, solver_id):
-		self.solver = SimplifiedSolver(CONFIG["dt"], CONFIG["N"])
+		self.solver = CasADiSolver(CONFIG["dt"], CONFIG["N"])
 		self.solver.solver_id = solver_id
 		self.scenario_module = ScenarioModule(solver_id)
 		self.exit_code = 0
@@ -344,229 +233,6 @@ class ScenarioSolver:
 
 	def get(self):
 		return self
-
-
-class ScenarioConstraints:
-	def __init__(self, solver):
-		self.solver = solver
-		self.name = "scenario_constraints"
-		self._planning_time = 1.0 / CONFIG["control_frequency"]
-		self._scenario_solvers = []
-		self._best_solver = None
-
-		# Create parallel solvers
-		for i in range(CONFIG["scenario_constraints"]["parallel_solvers"]):
-			self._scenario_solvers.append(ScenarioSolver(i))
-
-	def update(self, state, data, module_data):
-		for solver in self._scenario_solvers:
-			# Copy the main solver, including its initial guess
-			solver.solver = self.solver
-			solver.scenario_module.update(data, module_data)
-
-	def set_parameters(self, data, module_data, k):
-		# Not implemented for the demo
-		pass
-
-	def optimize(self, state, data, module_data):
-		for solver in self._scenario_solvers:
-			# Set the planning timeout
-			used_time = time.time() - data.planning_start_time
-			solver.solver.params = self.solver.params
-			solver.solver.params["solver_timeout"] = self._planning_time - used_time - 0.008
-
-			# Copy solver parameters and initial guess
-			solver.solver = self.solver
-
-			# Set the scenario constraint parameters for each solver
-			for k in range(solver.N):
-				solver.scenario_module.set_parameters(data, k)
-
-			# Load the previous solution
-			solver.solver.load_warmstart()
-
-			# Run optimization (Safe Horizon MPC)
-			solver.exit_code = solver.scenario_module.optimize(data)
-
-			# Set a cost for this solver (would come from actual optimization)
-			solver.solver._info = {"pobj": solver.scenario_module.cost}
-
-		# Retrieve the lowest cost solution
-		lowest_cost = float('inf')
-		self._best_solver = None
-
-		for solver in self._scenario_solvers:
-			if solver.exit_code == 1 and solver.solver._info["pobj"] < lowest_cost:
-				lowest_cost = solver.solver._info["pobj"]
-				self._best_solver = solver
-
-		if self._best_solver is None:  # No feasible solution
-			return self._scenario_solvers[0].exit_code
-
-		# Load the solution into the main solver
-		self.solver.output = self._best_solver.solver.output
-		self.solver._info = self._best_solver.solver._info
-
-		return self._best_solver.exit_code
-
-	def on_data_received(self, data, data_name):
-		if data_name == "dynamic obstacles":
-			# Check if uncertainty was provided
-			for obs in data.dynamic_obstacles:
-				assert obs.prediction.type != PredictionType.DETERMINISTIC, (
-					"When using Scenario Constraints, the predictions should have a non-zero "
-					"uncertainty."
-				)
-
-	def is_data_ready(self, data, missing_data=""):
-		# Simplified check for demo
-		return len(data.dynamic_obstacles) > 0
-
-	def visualize(self, screen):
-		# Draw trajectories from all solvers
-		for i, solver in enumerate(self._scenario_solvers):
-			# Different colors for different solvers
-			colors = [BLUE, GREEN, MAGENTA, CYAN, YELLOW]
-			color = colors[i % len(colors)]
-
-			# Draw the trajectory
-			points = solver.scenario_module.trajectory.points
-			if len(points) >= 2:
-				pygame.draw.lines(screen, color, False, points, 2)
-
-			# Draw points along the trajectory
-			for point in points:
-				pygame.draw.circle(screen, color, (int(point[0]), int(point[1])), 3)
-
-			# Show cost near the end of the trajectory
-			if points:
-				font = pygame.font.SysFont(None, 24)
-				cost_text = f"Cost: {solver.solver._info['pobj']:.1f}"
-				text_surface = font.render(cost_text, True, color)
-				screen.blit(text_surface, (points[-1][0] + 10, points[-1][1] - 10))
-
-		# Highlight the best trajectory
-		if self._best_solver:
-			points = self._best_solver.scenario_module.trajectory.points
-			if len(points) >= 2:
-				# Draw a thicker line for the best trajectory
-				pygame.draw.lines(screen, RED, False, points, 4)
-
-				# Draw a star at the end of the best trajectory
-				if points:
-					end_point = points[-1]
-					star_size = 10
-					pygame.draw.polygon(screen, RED, [
-						(end_point[0], end_point[1] - star_size),
-						(end_point[0] + star_size // 2, end_point[1] - star_size // 3),
-						(end_point[0] + star_size, end_point[1]),
-						(end_point[0] + star_size // 2, end_point[1] + star_size // 3),
-						(end_point[0], end_point[1] + star_size),
-						(end_point[0] - star_size // 2, end_point[1] + star_size // 3),
-						(end_point[0] - star_size, end_point[1]),
-						(end_point[0] - star_size // 2, end_point[1] - star_size // 3),
-					])
-
-					# Indicate that this is the best trajectory
-					font = pygame.font.SysFont(None, 24)
-					text = font.render("BEST", True, RED)
-					screen.blit(text, (end_point[0] + 15, end_point[1] + 15))
-
-
-class Planner:
-	def __init__(self, solver, modules):
-		self.solver = solver
-		self.modules = modules
-		self.startup_timer = Timer(1.0)
-		self.was_reset = False
-		self.output = None
-		self.warmstart = None
-		self.benchmarkers = []
-
-		# Initialize modules
-		for module in self.modules:
-			module.solver = solver
-
-	def solve_mpc(self, state, data):
-		was_feasible = self.output.success if self.output else False
-		self.output = PlannerOutput(self.solver.dt, self.solver.N)
-		module_data = {}
-
-		# Check if data is ready
-		is_data_ready = True
-		for module in self.modules:
-			missing_data = ""
-			if not module.is_data_ready(data, missing_data):
-				is_data_ready = False
-				break
-
-		if not is_data_ready:
-			if self.startup_timer.has_finished():
-				print("Data is not ready")
-			self.output.success = False
-			return self.output
-
-		# Create benchmarkers
-		planning_benchmarker = Benchmarker("planning")
-		planning_benchmarker.start()
-
-		# Initialize solver with previous solution or braking trajectory
-		if was_feasible:
-			self.solver.initialize_warmstart(state, CONFIG["shift_previous_solution_forward"])
-		else:
-			self.solver.initialize_with_braking(state)
-
-		# Set initial state
-		self.solver.set_xinit(state)
-
-		# Update modules
-		for module in self.modules:
-			module.update(state, data, module_data)
-
-		# Set parameters for each stage
-		for k in range(self.solver.N):
-			for module in self.modules:
-				module.set_parameters(data, module_data, k)
-
-		# Load warmstart
-		self.warmstart = Trajectory()
-		for k in range(self.solver.N):
-			self.warmstart.add(
-				self.solver.get_ego_prediction(k, "x"),
-				self.solver.get_ego_prediction(k, "y")
-			)
-		self.solver.load_warmstart()
-
-		# Set solver timeout
-		used_time = time.time() - data.planning_start_time
-		self.solver.params["solver_timeout"] = 1.0 / CONFIG["control_frequency"] - used_time - 0.006
-
-		# Run optimization through modules
-		exit_flag = -1
-		for module in self.modules:
-			exit_flag = module.optimize(state, data, module_data)
-			if exit_flag != -1:
-				break
-
-		if exit_flag == -1:
-			exit_flag = self.solver.solve()
-
-		planning_benchmarker.stop()
-
-		if exit_flag != 1:
-			self.output.success = False
-			print(f"MPC failed: {self.solver.explain_exit_flag(exit_flag)}")
-			return self.output
-
-		# Set output trajectory
-		self.output.success = True
-		for k in range(1, self.solver.N):
-			self.output.trajectory.add(
-				self.solver.get_output(k, "x"),
-				self.solver.get_output(k, "y")
-			)
-
-		return self.output
 
 	def visualize(self, screen, state, data):
 		# Let modules visualize
@@ -580,7 +246,6 @@ class Planner:
 				pygame.draw.lines(screen, RED, False, points, 3)
 
 
-# Game class for handling the demo
 class ScenarioOptimizerDemo:
 	def __init__(self):
 		pygame.init()
@@ -599,20 +264,29 @@ class ScenarioOptimizerDemo:
 		# Create planner
 		self.planner = Planner(self.solver, self.modules)
 
-		# Create state and data
-		self.state = State(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100, 20.0, -math.pi / 2)
-		self.data = PlannerData()
+		# Create your State class instead of the simplified one
+		self.state = State()
+
+		# Initialize state with the ego vehicle's position and attributes
+		self.state.set("x", SCREEN_WIDTH // 2)
+		self.state.set("y", SCREEN_HEIGHT - 100)
+		self.state.set("v", 20.0)
+		self.state.set("heading", -math.pi / 2)
+
 		self.planner.output = PlannerOutput()
 
 		# Create obstacles
+		self.data = self.create_data_object()  # You need to implement this method
 		self.create_obstacles()
 
 		# Add the ego vehicle as the first obstacle to help visualize
 		ego_obstacle = DynamicObstacle(
 			id=0,
-			position=Vector2D(self.state.x, self.state.y),
-			velocity=Vector2D(self.state.v * math.cos(self.state.heading),
-			                  self.state.v * math.sin(self.state.heading)),
+			position=TwoDimensionalSpline(self.state.get("x"), self.state.get("y")),
+			velocity=TwoDimensionalSpline(
+				self.state.get("v") * math.cos(self.state.get("heading")),
+				self.state.get("v") * math.sin(self.state.get("heading"))
+			),
 			radius=15,
 			prediction=Prediction(type=PredictionType.UNCERTAIN)
 		)
@@ -625,41 +299,30 @@ class ScenarioOptimizerDemo:
 		self.last_planning_time = 0
 		self.next_planning_time = time.time()
 
-	def create_obstacles(self):
-		# Create some dynamic obstacles with uncertain predictions
-		obstacles = []
+	def create_data_object(self):
+		# Create an empty data object structure
+		class Data:
+			def __init__(self):
+				self.dynamic_obstacles = []
+				self.planning_start_time = 0
+				# Add other fields your planner expects
+				self.reference_path = None
+				self.left_bound = self.create_empty_spline()
+				self.right_bound = self.create_empty_spline()
 
-		# Add some random obstacles
-		for i in range(1, CONFIG["max_obstacles"]):
-			# Random position in the top half of the screen
-			x = random.randint(100, SCREEN_WIDTH - 100)
-			y = random.randint(100, SCREEN_HEIGHT // 2)
+			def create_empty_spline(self):
+				class EmptySpline:
+					def __init__(self):
+						self.x = []
+						self.y = []
+						self.s = []
 
-			# Random velocity
-			vx = random.uniform(-10, 10)
-			vy = random.uniform(-5, 5)
+					def empty(self):
+						return len(self.x) == 0
 
-			# Create prediction
-			prediction = Prediction(type=PredictionType.UNCERTAIN)
-			for t in range(20):
-				mean_pos = Vector2D(x + vx * t * CONFIG["dt"], y + vy * t * CONFIG["dt"])
-				prediction.mean.append(mean_pos)
+				return EmptySpline()
 
-				# Add growing uncertainty over time
-				cov = np.array([[t * 5, 0], [0, t * 5]])
-				prediction.covariance.append(cov)
-				prediction.timestamps.append(t * CONFIG["dt"])
-
-			obstacle = DynamicObstacle(
-				id=i,
-				position=Vector2D(x, y),
-				velocity=Vector2D(vx, vy),
-				radius=10 + random.randint(5, 15),
-				prediction=prediction
-			)
-			obstacles.append(obstacle)
-
-		self.data.dynamic_obstacles = obstacles
+		return Data()
 
 	def update_state_and_obstacles(self):
 		# Update ego vehicle state
@@ -668,16 +331,21 @@ class ScenarioOptimizerDemo:
 		# Move ego vehicle along the best path if available
 		if self.planner.output and self.planner.output.success and self.planner.output.trajectory.size() > 0:
 			target = self.planner.output.trajectory.points[0]
-			dx = target[0] - self.state.x
-			dy = target[1] - self.state.y
+			dx = target[0] - self.state.get("x")
+			dy = target[1] - self.state.get("y")
 			distance = math.sqrt(dx * dx + dy * dy)
 
 			if distance > 0:
 				# Move towards the next point on the trajectory
 				step = min(ego_speed * CONFIG["dt"], distance)
-				self.state.x += step * dx / distance
-				self.state.y += step * dy / distance
-				self.state.heading = math.atan2(dy, dx)
+				new_x = self.state.get("x") + step * dx / distance
+				new_y = self.state.get("y") + step * dy / distance
+				new_heading = math.atan2(dy, dx)
+
+				# Update the state with new values
+				self.state.set("x", new_x)
+				self.state.set("y", new_y)
+				self.state.set("heading", new_heading)
 
 		# Update dynamic obstacles
 		for obstacle in self.data.dynamic_obstacles[1:]:  # Skip ego vehicle
@@ -697,10 +365,81 @@ class ScenarioOptimizerDemo:
 
 		# Update ego obstacle position to match state
 		if self.data.dynamic_obstacles:
-			self.data.dynamic_obstacles[0].position.x = self.state.x
-			self.data.dynamic_obstacles[0].position.y = self.state.y
-			self.data.dynamic_obstacles[0].velocity.x = self.state.v * math.cos(self.state.heading)
-			self.data.dynamic_obstacles[0].velocity.y = self.state.v * math.sin(self.state.heading)
+			self.data.dynamic_obstacles[0].position.x = self.state.get("x")
+			self.data.dynamic_obstacles[0].position.y = self.state.get("y")
+			self.data.dynamic_obstacles[0].velocity.x = self.state.get("v") * math.cos(self.state.get("heading"))
+			self.data.dynamic_obstacles[0].velocity.y = self.state.get("v") * math.sin(self.state.get("heading"))
+
+	def draw_ego_vehicle(self):
+		# Draw the ego vehicle as a triangle pointing in the direction of heading
+		x, y = self.state.get("x"), self.state.get("y")
+		heading = self.state.get("heading")
+		r = 15  # size of triangle
+
+		# Calculate triangle points based on heading
+		head_x = x + r * math.cos(heading)
+		head_y = y + r * math.sin(heading)
+
+		left_x = x + r * math.cos(heading + 2.5)
+		left_y = y + r * math.sin(heading + 2.5)
+
+		right_x = x + r * math.cos(heading - 2.5)
+		right_y = y + r * math.sin(heading - 2.5)
+
+		# Draw the triangle
+		pygame.draw.polygon(self.screen, RED, [(head_x, head_y), (left_x, left_y), (right_x, right_y)])
+
+		# Draw a circle at the center
+		pygame.draw.circle(self.screen, RED, (int(x), int(y)), 5)
+
+	def draw_status(self):
+		# Display planning information
+		info_text = [
+			f"FPS: {int(self.clock.get_fps())}",
+			f"Planning Time: {self.last_planning_time * 1000:.1f} ms",
+			f"Control Frequency: {CONFIG['control_frequency']:.1f} Hz",
+			f"Ego Speed: {self.state.get('v'):.1f} px/s",
+			f"Obstacles: {len(self.data.dynamic_obstacles) - 1}",
+			f"Planning Horizon: {CONFIG['N']} steps",
+			f"Status: {'Success' if self.planner.output.success else 'Failure'}"
+		]
+
+		# Add instructions
+		instructions = [
+			"Press R to reset simulation",
+			"Press ESC to quit"
+		]
+
+		# Render information
+		y_offset = 20
+		for text in info_text:
+			text_surface = self.font.render(text, True, BLACK)
+			self.screen.blit(text_surface, (20, y_offset))
+			y_offset += 25
+
+		# Add a separator
+		pygame.draw.line(self.screen, BLACK, (20, y_offset), (250, y_offset), 1)
+		y_offset += 10
+
+		# Render instructions
+		for text in instructions:
+			text_surface = self.font.render(text, True, BLACK)
+			self.screen.blit(text_surface, (20, y_offset))
+			y_offset += 25
+
+	# Handle reset keypress to reset the demo
+	def handle_reset(self):
+		self.create_obstacles()
+
+		# Reset the state using your State class methods
+		self.state = State()
+		self.state.set("x", SCREEN_WIDTH // 2)
+		self.state.set("y", SCREEN_HEIGHT - 100)
+		self.state.set("v", 20.0)
+		self.state.set("heading", -math.pi / 2)
+
+		self.data.dynamic_obstacles[0].position.x = self.state.get("x")
+		self.data.dynamic_obstacles[0].position.y = self.state.get("y")
 
 	def run(self):
 		while self.running:
@@ -712,18 +451,19 @@ class ScenarioOptimizerDemo:
 					if event.key == pygame.K_ESCAPE:
 						self.running = False
 					elif event.key == pygame.K_r:
-						# Reset the demo
-						self.create_obstacles()
-						self.state = State(SCREEN_WIDTH // 2, SCREEN_HEIGHT - 100, 20.0, -math.pi / 2)
-						self.data.dynamic_obstacles[0].position.x = self.state.x
-						self.data.dynamic_obstacles[0].position.y = self.state.y
+						# Reset using our custom reset method
+						self.handle_reset()
 
 			# Clear the screen
 			self.screen.fill(WHITE)
 
 			# Run planner periodically
 			current_time = time.time()
+			# but make sure to update the solver's initial state
 			if current_time >= self.next_planning_time:
+				# Update the solver with our state
+				self.solver.set_xinit(self.state)
+
 				# Set planning start time
 				self.data.planning_start_time = current_time
 

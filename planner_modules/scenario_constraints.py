@@ -1,7 +1,7 @@
 import numpy as np
 from utils.const import CONSTRAINT, DETERMINISTIC
 from utils.utils import read_config_file, LOG_DEBUG
-from utils.visualizer import *
+# from utils.visualizer import *
 import time
 from datetime import datetime
 
