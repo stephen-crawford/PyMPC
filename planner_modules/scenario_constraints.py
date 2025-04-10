@@ -47,7 +47,7 @@ class ScenarioConstraints:
 		for solver in self._scenario_solvers:
 			# Set the planning timeout
 			used_time = (datetime.now() - data.planning_start_time).total_seconds()
-			solver.solver._params.solver_timeout = self._planning_time - used_time - 0.008
+			solver.solver.params.solver_timeout = self._planning_time - used_time - 0.008
 
 			# Copy solver parameters and initial guess
 			solver.solver = self.solver
@@ -80,7 +80,7 @@ class ScenarioConstraints:
 		# Load the solution into the main lmpcc solver
 		self.solver.output = self._best_solver.solver.output
 		self.solver._info = self._best_solver.solver._info
-		self.solver._params = self._best_solver.solver._params
+		self.solver.params = self._best_solver.solver.params
 
 		return self._best_solver.exit_code
 

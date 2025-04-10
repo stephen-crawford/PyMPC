@@ -7,7 +7,7 @@ from solver_generator.util.logging import print_value, print_header
 class Parameters:
 
   def __init__(self):
-    self._params = dict()
+    self.params = dict()
 
     self.parameter_bundles = dict() # Used to generate function names in C++ with an integer parameter
 
@@ -37,10 +37,10 @@ class Parameters:
       rqt_config_name (function, optional): A function that returns the name of the parameter in CONFIG for the parameter in RQT Reconfigure. Defaults to lambda p: f'["weights"]["{p}"]'.
     """
 
-    if parameter in self._params.keys():
+    if parameter in self.params.keys():
       return
 
-    self._params[parameter] = copy.deepcopy(self._param_idx)
+    self.params[parameter] = copy.deepcopy(self._param_idx)
     if bundle_name is None:
       bundle_name = parameter
 
@@ -66,9 +66,9 @@ class Parameters:
   def save_map(self):
     file_path = parameter_map_path()
 
-    map = self._params
+    map = self.params
     map["num parameters"] = self._param_idx
-    write_to_yaml(file_path, self._params)
+    write_to_yaml(file_path, self.params)
 
   def get_p(self) -> float:
     return self._p
@@ -77,15 +77,15 @@ class Parameters:
     if self._p is None:
       print("Load parameters before requesting them!")
 
-    return self._p[self._params[parameter]]
+    return self._p[self.params[parameter]]
 
   def has_parameter(self, parameter):
-    return parameter in self._params
+    return parameter in self.params
 
   def print(self):
     print_header("Parameters")
     print("----------")
-    for param, idx in self._params.items():
+    for param, idx in self.params.items():
       if param in self.rqt_params:
         print_value(f"{idx}", f"{param} (in rqt_reconfigure)", tab=True)
       else:

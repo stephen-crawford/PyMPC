@@ -244,7 +244,7 @@ class GuidanceConstraints:
 
     def set_parameters(self, data, module_data, k):
         if k == 0:
-            self.solver._params.solver_timeout = 0.02  # Should not do anything
+            self.solver.params.solver_timeout = 0.02  # Should not do anything
             LOG_DEBUG("Guidance Constraints does not need to set parameters")
 
     def optimize(self, state, data, module_data):
@@ -299,7 +299,7 @@ class GuidanceConstraints:
             # Set timeout based on remaining planning time
             import time
             used_time = time.time() - data.planning_start_time if hasattr(data, 'planning_start_time') else 0
-            planner.local_solver._params.solver_timeout = self._planning_time - used_time - 0.006
+            planner.local_solver.params.solver_timeout = self._planning_time - used_time - 0.006
 
             # SOLVE OPTIMIZATION
             planner.local_solver.load_warm_start()
@@ -340,8 +340,8 @@ class GuidanceConstraints:
         self.solver.output = best_solver.output
         if hasattr(best_solver, '_info'):
             self.solver._info = best_solver._info
-        if hasattr(best_solver, '_params'):
-            self.solver._params = best_solver._params
+        if hasattr(best_solver, 'params'):
+            self.solver.params = best_solver.params
 
         return best_planner.result.exit_code
 

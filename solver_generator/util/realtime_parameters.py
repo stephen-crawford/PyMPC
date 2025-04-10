@@ -11,27 +11,27 @@ class RealTimeParameters:
     self._settings = settings
 
     self._num_p = self._map['num parameters']
-    self._params = np.zeros((settings["N"], self._num_p))
+    self.params = np.zeros((settings["N"], self._num_p))
 
   def set(self, k, parameter, value):
     if parameter in self._map.keys():
-      self._params[k, self._map[parameter]] = value
-      # print(f"{parameter} set to {value} | map value: {self._map[parameter]} check: {self._params[self._map[parameter]]}")
+      self.params[k, self._map[parameter]] = value
+      # print(f"{parameter} set to {value} | map value: {self._map[parameter]} check: {self.params[self._map[parameter]]}")
 
   def get(self, k, parameter):
-    return self._params[k, self._map[parameter]]
+    return self.params[k, self._map[parameter]]
 
   def get_solver_params(self):
     out = []
     for k in range(self._settings["N"]):
       for i in range(self._num_p):
-        out.append(self._params[k, i])
+        out.append(self.params[k, i])
     return out
 
   def get_solver_params_for_stage(self, k):
     out = []
     for i in range(self._num_p):
-      out.append(self._params[k, i])
+      out.append(self.params[k, i])
     return out
 
   def get_num_par(self):

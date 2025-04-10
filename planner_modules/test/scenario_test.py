@@ -32,7 +32,7 @@ class TestScenarioConstraints(unittest.TestCase):
 		self.solver.params = MagicMock()
 		self.solver._info = MagicMock()
 		self.solver.output = MagicMock()
-		self.solver._params = MagicMock()
+		self.solver.params = MagicMock()
 
 		# Create mock for ScenarioSolver and ScenarioModule
 		self.scenario_module_mock = MagicMock()
@@ -117,7 +117,7 @@ class TestScenarioConstraints(unittest.TestCase):
 			# Check solver timeout was set correctly (100ms planning time - 50ms elapsed - 8ms buffer)
 			expected_timeout = 0.042  # 100ms - 50ms - 8ms
 			for solver in self.scenario_constraints._scenario_solvers:
-				self.assertAlmostEqual(solver.solver._params.solver_timeout, expected_timeout, places=3)
+				self.assertAlmostEqual(solver.solver.params.solver_timeout, expected_timeout, places=3)
 
 			# Check optimization was run for each solver
 			for solver in self.scenario_constraints._scenario_solvers:
@@ -130,7 +130,7 @@ class TestScenarioConstraints(unittest.TestCase):
 			# Check best solution was loaded into main solver
 			self.assertEqual(self.solver.output, self.scenario_constraints._best_solver.solver.output)
 			self.assertEqual(self.solver._info, self.scenario_constraints._best_solver.solver._info)
-			self.assertEqual(self.solver._params, self.scenario_constraints._best_solver.solver._params)
+			self.assertEqual(self.solver.params, self.scenario_constraints._best_solver.solver.params)
 
 			# Check return value is the exit code of the best solver
 			self.assertEqual(result, 1)

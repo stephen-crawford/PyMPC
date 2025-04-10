@@ -24,9 +24,9 @@ class GoalModule:
     if k == 0:
       LOG_DEBUG( "Goal Module.set_parameters()")
 
-    set_solver_parameter_goal_x(k, self.solver._params, data.goal(0))
-    set_solver_parameter_goal_y(k, self.solver._params, data.goal(1))
-    set_solver_parameter_goal_weight(k, self.solver._params, CONFIG["weights"]["goal"])
+    set_solver_parameter_goal_x(k, self.solver.params, data.goal(0))
+    set_solver_parameter_goal_y(k, self.solver.params, data.goal(1))
+    set_solver_parameter_goal_weight(k, self.solver.params, CONFIG["weights"]["goal"])
 
   def is_data_ready(self, data, missing_data):
     if not data.goal_received:

@@ -228,7 +228,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 
 			# Check that solvers were configured with proper timeouts
 			for planner in self.guidance_constraints.planners:
-				self.assertAlmostEqual(planner.local_solver._params.solver_timeout, 0.044)  # 0.1 - 0.05 - 0.006
+				self.assertAlmostEqual(planner.local_solver.params.solver_timeout, 0.044)  # 0.1 - 0.05 - 0.006
 
 			# Check that best planner was selected (lowest objective, which is planners[3] with 70.0)
 			self.assertEqual(self.guidance_constraints.best_planner_index_, 3)
