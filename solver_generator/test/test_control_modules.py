@@ -8,7 +8,7 @@ import numpy as np
 from solver_generator.util.parameters import Parameters
 from solver_generator.solver_model import ContouringSecondOrderUnicycleModel
 
-from solver_generator.control_modules import ModuleManager, ObjectiveModule, ConstraintModule
+from solver_generator.controlmodules import ModuleManager, ObjectiveModule, ConstraintModule
 from solver_generator.solver_definition import define_parameters, objective, constraints, constraint_lower_bounds, constraint_upper_bounds, constraint_number
 
 from planner_modules.contouring import Contouring
@@ -103,7 +103,7 @@ def test_module_manager_constraints():
     assert c < ub[i]
 
 
-def test_all_modules():
+def test_allmodules():
   settings = dict()
   settings["n_discs"] = 1
   settings["max_obstacles"] = 1

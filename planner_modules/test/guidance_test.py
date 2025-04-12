@@ -66,7 +66,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		# Create instance of the class under test
 		with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
 			from planner_modules.guidance_constraints import GuidanceConstraints
-			self.guidance_constraints = GuidanceConstraints(self.solver)
+			self.ellipsoid_constraints = GuidanceConstraints(self.solver)
 
 	def tearDown(self):
 		"""Clean up after each test"""
@@ -202,8 +202,8 @@ class TestGuidanceConstraints(unittest.TestCase):
 
 		# Configure planners
 		for i, planner in enumerate(self.guidance_constraints.planners):
-			planner.local_solver = MagicMock()
-			planner.local_solver._info = MagicMock(pobj=100.0 - i * 10.0)  # Make each planner have different objective
+			planner.localsolver = MagicMock()
+			planner.localsolver._info = MagicMock(pobj=100.0 - i * 10.0)  # Make each planner have different objective
 			planner.result = MagicMock(exit_code=1, success=True)
 			planner.guidance_constraints = MagicMock()
 			planner.safety_constraints = MagicMock()
@@ -218,8 +218,8 @@ class TestGuidanceConstraints(unittest.TestCase):
 			)))
 		)
 
-		# Mock the initialize_solver_with_guidance method
-		with patch.object(self.guidance_constraints, 'initialize_solver_with_guidance') as mock_init:
+		# Mock the initializesolver_with_guidance method
+		with patch.object(self.guidance_constraints, 'initializesolver_with_guidance') as mock_init:
 			# Call method under test
 			result = self.guidance_constraints.optimize(state, data, module_data)
 
@@ -228,7 +228,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 
 			# Check that solvers were configured with proper timeouts
 			for planner in self.guidance_constraints.planners:
-				self.assertAlmostEqual(planner.local_solver.params.solver_timeout, 0.044)  # 0.1 - 0.05 - 0.006
+				self.assertAlmostEqual(planner.localsolver.params.solver_timeout, 0.044)  # 0.1 - 0.05 - 0.006
 
 			# Check that best planner was selected (lowest objective, which is planners[3] with 70.0)
 			self.assertEqual(self.guidance_constraints.best_planner_index_, 3)
@@ -252,14 +252,14 @@ class TestGuidanceConstraints(unittest.TestCase):
 		# Should return early with 0
 		self.assertEqual(result, 0)
 
-	def test_initialize_solver_with_guidance(self, mock_config):
-		"""Test initialize_solver_with_guidance method"""
+	def test_initializesolver_with_guidance(self, mock_config):
+		"""Test initializesolver_with_guidance method"""
 		# Setup
 		planner = MagicMock()
 		planner.id = 1
-		planner.local_solver = MagicMock()
-		planner.local_solver.N = 10
-		planner.local_solver.dt = 0.1
+		planner.localsolver = MagicMock()
+		planner.localsolver.N = 10
+		planner.localsolver.dt = 0.1
 
 		# Setup guidance trajectory
 		mock_trajectory = MagicMock()
@@ -274,18 +274,18 @@ class TestGuidanceConstraints(unittest.TestCase):
 		)
 
 		# Call method under test
-		self.guidance_constraints.initialize_solver_with_guidance(planner)
+		self.guidance_constraints.initializesolver_with_guidance(planner)
 
 		# Assertions - check if solver was properly initialized with trajectory points
 		expected_calls_x = [call(k, "x", k * 0.1 * 2.0) for k in range(10)]
 		expected_calls_y = [call(k, "y", k * 0.1 * 3.0) for k in range(10)]
 
-		planner.local_solver.set_ego_prediction.assert_has_calls(expected_calls_x + expected_calls_y, any_order=True)
+		planner.localsolver.set_ego_prediction.assert_has_calls(expected_calls_x + expected_calls_y, any_order=True)
 
 		# Also should set heading and velocity
 		for k in range(10):
-			planner.local_solver.set_ego_prediction.assert_any_call(k, "psi", atan2(3.0, 2.0))
-			planner.local_solver.set_ego_prediction.assert_any_call(k, "v", np.linalg.norm(np.array([2.0, 3.0])))
+			planner.localsolver.set_ego_prediction.assert_any_call(k, "psi", atan2(3.0, 2.0))
+			planner.localsolver.set_ego_prediction.assert_any_call(k, "v", np.linalg.norm(np.array([2.0, 3.0])))
 
 	def test_find_best_planner(self, mock_config):
 		"""Test find_best_planner method"""
@@ -332,10 +332,10 @@ class TestGuidanceConstraints(unittest.TestCase):
 			planner.disabled = False
 			planner.result = MagicMock(success=True, color=i)
 			planner.is_original_planner = (i == 2)  # Make last one the original planner
-			planner.local_solver = MagicMock()
-			planner.local_solver.N = 5
-			planner.local_solver.get_output.side_effect = lambda k, var: k * 1.0 if var == "x" else k * 2.0
-			planner.local_solver.get_ego_prediction.side_effect = lambda k, var: k * 1.0 if var == "x" else k * 2.0
+			planner.localsolver = MagicMock()
+			planner.localsolver.N = 5
+			planner.localsolver.get_output.side_effect = lambda k, var: k * 1.0 if var == "x" else k * 2.0
+			planner.localsolver.get_ego_prediction.side_effect = lambda k, var: k * 1.0 if var == "x" else k * 2.0
 			planner.guidance_constraints = MagicMock()
 			planner.safety_constraints = MagicMock()
 			self.guidance_constraints.planners.append(planner)
@@ -446,7 +446,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		"""Test reset method"""
 		# Setup planners
 		for planner in self.guidance_constraints.planners:
-			planner.local_solver = MagicMock()
+			planner.localsolver = MagicMock()
 
 		# Call method under test
 		self.guidance_constraints.reset()
@@ -454,7 +454,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		# Assertions
 		self.mock_global_guidance_instance.reset.assert_called_once()
 		for planner in self.guidance_constraints.planners:
-			planner.local_solver.reset.assert_called_once()
+			planner.localsolver.reset.assert_called_once()
 
 	def test_save_data(self, mock_config):
 		"""Test save_data method"""
@@ -465,9 +465,9 @@ class TestGuidanceConstraints(unittest.TestCase):
 		for i, planner in enumerate(self.guidance_constraints.planners):
 			planner.result = MagicMock(success=(i % 2 == 0), objective=100.0 - i * 10.0)
 			planner.is_original_planner = (i == 1)
-			planner.local_solver = MagicMock()
+			planner.localsolver = MagicMock()
 			if planner.result.success:
-				planner.local_solver._info = MagicMock(pobj=100.0 - i * 10.0)
+				planner.localsolver._info = MagicMock(pobj=100.0 - i * 10.0)
 
 		# Set best planner index
 		self.guidance_constraints.best_planner_index_ = 2
@@ -518,7 +518,7 @@ class TestSystemIntegration(unittest.TestCase):
 
 		# Create mock planner
 		self.planner = MagicMock()
-		self.planner._modules = [self.guidance_constraints]
+		self.planner.modules = [self.guidance_constraints]
 
 	@patch('utils.utils.read_config_file', return_value=CONFIG_MOCK)
 	@patch('planner_modules.guidance_constraints.GlobalGuidance')
@@ -552,17 +552,17 @@ class TestSystemIntegration(unittest.TestCase):
 
 			# Mock the planner execution similar to actual code
 			# Update modules
-			for module in self.planner._modules:
+			for module in self.planner.modules:
 				module.update(state, data, module_data)
 
 			# Optimize the guidance
-			for module in self.planner._modules:
+			for module in self.planner.modules:
 				if hasattr(module, 'optimize'):
 					module.optimize(state, data, module_data)
 
 			# Set parameters for each prediction step
 			for k in range(self.solver.N):
-				for module in self.planner._modules:
+				for module in self.planner.modules:
 					module.set_parameters(data, module_data, k)
 
 			# Assertions

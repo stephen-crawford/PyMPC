@@ -806,7 +806,7 @@ class TwoDimensionalSpline(Spline):
 
     def get_path_angle(self, t):
         """Get tangent angle at parameter value t"""
-        return np.atan2(self.y_spline.deriv(1, t), self.x_spline.deriv(1, t))
+        return atan2(self.y_spline.deriv(1, t), self.x_spline.deriv(1, t))
 
     def sample_points(self, ds):
         """Sample points and angles along the spline with distance ds"""

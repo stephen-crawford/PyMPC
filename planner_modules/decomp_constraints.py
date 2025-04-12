@@ -48,7 +48,7 @@ class DecompConstraints:
 		_dummy_a2 = 0.0
 
 		self.get_occupied_grid_cells(data)  # Retrieve occupied points from the costmap
-
+		print("Calling set obs")
 		self.decomp_util.set_obs(self.occ_pos)  # Set obstacles
 
 		path = []

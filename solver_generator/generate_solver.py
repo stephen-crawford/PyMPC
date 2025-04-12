@@ -9,10 +9,10 @@ from solver_generator.util.files import solver_path, solver_settings_path
 from solver_generator.util.logging import print_success, print_header, print_path, print_warning
 from solver_generator.solver_config import generate_rqt_reconfigure
 from solver_generator.util.parameters import Parameters
-from solver.casadi_solver import CasADiSolver
-from solver.osqp_solver import OSQPSolver
+from solver.casadisolver import CasADiSolver
+from solver.osqpsolver import OSQPSolver
 
-def generate_casadi_solver(modules, settings, model, skip_solver_generator=False):
+def generate_casadisolver(modules, settings, model, skipsolver_generator=False):
     """
     Generate a CasADi solver instance with the given settings and model.
 
@@ -20,13 +20,13 @@ def generate_casadi_solver(modules, settings, model, skip_solver_generator=False
         modules: List of modules for the solver
         settings: Dictionary containing solver settings
         model: Model object with dynamics and constraints
-        skip_solver_generator: Flag to skip generation if True
+        skipsolver_generator: Flag to skip generation if True
 
     Returns:
         solver: CasADi solver instance
         simulator: Simulator instance (may be the same as solver)
     """
-    if skip_solver_generator:
+    if skipsolver_generator:
         print_header("Output")
         print_warning("Solver generation was disabled by the command line option. Skipped.", no_tab=True)
         return None, None
@@ -94,7 +94,7 @@ def generate_casadi_solver(modules, settings, model, skip_solver_generator=False
     return solver, simulator
 
 
-def generate_osqp_solver(modules, settings, model, skip_solver_generator=False):
+def generate_osqpsolver(modules, settings, model, skipsolver_generator=False):
     """
     Generate an OSQP solver instance with the given settings and model.
 
@@ -102,13 +102,13 @@ def generate_osqp_solver(modules, settings, model, skip_solver_generator=False):
         modules: List of modules for the solver
         settings: Dictionary containing solver settings
         model: Model object with dynamics and constraints
-        skip_solver_generator: Flag to skip generation if True
+        skipsolver_generator: Flag to skip generation if True
 
     Returns:
         solver: OSQP solver instance
         simulator: Simulator instance (may be the same as solver)
     """
-    if skip_solver_generator:
+    if skipsolver_generator:
         print_header("Output")
         print_warning("Solver generation was disabled by the command line option. Skipped.", no_tab=True)
         return None, None
@@ -176,7 +176,7 @@ def generate_osqp_solver(modules, settings, model, skip_solver_generator=False):
     return solver, simulator
 
 
-def generate_solver(modules, model, settings=None):
+def generatesolver(modules, model, settings=None):
     """
     Generate a solver based on settings.
 
@@ -190,8 +190,8 @@ def generate_solver(modules, model, settings=None):
         simulator: Simulator instance
     """
     # Parse command line arguments for skipping solver generation
-    skip_solver_generator = len(sys.argv) > 1 and sys.argv[1].lower() == "false"
-    print("Skip solver gen set to: " + str(skip_solver_generator))
+    skipsolver_generator = len(sys.argv) > 1 and sys.argv[1].lower() == "false"
+    print("Skip solver gen set to: " + str(skipsolver_generator))
 
     # Load settings if not provided
     if settings is None:
@@ -209,9 +209,9 @@ def generate_solver(modules, model, settings=None):
     simulator = None
 
     if settings["solver_settings"]["solver"] == "osqp":
-        solver, simulator = generate_osqp_solver(modules, settings, model, skip_solver_generator)
+        solver, simulator = generate_osqpsolver(modules, settings, model, skipsolver_generator)
     elif settings["solver_settings"]["solver"] == "casadi":
-        solver, simulator = generate_casadi_solver(modules, settings, model, skip_solver_generator)
+        solver, simulator = generate_casadisolver(modules, settings, model, skipsolver_generator)
 
     # Save parameter and model maps if solver was generated
     if solver and simulator:

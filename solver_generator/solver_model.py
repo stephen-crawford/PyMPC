@@ -352,7 +352,7 @@ class BicycleModel2ndOrder(DynamicsModel):
         self.states = ["x", "y", "psi", "v", "delta", "spline"]
         self.inputs = ["a", "w", "slack"]
 
-        # Prius limits: https:#github.com/oscardegroot/lmpcc/blob/prius/lmpcc_solver/scripts/systems.py
+        # Prius limits: https:#github.com/oscardegroot/lmpcc/blob/prius/lmpccsolver/scripts/systems.py
         # w [-0.2, 0.2] | a [-1.0 1.0]
         # w was 0.5
         # delta was 0.45
@@ -400,7 +400,7 @@ class BicycleModel2ndOrderCurvatureAware(DynamicsModel):
 
         self.do_not_use_integration_for_last_n_states(n=1)
 
-        # Prius limits: https:#github.com/oscardegroot/lmpcc/blob/prius/lmpcc_solver/scripts/systems.py
+        # Prius limits: https:#github.com/oscardegroot/lmpcc/blob/prius/lmpccsolver/scripts/systems.py
         # w [-0.2, 0.2] | a [-1.0 1.0]
         # w was 0.5
         # delta was 0.45

@@ -7,37 +7,37 @@ logger = logging.getLogger(__name__)
 
 class Planner:
   def __init__(self, solver, modules):
-    self._solver = solver  # Now accepts any solver instance
-    self._solver.reset()
-    self._modules = modules
-    self._init_modules()
-    self._startup_timer = Timer(1.0)
-    self._was_reset = False
-    self._experiment_util = None
+    self.solver = solver  # Now accepts any solver instance
+    self.solver.reset()
+    self.modules = modules
+    self.init_modules()
+    self.startup_timer = Timer(1.0)
+    self.was_reset = False
+    self.experiment_util = None
     self.output = None
     self.warmstart = None
     self.benchmarkers = []
 
-  def _init_modules(self):
-    for module in self._modules:
-      module.__init__(self._solver)
+  def init_modules(self):
+    for module in self.modules:
+      module.__init__()
 
   def solve_mpc(self, state, data):
     logger.info("planner.solve_mpc")
     was_feasible = self.output.success if self.output else False
-    self.output = PlannerOutput(self._solver.dt, self._solver.N)
+    self.output = PlannerOutput(self.solver.dt, self.solver.N)
     module_data = {}
 
-    is_data_ready = all(module.is_data_ready(data) for module in self._modules)
+    is_data_ready = all(module.is_data_ready(data) for module in self.modules)
     if not is_data_ready:
-      if self._startup_timer.has_finished():
+      if self.startup_timer.has_finished():
         logger.warning("Data is not ready")
       self.output.success = False
       return self.output
 
-    if self._was_reset:
-      self._experiment_util.set_start_experiment()
-      self._was_reset = False
+    if self.was_reset:
+      self.experiment_util.set_start_experiment()
+      self.was_reset = False
 
     planning_benchmarker = Benchmarker("planning")
     self.benchmarkers.append(planning_benchmarker)
@@ -53,51 +53,51 @@ class Planner:
 
     shift_forward = CONFIG["shift_previous_solution_forward"] and CONFIG["enable_output"]
     if was_feasible:
-      self._solver.initialize_warmstart(state, shift_forward)
+      self.solver.initialize_warmstart(state, shift_forward)
     else:
-      self._solver.initialize_with_braking(state)
+      self.solver.initialize_with_braking(state)
 
-    self._solver.set_xinit(state)
+    self.solver.set_xinit(state)
 
-    for module in self._modules:
+    for module in self.modules:
       module.update(state, data, module_data)
 
-    for k in range(self._solver.N):
-      for module in self._modules:
+    for k in range(self.solver.N):
+      for module in self.modules:
         module.set_parameters(data, module_data, k)
 
     self.warmstart = Trajectory()
-    for k in range(self._solver.N):
-      self.warmstart.add(self._solver.get_ego_prediction(k, "x"),
-                         self._solver.get_ego_prediction(k, "y"))
-    self._solver.load_warmstart()
+    for k in range(self.solver.N):
+      self.warmstart.add(self.solver.get_ego_prediction(k, "x"),
+                         self.solver.get_ego_prediction(k, "y"))
+    self.solver.load_warmstart()
 
     used_time = time.time() - data.planning_start_time
-    self._solver.params.solver_timeout = 1.0 / CONFIG["control_frequency"] - used_time - 0.006
+    self.solver.params.solver_timeout = 1.0 / CONFIG["control_frequency"] - used_time - 0.006
 
     exit_flag = -1
-    for module in self._modules:
+    for module in self.modules:
       exit_flag = module.optimize(state, data, module_data)
       if exit_flag != -1:
         break
 
     if exit_flag == -1:
-      exit_flag = self._solver.solve()
+      exit_flag = self.solver.solve()
 
     planning_benchmarker.stop()
 
     if exit_flag != 1:
       self.output.success = False
-      logger.warning(f"MPC failed: {self._solver.explain_exit_flag(exit_flag)}")
+      logger.warning(f"MPC failed: {self.solver.explain_exit_flag(exit_flag)}")
       return self.output
 
     self.output.success = True
-    for k in range(1, self._solver.N):
-      self.output.trajectory.add(self._solver.get_output(k, "x"),
-                                 self._solver.get_output(k, "y"))
+    for k in range(1, self.solver.N):
+      self.output.trajectory.add(self.solver.get_output(k, "x"),
+                                 self.solver.get_output(k, "y"))
 
     if self.output.success and CONFIG["debug_limits"]:
-      self._solver.print_if_bound_limited()
+      self.solver.print_if_bound_limited()
 
     logger.info("Planner::solveMPC done")
     return self.output

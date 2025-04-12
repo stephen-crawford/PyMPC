@@ -21,14 +21,14 @@ class TestPathReferenceVelocity(unittest.TestCase):
 		mock_read_config.return_value = self.mock_config
 
 		# Import here to use the mocked config
-		from path_reference_velocity import PathReferenceVelocity
+		from planner_modules.path_reference_velocity import PathReferenceVelocity
 
 		# Create mock solver
-		self.mock_solver = MagicMock()
-		self.mock_solver.params = {}
+		self.mocksolver = MagicMock()
+		self.mocksolver.params = {}
 
 		# Initialize class under test
-		self.prv = PathReferenceVelocity(self.mock_solver)
+		self.prv = PathReferenceVelocity(self.mocksolver)
 
 		# Verify initialization logs
 		mock_log_debug.assert_any_call("Initializing Path Reference Velocity")
@@ -150,18 +150,18 @@ class TestPathReferenceVelocity(unittest.TestCase):
 		# Verify
 		mock_log_debug.assert_called_with("Using spline-based reference velocity")
 		expected_calls = [
-			call(self.mock_solver.params, "spline_va", 1.0, 0, 0),
-			call(self.mock_solver.params, "spline_vb", 2.0, 0, 0),
-			call(self.mock_solver.params, "spline_vc", 3.0, 0, 0),
-			call(self.mock_solver.params, "spline_vd", 4.0, 0, 0),
-			call(self.mock_solver.params, "spline_va", 5.0, 0, 1),
-			call(self.mock_solver.params, "spline_vb", 6.0, 0, 1),
-			call(self.mock_solver.params, "spline_vc", 7.0, 0, 1),
-			call(self.mock_solver.params, "spline_vd", 8.0, 0, 1),
-			call(self.mock_solver.params, "spline_va", 9.0, 0, 2),
-			call(self.mock_solver.params, "spline_vb", 10.0, 0, 2),
-			call(self.mock_solver.params, "spline_vc", 11.0, 0, 2),
-			call(self.mock_solver.params, "spline_vd", 12.0, 0, 2)
+			call(self.mocksolver.params, "spline_va", 1.0, 0, 0),
+			call(self.mocksolver.params, "spline_vb", 2.0, 0, 0),
+			call(self.mocksolver.params, "spline_vc", 3.0, 0, 0),
+			call(self.mocksolver.params, "spline_vd", 4.0, 0, 0),
+			call(self.mocksolver.params, "spline_va", 5.0, 0, 1),
+			call(self.mocksolver.params, "spline_vb", 6.0, 0, 1),
+			call(self.mocksolver.params, "spline_vc", 7.0, 0, 1),
+			call(self.mocksolver.params, "spline_vd", 8.0, 0, 1),
+			call(self.mocksolver.params, "spline_va", 9.0, 0, 2),
+			call(self.mocksolver.params, "spline_vb", 10.0, 0, 2),
+			call(self.mocksolver.params, "spline_vc", 11.0, 0, 2),
+			call(self.mocksolver.params, "spline_vd", 12.0, 0, 2)
 		]
 		mock_set_param.assert_has_calls(expected_calls)
 
@@ -177,18 +177,18 @@ class TestPathReferenceVelocity(unittest.TestCase):
 
 		# Verify
 		expected_calls = [
-			call(self.mock_solver.params, "spline_va", 0.0, 0, 0),
-			call(self.mock_solver.params, "spline_vb", 0.0, 0, 0),
-			call(self.mock_solver.params, "spline_vc", 0.0, 0, 0),
-			call(self.mock_solver.params, "spline_vd", 10.0, 0, 0),
-			call(self.mock_solver.params, "spline_va", 0.0, 0, 1),
-			call(self.mock_solver.params, "spline_vb", 0.0, 0, 1),
-			call(self.mock_solver.params, "spline_vc", 0.0, 0, 1),
-			call(self.mock_solver.params, "spline_vd", 10.0, 0, 1),
-			call(self.mock_solver.params, "spline_va", 0.0, 0, 2),
-			call(self.mock_solver.params, "spline_vb", 0.0, 0, 2),
-			call(self.mock_solver.params, "spline_vc", 0.0, 0, 2),
-			call(self.mock_solver.params, "spline_vd", 10.0, 0, 2)
+			call(self.mocksolver.params, "spline_va", 0.0, 0, 0),
+			call(self.mocksolver.params, "spline_vb", 0.0, 0, 0),
+			call(self.mocksolver.params, "spline_vc", 0.0, 0, 0),
+			call(self.mocksolver.params, "spline_vd", 10.0, 0, 0),
+			call(self.mocksolver.params, "spline_va", 0.0, 0, 1),
+			call(self.mocksolver.params, "spline_vb", 0.0, 0, 1),
+			call(self.mocksolver.params, "spline_vc", 0.0, 0, 1),
+			call(self.mocksolver.params, "spline_vd", 10.0, 0, 1),
+			call(self.mocksolver.params, "spline_va", 0.0, 0, 2),
+			call(self.mocksolver.params, "spline_vb", 0.0, 0, 2),
+			call(self.mocksolver.params, "spline_vc", 0.0, 0, 2),
+			call(self.mocksolver.params, "spline_vd", 10.0, 0, 2)
 		]
 		mock_set_param.assert_has_calls(expected_calls)
 
@@ -204,10 +204,10 @@ class TestPathReferenceVelocity(unittest.TestCase):
 
 		# Verify that reference_velocity is 0.0 for k != 0
 		expected_calls = [
-			call(self.mock_solver.params, "spline_va", 0.0, 1, 0),
-			call(self.mock_solver.params, "spline_vb", 0.0, 1, 0),
-			call(self.mock_solver.params, "spline_vc", 0.0, 1, 0),
-			call(self.mock_solver.params, "spline_vd", 0.0, 1, 0),
+			call(self.mocksolver.params, "spline_va", 0.0, 1, 0),
+			call(self.mocksolver.params, "spline_vb", 0.0, 1, 0),
+			call(self.mocksolver.params, "spline_vc", 0.0, 1, 0),
+			call(self.mocksolver.params, "spline_vd", 0.0, 1, 0),
 			# ... similar for other segments
 		]
 		mock_set_param.assert_has_calls(expected_calls[:4])  # Just check first segment
@@ -231,18 +231,18 @@ class TestPathReferenceVelocity(unittest.TestCase):
 
 		# Verify - all out of bounds should set zeros
 		out_of_bounds_calls = [
-			call(self.mock_solver.params, "spline_va", 0.0, 0, 0),  # Index 1 is out of bounds
-			call(self.mock_solver.params, "spline_vb", 0.0, 0, 0),
-			call(self.mock_solver.params, "spline_vc", 0.0, 0, 0),
-			call(self.mock_solver.params, "spline_vd", 0.0, 0, 0),
-			call(self.mock_solver.params, "spline_va", 0.0, 0, 1),  # Index 2 is out of bounds
-			call(self.mock_solver.params, "spline_vb", 0.0, 0, 1),
-			call(self.mock_solver.params, "spline_vc", 0.0, 0, 1),
-			call(self.mock_solver.params, "spline_vd", 0.0, 0, 1),
-			call(self.mock_solver.params, "spline_va", 0.0, 0, 2),  # Index 3 is out of bounds
-			call(self.mock_solver.params, "spline_vb", 0.0, 0, 2),
-			call(self.mock_solver.params, "spline_vc", 0.0, 0, 2),
-			call(self.mock_solver.params, "spline_vd", 0.0, 0, 2)
+			call(self.mocksolver.params, "spline_va", 0.0, 0, 0),  # Index 1 is out of bounds
+			call(self.mocksolver.params, "spline_vb", 0.0, 0, 0),
+			call(self.mocksolver.params, "spline_vc", 0.0, 0, 0),
+			call(self.mocksolver.params, "spline_vd", 0.0, 0, 0),
+			call(self.mocksolver.params, "spline_va", 0.0, 0, 1),  # Index 2 is out of bounds
+			call(self.mocksolver.params, "spline_vb", 0.0, 0, 1),
+			call(self.mocksolver.params, "spline_vc", 0.0, 0, 1),
+			call(self.mocksolver.params, "spline_vd", 0.0, 0, 1),
+			call(self.mocksolver.params, "spline_va", 0.0, 0, 2),  # Index 3 is out of bounds
+			call(self.mocksolver.params, "spline_vb", 0.0, 0, 2),
+			call(self.mocksolver.params, "spline_vc", 0.0, 0, 2),
+			call(self.mocksolver.params, "spline_vd", 0.0, 0, 2)
 		]
 		mock_set_param.assert_has_calls(out_of_bounds_calls)
 

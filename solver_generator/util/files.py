@@ -15,8 +15,8 @@ def get_package_path(package_name):
   return os.path.join(os.path.dirname(__file__), f"../../{package_name}")
 
 
-def get_solver_package_path():
-  return get_package_path("mpc_planner_solver")
+def getsolver_package_path():
+  return get_package_path("mpc_plannersolver")
 
 
 def save_config_path():
@@ -54,20 +54,20 @@ def load_test_settings(setting_file_name="settings"):
   return settings
 
 
-def default_solver_path(settings):
+def defaultsolver_path(settings):
   return os.path.join(os.getcwd(), f"{solver_name(settings)}")
 
 
 def solver_path(settings):
-  return os.path.join(get_solver_package_path(), f"{solver_name(settings)}")
+  return os.path.join(getsolver_package_path(), f"{solver_name(settings)}")
 
 
-def default_casadi_solver_path(settings):
+def default_casadisolver_path(settings):
   return os.path.join(get_package_path("solver_generator"), f"casadi")
 
 
-def casadi_solver_path(settings):
-  return os.path.join(get_solver_package_path(), f"casadi")
+def casadisolver_path(settings):
+  return os.path.join(getsolver_package_path(), f"casadi")
 
 
 def parameter_map_path():

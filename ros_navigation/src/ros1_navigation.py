@@ -1,480 +1,593 @@
-from venv import logger
+#!/usr/bin/env python3
+
+import numpy as np
+import math
+import threading
+import time
+from datetime import datetime
+import chrono
+
+from nav_msgs.msg import Odometry, Path
+from geometry_msgs.msg import PoseStamped, Twist, TransformStamped
+from std_msgs.msg import Empty, Float32, Float64, Int32
+from std_srvs.srv import Empty as EmptySrv
+from robot_localization.srv import SetPose
+from tf2_ros import TransformBroadcaster
+from nav_core import BaseLocalPlanner
+from costmap_2d import Costmap2DROS, Costmap2D
+
+from mpc_planner.planner import Planner
+from mpc_planner.data_preparation import ensure_obstacle_size, propagate_prediction_uncertainty
+from mpc_planner_util.parameters import Configuration
+from mpc_planner_util.load_yaml import load_yaml_file
+from mpc_planner_msgs.msg import ObstacleArray
 
-from planner.src.data_prep import ensure_obstacle_size
-from utils.utils import read_config_file
+from ros_tools.visuals import Visuals
+from ros_tools.logging import LOG_INFO, LOG_DEBUG, LOG_SUCCESS, LOG_WARN, LOG_ERROR, LOG_MARK, LOG_VALUE_DEBUG, \
+    LOG_DIVIDER
+from ros_tools.convertions import quaternion_to_angle, angle_to_quaternion
+from ros_tools.math import sgn
+from ros_tools.data_saver import DataSaver
+from ros_tools.spline import Clothoid2D
+from ros_tools.profiling import Instrumentor, Benchmarkers
 
-CONFIG = read_config_file()
+from mpc_planner.prediction import Prediction, PredictionType
+from mpc_planner.state import State
+from mpc_planner.real_time_data import RealTimeData
+from mpc_planner.models import Disc
 
+# Constants
+CAMERA_BUFFER = 10
+SYSTEM_CONFIG_PATH = lambda file_path, folder: f"{file_path}/{folder}"
 
-class ROSNavigationPlanner:
-  def __init__(self, name, buffer, costmap):
-    self.name = name
-    self.buffer = buffer
-    self.costmap = costmap
-    self.initialized = False
+# Global objects
+CONFIG = load_yaml_file(SYSTEM_CONFIG_PATH(__file__, "settings"))
+VISUALS = Visuals()
+BENCHMARKERS = Benchmarkers()
 
 
-  def initialize(self, name, buffer, costmap_ros):
-    if not self.initialized:
-      self.node_handle = node_handle("~/" + name)
+class Timer:
+    def __init__(self):
+        self.duration = 0.0
+        self.start_time = 0.0
 
-      self.buffer = buffer
+    def setDuration(self, duration):
+        self.duration = duration
 
-      costmap_ros_ = costmap_ros
-      costmap_ = costmap_ros_.getCostmap()
-      self.costmap = costmap_
+    def start(self):
+        self.start_time = time.time()
 
-      self.initialized_ = True
+    def hasFinished(self):
+        return (time.time() - self.start_time) > self.duration
 
-      LOG_DEBUG( "Started ROSNavigation Planner")
 
-      VISUALS.init(general_node_handler)
+class ROSNavigationPlanner(BaseLocalPlanner):
+    def __init__(self, name=None, tf=None, costmap_ros=None):
+        self.costmap_ros_ = None
+        self.tf_ = None
+        self.initialized_ = False
+        self.general_nh_ = rospy.NodeHandle()
 
-      # Initialize the configuration
-      get_configuration_instance().initialize(SYSTEM_CONFIG_PATH(__FILE__, "settings"))
+        self._data = RealTimeData()
+        self._state = State()
+        self._planner = None
+        self._reconfigure = None
 
-      _data.robot_area = Disc(0., CONFIG["n_discs"])
+        # Initialize buffers and variables
+        self._x_buffer = [0.0] * CAMERA_BUFFER
+        self._y_buffer = [0.0] * CAMERA_BUFFER
+        self._prev_stamp = rospy.Time(0)
+        self._timeout_timer = Timer()
+        self._rotate_to_goal = False
+        self._enable_output = False
+        self.done_ = False
+        self.global_plan_ = []
 
-      # Initialize the planner
-      _planner = make_unique(Planner)
+        self._reset_mutex = threading.Lock()
+        self._reset_msg = EmptySrv()
+        self._reset_pose_msg = SetPose()
 
-      # Initialize the ROS interface
-      initializeSubscribersAndPublishers(node_handler)
+        self._camera_pub = TransformBroadcaster()
 
-      start_environment()
+        if name is not None and tf is not None and costmap_ros is not None:
+            self.initialize(name, tf, costmap_ros)
 
-      _reconfigure = make_unique(ROSNavigationReconfigure)
+    def initialize(self, name, tf, costmap_ros):
+        if not self.initialized_:
+            nh = rospy.NodeHandle(f"~/{name}")
 
-      self_timeout_timer.set_duration(60.)
-      self._timeout_timer.start()
-      for i in range(CAMERA_BUFFER):
+            self.tf_ = tf
 
-        _x_buffer[i] = 0.
-        _y_buffer[i] = 0.
+            self.costmap_ros_ = costmap_ros
+            self.costmap_ = self.costmap_ros_.getCostmap()
+            self._data.costmap = self.costmap_
 
+            self.initialized_ = True
 
-      RosTools.Instrumentor.get().begin_session("mpc_planner_rosnavigation")
+            LOG_INFO("Started ROSNavigation Planner")
 
-      LOG_DIVIDER()
+            VISUALS.init(self.general_nh_)
 
-  def exit(self):
+            # Initialize the configuration
+            Configuration.getInstance().initialize(SYSTEM_CONFIG_PATH(__file__, "settings"))
 
-    logger.log("Stopped ROSNavigation Planner")
-    BENCHMARKERS.print()
+            self._data.robot_area = [Disc(0.0, CONFIG["robot_radius"])]
 
-    RosTools.Instrumentor.get().end_sssion()
+            # Initialize the planner
+            self._planner = Planner()
 
-  def set_plan(self, orig_global_plan):
-    # check if plugin is initialized
-    if not self.initialized:
+            # Initialize the ROS interface
+            self.initializeSubscribersAndPublishers(nh)
 
-      LOG_DEBUG( "ROS planner has not been initialized, please call initialize() before using this planner")
-      return False
+            self.startEnvironment()
 
+            # TODO: implement reconfigure class
+            # self._reconfigure = RosnavigationReconfigure()
 
-    # store the global plan
-    global_plan_.clear()
-    global_plan_ = orig_global_plan
+            self._timeout_timer.setDuration(60.0)
+            self._timeout_timer.start()
+            for i in range(CAMERA_BUFFER):
+                self._x_buffer[i] = 0.0
+                self._y_buffer[i] = 0.0
 
-    # we do not clear the local planner here, since setPlan is called frequently whenever the global planner updates the plan.
-    # the local planner checks whether it is required to reinitialize the trajectory or not within each velocity computation step.
+            Instrumentor.Get().BeginSession("mpc_planner_rosnavigation")
 
-    # reset goal_reached_ flag
-    # goal_reached_ = False
+            LOG_DIVIDER()
 
-    return True
+    def __del__(self):
+        LOG_INFO("Stopped ROSNavigation Planner")
+        BENCHMARKERS.print()
 
-  def compute_velocity_commands(self, cmd_vel):
-    if not self.initialized:
-      LOG_DEBUG( "This planner has not been initialized")
-      return False
+        Instrumentor.Get().EndSession()
 
-    path = make_shared(Path)
-    path.poses = global_plan_
-    path_callback(path)
+    def setPlan(self, orig_global_plan):
+        # check if plugin is initialized
+        if not self.initialized_:
+            rospy.logerr("planner has not been initialized, please call initialize() before using this planner")
+            return False
 
-    if (_rotate_to_goal):
-      rotateToGoal(cmd_vel)
-    else:
-      loop(cmd_vel)
+        # store the global plan
+        self.global_plan_ = []
+        self.global_plan_ = orig_global_plan
 
-    return True
+        # we do not clear the local planner here, since setPlan is called frequently whenever the global planner updates the plan.
+        # the local planner checks whether it is required to reinitialize the trajectory or not within each velocity computation step.
 
+        # reset goal_reached_ flag
+        # self.goal_reached_ = False
 
-  def initialize_subscribers_and_publishers(self, node_handler):
-    LOG_DEBUG( "initializeSubscribersAndPublishers")
+        return True
 
-    _state_sub = node_handler.subscribe("/input/state", 5, bind(state_callback, self, _1))
+    def computeVelocityCommands(self, cmd_vel):
+        if not self.initialized_:
+            rospy.logerr("This planner has not been initialized")
+            return False
 
-    _state_pose_sub = node_handler.subscribe("/input/state_pose", 5, bind(state_pose_callback, self, _1))
+        path = Path()
+        path.poses = self.global_plan_
+        self.pathCallback(path)
 
-    _goal_sub = node_handler.subscribe("/input/goal", 1, bind(goal_callback, self, _1))
-
-    _path_sub = node_handler.subscribe("/input/reference_path", 1, bind(path_callback, self, _1))
-
-    _obstacle_sim_sub = node_handler.subscribe("/input/obstacles", 1, bind(obstacleCallback, self, _1))
-
-    _cmd_pub = node_handler.advertise("/output/command", 1)
-
-    _pose_pub = node_handler.advertise("/output/pose", 1)
-
-    _collisions_sub = node_handler.subscribe("/feedback/collisions", 1, bind(collision_callback, self, _1))
-
-    # Environment Reset
-    _reset_simulation_pub = node_handler.advertise("/lmpcc/reset_environment", 1)
-    _reset_simulation_client = node_handler.service_client("/gazebo/reset_world")
-    _reset_ekf_client = node_handler.service_client("/set_pose")
-
-    # Pedestrian simulator
-    _ped_horizon_pub = node_handler.advertise("/pedestrian_simulator/horizon", 1)
-    _ped_integrator_step_pub = node_handler.advertise("/pedestrian_simulator/integrator_step", 1)
-    _ped_clock_frequency_pub = node_handler.advertise("/pedestrian_simulator/clock_frequency", 1)
-    _ped_start_client = node_handler.service_client("/pedestrian_simulator/start")
-
-  def start_environment(self):
-
-    # Manually add obstacles in the costmap!
-    # int mx, my
-    # costmap_.worldToMapEnforceBounds(2., 2., mx, my)
-    # LOG_VALUE("mx", mx)
-    # LOG_VALUE("my", my)
-
-    # for (int i = 0 i < 10 i++)
-    # {
-    #   costmap_.setCost(mx + i, my, costmap_2d::LETHAL_OBSTACLE)
-    # }
-
-    LOG_DEBUG( "Starting pedestrian simulator")
-    i = 0
-    while i < 20:
-      horizon_msg = None
-      horizon_msg.data = CONFIG["N"]
-      _ped_horizon_pub.publish(horizon_msg)
-
-      integrator_step_msg = None
-      integrator_step_msg.data = CONFIG["integrator_step"]
-      _ped_integrator_step_pub.publish(integrator_step_msg)
-
-      clock_frequency_msg = None
-      clock_frequency_msg.data = CONFIG["control_frequency"]
-      _ped_clock_frequency_pub.publish(clock_frequency_msg)
-
-      empty_msg = None
-      if (_ped_start_client.call(empty_msg)):
-        break
-      else:
-        logger.log(3, "Waiting for pedestrian simulator to start")
-        ros.duration(1.0).sleep()
-        _reset_simulation_pub.publish(std_msgs.empty())
-    _enable_output = CONFIG["enable_output"]
-    logger.log10, ("Environment ready.")
-
-  def is_goal_reached(self):
-
-    if not self.initialized:
-      LOG_DEBUG( "This planner has not been initialized")
-      return False
-
-    goal_reached = _planner.is_objective_reached(_state, _data) and not done_ # Activate once
-    if (goal_reached):
-      LOG_DEBUG( "Goal Reached!")
-      done_ = True
-      self.reset()
-
-    return goal_reached
-
-  def rotate_to_goal(self, cmd_vel):
-    LOG_DEBUG( "Rotating to the goal")
-    if not _data.goal_received:
-      LOG_DEBUG( "Waiting for the goal")
-      return
-    goal_angle = 0.
-
-    if _data.reference_path.x.size() > 2:
-      goal_angle = arctan2(_data.reference_path.y[2] - _state.get("y"), _data.reference_path.x[2] - _state.get("x"))
-    else:
-      goal_angle = arctan2(_data.goal(1) - _state.get("y"), _data.goal(0) - _state.get("x"))
-
-    angle_diff = goal_angle - _state.get("psi")
-
-    if angle_diff > M_PI:
-      angle_diff -= 2 * M_PI
-
-
-    if abs(angle_diff) > M_PI / 4.:
-      cmd_vel.linear.x = 0.0
-      if _enable_output:
-        cmd_vel.angular.z = 1.5 * RosTool.sgn(angle_diff)
-      else:
-        cmd_vel.angular.z = 0.
-
-    else:
-      LOG_DEBUG( "Robot rotated and is ready to follow the path")
-      _rotate_to_goal = False
-
-  def loop(self, cmd_vel):
-  
-    # Copy data for thread safety
-    data = self._data
-    state = self._state
-
-    data.planning_start_time = system_clock.now()
-
-    LOG_DEBUG( "============= Loop =============")
-
-    if _timeout_timer.hasFinished():
-    
-      reset(False)
-      cmd_vel.linear.x = 0.
-      cmd_vel.angular.z = 0.
-      return
-    
-
-    if CONFIG["debug_output"]:
-      state.print()
-
-    loop_benchmarker = BENCHMARKERS.getBenchmarker("loop")
-    loop_benchmarker.start()
-
-    output = self._planner.solve_mpc(state, data)
-
-    LOG_MARK("Success: " + output.success)
-
-    if self._enable_output and output.success:
-      # Publish the command
-      cmd_vel.linear.x = _planner.get_solution(1, "v") # = x1
-      cmd_vel.angular.z = _planner.get_solution(0, "w") # = u0
-      LOG_DEBUG( "Commanded v: " + cmd.linear.x)
-      LOG_VALUE_DEBUG(10, "Commanded w: " + cmd.angular.z)
-    else:
-      deceleration = CONFIG["deceleration_at_infeasible"]
-      dt = 1. / CONFIG["control_frequency"]
-
-      velocity = self._state.get("v")
-      velocity_after_braking = velocity - deceleration * dt  # Brake with the given deceleration
-      cmd_vel.linear.x = max(velocity_after_braking, 0.) # Don't drive backwards when braking
-      cmd_vel.angular.z = 0.0
-    _cmd_pub.publish(cmd)
-
-    publish_pose()
-    publish_camera()
-
-    loop_benchmarker.stop()
-
-    if CONFIG["recording"]["enable"]:
-      # Save control inputs
-      if (output.success):
-        data_saver = self._planner.get_data_saver()
-        data_saver.AddData("input_a", state.get("a"))
-        data_saver.AddData("input_v", self._planner.get_solution(1, "v"))
-        data_saver.AddData("input_w", self._planner.get_solution(0, "w"))
-    
-      self._planner.save_data(state, data)
-    if output.success:
-  
-      self._planner.visualize(state, data)
-      visualize()
-    
-    LOG_DEBUG( "============= End Loop =============")
-
-  def state_callback(self, msg):
-  
-    LOG_DEBUG( "State callback")
-    self._state.set("x", msg.pose.pose.position.x)
-    self._state.set("y", msg.pose.pose.position.y)
-    self._state.set("psi", RosTools.quaternion_to_angle(msg.pose.pose.orientation))
-    self._state.set("v", sqrt(pow(msg.twist.twist.linear.x, 2.) + pow(msg.twist.twist.linear.y, 2.)))
-
-    if (abs(msg.pose.pose.orientation.x) > (M_PI / 8.) or abs(msg.pose.pose.orientation.y) > (M_PI / 8.)):
-
-      LOG_DEBUG( "Detected flipped robot. Resetting.")
-      reset(False) # Reset without success
-
-  def state_pose_callback(self, msg):
-    LOG_DEBUG( "State callback")
-
-    self._state.set("x", msg.pose.position.x)
-    self._state.set("y", msg.pose.position.y)
-    self._state.set("psi", msg.pose.orientation.z)
-    self._state.set("v", msg.pose.position.z)
-
-    if (abs(msg.pose.orientation.x) > (M_PI / 8.) or abs(msg.pose.orientation.y) > (M_PI / 8.)):
-      LOG_DEBUG( "Detected flipped robot. Resetting.")
-      reset(False) # Reset without success
-  
-
-  def goal_callback(self, msg):
-    LOG_DEBUG( "Goal callback")
-
-    self._data.goal(0) = msg.pose.position.x
-    self._data.goal(1) = msg.pose.position.y
-    self._data.goal_received = True
-
-    _rotate_to_goal = True
-
-  def is_path_the_same(self, msg):
-    # Check if the path is the same
-    if self._data.reference_path.x.size() != msg.poses.size():
-      return False
-
-    # Check up to the first two points
-    num_points = min(2, self._data.reference_path.x.size())
-    for i in range(num_points):
-    
-      if not self._data.reference_path.point_in_path(i, msg.poses[i].pose.position.x, msg.poses[i].pose.position.y)):
-        return False
-    
-    return True
-
-  def path_callback(self, msg):
-    LOG_DEBUG( "Path callback")
-
-    downsample = CONFIG["downsample_path"]
-
-    if is_the_same_path(msg) or msg.poses.size() < downsample + 1:
-      return
-
-    self._data.reference_path.clear()
-
-    int count = 0
-    for pose in msg.poses:
-      if count % downsample == 0 or count == msg.poses.size() - 1: # Todo
-        self._data.reference_path.x.push_back(pose.pose.position.x)
-        self._data.reference_path.y.push_back(pose.pose.position.y)
-        self._data.reference_path.psi.push_back(RosTools.quaternion_to_angle(pose.pose.orientation))
-      
-      count+=1
-
-    # Fit a clothoid on the global path to sample points on the spline from
-    # RosTools::Clothoid2D clothoid(_data.reference_path.x, _data.reference_path.y, _data.reference_path.psi, 2.0)
-    # _data.reference_path.clear()
-    # clothoid.getPointsOnClothoid(_data.reference_path.x, _data.reference_path.y, _data.reference_path.s)
-
-    # Velocity
-    # LOG_VALUE("velocity reference", CONFIG["weights"]["reference_velocity"])
-    # for i in range(self._data.reference_path.x.size()):
-    # 
-    #   if (i != self._data.reference_path.x.size() - 1):
-    #     self._data.reference_path.v.push_back(CONFIG["weights"]["reference_velocity"])
-    #   else:
-    #     self._data.reference_path.v.push_back(0.)
-    # }
-
-    self._planner.on_data_received(_data, "reference_path")
-
-  def obstacle_callback(self, msg):
-    LOG_DEBUG( "Obstacle callback")
-
-    self._data.dynamic_obstacles.clear()
-
-    for obstacle in msg.obstacles:
-  
-      # Save the obstacle
-      self._data.dynamic_obstacles.emplace_back(obstacle.id, (obstacle.pose.position.x, obstacle.pose.position.y), RosTools.quaternion_to_angle(obstacle.pose), CONFIG["obstacle_radius"])
-      dynamic_obstacle = self._data.dynamic_obstacles.back()
-
-      if (obstacle.probabilities.size() == 0): # No Predictions!
-        continue
-
-      # Save the prediction
-      if (obstacle.probabilities.size() == 1): # One mode
-        dynamic_obstacle.prediction = Prediction(GAUSSIAN)
-
-        mode = obstacle.gaussians[0]
-        for k in range(mode.mean.poses.size()):
-          dynamic_obstacle.prediction.modes[0].emplace_back((mode.mean.poses[k].pose.position.x, mode.mean.poses[k].pose.position.y), RosTools.quaternion_to_angle(mode.mean.poses[k].pose.orientation), mode.major_semiaxis[k], mode.minor_semiaxis[k])
-
-        if (mode.major_semiaxis.back() == 0. or not CONFIG["probabilistic"]["enable"]):
-          dynamic_obstacle.prediction.type = DETERMINISTIC
+        if self._rotate_to_goal:
+            self.rotateToGoal(cmd_vel)
         else:
-          dynamic_obstacle.prediction.type = GAUSSIAN
-      
-      else:
-        PYMPC_ASSERT(False, "Multiple modes not yet supported")
-    
-    ensure_obstacle_size(self._data.dynamic_obstacles, self._state)
+            self.loop(cmd_vel)
 
-    if (CONFIG["probabilistic"]["propagate_uncertainty"]):
-      propogate_prediction_uncertainty(self._data.dynamic_obstacles)
+        return True
 
-    self._planner.on_data_received(self._data, "dynamic obstacles")
+    def initializeSubscribersAndPublishers(self, nh):
+        LOG_INFO("initializeSubscribersAndPublishers")
 
-  def visualize(self):
-    publisher = VISUALS.get_publisher("angle")
-    line = publisher.get_new_line()
+        self._state_sub = nh.subscribe("/input/state", 5, self.stateCallback)
 
-    line.add_line((_state.get("x"), _state.get("y")), (_state.get("x") + 1.0 * cos(_state.get("psi")), _state.get("y") + 1.0 * sin(_state.get("psi"))))
-    publisher.publish()
+        self._state_pose_sub = nh.subscribe("/input/state_pose", 5, self.statePoseCallback)
 
-  def reset(self, success):
-    LOG_DEBUG( "Resetting")
-    l(_reset_mutex)
+        self._goal_sub = nh.subscribe("/input/goal", 1, self.goalCallback)
 
-    _reset_simulation_client.call(_reset_msg)
-    _reset_ekf_client.call(_reset_pose_msg)
-    _reset_simulation_pub.publish(empty_message())
+        self._path_sub = nh.subscribe("/input/reference_path", 1, self.pathCallback)
 
-    for i in range(CAMERA_BUFFER):
-      _x_buffer[i] = 0.
-      _y_buffer[i] = 0.
+        self._obstacle_sim_sub = nh.subscribe("/input/obstacles", 1, self.obstacleCallback)
+
+        self._cmd_pub = nh.advertise("/output/command", 1)
+
+        self._pose_pub = nh.advertise("/output/pose", 1)
+
+        self._collisions_sub = nh.subscribe("/feedback/collisions", 1, self.collisionCallback)
+
+        # Environment Reset
+        self._reset_simulation_pub = nh.advertise("/lmpcc/reset_environment", 1)
+        self._reset_simulation_client = nh.serviceClient("/gazebo/reset_world", EmptySrv)
+        self._reset_ekf_client = nh.serviceClient("/set_pose", SetPose)
+
+        # Pedestrian simulator
+        self._ped_horizon_pub = nh.advertise("/pedestrian_simulator/horizon", 1)
+        self._ped_integrator_step_pub = nh.advertise("/pedestrian_simulator/integrator_step", 1)
+        self._ped_clock_frequency_pub = nh.advertise("/pedestrian_simulator/clock_frequency", 1)
+        self._ped_start_client = nh.serviceClient("/pedestrian_simulator/start", EmptySrv)
+
+    def startEnvironment(self):
+        # Manually add obstacles in the costmap!
+        # mx, my = 0, 0
+        # self.costmap_.worldToMapEnforceBounds(2.0, 2.0, mx, my)
+        # LOG_VALUE("mx", mx)
+        # LOG_VALUE("my", my)
+
+        # for i in range(10):
+        #     self.costmap_.setCost(mx + i, my, costmap_2d.LETHAL_OBSTACLE)
+
+        LOG_INFO("Starting pedestrian simulator")
+        for i in range(20):
+            horizon_msg = Int32()
+            horizon_msg.data = CONFIG["N"]
+            self._ped_horizon_pub.publish(horizon_msg)
+
+            integrator_step_msg = Float32()
+            integrator_step_msg.data = CONFIG["integrator_step"]
+            self._ped_integrator_step_pub.publish(integrator_step_msg)
+
+            clock_frequency_msg = Float32()
+            clock_frequency_msg.data = CONFIG["control_frequency"]
+            self._ped_clock_frequency_pub.publish(clock_frequency_msg)
+
+            empty_msg = EmptySrv()
+            if self._ped_start_client.call(empty_msg):
+                break
+            else:
+                LOG_INFO_THROTTLE(3, "Waiting for pedestrian simulator to start")
+                rospy.Duration(1.0).sleep()
+
+                self._reset_simulation_pub.publish(Empty())
+
+        self._enable_output = CONFIG["enable_output"]
+        LOG_INFO("Environment ready.")
+
+    def isGoalReached(self):
+        if not self.initialized_:
+            rospy.logerr("This planner has not been initialized")
+            return False
+
+        goal_reached = self._planner.isObjectiveReached(self._state, self._data) and not self.done_  # Activate once
+        if goal_reached:
+            LOG_SUCCESS("Goal Reached!")
+            self.done_ = True
+            self.reset()
+
+        return goal_reached
+
+    def rotateToGoal(self, cmd_vel):
+        LOG_INFO_THROTTLE(1500, "Rotating to the goal")
+        if not self._data.goal_received:
+            LOG_INFO("Waiting for the goal")
+            return
+
+        goal_angle = 0.0
+
+        if len(self._data.reference_path.x) > 2:
+            goal_angle = math.atan2(self._data.reference_path.y[2] - self._state.get("y"),
+                                    self._data.reference_path.x[2] - self._state.get("x"))
+        else:
+            goal_angle = math.atan2(self._data.goal[1] - self._state.get("y"),
+                                    self._data.goal[0] - self._state.get("x"))
+
+        angle_diff = goal_angle - self._state.get("psi")
+
+        if angle_diff > math.pi:
+            angle_diff -= 2 * math.pi
+
+        if abs(angle_diff) > math.pi / 4.0:
+            cmd_vel.linear.x = 0.0
+            if self._enable_output:
+                cmd_vel.angular.z = 1.5 * sgn(angle_diff)
+            else:
+                cmd_vel.angular.z = 0.0
+        else:
+            LOG_SUCCESS("Robot rotated and is ready to follow the path")
+            self._rotate_to_goal = False
+
+    def loop(self, cmd_vel):
+        # Copy data for thread safety
+        data = self._data  # In Python, this is a reference, not a deep copy
+        state = self._state  # In Python, this is a reference, not a deep copy
+
+        data.planning_start_time = datetime.now()
+
+        LOG_MARK("============= Loop =============")
+
+        if self._timeout_timer.hasFinished():
+            self.reset(False)
+            cmd_vel.linear.x = 0.0
+            cmd_vel.angular.z = 0.0
+            return
+
+        if CONFIG["debug_output"]:
+            state.print()
+
+        loop_benchmarker = BENCHMARKERS.getBenchmarker("loop")
+        loop_benchmarker.start()
+
+        output = self._planner.solveMPC(state, data)
+
+        LOG_MARK("Success: " + str(output.success))
+
+        cmd = Twist()
+        if self._enable_output and output.success:
+            # Publish the command
+            cmd_vel.linear.x = self._planner.getSolution(1, "v")  # = x1
+            cmd_vel.angular.z = self._planner.getSolution(0, "w")  # = u0
+            LOG_VALUE_DEBUG("Commanded v", cmd.linear.x)
+            LOG_VALUE_DEBUG("Commanded w", cmd.angular.z)
+        else:
+            deceleration = CONFIG["deceleration_at_infeasible"]
+            velocity_after_braking = 0.0
+            velocity = 0.0
+            dt = 1.0 / CONFIG["control_frequency"]
+
+            velocity = self._state.get("v")
+            velocity_after_braking = velocity - deceleration * dt  # Brake with the given deceleration
+            cmd_vel.linear.x = max(velocity_after_braking, 0.0)  # Don't drive backwards when braking
+            cmd_vel.angular.z = 0.0
+
+        self._cmd_pub.publish(cmd)
+
+        self.publishPose()
+        self.publishCamera()
+
+        loop_benchmarker.stop()
+
+        if CONFIG["recording"]["enable"]:
+            # Save control inputs
+            if output.success:
+                data_saver = self._planner.getDataSaver()
+                data_saver.AddData("input_a", state.get("a"))
+                data_saver.AddData("input_v", self._planner.getSolution(1, "v"))
+                data_saver.AddData("input_w", self._planner.getSolution(0, "w"))
+
+            self._planner.saveData(state, data)
+
+        if output.success:
+            self._planner.visualize(state, data)
+            self.visualize()
+
+        LOG_MARK("============= End Loop =============")
+
+    def stateCallback(self, msg):
+        LOG_MARK("State callback")
+        self._state.set("x", msg.pose.pose.position.x)
+        self._state.set("y", msg.pose.pose.position.y)
+        self._state.set("psi", quaternion_to_angle(msg.pose.pose.orientation))
+        self._state.set("v",
+                        math.sqrt(math.pow(msg.twist.twist.linear.x, 2.0) + math.pow(msg.twist.twist.linear.y, 2.0)))
+
+        if abs(msg.pose.pose.orientation.x) > (math.pi / 8.0) or abs(msg.pose.pose.orientation.y) > (math.pi / 8.0):
+            LOG_WARN("Detected flipped robot. Resetting.")
+            self.reset(False)  # Reset without success
+
+    def statePoseCallback(self, msg):
+        LOG_MARK("State callback")
+
+        self._state.set("x", msg.pose.position.x)
+        self._state.set("y", msg.pose.position.y)
+        self._state.set("psi", msg.pose.orientation.z)
+        self._state.set("v", msg.pose.position.z)
+
+        if abs(msg.pose.orientation.x) > (math.pi / 8.0) or abs(msg.pose.orientation.y) > (math.pi / 8.0):
+            LOG_ERROR("Detected flipped robot. Resetting.")
+            self.reset(False)  # Reset without success
+
+    def goalCallback(self, msg):
+        LOG_MARK("Goal callback")
+
+        self._data.goal[0] = msg.pose.position.x
+        self._data.goal[1] = msg.pose.position.y
+        self._data.goal_received = True
+
+        self._rotate_to_goal = True
+
+    def isPathTheSame(self, msg):
+        # Check if the path is the same
+        if len(self._data.reference_path.x) != len(msg.poses):
+            return False
+
+        # Check up to the first two points
+        num_points = min(2, len(self._data.reference_path.x))
+        for i in range(num_points):
+            if not self._data.reference_path.pointInPath(i, msg.poses[i].pose.position.x, msg.poses[i].pose.position.y):
+                return False
+        return True
+
+    def pathCallback(self, msg):
+        LOG_MARK("Path callback")
+
+        downsample = CONFIG["downsample_path"]
+
+        if self.isPathTheSame(msg) or len(msg.poses) < downsample + 1:
+            return
+
+        self._data.reference_path.clear()
+
+        count = 0
+        for pose in msg.poses:
+            if count % downsample == 0 or count == len(msg.poses) - 1:  # Todo
+                self._data.reference_path.x.append(pose.pose.position.x)
+                self._data.reference_path.y.append(pose.pose.position.y)
+                self._data.reference_path.psi.append(quaternion_to_angle(pose.pose.orientation))
+            count += 1
+
+        # Fit a clothoid on the global path to sample points on the spline from
+        # clothoid = Clothoid2D(self._data.reference_path.x, self._data.reference_path.y, self._data.reference_path.psi, 2.0)
+        # self._data.reference_path.clear()
+        # clothoid.getPointsOnClothoid(self._data.reference_path.x, self._data.reference_path.y, self._data.reference_path.s)
+
+        # Velocity
+        """
+    LOG_VALUE("velocity reference", CONFIG["weights"]["reference_velocity"])
+    for i in range(len(self._data.reference_path.x)):
+        if i != len(self._data.reference_path.x) - 1:
+            self._data.reference_path.v.append(CONFIG["weights"]["reference_velocity"])
+        else:
+            self._data.reference_path.v.append(0.0)
+    """
+
+        self._planner.onDataReceived(self._data, "reference_path")
+
+    def obstacleCallback(self, msg):
+        LOG_MARK("Obstacle callback")
+
+        self._data.dynamic_obstacles.clear()
+
+        for obstacle in msg.obstacles:
+            # Save the obstacle
+            self._data.dynamic_obstacles.append(
+                DynamicObstacle(
+                    obstacle.id,
+                    np.array([obstacle.pose.position.x, obstacle.pose.position.y]),
+                    quaternion_to_angle(obstacle.pose),
+                    CONFIG["obstacle_radius"]
+                )
+            )
+            dynamic_obstacle = self._data.dynamic_obstacles[-1]
+
+            if len(obstacle.probabilities) == 0:  # No Predictions!
+                continue
+
+            # Save the prediction
+            if len(obstacle.probabilities) == 1:  # One mode
+                dynamic_obstacle.prediction = Prediction(PredictionType.GAUSSIAN)
+
+                mode = obstacle.gaussians[0]
+                for k in range(len(mode.mean.poses)):
+                    dynamic_obstacle.prediction.modes[0].append(
+                        PredictionPoint(
+                            np.array([mode.mean.poses[k].pose.position.x, mode.mean.poses[k].pose.position.y]),
+                            quaternion_to_angle(mode.mean.poses[k].pose.orientation),
+                            mode.major_semiaxis[k],
+                            mode.minor_semiaxis[k]
+                        )
+                    )
+
+                if mode.major_semiaxis[-1] == 0.0 or not CONFIG["probabilistic"]["enable"]:
+                    dynamic_obstacle.prediction.type = PredictionType.DETERMINISTIC
+                else:
+                    dynamic_obstacle.prediction.type = PredictionType.GAUSSIAN
+            else:
+                assert False, "Multiple modes not yet supported"
+
+        ensure_obstacle_size(self._data.dynamic_obstacles, self._state)
+
+        if CONFIG["probabilistic"]["propagate_uncertainty"]:
+            propagate_prediction_uncertainty(self._data.dynamic_obstacles)
+
+        self._planner.onDataReceived(self._data, "dynamic obstacles")
+
+    def visualize(self):
+        publisher = VISUALS.getPublisher("angle")
+        line = publisher.getNewLine()
+
+        line.addLine(
+            np.array([self._state.get("x"), self._state.get("y")]),
+            np.array([self._state.get("x") + 1.0 * math.cos(self._state.get("psi")),
+                      self._state.get("y") + 1.0 * math.sin(self._state.get("psi"))])
+        )
+        publisher.publish()
+
+    def reset(self, success=True):
+        LOG_INFO("Resetting")
+        with self._reset_mutex:
+            self._reset_simulation_client.call(self._reset_msg)
+            self._reset_ekf_client.call(self._reset_pose_msg)
+            self._reset_simulation_pub.publish(Empty())
+
+            for i in range(CAMERA_BUFFER):
+                self._x_buffer[i] = 0.0
+                self._y_buffer[i] = 0.0
+
+            self._planner.reset(self._state, self._data, success)
+            self._data.costmap = self.costmap_
+
+            rospy.Duration(1.0 / CONFIG["control_frequency"]).sleep()
+
+            self.done_ = False
+            self._rotate_to_goal = False
+
+            self._timeout_timer.start()
+
+    def collisionCallback(self, msg):
+        LOG_MARK("Collision callback")
+
+        self._data.intrusion = float(msg.data)
+
+        if self._data.intrusion > 0.0:
+            LOG_INFO_THROTTLE(500.0, "Collision detected (Intrusion: " + str(self._data.intrusion) + ")")
+
+    def publishPose(self):
+        pose = PoseStamped()
+        pose.pose.position.x = self._state.get("x")
+        pose.pose.position.y = self._state.get("y")
+        pose.pose.orientation = angle_to_quaternion(self._state.get("psi"))
+
+        pose.header.stamp = rospy.Time.now()
+        pose.header.frame_id = "map"
+
+        self._pose_pub.publish(pose)
+
+    def publishCamera(self):
+        msg = TransformStamped()
+        msg.header.stamp = rospy.Time.now()
+
+        if (msg.header.stamp - self._prev_stamp) < rospy.Duration(0.5 / CONFIG["control_frequency"]):
+            return
+
+        self._prev_stamp = msg.header.stamp
+
+        msg.header.frame_id = "map"
+        msg.child_frame_id = "camera"
+
+        # Smoothen the camera
+        for i in range(CAMERA_BUFFER - 1):
+            self._x_buffer[i] = self._x_buffer[i + 1]
+            self._y_buffer[i] = self._y_buffer[i + 1]
+        self._x_buffer[CAMERA_BUFFER - 1] = self._state.get("x")
+        self._y_buffer[CAMERA_BUFFER - 1] = self._state.get("y")
+        camera_x = 0.0
+        camera_y = 0.0
+        for i in range(CAMERA_BUFFER):
+            camera_x += self._x_buffer[i]
+            camera_y += self._y_buffer[i]
+        msg.transform.translation.x = camera_x / float(CAMERA_BUFFER)  # self._state.get("x")
+        msg.transform.translation.y = camera_y / float(CAMERA_BUFFER)  # self._state.get("y")
+        msg.transform.translation.z = 0.0
+        msg.transform.rotation.x = 0
+        msg.transform.rotation.y = 0
+        msg.transform.rotation.z = 0
+        msg.transform.rotation.w = 1
+
+        self._camera_pub.sendTransform(msg)
 
 
-    _planner.reset(_state, _data, success)
-    _data.costmap = costmap_
+# Additional required classes (simplified implementations)
+class DynamicObstacle:
+    def __init__(self, id, position, orientation, radius):
+        self.id = id
+        self.position = position  # Eigen::Vector2d
+        self.orientation = orientation
+        self.radius = radius
+        self.prediction = None
 
-    Duration(1.0 / CONFIG["control_frequency"]).sleep()
 
-    done_ = False
-    _rotate_to_goal = False
+class PredictionPoint:
+    def __init__(self, position, orientation, major_semiaxis, minor_semiaxis):
+        self.position = position
+        self.orientation = orientation
+        self.major_semiaxis = major_semiaxis
+        self.minor_semiaxis = minor_semiaxis
 
-    _timeout_timer.start()
 
-  def collision_callback(self, msg):
-    LOG_DEBUG( "Collision callback")
+# Register the plugin with ROS
+def register_plugin():
+    from pluginlib.class_list_macros import register
+    register("local_planner/ROSNavigationPlanner", ROSNavigationPlanner)
 
-    _data.intrusion = (float)(msg.data)
 
-    if (_data.intrusion > 0.)
-      LOG_DEBUG( "Collision detected (Intrusion: " + _data.intrusion + ")")
-
-  def publish_pose(self):
-    pose.pose.position.x = _state.get("x")
-    pose.pose.position.y = _state.get("y")
-    pose.pose.orientation = RosTools.angle_to_quaternion(_state.get("psi"))
-
-    pose.header.stamp = ros::Time::now()
-    pose.header.frame_id = "map"
-
-    _pose_pub.publish(pose)
-
-  def publish_camera(self):
-    msg.header.stamp = ros.Time.now()
-
-    if ((msg.header.stamp - _prev_stamp) < ros::Duration(0.5 / CONFIG["control_frequency"])):
-      return
-
-    _prev_stamp = msg.header.stamp
-
-    msg.header.frame_id = "map"
-    msg.child_frame_id = "camera"
-
-    # Smoothen the camera
-    for i in range(CAMERA_BUFFER - 1):
-      _x_buffer[i] = _x_buffer[i + 1]
-      _y_buffer[i] = _y_buffer[i + 1]
-    _x_buffer[CAMERA_BUFFER - 1] = _state.get("x")
-    _y_buffer[CAMERA_BUFFER - 1] = _state.get("y")
-    camera_x = 0.
-    camera_y = 0.
-    for i in range(CAMERA_BUFFER):
-      camera_x += _x_buffer[i]
-      camera_y += _y_buffer[i]
-    msg.transform.translation.x = camera_x / CAMERA_BUFFER #_state.get("x")
-    msg.transform.translation.y = camera_y / CAMERA_BUFFER #_state.get("y")
-    msg.transform.translation.z = 0.0
-    msg.transform.rotation.x = 0
-    msg.transform.rotation.y = 0
-    msg.transform.rotation.z = 0
-    msg.transform.rotation.w = 1
-
-    _camera_pub.send_transform(msg)
+if __name__ == "__main__":
+    rospy.init_node("ros_navigation_planner")
+    # Plugin initialization will be handled by ROS navigation stack
+    rospy.spin()

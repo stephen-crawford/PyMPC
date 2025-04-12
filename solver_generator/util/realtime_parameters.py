@@ -21,14 +21,14 @@ class RealTimeParameters:
   def get(self, k, parameter):
     return self.params[k, self._map[parameter]]
 
-  def get_solver_params(self):
+  def getsolver_params(self):
     out = []
     for k in range(self._settings["N"]):
       for i in range(self._num_p):
         out.append(self.params[k, i])
     return out
 
-  def get_solver_params_for_stage(self, k):
+  def getsolver_params_for_stage(self, k):
     out = []
     for i in range(self._num_p):
       out.append(self.params[k, i])

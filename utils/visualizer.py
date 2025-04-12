@@ -347,6 +347,12 @@ class ROSLine(ROSMarker):
 
             cur_p = next_p
 
+    def publish(self):
+        pass
+
+    def add_new_line(self):
+        pass
+
 
 class ROSPointMarker(ROSMarker):
     def __init__(self, ros_publisher, frame_id, marker_type):

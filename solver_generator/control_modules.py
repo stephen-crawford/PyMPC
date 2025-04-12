@@ -45,7 +45,7 @@ class Module:
     self.dependencies = []
     self.sources = []
 
-  def write_to_solver_interface(self, header_file):
+  def write_tosolver_interface(self, header_file):
     return
 
   def __str__(self):
@@ -166,7 +166,7 @@ class Objective:
 #     self.description = "Tracks multiple guidance trajectories in parallel (with multiple MPC)\n" +\
 #       "\t\t- Underlying Constraint: " + self.submodules[0].description
 
-#   def write_to_solver_interface(self, header_file):
+#   def write_tosolver_interface(self, header_file):
 #     assert len(self.submodules) == 1, "GuidanceObjective can use one type of submodule for collision avoidance constraints"
 #     header_file.write("#define GUIDANCE_CONSTRAINTS_TYPE " + self.submodules[0].module_name + "\n")
 

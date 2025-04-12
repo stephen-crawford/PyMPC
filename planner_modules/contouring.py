@@ -56,6 +56,7 @@ class Contouring:
             self.construct_road_constraints(real_time_data, module_data)
 
     def set_parameters(self, data, module_data, k):
+        print(f"set_parameters called with k={k}")
         # Retrieve weights once
         if k == 0:
             contouring_weight = CONFIG["weights"]["contour"]
@@ -69,7 +70,7 @@ class Contouring:
                 velocity_weight = CONFIG["weights"]["velocity"]
             else:
                 velocity_weight = None
-
+            print("setting solver parameters")
             self.set_solver_param(self.solver.params, "contour", contouring_weight, k)
             self.set_solver_param(self.solver.params, "lag", lag_weight, k)
             self.set_solver_param(self.solver.params, "terminal_angle", terminal_angle_weight, k)
@@ -78,10 +79,11 @@ class Contouring:
             if self.dynamic_velocity_reference:
                 self.set_solver_param(self.solver.params, "reference_velocity", velocity_weight, k)
                 self.set_solver_param(self.solver.params, "velocity", velocity_weight, k)
-
+        print("Setting spline parameters")
         self.set_spline_parameters(k)
 
     def set_spline_parameters(self, k):
+        print("Now setting spline params")
         if self.spline is None:
             return
 
@@ -164,14 +166,17 @@ class Contouring:
 
     def construct_road_constraints_from_centerline(self, data, module_data):
         # If bounds are not supplied construct road constraints based on a set width
+        print("Constructing road constraints from centerline")
+
         if module_data.static_obstacles.empty():
+            print("Static obstacles empty")
             module_data.static_obstacles.resize(self.solver.N)
             for k in range(module_data.static_obstacles.size()):
                 module_data.static_obstacles[k].reserve(2)
 
         # Get road width
         road_width_half = CONFIG["road"]["width"] / 2.0
-
+        print("Static obstacles: " + str(module_data.static_obstacles))
         for k in range(self.solver.N):
             module_data.static_obstacles[k].clear()
 

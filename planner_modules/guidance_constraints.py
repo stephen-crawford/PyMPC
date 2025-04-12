@@ -28,19 +28,19 @@ class GuidanceConstraints:
         self._planning_time = 1. / self._control_frequency
 
         # Initialize the constraint modules
-        self.n_solvers = self.global_guidance.get_config().n_paths  # + 1 for the main lmpcc solver?
+        self.nsolvers = self.global_guidance.get_config().n_paths  # + 1 for the main lmpcc solver?
 
-        PYMPC_ASSERT(self.n_solvers > 0 or self._use_tmpc,
+        PYMPC_ASSERT(self.nsolvers > 0 or self._use_tmpc,
                      "Guidance constraints cannot run with 0 paths and T-MPC+=1 disabled!")
 
-        LOG_DEBUG(f"Solvers count: {self.n_solvers}")
+        LOG_DEBUG(f"Solvers count: {self.nsolvers}")
         self.planners = []
-        for i in range(self.n_solvers):
+        for i in range(self.nsolvers):
             self.planners.append(self._create_planner(i))
 
         if self._use_tmpc:  # ADD IT AS FIRST PLAN
             LOG_DEBUG("Using T-MPC+=1 (Adding the non-guided planner in parallel)")
-            self.planners.append(self._create_planner(self.n_solvers, True))
+            self.planners.append(self._create_planner(self.nsolvers, True))
 
         self._map_homotopy_class_to_planner = {}
         self.best_planner_index_ = -1
@@ -53,7 +53,7 @@ class GuidanceConstraints:
         planner = type('Planner', (), {})
         planner.id = planner_id
         planner.is_original_planner = is_original_planner
-        planner.local_solver = self.solver.copy() if hasattr(self.solver,
+        planner.localsolver = self.solver.copy() if hasattr(self.solver,
                                                              'copy') else self.solver  # Copy the solver if possible
         planner.taken = False
         planner.existing_guidance = False
@@ -267,7 +267,7 @@ class GuidanceConstraints:
                     continue
 
             # Copy the data from the main solver
-            solver = planner.local_solver
+            solver = planner.localsolver
             LOG_DEBUG(f"Planner [{planner.id}]: Copying data from main solver")
             # Copy solver attributes if necessary
 
@@ -279,9 +279,9 @@ class GuidanceConstraints:
                 LOG_DEBUG(f"Planner [{planner.id}]: Loading guidance into the solver and constructing constraints")
 
                 if CONFIG["t-mpc"]["warmstart_with_mpc_solution"] and planner.existing_guidance:
-                    planner.local_solver.initialize_warmstart(state, shift_forward)
+                    planner.localsolver.initialize_warmstart(state, shift_forward)
                 else:
-                    self.initialize_solver_with_guidance(planner)
+                    self.initializesolver_with_guidance(planner)
 
                 planner.guidance_constraints.update(state, data, module_data)  # updates linearization of constraints
                 planner.safety_constraints.update(state, data, module_data)  # updates collision avoidance constraints
@@ -299,10 +299,10 @@ class GuidanceConstraints:
             # Set timeout based on remaining planning time
             import time
             used_time = time.time() - data.planning_start_time if hasattr(data, 'planning_start_time') else 0
-            planner.local_solver.params.solver_timeout = self._planning_time - used_time - 0.006
+            planner.localsolver.params.solver_timeout = self._planning_time - used_time - 0.006
 
             # SOLVE OPTIMIZATION
-            planner.local_solver.load_warm_start()
+            planner.localsolver.load_warm_start()
             LOG_DEBUG(f"Planner [{planner.id}]: Solving ...")
             planner.result.exit_code = solver.solve()
             LOG_DEBUG(f"Planner [{planner.id}]: Done! (exitcode = {planner.result.exit_code})")
@@ -329,7 +329,7 @@ class GuidanceConstraints:
             return self.planners[0].result.exit_code
 
         best_planner = self.planners[self.best_planner_index_]
-        best_solver = best_planner.local_solver
+        best_solver = best_planner.localsolver
 
         # Communicate to the guidance which topology class we follow (none if it was the original planner)
         self.global_guidance.override_selected_trajectory(
@@ -345,8 +345,8 @@ class GuidanceConstraints:
 
         return best_planner.result.exit_code
 
-    def initialize_solver_with_guidance(self, planner):
-        solver = planner.local_solver
+    def initializesolver_with_guidance(self, planner):
+        solver = planner.localsolver
 
         # Initialize the solver with the guidance trajectory
         trajectoryspline = self.global_guidance.get_guidance_trajectory(planner.id).spline.get_trajectory()
@@ -397,10 +397,10 @@ class GuidanceConstraints:
             # Visualize the warmstart
             if CONFIG["debug_visuals"]:
                 initial_trajectory = []
-                for k in range(planner.local_solver.N):
+                for k in range(planner.localsolver.N):
                     initial_trajectory.append((
-                        planner.local_solver.get_ego_prediction(k, "x"),
-                        planner.local_solver.get_ego_prediction(k, "y")
+                        planner.localsolver.get_ego_prediction(k, "x"),
+                        planner.localsolver.get_ego_prediction(k, "y")
                     ))
                 visualize_trajectory(initial_trajectory, self.name + "/warmstart_trajectories", False, 0.2, 20, 20)
 
@@ -409,8 +409,8 @@ class GuidanceConstraints:
                 trajectory = []
                 for k in range(self.solver.N):
                     trajectory.append((
-                        planner.local_solver.get_output(k, "x"),
-                        planner.local_solver.get_output(k, "y")
+                        planner.localsolver.get_output(k, "x"),
+                        planner.localsolver.get_output(k, "y")
                     ))
 
                 if i == self.best_planner_index_:
@@ -473,7 +473,7 @@ class GuidanceConstraints:
         self.global_guidance.reset()
 
         for planner in self.planners:
-            planner.local_solver.reset()
+            planner.localsolver.reset()
 
     def save_data(self, data_saver):
         data_saver.add_data("runtime_guidance", self.global_guidance.get_last_runtime())
@@ -488,7 +488,7 @@ class GuidanceConstraints:
 
         data_saver.add_data("best_planner_idx", self.best_planner_index_)
         if self.best_planner_index_ != -1:
-            best_objective = self.planners[self.best_planner_index_].local_solver._info.pobj
+            best_objective = self.planners[self.best_planner_index_].localsolver._info.pobj
         else:
             best_objective = -1
 

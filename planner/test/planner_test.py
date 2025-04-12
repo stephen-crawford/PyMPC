@@ -57,7 +57,7 @@ class PlannerTest(unittest.TestCase):
         self.data = DummyData()
         self.modules = [DummyModule()]
 
-    def test_planner_with_casadi_solver(self):
+    def test_planner_with_casadisolver(self):
         solver = DummyCasadiSolver()
         planner = Planner(solver, self.modules)
 
@@ -66,7 +66,7 @@ class PlannerTest(unittest.TestCase):
         self.assertIsInstance(output.trajectory, Trajectory)
         self.assertGreater(len(output.trajectory.positions), 0)
 
-    def test_planner_with_osqp_solver(self):
+    def test_planner_with_osqpsolver(self):
         solver = DummyOSQPSolver()
         planner = Planner(solver, self.modules)
 

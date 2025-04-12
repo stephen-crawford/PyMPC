@@ -38,7 +38,7 @@ CONFIG = {
 	"control_frequency": 10.0,  # Hz
 	"max_obstacles": 5,
 	"scenario_constraints": {
-		"parallel_solvers": 3,
+		"parallelsolvers": 3,
 		"enable_safe_horizon": True
 	},
 	"shift_previous_solution_forward": True,
@@ -229,7 +229,7 @@ class ScenarioSolver:
 		self.exit_code = 0
 		self.N = CONFIG["N"]
 		self.dt = CONFIG["dt"]
-		self._solver_id = solver_id
+		self.solver_id = solver_id
 
 	def get(self):
 		return self

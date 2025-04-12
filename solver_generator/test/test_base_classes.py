@@ -34,7 +34,7 @@ def test_parameters():
   found_file = False
 
   temp = sys.argv[0]
-  sys.argv[0] = os.path.join(get_package_path("mpc_planner_solver"), "src", "solver_interface.py")
+  sys.argv[0] = os.path.join(get_package_path("mpc_plannersolver"), "src", "solver_interface.py")
   try:
     cur_file = load_settings("parameter_map")
     found_file = True
@@ -90,4 +90,4 @@ def test_logging():
   print_header("try")
   print_success("success")
   print_warning("warning")
-  print_path("path", get_package_path("mpc_planner_solver"))
+  print_path("path", get_package_path("mpc_plannersolver"))

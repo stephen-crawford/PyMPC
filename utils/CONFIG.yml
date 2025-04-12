@@ -35,7 +35,7 @@ linearized_constraints:
   add_halfspaces: 0 #2  # For road constraints
 
 scenario_constraints:
-  parallel_solvers: 1
+  parallelsolvers: 1
 
 road:
   two_way: false

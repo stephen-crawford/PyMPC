@@ -70,6 +70,7 @@ class ContouringConstraints:
                 self.width_right.get_parameters = get_parameters.__get__(self.width_right)
 
     def set_parameters(self, data, module_data, k):
+        print(f"set_parameters called with k={k}")
         if k == 1:
             logging.log(10, "ContouringConstraints::set_parameters")
 

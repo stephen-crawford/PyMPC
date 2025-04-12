@@ -15,7 +15,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 def read_config_file():
-    config_path = os.path.join(os.path.dirname(__file__), "../../MPC/utils/CONFIG.yml")
+    config_path = os.path.join(os.path.dirname(__file__), "../../PyMPC/utils/CONFIG.yml")
     config_path = os.path.abspath(config_path)
     with open(config_path, 'r') as file:
         try:
@@ -868,6 +868,7 @@ class EllipsoidDecomp:
 
     def set_obs(self, obs: List[np.ndarray]) -> None:
         """Set obstacle points."""
+        print("At top of set obs")
         self.obs_ = [np.array(o) for o in obs]
 
     def set_local_bbox(self, bbox: np.ndarray) -> None:

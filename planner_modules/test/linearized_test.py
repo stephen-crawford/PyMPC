@@ -377,7 +377,7 @@ class TestSystemIntegration(unittest.TestCase):
 
 		# Create mock planner
 		self.planner = MagicMock()
-		self.planner._modules = [self.linearized_constraints]
+		self.planner.modules = [self.linearized_constraints]
 
 	@patch('utils.utils.read_config_file', return_value=CONFIG_MOCK)
 	def test_planner_integration(self, mock_config):
@@ -394,12 +394,12 @@ class TestSystemIntegration(unittest.TestCase):
 
 			# Mock planner.solve_mpc similar to the actual implementation
 			# Update modules
-			for module in self.planner._modules:
+			for module in self.planner.modules:
 				module.update(state, data, module_data)
 
 			# Set parameters for each prediction step
 			for k in range(self.solver.N):
-				for module in self.planner._modules:
+				for module in self.planner.modules:
 					module.set_parameters(data, module_data, k)
 
 			# Assertions
