@@ -3,6 +3,7 @@ import numpy as np
 from unittest.mock import MagicMock, patch, call, ANY
 import numpy.testing as npt
 
+from planner_modules.base_constraint import BaseConstraint
 # Import modules to test
 from utils.const import CONSTRAINT
 
@@ -23,12 +24,18 @@ CONFIG_MOCK = {
     "debug_visuals": False
 }
 
+with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
+    from planner_modules.decomp_constraints import DecompConstraints
+    from planner_modules.ellipsoid_constraints import EllipsoidConstraints
+    from planner_modules.base_constraint import BaseConstraint
+
 # Apply the patch before any imports
 @patch('utils.utils.read_config_file', return_value=CONFIG_MOCK)
 class TestDecompConstraints(unittest.TestCase):
     """Test suite for DecompConstraints class"""
 
-    def setUp(self, mock_config=CONFIG_MOCK):
+    @patch.object(BaseConstraint, 'get_config_value')
+    def setUp(self, mock_get_config_value):
         """Set up test fixtures before each test"""
         # Create mock solver
         self.solver = MagicMock()
@@ -36,6 +43,17 @@ class TestDecompConstraints(unittest.TestCase):
         self.solver.params = MagicMock()
         self.solver.dt = 0.1
 
+        def get_mocked_config(key, default=None):
+            keys = key.split('.')
+            cfg = CONFIG_MOCK
+            try:
+                for k in keys:
+                    cfg = cfg[k]
+                return cfg
+            except (KeyError, TypeError):
+                return default
+
+        mock_get_config_value.side_effect = get_mocked_config
         # Create mock for EllipsoidDecomp2D
         self.mock_decomp_util = MagicMock()
 
@@ -43,11 +61,7 @@ class TestDecompConstraints(unittest.TestCase):
         self.patcher = patch('utils.utils.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
         self.mock_decomp_class = self.patcher.start()
 
-        # Import the class under test within the patched context
-        with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-            from planner_modules.decomp_constraints import DecompConstraints
-            self.DecompConstraints = DecompConstraints  # Store the class for later use
-            self.decomp_constraints = DecompConstraints(self.solver)
+        self.decomp_constraints = DecompConstraints(self.solver)
 
     def tearDown(self):
         self.patcher.stop()

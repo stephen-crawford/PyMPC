@@ -1,41 +1,40 @@
 import logging
 import numpy as np
 from utils.const import CONSTRAINT
-from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE
+from utils.utils import LOG_DEBUG, PROFILE_SCOPE, CONFIG
 from utils.visualizer import ROSLine, ROSPointMarker
-
 from utils.utils import EllipsoidDecomp2D
+from solver.solver_interface import set_solver_parameter
 
-CONFIG = read_config_file()
+from planner_modules.base_constraint import BaseConstraint
 
 
-class DecompConstraints:
+class DecompConstraints(BaseConstraint):
 	def __init__(self, solver):
-		self.solver = solver
-		self.module_type = CONSTRAINT
-		self.name = "decomp_constraints"
-		LOG_DEBUG("Initializing Decomp Constraints")
+		super().__init__(solver)
 
-		self.get_num_segments = CONFIG["contouring"]["num_segments"]
+		self.get_num_segments = self.get_config_value("num_segments", CONFIG["contouring"]["num_segments"])
+
 		# Create EllipsoidDecomp2D instance
 		self.decomp_util = EllipsoidDecomp2D()
 
 		# Only look around for obstacles using a box with sides of width 2*range
-		self.range = CONFIG["decomp"]["range"]
+		self.range = self.get_config_value("range", CONFIG["decomp"]["range"])
 		self.decomp_util.set_local_bbox(np.array([self.range, self.range]))
 
 		self.occ_pos = []  # List to store occupied positions
 
 		self.n_discs = CONFIG["n_discs"]  # Is overwritten to 1 for topology constraints
 
-		self._max_constraints = CONFIG["decomp"]["max_constraints"]
+		self._max_constraints = self.get_config_value("max_constraints", CONFIG["decomp"]["max_constraints"])
+
 		# Initialize constraint storage
 		self.a1 = [[[0.0 for _ in range(self._max_constraints)] for _ in range(CONFIG["N"])] for _ in
-		           range(self.n_discs)]
+				   range(self.n_discs)]
 		self.a2 = [[[0.0 for _ in range(self._max_constraints)] for _ in range(CONFIG["N"])] for _ in
-		           range(self.n_discs)]
+				   range(self.n_discs)]
 		self.b = [[[0.0 for _ in range(self._max_constraints)] for _ in range(CONFIG["N"])] for _ in
-		          range(self.n_discs)]
+				  range(self.n_discs)]
 
 		LOG_DEBUG("Decomp Constraints successfully initialized")
 
@@ -120,7 +119,8 @@ class DecompConstraints:
 		if k == 0:  # Dummies
 			for d in range(self.n_discs):
 				# Set solver parameter for ego disc offset
-				self.set_solver_parameter_ego_disc_offset(k, self.solver.params, data.robot_area[d].offset, d)
+				if hasattr(data, 'robot_area') and len(data.robot_area) > d:
+					self.set_solver_parameter("ego_disc_offset", data.robot_area[d].offset, k, d)
 
 				constraint_counter = 0
 				for i in range(self._max_constraints):
@@ -129,9 +129,9 @@ class DecompConstraints:
 					_dummy_a2 = 0.0
 					_dummy_b = 100.0  # Large dummy value
 
-					self.set_solver_parameter_decomp_a1(k, self.solver.params, _dummy_a1, constraint_counter)
-					self.set_solver_parameter_decomp_a2(k, self.solver.params, _dummy_a2, constraint_counter)
-					self.set_solver_parameter_decomp_b(k, self.solver.params, _dummy_b, constraint_counter)
+					self.set_solver_parameter("decomp_a1", _dummy_a1, k, constraint_counter)
+					self.set_solver_parameter("decomp_a2", _dummy_a2, k, constraint_counter)
+					self.set_solver_parameter("decomp_b", _dummy_b, k, constraint_counter)
 					constraint_counter += 1
 			return
 
@@ -142,33 +142,19 @@ class DecompConstraints:
 		for d in range(self.n_discs):
 			# Set solver parameter for ego disc offset
 			if hasattr(data, 'robot_area') and len(data.robot_area) > d:
-				self.set_solver_parameter_ego_disc_offset(k, self.solver.params, data.robot_area[d].offset, d)
+				self.set_solver_parameter("ego_disc_offset", data.robot_area[d].offset, k, d)
 
 			for i in range(self._max_constraints):
-				self.set_solver_parameter_decomp_a1(k, self.solver.params, self.a1[d][k][i], constraint_counter)
-				self.set_solver_parameter_decomp_a2(k, self.solver.params, self.a2[d][k][i], constraint_counter)
-				self.set_solver_parameter_decomp_b(k, self.solver.params, self.b[d][k][i], constraint_counter)
+				self.set_solver_parameter("decomp_a1", self.a1[d][k][i], k, constraint_counter)
+				self.set_solver_parameter("decomp_a2", self.a2[d][k][i], k, constraint_counter)
+				self.set_solver_parameter("decomp_b", self.b[d][k][i], k, constraint_counter)
 				constraint_counter += 1
 
-	# Add setter methods like in ContouringConstraints
-	def set_solver_parameter_ego_disc_offset(self, k, params, value, d):
-		from solver.solver_interface import set_solver_parameter
-		set_solver_parameter(params, "ego_disc_offset", value, k, index=d, settings=CONFIG)
-
-	def set_solver_parameter_decomp_a1(self, k, params, value, i):
-		from solver.solver_interface import set_solver_parameter
-		set_solver_parameter(params, "decomp_a1", value, k, index=i, settings=CONFIG)
-
-	def set_solver_parameter_decomp_a2(self, k, params, value, i):
-		from solver.solver_interface import set_solver_parameter
-		set_solver_parameter(params, "decomp_a2", value, k, index=i, settings=CONFIG)
-
-	def set_solver_parameter_decomp_b(self, k, params, value, i):
-		from solver.solver_interface import set_solver_parameter
-		set_solver_parameter(params, "decomp_b", value, k, index=i, settings=CONFIG)
-
 	def is_data_ready(self, data, missing_data):
-		if data.costmap is None:
+		required_fields = ["costmap"]
+		missing_fields = self.check_data_availability(data, required_fields)
+
+		if missing_fields:
 			missing_data += "Costmap "
 			return False
 
@@ -184,14 +170,13 @@ class DecompConstraints:
 		pass
 
 	def visualize(self, data, module_data):
-		if not CONFIG["debug_visuals"]:
-			return
+		super().visualize(data, module_data)
 
 		LOG_DEBUG("DecompConstraints.Visualize")
 
 		# Create a publisher for free space visualization
-		free_space_publisher = ROSLine(self.name + "/free_space")
-		point_marker = ROSPointMarker(self.name + "/points")
+		free_space_publisher = self.create_visualization_publisher("free_space", ROSLine)
+		point_marker = self.create_visualization_publisher("points", ROSPointMarker)
 
 		points = point_marker.get_new_point_marker("CUBE")
 		points.set_scale(0.1, 0.1, 0.1)
@@ -220,11 +205,11 @@ class DecompConstraints:
 
 				if i > 0:
 					line.add_line((vertices[i - 1][0], vertices[i - 1][1], 0),
-					              (vertices[i][0], vertices[i][1], 0))
+								  (vertices[i][0], vertices[i][1], 0))
 
 			# Close the loop
 			line.add_line((vertices[-1][0], vertices[-1][1], 0),
-			              (vertices[0][0], vertices[0][1], 0))
+						  (vertices[0][0], vertices[0][1], 0))
 
 			k += CONFIG["visualization"]["draw_every"]
 
@@ -234,7 +219,7 @@ class DecompConstraints:
 			return
 
 		# Create a publisher for map visualization
-		map_publisher = ROSPointMarker(self.name + "/map")
+		map_publisher = self.create_visualization_publisher("map", ROSPointMarker)
 		point = map_publisher.get_new_point_marker("CUBE")
 		point.set_scale(0.1, 0.1, 0.1)
 		point.set_color(0, 0, 0, 1)

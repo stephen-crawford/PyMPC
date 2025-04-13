@@ -50,7 +50,7 @@ contouring:
   add_road_constraints: true
 
 t-mpc:
-  use_t-mpc++: true
+  use_t-mpc+=1: True
   enable_constraints: true
   highlight_selected: true
   warmstart_with_mpc_solution: false

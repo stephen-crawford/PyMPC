@@ -10,6 +10,10 @@ from utils.visualizer import *
 CONFIG = read_config_file()
 
 
+def visualize_trajectory(initial_trajectory, param, param1, param2, param3, param4):
+    pass
+
+
 class GuidanceConstraints:
     def __init__(self, solver):
         self.solver = solver
@@ -18,7 +22,6 @@ class GuidanceConstraints:
         LOG_DEBUG("Initializing Guidance Constraints")
 
         self.global_guidance = GlobalGuidance()
-        self.debug_visuals = CONFIG["debug_visuals"]
 
         self.global_guidance.set_planning_frequency(CONFIG["control_frequency"])
 
@@ -28,8 +31,8 @@ class GuidanceConstraints:
         self._planning_time = 1. / self._control_frequency
 
         # Initialize the constraint modules
-        self.nsolvers = self.global_guidance.get_config().n_paths  # + 1 for the main lmpcc solver?
-
+        self.nsolvers = self.global_guidance.get_config().n_paths
+        print("NSolvers is " + str(self.nsolvers))
         PYMPC_ASSERT(self.nsolvers > 0 or self._use_tmpc,
                      "Guidance constraints cannot run with 0 paths and T-MPC+=1 disabled!")
 

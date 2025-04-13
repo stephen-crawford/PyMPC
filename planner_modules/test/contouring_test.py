@@ -46,18 +46,31 @@ CONFIG_MOCK["params"].length.return_value = 10
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
     from planner_modules.contouring_constraints import ContouringConstraints
     from planner_modules.contouring import Contouring
-
+    from planner_modules.base_constraint import BaseConstraint
 
 class TestContouringConstraints(unittest.TestCase):
     """Test suite for ContouringConstraints class"""
 
-    def setUp(self):
+    @patch.object(BaseConstraint, 'get_config_value')
+    def setUp(self, mock_get_config_value):
         """Set up test fixtures before each test"""
-        # Create mock solver
+
+        def get_mocked_config(key, default=None):
+            keys = key.split('.')
+            cfg = CONFIG_MOCK
+            try:
+                for k in keys:
+                    cfg = cfg[k]
+                return cfg
+            except (KeyError, TypeError):
+                return default
+
+        mock_get_config_value.side_effect = get_mocked_config
+
         self.solver = MagicMock()
         self.solver.N = 10
         self.solver.params = MagicMock()
-        # Create instance of the class under test
+
         self.contouring_constraints = ContouringConstraints(self.solver)
 
     def test_initialization(self):
@@ -116,7 +129,7 @@ class TestContouringConstraints(unittest.TestCase):
         self.assertTrue(hasattr(self.contouring_constraints.width_right, 'get_parameters'))
 
 
-    @patch('planner_modules.contouring_constraints.set_solver_parameter')
+    @patch('planner_modules.base_constraint.set_solver_parameter')
     def test_set_parameters(self, mock_set_param):
         """Test set_parameters method with boundary data"""
         # Setup
