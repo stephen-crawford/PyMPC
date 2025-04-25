@@ -1,10 +1,9 @@
 import logging
 import numpy as np
 from utils.const import CONSTRAINT
-from utils.utils import LOG_DEBUG, PROFILE_SCOPE, CONFIG
+from utils.utils import LOG_DEBUG, PROFILE_SCOPE
 from utils.visualizer import ROSLine, ROSPointMarker
 from utils.utils import EllipsoidDecomp2D
-from solver.solver_interface import set_solver_parameter
 
 from planner_modules.base_constraint import BaseConstraint
 
@@ -13,27 +12,29 @@ class DecompConstraints(BaseConstraint):
 	def __init__(self, solver):
 		super().__init__(solver)
 
-		self.get_num_segments = self.get_config_value("num_segments", CONFIG["contouring"]["num_segments"])
+		self.name = 'decomp_constraints'
+		self.get_num_segments = self.get_config_value("contouring.num_segments")
 
 		# Create EllipsoidDecomp2D instance
 		self.decomp_util = EllipsoidDecomp2D()
 
 		# Only look around for obstacles using a box with sides of width 2*range
-		self.range = self.get_config_value("range", CONFIG["decomp"]["range"])
+		print("Self.get config yields: " + str(self.get_config_value("range")))
+		self.range = self.get_config_value("decomp.range")
 		self.decomp_util.set_local_bbox(np.array([self.range, self.range]))
 
 		self.occ_pos = []  # List to store occupied positions
 
-		self.n_discs = CONFIG["n_discs"]  # Is overwritten to 1 for topology constraints
+		self.n_discs = self.get_config_value("n_discs")  # Is overwritten to 1 for topology constraints
 
-		self._max_constraints = self.get_config_value("max_constraints", CONFIG["decomp"]["max_constraints"])
+		self._max_constraints = self.get_config_value("decomp.max_constraints")
 
 		# Initialize constraint storage
-		self.a1 = [[[0.0 for _ in range(self._max_constraints)] for _ in range(CONFIG["N"])] for _ in
+		self.a1 = [[[0.0 for _ in range(self._max_constraints)] for _ in range(self.get_config_value("N"))] for _ in
 				   range(self.n_discs)]
-		self.a2 = [[[0.0 for _ in range(self._max_constraints)] for _ in range(CONFIG["N"])] for _ in
+		self.a2 = [[[0.0 for _ in range(self._max_constraints)] for _ in range(self.get_config_value("N"))] for _ in
 				   range(self.n_discs)]
-		self.b = [[[0.0 for _ in range(self._max_constraints)] for _ in range(CONFIG["N"])] for _ in
+		self.b = [[[0.0 for _ in range(self._max_constraints)] for _ in range(self.get_config_value("N"))] for _ in
 				  range(self.n_discs)]
 
 		LOG_DEBUG("Decomp Constraints successfully initialized")
@@ -196,7 +197,7 @@ class DecompConstraints(BaseConstraint):
 
 			vertices = poly.vertices
 			if len(vertices) < 2:
-				k += CONFIG["visualization"]["draw_every"]
+				k += self.get_config_value("visualization.draw_every")
 				continue
 
 			for i in range(len(vertices)):
@@ -211,11 +212,11 @@ class DecompConstraints(BaseConstraint):
 			line.add_line((vertices[-1][0], vertices[-1][1], 0),
 						  (vertices[0][0], vertices[0][1], 0))
 
-			k += CONFIG["visualization"]["draw_every"]
+			k += self.get_config_value("visualization.draw_every")
 
 		free_space_publisher.publish()
 
-		if not CONFIG["debug_visuals"]:
+		if not self.get_config_value("debug_visuals"):
 			return
 
 		# Create a publisher for map visualization

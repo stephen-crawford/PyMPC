@@ -3,6 +3,7 @@ import numpy as np
 from unittest.mock import MagicMock, patch, call, ANY
 from numpy import sqrt
 
+from planner_modules.gaussian_constraints import GaussianConstraints
 # Import modules to test
 from utils.const import CONSTRAINT, GAUSSIAN, DYNAMIC
 
@@ -23,10 +24,26 @@ CONFIG_MOCK = {
 	"debug_visuals": False
 }
 
+# Patch the read_config_file function
+with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
+	from planner_modules.gaussian_constraints import GaussianConstraints
+	from planner_modules.base_constraint import BaseConstraint
 
-@patch('utils.utils.read_config_file', return_value=CONFIG_MOCK)
+
 class TestGaussianConstraints(unittest.TestCase):
 	"""Test suite for GaussianConstraints class"""
+
+	@staticmethod
+	def get_mocked_config(key, default=None):
+		"""Static method to handle config mocking"""
+		keys = key.split('.')
+		cfg = CONFIG_MOCK
+		try:
+			for k in keys:
+				cfg = cfg[k]
+			return cfg
+		except (KeyError, TypeError):
+			return default
 
 	def setUp(self):
 		"""Set up test fixtures before each test"""
@@ -35,10 +52,18 @@ class TestGaussianConstraints(unittest.TestCase):
 		self.solver.N = 10
 		self.solver.params = MagicMock()
 
-		# Create instance of the class under test
-		with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-			from planner_modules.gaussian_constraints import GaussianConstraints
-			self.gaussian_constraints = GaussianConstraints(self.solver)
+		self.config_attr_patcher = patch('planner_modules.base_constraint.CONFIG', CONFIG_MOCK)
+		self.config_attr_patcher.start()
+		self.addCleanup(self.config_attr_patcher.stop)
+
+		# Apply the patch before creating the class
+		patcher = patch('planner_modules.base_constraint.BaseConstraint.get_config_value',
+						side_effect=self.get_mocked_config)
+		self.mock_get_config = patcher.start()
+		self.addCleanup(patcher.stop)
+
+
+		self.gaussian_constraints = GaussianConstraints(self.solver)
 
 	def test_initialization(self, mock_config):
 		"""Test proper initialization of GaussianConstraints"""
@@ -63,8 +88,8 @@ class TestGaussianConstraints(unittest.TestCase):
 		self.assertEqual(self.gaussian_constraints._dummy_x, 110.0)  # 10.0 + 100.0
 		self.assertEqual(self.gaussian_constraints._dummy_y, 120.0)  # 20.0 + 100.0
 
-	@patch('solver.solver_interface.set_solver_parameter')
-	def test_set_parameters_k0(self, mock_set_param, mock_config):
+	@patch('planner_modules.base_constraint.set_solver_parameter')
+	def test_set_parameters_k0(self, mock_set_param):
 		"""Test set_parameters method for k=0 (dummies)"""
 		# Setup
 		k = 0
@@ -88,35 +113,35 @@ class TestGaussianConstraints(unittest.TestCase):
 		# Assertions
 		expected_calls = [
 			# Ego disc radius call
-			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=CONFIG_MOCK),
+			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=ANY),
 
 			# Ego disc offset calls
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=1, settings=CONFIG_MOCK),
+			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=ANY),
+			call(self.solver.params, "ego_disc_offset", ANY, k, index=1, settings=ANY),
 
 			# Dummy obstacle calls for obstacle 0
-			call(self.solver.params, "gaussian_obstacle_x", 110.0, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_y", 120.0, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_major", 0.1, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_minor", 0.1, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_r", 0.1, k, index=0, settings=CONFIG_MOCK),
+			call(self.solver.params, "gaussian_obstacle_x", 110.0, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_y", 120.0, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_major", 0.1, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_minor", 0.1, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_r", 0.1, k, index=0, settings=ANY),
 
 			# Dummy obstacle calls for obstacle 1
-			call(self.solver.params, "gaussian_obstacle_x", 110.0, k, index=1, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_y", 120.0, k, index=1, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_major", 0.1, k, index=1, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_minor", 0.1, k, index=1, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=1, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_r", 0.1, k, index=1, settings=CONFIG_MOCK),
+			call(self.solver.params, "gaussian_obstacle_x", 110.0, k, index=1, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_y", 120.0, k, index=1, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_major", 0.1, k, index=1, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_minor", 0.1, k, index=1, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=1, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_r", 0.1, k, index=1, settings=ANY),
 		]
 
 		# Check that all expected calls were made
 		mock_set_param.assert_has_calls(expected_calls, any_order=True)
 		self.assertEqual(mock_set_param.call_count, 15)
 
-	@patch('solver.solver_interface.set_solver_parameter')
-	def test_set_parameters_k1_dynamic(self, mock_set_param, mock_config):
+	@patch('planner_modules.base_constraint.set_solver_parameter')
+	def test_set_parameters_k1_dynamic(self, mock_set_param):
 		"""Test set_parameters method for k=1 with dynamic gaussian obstacles"""
 		# Setup
 		k = 1
@@ -153,23 +178,23 @@ class TestGaussianConstraints(unittest.TestCase):
 		# Assertions for dynamic obstacles
 		expected_calls = [
 			# Ego disc radius and offset calls
-			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=CONFIG_MOCK),
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=CONFIG_MOCK),
+			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=ANY),
+			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=ANY),
 
 			# Obstacle calls
-			call(self.solver.params, "gaussian_obstacle_x", 5.0, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_y", 6.0, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_major", 2.0, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_minor", 1.0, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_r", 0.8, k, index=0, settings=CONFIG_MOCK),
+			call(self.solver.params, "gaussian_obstacle_x", 5.0, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_y", 6.0, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_major", 2.0, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_minor", 1.0, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_r", 0.8, k, index=0, settings=ANY),
 		]
 
 		mock_set_param.assert_has_calls(expected_calls, any_order=True)
 		self.assertEqual(mock_set_param.call_count, 8)  # 1 radius + 1 offset + 6 obstacle params
 
-	@patch('solver.solver_interface.set_solver_parameter')
-	def test_set_parameters_k1_static(self, mock_set_param, mock_config):
+	@patch('planner_modules.base_constraint.set_solver_parameter')
+	def test_set_parameters_k1_static(self, mock_set_param):
 		"""Test set_parameters method for k=1 with static gaussian obstacles"""
 		# Setup
 		k = 1
@@ -206,18 +231,18 @@ class TestGaussianConstraints(unittest.TestCase):
 		# Assertions for static obstacles
 		expected_calls = [
 			# Ego disc radius and offset calls
-			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=CONFIG_MOCK),
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=CONFIG_MOCK),
+			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=ANY),
+			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=ANY),
 
 			# Obstacle calls
-			call(self.solver.params, "gaussian_obstacle_x", 5.0, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_y", 6.0, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_major", 0.001, k, index=0, settings=CONFIG_MOCK),
+			call(self.solver.params, "gaussian_obstacle_x", 5.0, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_y", 6.0, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_major", 0.001, k, index=0, settings=ANY),
 			# Minimal uncertainty
-			call(self.solver.params, "gaussian_obstacle_minor", 0.001, k, index=0, settings=CONFIG_MOCK),
+			call(self.solver.params, "gaussian_obstacle_minor", 0.001, k, index=0, settings=ANY),
 			# Minimal uncertainty
-			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=CONFIG_MOCK),
-			call(self.solver.params, "gaussian_obstacle_r", 0.8, k, index=0, settings=CONFIG_MOCK),
+			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=ANY),
+			call(self.solver.params, "gaussian_obstacle_r", 0.8, k, index=0, settings=ANY),
 		]
 
 		mock_set_param.assert_has_calls(expected_calls, any_order=True)

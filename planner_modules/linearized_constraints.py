@@ -1,30 +1,29 @@
 import numpy as np
 from utils.const import CONSTRAINT, DETERMINISTIC, GAUSSIAN
-from utils.utils import read_config_file, LOG_DEBUG
-from utils.visualizer import *
+from utils.utils import LOG_DEBUG
+from utils.visualizer import visualize_linear_constraint
+from planner_modules.base_constraint import BaseConstraint
 
-CONFIG = read_config_file()
 
-class LinearizedConstraints:
+class LinearizedConstraints(BaseConstraint):
 	def __init__(self, solver):
-		self.solver = solver
-		self.module_type = CONSTRAINT
-		self.name = "linearized_constraints"
+		super().__init__(solver)
+		self.name = "linearized_constraints"  # Override the name from BaseConstraint
 
 		LOG_DEBUG("Initializing Linearized Constraints")
 
-		self.n_discs = CONFIG["n_discs"]  # Is overwritten to 1 for topology constraints
-		self._n_other_halfspaces = CONFIG["linearized_constraints"]["add_halfspaces"]
-		self._max_obstacles = CONFIG["max_obstacles"]
+		self.n_discs = self.get_config_value("n_discs")  # Is overwritten to 1 for topology constraints
+		self._n_other_halfspaces = self.get_config_value("linearized_constraints.add_halfspaces")
+		self._max_obstacles = self.get_config_value("max_obstacles")
 		self.n_constraints = self._max_obstacles + self._n_other_halfspaces
 
 		# Initialize arrays
-		self._a1 = [[[0 for _ in range(self.n_constraints)] for _ in range(CONFIG["N"])] for _ in
-		            range(CONFIG["n_discs"])]
-		self._a2 = [[[0 for _ in range(self.n_constraints)] for _ in range(CONFIG["N"])] for _ in
-		            range(CONFIG["n_discs"])]
-		self._b = [[[0 for _ in range(self.n_constraints)] for _ in range(CONFIG["N"])] for _ in
-		           range(CONFIG["n_discs"])]
+		self._a1 = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
+					range(self.get_config_value("n_discs"))]
+		self._a2 = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
+					range(self.get_config_value("n_discs"))]
+		self._b = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
+				   range(self.get_config_value("n_discs"))]
 
 		self._num_obstacles = 0
 		self._use_guidance = False
@@ -85,8 +84,8 @@ class LinearizedConstraints:
 					# Compute b (evaluate point on the collision circle)
 					radius = 1e-3 if self._use_guidance else copied_obstacle.radius
 					self._b[d][k][obs_id] = (self._a1[d][k][obs_id] * obstacle_pos[0] +
-					                         self._a2[d][k][obs_id] * obstacle_pos[1] -
-					                         (radius + CONFIG["n_discs"]))
+											 self._a2[d][k][obs_id] * obstacle_pos[1] -
+											 (radius + self.get_config_value("n_discs")))
 
 				# Handle static obstacles
 				if not module_data.static_obstacles.empty():
@@ -117,14 +116,13 @@ class LinearizedConstraints:
 					pos,
 					obstacle.prediction.modes[0][k - 1].position,
 					copied_obstacles[0].prediction.modes[0][k - 1].position,
-					radius + CONFIG["n_discs"],
+					radius + self.get_config_value("n_discs"),
 					pos
 				)
 
 	def douglas_rachford_projection(self, pos, obstacle_pos, anchor_pos, radius, result):
 		# Implementation of Douglas-Rachford projection algorithm
 		# (This is a placeholder - actual implementation would depend on your system)
-		# In the original code this seems to be imported from elsewhere
 		pass
 
 	def set_parameters(self, data, module_data, k):
@@ -132,34 +130,38 @@ class LinearizedConstraints:
 
 		if k == 0:
 			for i in range(self._max_obstacles + self._n_other_halfspaces):
-				self.set_solver_parameter_lin_constraint_a1(k, self.solver.params, self._dummy_a1, constraint_counter)
-				self.set_solver_parameter_lin_constraint_a2(k, self.solver.params, self._dummy_a2, constraint_counter)
-				self.set_solver_parameter_lin_constraint_b(k, self.solver.params, self._dummy_b, constraint_counter)
+				self.set_solver_parameter("lin_constraint_a1", self._dummy_a1, k, constraint_counter)
+				self.set_solver_parameter("lin_constraint_a2", self._dummy_a2, k, constraint_counter)
+				self.set_solver_parameter("lin_constraint_b", self._dummy_b, k, constraint_counter)
 				constraint_counter += 1
 			return
 
 		for d in range(self.n_discs):
 			if not self._use_guidance:
-				self.set_solver_parameter_ego_disc_offset(k, self.solver.params, data.robot_area[d].offset, d)
+				self.set_solver_parameter("ego_disc_offset", data.robot_area[d].offset, k, d)
 
 			# Set actual constraints
 			for i in range(data.dynamic_obstacles.size() + self._n_other_halfspaces):
-				self.set_solver_parameter_lin_constraint_a1(k, self.solver.params, self._a1[d][k][i],
-				                                            constraint_counter)
-				self.set_solver_parameter_lin_constraint_a2(k, self.solver.params, self._a2[d][k][i],
-				                                            constraint_counter)
-				self.set_solver_parameter_lin_constraint_b(k, self.solver.params, self._b[d][k][i], constraint_counter)
+				self.set_solver_parameter("lin_constraint_a1", self._a1[d][k][i], k, constraint_counter)
+				self.set_solver_parameter("lin_constraint_a2", self._a2[d][k][i], k, constraint_counter)
+				self.set_solver_parameter("lin_constraint_b", self._b[d][k][i], k, constraint_counter)
 				constraint_counter += 1
 
 			# Set dummy constraints for remaining slots
 			for i in range(data.dynamic_obstacles.size() + self._n_other_halfspaces,
-			               self._max_obstacles + self._n_other_halfspaces):
-				self.set_solver_parameter_lin_constraint_a1(k, self.solver.params, self._dummy_a1, constraint_counter)
-				self.set_solver_parameter_lin_constraint_a2(k, self.solver.params, self._dummy_a2, constraint_counter)
-				self.set_solver_parameter_lin_constraint_b(k, self.solver.params, self._dummy_b, constraint_counter)
+						   self._max_obstacles + self._n_other_halfspaces):
+				self.set_solver_parameter("lin_constraint_a1", self._dummy_a1, k, constraint_counter)
+				self.set_solver_parameter("lin_constraint_a2", self._dummy_a2, k, constraint_counter)
+				self.set_solver_parameter("lin_constraint_b", self._dummy_b, k, constraint_counter)
 				constraint_counter += 1
 
 	def is_data_ready(self, data, missing_data):
+		required_fields = ["dynamic_obstacles", "robot_area"]
+		missing_fields = self.check_data_availability(data, required_fields)
+
+		if not self.report_missing_data(missing_fields, missing_data):
+			return False
+
 		if data.dynamic_obstacles.size() != self._max_obstacles:
 			missing_data += "Obstacles "
 			return False
@@ -177,7 +179,9 @@ class LinearizedConstraints:
 		return True
 
 	def visualize(self, data, module_data):
-		if self._use_guidance and not CONFIG["debug_visuals"]:
+		super().visualize(data, module_data)
+
+		if self._use_guidance and not self.get_config_value("debug_visuals", False):
 			return
 
 		for k in range(1, self.solver.N):
@@ -195,19 +199,15 @@ class LinearizedConstraints:
 					is_last
 				)
 
-	# Parameter setter methods
-	def set_solver_parameter_lin_constraint_a1(self, k, params, value, i):
-		from solver.solver_interface import set_solver_parameter
-		set_solver_parameter(params, "lin_constraint_a1", value, k, index=i, settings=CONFIG)
+	def reset(self):
+		super().reset()
+		# Reset constraint-specific state
+		self._num_obstacles = 0
 
-	def set_solver_parameter_lin_constraint_a2(self, k, params, value, i):
-		from solver.solver_interface import set_solver_parameter
-		set_solver_parameter(params, "lin_constraint_a2", value, k, index=i, settings=CONFIG)
-
-	def set_solver_parameter_lin_constraint_b(self, k, params, value, i):
-		from solver.solver_interface import set_solver_parameter
-		set_solver_parameter(params, "lin_constraint_b", value, k, index=i, settings=CONFIG)
-
-	def set_solver_parameter_ego_disc_offset(self, k, params, value, d):
-		from solver.solver_interface import set_solver_parameter
-		set_solver_parameter(params, "ego_disc_offset", value, k, index=d, settings=CONFIG)
+		# Re-initialize arrays with zeros
+		for d in range(self.get_config_value("n_discs")):
+			for k in range(self.get_config_value("N")):
+				for i in range(self.n_constraints):
+					self._a1[d][k][i] = 0
+					self._a2[d][k][i] = 0
+					self._b[d][k][i] = 0

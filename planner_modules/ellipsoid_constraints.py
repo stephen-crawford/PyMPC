@@ -10,11 +10,11 @@ from planner_modules.base_constraint import BaseConstraint
 class EllipsoidConstraints(BaseConstraint):
 	def __init__(self, solver):
 		super().__init__(solver)
-
-		self.num_segments = self.get_config_value("num_segments", CONFIG["contouring"]["num_segments"])
-		self.n_discs = CONFIG["n_discs"]
-		self._robot_radius = CONFIG["robot"]["radius"]
-		self.risk = self.get_config_value("risk", CONFIG["probabilistic"]["risk"])
+		self.name = 'ellipsoid_constraints'
+		self.num_segments = self.get_config_value("contouring.num_segments")
+		self.n_discs = self.get_config_value("n_discs")
+		self._robot_radius = self.get_config_value("robot.radius")
+		self.risk = self.get_config_value("probabilistic.risk")
 
 		# Dummy values for invalid states
 		self._dummy_x = 50.0
@@ -84,6 +84,7 @@ class EllipsoidConstraints(BaseConstraint):
 			LOG_DEBUG("EllipsoidConstraints::set_parameters Done")
 
 	def is_data_ready(self, data, missing_data):
+		print("Checking if data is ready...")
 		required_fields = ["robot_area", "dynamic_obstacles"]
 		missing_fields = self.check_data_availability(data, required_fields)
 
@@ -91,18 +92,21 @@ class EllipsoidConstraints(BaseConstraint):
 			missing_data += " ".join(missing_fields) + " "
 			return False
 
-		if data.dynamic_obstacles.size() != CONFIG["max_obstacles"]:
+		if data.dynamic_obstacles.size() != self.get_config_value("max_obstacles"):
 			missing_data += "Obstacles "
+			print("Found missing obstacles, " + str(self.get_config_value("max_obstacles")))
 			return False
 
 		for i in range(data.dynamic_obstacles.size()):
 			if data.dynamic_obstacles[i].prediction.empty():
+				print("Found missing obstacle pred")
 				missing_data += "Obstacle Prediction "
 				return False
 
 			if (data.dynamic_obstacles[i].prediction.type != GAUSSIAN and
 					data.dynamic_obstacles[i].prediction.type != DETERMINISTIC):
 				missing_data += "Obstacle Prediction (Type is incorrect) "
+				print("Found wrong predictive type")
 				return False
 
 		return True

@@ -1,33 +1,113 @@
 from functools import partial
 import numpy as np
-import logging
 from math import exp, atan2
 
-from utils.const import OBJECTIVE, CONSTRAINT
-from utils.utils import read_config_file, LOG_DEBUG, PYMPC_ASSERT
-from utils.visualizer import *
+from utils.const import CONSTRAINT
+from utils.utils import LOG_DEBUG, PYMPC_ASSERT, CONFIG
+from utils.visualizer import ROSLine
+from planner_modules.base_constraint import BaseConstraint
 
-CONFIG = read_config_file()
 
-
-def visualize_trajectory(initial_trajectory, param, param1, param2, param3, param4):
+# Placeholder for the visualization function
+def visualize_trajectory(initial_trajectory, param, param1, param2, param3, param4, param5=False, param6=False):
     pass
 
 
-class GuidanceConstraints:
+class GlobalGuidance:
+    def __init__(self):
+        # Configuration and other parameters would be initialized here
+        pass
+
+    def set_planning_frequency(self, freq):
+        pass
+
+    def get_config(self):
+        # Return a configuration object with attributes like n_paths, N, etc.
+        config = type('Config', (), {})
+        config.n_paths = CONFIG.get("global_guidance", {}).get("n_paths", 1)
+        config.N = CONFIG.get("global_guidance", {}).get("N", 10)
+        config.longitudinal_goals = CONFIG.get("global_guidance", {}).get("longitudinal_goals", 5)
+        config.vertical_goals = CONFIG.get("global_guidance", {}).get("vertical_goals", 5)
+        config.selection_weight_consistency = CONFIG.get("global_guidance", {}).get("selection_weight_consistency", 0.8)
+        return config
+
+    def load_static_obstacles(self, halfspaces):
+        pass
+
+    def set_start(self, pos, psi, v):
+        pass
+
+    def set_reference_velocity(self, velocity):
+        pass
+
+    def do_not_propagate_nodes(self):
+        pass
+
+    def update(self):
+        pass
+
+    def succeeded(self):
+        return True
+
+    def number_of_guidance_trajectories(self):
+        return 1  # Placeholder
+
+    def get_guidance_trajectory(self, idx):
+        # Return a trajectory object with attributes
+        trajectory = type('Trajectory', (), {})
+        trajectory.topology_class = idx
+        trajectory.color = idx
+        trajectory.previously_selected = False
+
+        # Create spline attribute
+        trajectory.spline = type('Spline', (), {})
+        trajectory.spline.get_trajectory = lambda: type('TrajectorySpline', (), {
+            'get_point': lambda t: np.array([0, 0]),
+            'get_velocity': lambda t: np.array([1, 0])
+        })
+
+        return trajectory
+
+    def space_time_point_num_states(self):
+        return 2  # Default to x, y
+
+    def set_goals(self, goals):
+        pass
+
+    def load_reference_path(self, start_s, path, width_left, width_right):
+        pass
+
+    def load_obstacles(self, obstacles, extra_data):
+        pass
+
+    def override_selected_trajectory(self, guidance_id, is_original_planner):
+        pass
+
+    def visualize(self, highlight_selected, trajectory_nr):
+        pass
+
+    def reset(self):
+        pass
+
+    def get_last_runtime(self):
+        return 0.0
+
+    def save_data(self, data_saver):
+        pass
+
+
+class GuidanceConstraints(BaseConstraint):
     def __init__(self, solver):
-        self.solver = solver
-        self.module_type = CONSTRAINT
-        self.name = "guidance_constraints"
+        super().__init__(solver)
         LOG_DEBUG("Initializing Guidance Constraints")
+        self.name = "guidance_constraints"
 
         self.global_guidance = GlobalGuidance()
+        self.global_guidance.set_planning_frequency(self.get_config_value("control_frequency"))
 
-        self.global_guidance.set_planning_frequency(CONFIG["control_frequency"])
-
-        self._use_tmpc = CONFIG["t-mpc"]["use_t-mpc+=1"]
-        self._enable_constraints = CONFIG["t-mpc"]["enable_constraints"]
-        self._control_frequency = CONFIG["control_frequency"]
+        self._use_tmpc = self.get_config_value("t-mpc.use_t-mpc+=1", False)
+        self._enable_constraints = self.get_config_value("t-mpc.enable_constraints", True)
+        self._control_frequency = self.get_config_value("control_frequency")
         self._planning_time = 1. / self._control_frequency
 
         # Initialize the constraint modules
@@ -112,9 +192,9 @@ class GuidanceConstraints:
         if module_data.path_velocity is not None:
             self.global_guidance.set_reference_velocity(module_data.path_velocity(state.get("spline")))
         else:
-            self.global_guidance.set_reference_velocity(CONFIG["weights"]["reference_velocity"])
+            self.global_guidance.set_reference_velocity(self.get_config_value("weights.reference_velocity"))
 
-        if not CONFIG["enable_output"]:
+        if not self.get_config_value("enable_output"):
             LOG_DEBUG("Not propagating nodes (output is disabled)")
             self.global_guidance.do_not_propagate_nodes()
 
@@ -136,7 +216,7 @@ class GuidanceConstraints:
         LOG_DEBUG("Setting guidance planner goals")
 
         current_s = state.get("spline")
-        n_discs = CONFIG["n_discs"]
+        n_discs = self.get_config_value("n_discs")
 
         if (module_data.path_velocity is None or
                 module_data.path_width_left is None or
@@ -144,8 +224,8 @@ class GuidanceConstraints:
             self.global_guidance.load_reference_path(
                 max(0., state.get("spline")),
                 module_data.path,
-                CONFIG["road"]["width"] / 2. - n_discs - 0.1,
-                CONFIG["road"]["width"] / 2. - n_discs - 0.1)
+                self.get_config_value("road.width") / 2. - n_discs - 0.1,
+                self.get_config_value("road.width") / 2. - n_discs - 0.1)
             return
 
         # Define goals along the reference path, taking into account the velocity along the path
@@ -257,7 +337,7 @@ class GuidanceConstraints:
         if not self._use_tmpc and not self.global_guidance.succeeded():
             return 0
 
-        shift_forward = CONFIG["shift_previous_solution_forward"] and CONFIG["enable_output"]
+        shift_forward = self.get_config_value("shift_previous_solution_forward", True) and self.get_config_value("enable_output")
 
         for planner in self.planners:
             planner.result.Reset()
@@ -281,7 +361,7 @@ class GuidanceConstraints:
             else:
                 LOG_DEBUG(f"Planner [{planner.id}]: Loading guidance into the solver and constructing constraints")
 
-                if CONFIG["t-mpc"]["warmstart_with_mpc_solution"] and planner.existing_guidance:
+                if self.get_config_value("t-mpc.warmstart_with_mpc_solution", False) and planner.existing_guidance:
                     planner.localsolver.initialize_warmstart(state, shift_forward)
                 else:
                     self.initializesolver_with_guidance(planner)
@@ -382,11 +462,12 @@ class GuidanceConstraints:
         return best_index
 
     def visualize(self, data, module_data):
+        super().visualize(data, module_data)
         LOG_DEBUG("Guidance Constraints: Visualize()")
 
         # Visualize global guidance if available
         if not (self._use_tmpc and self.global_guidance.get_config().n_paths == 0):  # If global guidance
-            self.global_guidance.visualize(CONFIG["t-mpc"]["highlight_selected"], -1)
+            self.global_guidance.visualize(self.get_config_value("t-mpc.highlight_selected", True), -1)
 
         for i in range(len(self.planners)):
             planner = self.planners[i]
@@ -398,7 +479,7 @@ class GuidanceConstraints:
                 planner.safety_constraints.visualize(data, module_data)
 
             # Visualize the warmstart
-            if CONFIG["debug_visuals"]:
+            if self.get_config_value("debug_visuals", False):
                 initial_trajectory = []
                 for k in range(planner.localsolver.N):
                     initial_trajectory.append((
@@ -429,7 +510,7 @@ class GuidanceConstraints:
         # Publish visualization data
         if hasattr(self, 'VISUALS') and hasattr(self.VISUALS, 'missing_data'):
             self.VISUALS.missing_data(self.name + "/optimized_trajectories").publish()
-            if CONFIG["debug_visuals"]:
+            if self.get_config_value("debug_visuals", False):
                 self.VISUALS.missing_data(self.name + "/warmstart_trajectories").publish()
 
     def is_data_ready(self, data, missing_data):
@@ -473,6 +554,7 @@ class GuidanceConstraints:
             self.global_guidance.load_obstacles(obstacles, {})
 
     def reset(self):
+        super().reset()
         self.global_guidance.reset()
 
         for planner in self.planners:
@@ -498,87 +580,7 @@ class GuidanceConstraints:
         data_saver.add_data("gmpcc_objective", best_objective)
         self.global_guidance.save_data(data_saver)  # Save data from the guidance planner
 
-
-# This is a placeholder for the GlobalGuidance class which would need to be implemented
-# based on your specific requirements
-class GlobalGuidance:
-    def __init__(self):
-        # Configuration and other parameters would be initialized here
-        pass
-
-    def set_planning_frequency(self, freq):
-        pass
-
-    def get_config(self):
-        # Return a configuration object with attributes like n_paths, N, etc.
-        config = type('Config', (), {})
-        config.n_paths = CONFIG.get("global_guidance", {}).get("n_paths", 1)
-        config.N = CONFIG.get("global_guidance", {}).get("N", 10)
-        config.longitudinal_goals = CONFIG.get("global_guidance", {}).get("longitudinal_goals", 5)
-        config.vertical_goals = CONFIG.get("global_guidance", {}).get("vertical_goals", 5)
-        config.selection_weight_consistency = CONFIG.get("global_guidance", {}).get("selection_weight_consistency", 0.8)
-        return config
-
-    def load_static_obstacles(self, halfspaces):
-        pass
-
-    def set_start(self, pos, psi, v):
-        pass
-
-    def set_reference_velocity(self, velocity):
-        pass
-
-    def do_not_propagate_nodes(self):
-        pass
-
-    def update(self):
-        pass
-
-    def succeeded(self):
-        return True
-
-    def number_of_guidance_trajectories(self):
-        return 1  # Placeholder
-
-    def get_guidance_trajectory(self, idx):
-        # Return a trajectory object with attributes
-        trajectory = type('Trajectory', (), {})
-        trajectory.topology_class = idx
-        trajectory.color = idx
-        trajectory.previously_selected = False
-
-        # Create spline attribute
-        trajectory.spline = type('Spline', (), {})
-        trajectory.spline.get_trajectory = lambda: type('TrajectorySpline', (), {
-            'get_point': lambda t: np.array([0, 0]),
-            'get_velocity': lambda t: np.array([1, 0])
-        })
-
-        return trajectory
-
-    def space_time_point_num_states(self):
-        return 2  # Default to x, y
-
-    def set_goals(self, goals):
-        pass
-
-    def load_reference_path(self, start_s, path, width_left, width_right):
-        pass
-
-    def load_obstacles(self, obstacles, extra_data):
-        pass
-
-    def override_selected_trajectory(self, guidance_id, is_original_planner):
-        pass
-
-    def visualize(self, highlight_selected, trajectory_nr):
-        pass
-
-    def reset(self):
-        pass
-
-    def get_last_runtime(self):
-        return 0.0
-
-    def save_data(self, data_saver):
-        pass
+    def visualize_trajectory(self, trajectory, name_suffix="trajectory", scale=0.1, color_int=0):
+        """Override the base class method to use our custom visualize_trajectory function"""
+        publisher_name = f"{self.name}/{name_suffix}"
+        visualize_trajectory(trajectory, publisher_name, False, scale, color_int, 0)

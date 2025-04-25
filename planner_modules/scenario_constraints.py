@@ -1,22 +1,18 @@
 import numpy as np
-from utils.const import CONSTRAINT, DETERMINISTIC
-from utils.utils import read_config_file, LOG_DEBUG
-# from utils.visualizer import *
-import time
+from utils.const import DETERMINISTIC
+from utils.utils import LOG_DEBUG, read_config_file
 from datetime import datetime
+from planner_modules.base_constraint import BaseConstraint
 
-CONFIG = read_config_file()
 
-
-class ScenarioConstraints:
+class ScenarioConstraints(BaseConstraint):
 	def __init__(self, solver):
-		self.solver = solver
-		self.module_type = CONSTRAINT
-		self.name = "scenario_constraints"
+		super().__init__(solver)
+		self.name = "scenario_constraints"  # Override name from BaseConstraint
 
 		LOG_DEBUG("Initializing Scenario Constraints")
 
-		self._planning_time = 1.0 / CONFIG["control_frequency"]
+		self._planning_time = 1.0 / self.get_config_value("control_frequency")
 		self._scenariosolvers = []
 		self._best_solver = None
 
@@ -25,12 +21,14 @@ class ScenarioConstraints:
 		self._SCENARIO_CONFIG.Init()
 
 		# Create parallel solvers
-		for i in range(CONFIG["scenario_constraints"]["parallelsolvers"]):
+		parallel_solvers = self.get_config_value("scenario_constraints.parallelsolvers")
+		for i in range(parallel_solvers):
 			self._scenariosolvers.append(ScenarioSolver(i))
 
 		LOG_DEBUG("Scenario Constraints successfully initialized")
 
 	def update(self, state, data, module_data):
+		LOG_DEBUG("ScenarioConstraints.update")
 		for solver in self._scenariosolvers:
 			# Copy the main solver, including its initial guess
 			solver.solver = self.solver
@@ -104,7 +102,14 @@ class ScenarioConstraints:
 					)
 
 	def is_data_ready(self, data, missing_data):
-		if data.dynamic_obstacles.size() != CONFIG["max_obstacles"]:
+		required_fields = ["dynamic_obstacles"]
+		missing_fields = self.check_data_availability(data, required_fields)
+
+		if not self.report_missing_data(missing_fields, missing_data):
+			return False
+
+		max_obstacles = self.get_config_value("max_obstacles")
+		if data.dynamic_obstacles.size() != max_obstacles:
 			missing_data += "Obstacles "
 			return False
 
@@ -123,7 +128,9 @@ class ScenarioConstraints:
 		return True
 
 	def visualize(self, data, module_data):
-		visualize_all = False
+		super().visualize(data, module_data)
+
+		visualize_all = self.get_config_value("scenario_constraints.visualize_all", False)
 
 		LOG_DEBUG("ScenarioConstraints.visualize")
 
@@ -143,18 +150,21 @@ class ScenarioConstraints:
 						solver.solver.get_output(k, "y")
 					])
 
-				visualize_trajectory(
+				self.visualize_trajectory(
 					trajectory,
-					f"{self.name}/optimized_trajectories",
-					False,
-					0.2,
-					solver.solver.solver_id,
-					2 * len(self._scenariosolvers)
+					"optimized_trajectories",
+					scale=0.2,
+					color_int=solver.solver_id
 				)
 
-		# Publish visualization
-		from utils.visualizer import VISUALS
-		VISUALS.missing_data(f"{self.name}/optimized_trajectories").publish()
+	def reset(self):
+		super().reset()
+		# Reset constraint-specific state
+		self._best_solver = None
+
+		# Reset all scenario solvers
+		for solver in self._scenariosolvers:
+			solver.exit_code = 0
 
 	def set_openmp_params(self, nested=None, max_active_levels=None, dynamic=None):
 		"""Helper function to set OpenMP parameters (mock implementation)"""
@@ -169,7 +179,8 @@ class ScenarioConstraints:
 
 class ScenarioConfig:
 	def __init__(self):
-		self.enable_safe_horizon_ = CONFIG.get("scenario_constraints", {}).get("enable_safe_horizon", False)
+		config = read_config_file()
+		self.enable_safe_horizon_ = config.get("scenario_constraints", {}).get("enable_safe_horizon", False)
 
 	def Init(self):
 		# Initialize scenario config parameters
@@ -178,11 +189,12 @@ class ScenarioConfig:
 
 class ScenarioSolver:
 	def __init__(self, solver_id):
+		config = read_config_file()
 		self.solver = None
 		self.scenario_module = ScenarioModule()
 		self.exit_code = 0
-		self.N = CONFIG["N"]
-		self.dt = CONFIG["dt"]
+		self.N = config["N"]
+		self.dt = config["dt"]
 		self.solver_id = solver_id
 
 	def get(self):

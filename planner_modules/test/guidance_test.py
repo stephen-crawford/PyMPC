@@ -34,10 +34,26 @@ CONFIG_MOCK = {
 	}
 }
 
+# Patch the read_config_file function
+with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
+	from planner_modules.guidance_constraints import GuidanceConstraints
+	from planner_modules.base_constraint import BaseConstraint
 
-@patch('utils.utils.read_config_file', return_value=CONFIG_MOCK)
+
 class TestGuidanceConstraints(unittest.TestCase):
 	"""Test suite for GuidanceConstraints class"""
+
+	@staticmethod
+	def get_mocked_config(key, default=None):
+		"""Static method to handle config mocking"""
+		keys = key.split('.')
+		cfg = CONFIG_MOCK
+		try:
+			for k in keys:
+				cfg = cfg[k]
+			return cfg
+		except (KeyError, TypeError):
+			return default
 
 	def setUp(self):
 		"""Set up test fixtures before each test"""
@@ -46,6 +62,16 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.solver.N = 10
 		self.solver.dt = 0.1
 		self.solver.copy = MagicMock(return_value=MagicMock())  # Returns a new mock
+
+		self.config_attr_patcher = patch('planner_modules.base_constraint.CONFIG', CONFIG_MOCK)
+		self.config_attr_patcher.start()
+		self.addCleanup(self.config_attr_patcher.stop)
+
+		# Apply the patch before creating the class
+		patcher = patch('planner_modules.base_constraint.BaseConstraint.get_config_value',
+						side_effect=self.get_mocked_config)
+		self.mock_get_config = patcher.start()
+		self.addCleanup(patcher.stop)
 
 		# Mock the GlobalGuidance class
 		self.global_guidance_patcher = patch('planner_modules.guidance_constraints.GlobalGuidance')
@@ -63,10 +89,6 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.mock_global_guidance_instance.number_of_guidance_trajectories.return_value = 3
 		self.mock_global_guidance.return_value = self.mock_global_guidance_instance
 
-		# Patch CONFIG directly
-		self.config_patcher = patch('planner_modules.guidance_constraints.CONFIG', CONFIG_MOCK)
-		self.config_patcher.start()
-
 		# Import after patching
 		from planner_modules.guidance_constraints import GuidanceConstraints
 		self.guidance_constraints = GuidanceConstraints(self.solver)
@@ -75,10 +97,9 @@ class TestGuidanceConstraints(unittest.TestCase):
 
 	def tearDown(self):
 		"""Clean up after each test"""
-		self.config_patcher.stop()
 		self.global_guidance_patcher.stop()
 
-	def test_initialization(self, mock_config):
+	def test_initialization(self):
 		"""Test proper initialization of GuidanceConstraints"""
 		self.assertEqual(self.guidance_constraints.module_type, CONSTRAINT)
 		self.assertEqual(self.guidance_constraints.name, "guidance_constraints")
@@ -103,7 +124,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.assertEqual(tmpc_planner.id, 3)
 		self.assertTrue(tmpc_planner.is_original_planner)
 
-	def test_update_with_path_data(self, mock_config):
+	def test_update_with_path_data(self):
 		"""Test update method with valid path data"""
 		# Setup
 		state = MagicMock()
@@ -130,7 +151,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.mock_global_guidance_instance.load_static_obstacles.assert_called_once()
 		self.mock_global_guidance_instance.update.assert_called_once()
 
-	def test_update_no_path_data(self, mock_config):
+	def test_update_no_path_data(self):
 		"""Test update method with no path data"""
 		# Setup
 		state = MagicMock()
@@ -145,7 +166,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.mock_global_guidance_instance.set_start.assert_not_called()
 		self.mock_global_guidance_instance.update.assert_not_called()
 
-	def test_set_goals(self, mock_config):
+	def test_set_goals(self):
 		"""Test set_goals method"""
 		# Setup
 		state = MagicMock()
@@ -178,7 +199,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.assertTrue(isinstance(goals_arg, list))
 		self.assertTrue(len(goals_arg) > 0)
 
-	def test_set_goals_no_path_data(self, mock_config):
+	def test_set_goals_no_path_data(self):
 		"""Test set_goals method with no path velocity data"""
 		# Setup
 		state = MagicMock()
@@ -198,7 +219,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.mock_global_guidance_instance.set_goals.assert_not_called()
 
 	@patch('time.time', return_value=10.0)
-	def test_optimize(self, mock_time, mock_config):
+	def test_optimize(self, mock_time):
 		"""Test optimize method with successful guidance"""
 		# Setup
 		state = MagicMock()
@@ -243,7 +264,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 			# Check that guidance trajectory selection was communicated back
 			self.mock_global_guidance_instance.override_selected_trajectory.assert_called_once()
 
-	def test_initializesolver_with_guidance(self, mock_config):
+	def test_initializesolver_with_guidance(self):
 		"""Test initializesolver_with_guidance method"""
 		# Setup
 		planner = MagicMock()
@@ -278,7 +299,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 			planner.localsolver.set_ego_prediction.assert_any_call(k, "psi", atan2(3.0, 2.0))
 			planner.localsolver.set_ego_prediction.assert_any_call(k, "v", np.linalg.norm(np.array([2.0, 3.0])))
 
-	def test_find_best_planner(self, mock_config):
+	def test_find_best_planner(self):
 		"""Test find_best_planner method"""
 		# Setup planners with different objectives
 		self.guidance_constraints.planners = []
@@ -310,7 +331,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.assertEqual(best_index, -1)  # No valid planner found
 
 	@patch('planner_modules.guidance_constraints.visualize_trajectory')
-	def test_visualize(self, mock_vis_traj, mock_config):
+	def test_visualize(self, mock_vis_traj):
 		"""Test visualize method"""
 		# Setup
 		data = MagicMock()
@@ -361,7 +382,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		# Reset debug visuals
 		CONFIG_MOCK["debug_visuals"] = False
 
-	def test_is_data_ready(self, mock_config):
+	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
 		# Setup
 		data = MagicMock()
@@ -392,7 +413,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		result = self.guidance_constraints.is_data_ready(data, missing_data)
 		self.assertFalse(result)
 
-	def test_on_data_received_dynamic_obstacles(self, mock_config):
+	def test_on_data_received_dynamic_obstacles(self):
 		"""Test on_data_received method with dynamic obstacles"""
 		# Setup
 		data = MagicMock()
@@ -425,7 +446,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.assertEqual(len(obstacles_arg[0][1]), 2)
 		self.assertEqual(obstacles_arg[0][2], 1.5)
 
-	def test_on_data_received_goal(self, mock_config):
+	def test_on_data_received_goal(self):
 		"""Test on_data_received method with goal data"""
 		# Setup
 		data = MagicMock()
@@ -436,7 +457,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		# Currently this just logs a message, so there's nothing to assert
 		pass
 
-	def test_reset(self, mock_config):
+	def test_reset(self):
 		"""Test reset method"""
 		# Setup planners
 		for planner in self.guidance_constraints.planners:
@@ -450,7 +471,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		for planner in self.guidance_constraints.planners:
 			planner.localsolver.reset.assert_called_once()
 
-	def test_save_data(self, mock_config):
+	def test_save_data(self):
 		"""Test save_data method"""
 		# Setup
 		data_saver = MagicMock()
@@ -491,109 +512,59 @@ class TestGuidanceConstraints(unittest.TestCase):
 		# Check that global guidance save_data was called
 		self.mock_global_guidance_instance.save_data.assert_called_once_with(data_saver)
 
+	@patch('planner_modules.guidance_constraints.GlobalGuidance')
+	def test_planner_integration(self, mock_global_guidance):
+		"""Test if module properly interacts with planner"""
 
-class TestSystemIntegration(unittest.TestCase):
-	"""Test integration between GuidanceConstraints and Planner"""
-
-	def setUp(self):
-		"""Set up test fixtures before each test"""
-		# Define CONFIG_MOCK inside the test class to avoid dependency issues
-		self.CONFIG_MOCK = {
-			"control_frequency": 10.0,
-			"debug_visuals": False,  # Ensure this is included
-			"shift_previous_solution_forward": True,
-			"enable_output": True,
-			"n_discs": 2,
-			"road": {
-				"width": 8.0
-			},
-			"weights": {
-				"reference_velocity": 5.0
-			},
-			"t-mpc": {
-				"use_t-mpc+=1": True,
-				"enable_constraints": True,
-				"warmstart_with_mpc_solution": True,
-				"highlight_selected": True
-			},
-			"global_guidance": {
-				"n_paths": 3,
-				"N": 10,
-				"nsolvers": 3,
-				"longitudinal_goals": 5,
-				"vertical_goals": 5,
-				"selection_weight_consistency": 0.8
-			}
-		}
-		self.solver = MagicMock()
-		self.solver.N = 10
-		self.solver.dt = 0.1
-		self.nsolvers = 3
-		self.solver.params = MagicMock()
-		self.solver.copy = MagicMock(return_value=MagicMock())
-
-
-		# Create instance of the class under test
-		with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK), \
-				patch('planner_modules.guidance_constraints.GlobalGuidance'):
-			from planner_modules.guidance_constraints import GuidanceConstraints
-			self.guidance_constraints = GuidanceConstraints(self.solver)
-
-		self.guidance_constraints.global_guidance.return_value = CONFIG_MOCK
-		self.guidance_constraints.global_guidance.get_config.return_value = CONFIG_MOCK
-
-		# Create mock planner
+		# Setup mocks for planner's solve_mpc method
+		data = MagicMock()
+		data.planning_start_time = 0.0
+		state = MagicMock()
+		module_data = MagicMock()
+		module_data.path = MagicMock()
 		self.planner = MagicMock()
 		self.planner.modules = [self.guidance_constraints]
 
-	# TODO: Fix this after standardizing configuration
-	# @patch('planner_modules.guidance_constraints.GlobalGuidance')
-	# def test_planner_integration(self, mock_global_guidance, mock_config):
-	# 	"""Test if module properly interacts with planner"""
-	#
-	# 	# Setup mocks for planner's solve_mpc method
-	# 	data = MagicMock()
-	# 	data.planning_start_time = 0.0
-	# 	state = MagicMock()
-	# 	module_data = MagicMock()
-	# 	module_data.path = MagicMock()
-	#
-	# 	# Create mock GlobalGuidance instance
-	# 	mock_global_guidance_instance = MagicMock()
-	#
-	# 	# Return the mocked instance when GlobalGuidance is initialized
-	# 	mock_global_guidance.return_value = mock_global_guidance_instance
-	#
-	# 	# Setup data ready mocks
-	# 	with patch.object(self.guidance_constraints, 'is_data_ready', return_value=True), \
-	# 			patch.object(self.guidance_constraints, 'update') as mock_update, \
-	# 			patch.object(self.guidance_constraints, 'optimize') as mock_optimize, \
-	# 			patch.object(self.guidance_constraints, 'set_parameters') as mock_set_params:
-	#
-	# 		# Mock optimize to indicate success
-	# 		mock_optimize.return_value = 1
-	#
-	# 		# Mock the planner execution similar to actual code
-	# 		# Update modules
-	# 		for module in self.planner.modules:
-	# 			module.update(state, data, module_data)
-	#
-	# 		# Optimize the guidance
-	# 		for module in self.planner.modules:
-	# 			if hasattr(module, 'optimize'):
-	# 				module.optimize(state, data, module_data)
-	#
-	# 		# Set parameters for each prediction step
-	# 		for k in range(self.solver.N):
-	# 			for module in self.planner.modules:
-	# 				module.set_parameters(data, module_data, k)
-	#
-	# 		# Assertions
-	# 		mock_update.assert_called_once_with(state, data, module_data)
-	# 		mock_optimize.assert_called_once_with(state, data, module_data)
-	#
-	# 		# Module should have set_parameters called N times
-	# 		self.assertEqual(mock_set_params.call_count, self.solver.N)
+		# Create mock GlobalGuidance instance
+		mock_global_guidance_instance = MagicMock()
+
+		# Return the mocked instance when GlobalGuidance is initialized
+		mock_global_guidance.return_value = mock_global_guidance_instance
+
+		# Setup data ready mocks
+		with patch.object(self.guidance_constraints, 'is_data_ready', return_value=True), \
+				patch.object(self.guidance_constraints, 'update') as mock_update, \
+				patch.object(self.guidance_constraints, 'optimize') as mock_optimize, \
+				patch.object(self.guidance_constraints, 'set_parameters') as mock_set_params:
+
+			# Mock optimize to indicate success
+			mock_optimize.return_value = 1
+
+			# Mock the planner execution similar to actual code
+			# Update modules
+			for module in self.planner.modules:
+				module.update(state, data, module_data)
+
+			# Optimize the guidance
+			for module in self.planner.modules:
+				if hasattr(module, 'optimize'):
+					module.optimize(state, data, module_data)
+
+			# Set parameters for each prediction step
+			for k in range(self.solver.N):
+				for module in self.planner.modules:
+					module.set_parameters(data, module_data, k)
+
+			# Assertions
+			mock_update.assert_called_once_with(state, data, module_data)
+			mock_optimize.assert_called_once_with(state, data, module_data)
+
+			# Module should have set_parameters called N times
+			self.assertEqual(mock_set_params.call_count, self.solver.N)
+
+
+
+
 
 if __name__ == '__main__':
 	unittest.main()

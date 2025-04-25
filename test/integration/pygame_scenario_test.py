@@ -283,7 +283,7 @@ class ScenarioOptimizerDemo:
 		ego_obstacle = DynamicObstacle(
 			id=0,
 			position=TwoDimensionalSpline(self.state.get("x"), self.state.get("y")),
-			velocity=TwoDimensionalSpline(
+			velocity=TwoDimensionalSpline
 				self.state.get("v") * math.cos(self.state.get("heading")),
 				self.state.get("v") * math.sin(self.state.get("heading"))
 			),
