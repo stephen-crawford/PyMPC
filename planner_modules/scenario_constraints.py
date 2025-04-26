@@ -42,13 +42,25 @@ class ScenarioConstraints(BaseConstraint):
 		# Set OpenMP parameters for parallelization
 		self.set_openmp_params(nested=1, max_active_levels=2, dynamic=0)
 
+		# Initialize best solver search
+		lowest_cost = 1e9
+		self._best_solver = None
 		for solver in self._scenariosolvers:
+
+			print(f"Checking solver: {solver}")
+			print(f"exit_code: {solver.exit_code}")
+			print(f"pobj: {solver.solver._info.pobj}")
+
+			if solver.exit_code == 1 and solver.solver._info.pobj < lowest_cost:
+				lowest_cost = solver.solver._info.pobj
+				self._best_solver = solver
+
 			# Set the planning timeout
 			used_time = (datetime.now() - data.planning_start_time).total_seconds()
 			solver.solver.params.solver_timeout = self._planning_time - used_time - 0.008
 
-			# Copy solver parameters and initial guess
-			solver.solver = self.solver
+			# Create a copy of the solver instead of just assigning the reference
+			# solver.solver = self.solver  # This line is causing the issue
 
 			# Set the scenario constraint parameters for each solver
 			for k in range(solver.N):

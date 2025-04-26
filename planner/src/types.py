@@ -344,7 +344,7 @@ class TkSpline:
             cubic_spline: Use cubic spline if True, linear interpolation if False
         """
 
-
+        print("X contains: {}".format(x))
         assert len(x) == len(y)
         assert len(x) > 2
 

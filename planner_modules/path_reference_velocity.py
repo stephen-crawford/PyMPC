@@ -9,21 +9,28 @@ from utils.visualizer import VISUALS
 CONFIG = read_config_file()
 
 
+
+
 class PathReferenceVelocity:
 
     def __init__(self, solver):
         self.solver = solver
         self.module_type = OBJECTIVE
-        self.name = "path_reference_velocity"
+        self.name = 'path_reference_velocity'
+        self.config = read_config_file().get(self.name, {})
         LOG_DEBUG("Initializing Path Reference Velocity")
         LOG_DEBUG("Path Reference Velocity successfully initialized")
-        self.n_segments = CONFIG["contouring"]["get_num_segments"]
+        self.n_segments = self.get_config_value("contouring.get_num_segments")
         self.velocity_spline = None
         self.set_solver_param = partial(set_solver_parameter, settings=CONFIG)
 
     def update(self, state, data, module_data):
         if module_data.path_velocity is None and self.velocity_spline is not None:
             module_data.path_velocity = self.velocity_spline
+
+    def get_config_value(self, key, default=None):
+        """Get configuration value with fallback to default"""
+        return self.config.get(key)
 
     def on_data_received(self, data, data_name):
         if data_name == "reference_path":
@@ -32,9 +39,10 @@ class PathReferenceVelocity:
                 self.velocity_spline.set_points(data.reference_path.s, data.reference_path.v)
 
     def set_parameters(self, data, module_data, k):
+        print("Trying to set parameters")
         reference_velocity = 0.0
         if k == 0:
-            reference_velocity = CONFIG["weights"]["reference_velocity"]
+            reference_velocity = self.get_config_value("weights.reference_velocity")
 
         if data.reference_path.hasVelocity():  # Use a spline-based velocity reference
             LOG_DEBUG("Using spline-based reference velocity")
@@ -63,7 +71,7 @@ class PathReferenceVelocity:
         if data.reference_path.empty() or data.reference_path.s.empty():
             return
 
-        if not CONFIG["debug_visuals"]:
+        if not self.get_config_value("debug_visuals"):
             return
 
         LOG_DEBUG("PathReferenceVelocity.Visualize")

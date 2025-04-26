@@ -65,14 +65,14 @@ class TestGaussianConstraints(unittest.TestCase):
 
 		self.gaussian_constraints = GaussianConstraints(self.solver)
 
-	def test_initialization(self, mock_config):
+	def test_initialization(self):
 		"""Test proper initialization of GaussianConstraints"""
 		self.assertEqual(self.gaussian_constraints.module_type, CONSTRAINT)
 		self.assertEqual(self.gaussian_constraints.name, "gaussian_constraints")
 		self.assertEqual(self.gaussian_constraints._dummy_x, 100.0)
 		self.assertEqual(self.gaussian_constraints._dummy_y, 100.0)
 
-	def test_update(self, mock_config):
+	def test_update(self):
 		"""Test update method with valid data"""
 		# Setup
 		state = MagicMock()
@@ -248,7 +248,7 @@ class TestGaussianConstraints(unittest.TestCase):
 		mock_set_param.assert_has_calls(expected_calls, any_order=True)
 		self.assertEqual(mock_set_param.call_count, 8)  # 1 radius + 1 offset + 6 obstacle params
 
-	def test_is_data_ready(self, mock_config):
+	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
 		# Test when obstacles count does not match max_obstacles
 		data = MagicMock()
@@ -287,7 +287,7 @@ class TestGaussianConstraints(unittest.TestCase):
 	@patch('planner_modules.gaussian_constraints.PROFILE_SCOPE')
 	@patch('planner_modules.gaussian_constraints.ROSPointMarker')
 	@patch('planner_modules.gaussian_constraints.exponential_quantile')
-	def test_visualize(self, mock_exp_quantile, mock_point_marker, mock_profile_scope, mock_config):
+	def test_visualize(self, mock_exp_quantile, mock_point_marker, mock_profile_scope):
 		"""Test visualize method with debug visuals enabled"""
 		# Setup
 		data = MagicMock()
@@ -352,7 +352,7 @@ class TestGaussianConstraints(unittest.TestCase):
 		CONFIG_MOCK["debug_visuals"] = False
 
 	@patch('planner_modules.gaussian_constraints.ROSPointMarker')
-	def test_visualize_debug_disabled(self, mock_point_marker, mock_config):
+	def test_visualize_debug_disabled(self, mock_point_marker):
 		"""Test visualize method with debug visuals disabled"""
 		# Setup
 		data = MagicMock()
