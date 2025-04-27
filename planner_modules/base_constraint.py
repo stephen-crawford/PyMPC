@@ -1,15 +1,15 @@
 from solver.solver_interface import set_solver_parameter
 from utils.const import CONSTRAINT
-from utils.utils import read_config_file, LOG_DEBUG, CONFIG
+from utils.utils import read_config_file, LOG_DEBUG, CONFIG, get_config_dotted
 from utils.visualizer import ROSLine
-
 
 class BaseConstraint:
 	def __init__(self, solver):
 		self.solver = solver
 		self.name = self.__class__.__name__.lower()
 		self.module_type = CONSTRAINT
-		self.config = read_config_file().get(self.name, {})
+		print("self.name is ", self.name)
+		self.config = read_config_file()
 		LOG_DEBUG(f"Initializing {self.name.title()} Constraints")
 
 	def update(self, state, data, module_data):
@@ -42,8 +42,13 @@ class BaseConstraint:
 		pass
 
 	def get_config_value(self, key, default=None):
-		"""Get configuration value with fallback to default"""
-		return self.config.get(key, CONFIG.get(f"{self.name}.{key}", default))
+		print("Searching config for value, " + str(key))
+		print("Found value: " + str(self.config.get(key)))
+		print("Config is: " + str(self.config))
+		res = self.config.get(key, CONFIG.get(f"{self.name}.{key}", default))
+		if res is None:
+			res = get_config_dotted(self.config, key)
+		return res
 
 	def check_data_availability(self, data, required_fields):
 		"""Check if all required data fields are available"""

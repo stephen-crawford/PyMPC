@@ -8,7 +8,7 @@ import numpy as np
 from solver_generator.util.parameters import Parameters
 from solver_generator.solver_model import ContouringSecondOrderUnicycleModel
 
-from solver_generator.control_modules import ModuleManager, ObjectiveModule, ConstraintModule
+from solver_generator.modules_manager import ModuleManager
 from solver_generator.solver_definition import define_parameters, objective, constraints, constraint_lower_bounds, constraint_upper_bounds, constraint_number
 
 from planner_modules.contouring import Contouring

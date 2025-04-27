@@ -15,15 +15,16 @@ class LinearizedConstraints(BaseConstraint):
 		self.n_discs = self.get_config_value("n_discs")  # Is overwritten to 1 for topology constraints
 		self._n_other_halfspaces = self.get_config_value("linearized_constraints.add_halfspaces")
 		self._max_obstacles = self.get_config_value("max_obstacles")
+
 		self.n_constraints = self._max_obstacles + self._n_other_halfspaces
 
 		# Initialize arrays
 		self._a1 = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
-					range(self.get_config_value("n_discs"))]
+					range(int(self.get_config_value("n_discs")))]
 		self._a2 = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
-					range(self.get_config_value("n_discs"))]
+					range(int(self.get_config_value("n_discs")))]
 		self._b = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
-				   range(self.get_config_value("n_discs"))]
+				   range(int(self.get_config_value("n_discs")))]
 
 		self._num_obstacles = 0
 		self._use_guidance = False

@@ -1,4 +1,4 @@
-name: "dingo"
+name: "test"
 N: 30
 dt: 0.1
 integrator_step: 0.1

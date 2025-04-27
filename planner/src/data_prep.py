@@ -1,6 +1,10 @@
+from typing import Any
+
 import numpy as np
 from enum import Enum
 import logging
+
+from numpy import floating
 
 from planner.src.types import Disc, DynamicObstacle, Prediction, PredictionType, PredictionStep
 from utils.utils import CONFIG, MOCKED_CONFIG
@@ -76,7 +80,7 @@ def get_constant_velocity_prediction(position: np.ndarray, velocity: np.ndarray,
     return prediction
 
 
-def distance(a: np.ndarray, b: np.ndarray) -> float:
+def distance(a: np.ndarray, b: np.ndarray) -> floating[Any]:
     """Calculate Euclidean distance between two points."""
     return np.linalg.norm(a - b)
 

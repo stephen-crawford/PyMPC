@@ -1,15 +1,15 @@
+from planner_modules.base_constraint import BaseConstraint
 from utils.const import OBJECTIVE
 
 from utils.utils import read_config_file, LOG_DEBUG, distance
 from utils.visualizer import VISUALS
 
-CONFIG = read_config_file()
 
 
-class GoalModule:
+class GoalModule(BaseConstraint):
 
   def __init__(self, solver):
-    self.solver = solver
+    super().__init__(solver)
     self.module_type = OBJECTIVE
     self.name = "goal_module"
     LOG_DEBUG( "Initializing Goal Module")

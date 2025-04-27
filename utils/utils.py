@@ -15,6 +15,7 @@ import yaml
 logger = logging.getLogger(__name__)
 
 def read_config_file():
+    print("Reading config file")
     config_path = os.path.join(os.path.dirname(__file__), "../../PyMPC/utils/CONFIG.yml")
     config_path = os.path.abspath(config_path)
     with open(config_path, 'r') as file:
@@ -23,7 +24,20 @@ def read_config_file():
         except yaml.ymlError as e:
             print(f"Error reading YAML file: {e}")
             return None
-# Read configuration
+
+
+def get_config_dotted(config, dotted_key, default=None):
+    keys = dotted_key.split('.')
+    value = config
+    for key in keys:
+        if isinstance(value, dict) and key in value:
+            value = value[key]
+        else:
+            if default is not None:
+                return default
+            raise KeyError(f"Key path '{dotted_key}' not found in config.")
+    return value
+
 
 CONFIG = read_config_file()
 SAVE_FOLDER = CONFIG["recording"]["folder"]

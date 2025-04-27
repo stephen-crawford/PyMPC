@@ -6,95 +6,365 @@ from utils.const import CONSTRAINT
 from utils.utils import LOG_DEBUG, PYMPC_ASSERT, CONFIG
 from utils.visualizer import ROSLine
 from planner_modules.base_constraint import BaseConstraint
+from functools import partial
+import numpy as np
+from math import exp, atan2, sqrt
+import time
 
-
-# Placeholder for the visualization function
-def visualize_trajectory(initial_trajectory, param, param1, param2, param3, param4, param5=False, param6=False):
-    pass
+from utils.const import CONSTRAINT
+from utils.utils import LOG_DEBUG, PYMPC_ASSERT, CONFIG
+from utils.visualizer import ROSLine, ROSMarker
 
 
 class GlobalGuidance:
     def __init__(self):
-        # Configuration and other parameters would be initialized here
-        pass
+        """Initialize the global guidance planner with default parameters"""
+        self._planning_frequency = 10.0  # Hz
+        self._dt = 1.0 / self._planning_frequency
+
+        # State and configuration parameters
+        self._current_pos = np.zeros(2)
+        self._current_psi = 0.0
+        self._current_v = 0.0
+        self._reference_velocity = 0.0
+
+        # Path and obstacle data
+        self._reference_path = None
+        self._start_s = 0.0
+        self._width_left = 0.0
+        self._width_right = 0.0
+        self._static_obstacles = []
+        self._dynamic_obstacles = []
+
+        # Goal related parameters
+        self._goals = []
+        self._trajectories = []
+        self._selected_trajectory_id = -1
+
+        # Control flags
+        self._propagate_nodes = True
+        self._success = False
+        self._runtime = 0.0
+        self._original_planner_selected = False
+
+        # Create default config (will be overridden by get_config)
+        self._config = type('Config', (), {})
+        self._config.n_paths = CONFIG.get("global_guidance", {}).get("n_paths", 1)
+        self._config.N = CONFIG.get("global_guidance", {}).get("N", 10)
+        self._config.longitudinal_goals = CONFIG.get("global_guidance", {}).get("longitudinal_goals", 5)
+        self._config.vertical_goals = CONFIG.get("global_guidance", {}).get("vertical_goals", 5)
+        self._config.selection_weight_consistency = CONFIG.get("global_guidance", {}).get(
+            "selection_weight_consistency", 0.8)
+
+        LOG_DEBUG("GlobalGuidance initialized")
 
     def set_planning_frequency(self, freq):
-        pass
+        """Set the planning frequency in Hz"""
+        self._planning_frequency = freq
+        self._dt = 1.0 / freq
+        LOG_DEBUG(f"Planning frequency set to {freq} Hz (dt={self._dt:.4f})")
 
     def get_config(self):
-        # Return a configuration object with attributes like n_paths, N, etc.
-        config = type('Config', (), {})
-        config.n_paths = CONFIG.get("global_guidance", {}).get("n_paths", 1)
-        config.N = CONFIG.get("global_guidance", {}).get("N", 10)
-        config.longitudinal_goals = CONFIG.get("global_guidance", {}).get("longitudinal_goals", 5)
-        config.vertical_goals = CONFIG.get("global_guidance", {}).get("vertical_goals", 5)
-        config.selection_weight_consistency = CONFIG.get("global_guidance", {}).get("selection_weight_consistency", 0.8)
-        return config
+        """Return configuration object with attributes"""
+        return self._config
 
     def load_static_obstacles(self, halfspaces):
-        pass
+        """Load static obstacles represented as halfspaces (Ax <= b)"""
+        self._static_obstacles = halfspaces
+        LOG_DEBUG(f"Loaded {len(halfspaces)} static obstacles")
 
     def set_start(self, pos, psi, v):
-        pass
+        """Set the starting position, orientation and velocity"""
+        self._current_pos = np.array(pos)
+        self._current_psi = psi
+        self._current_v = v
+        LOG_DEBUG(f"Start set to pos={pos}, psi={psi:.2f}, v={v:.2f}")
 
     def set_reference_velocity(self, velocity):
-        pass
+        """Set the reference velocity for planning"""
+        self._reference_velocity = velocity
+        LOG_DEBUG(f"Reference velocity set to {velocity:.2f}")
 
     def do_not_propagate_nodes(self):
-        pass
+        """Disable node propagation for planning"""
+        self._propagate_nodes = False
+        LOG_DEBUG("Node propagation disabled")
 
     def update(self):
-        pass
+        """Main update function to generate trajectory options"""
+        start_time = time.time()
 
-    def succeeded(self):
-        return True
+        # Reset trajectories
+        self._trajectories = []
 
-    def number_of_guidance_trajectories(self):
-        return 1  # Placeholder
+        if len(self._goals) == 0:
+            LOG_DEBUG("No goals set, cannot update guidance")
+            self._success = False
+            self._runtime = time.time() - start_time
+            return
 
-    def get_guidance_trajectory(self, idx):
-        # Return a trajectory object with attributes
+        # Plan trajectories to reach goals
+        self._generate_trajectories()
+
+        # Mark planning as successful if we have trajectories
+        self._success = len(self._trajectories) > 0
+
+        # Record runtime
+        self._runtime = time.time() - start_time
+        LOG_DEBUG(
+            f"GlobalGuidance update completed in {self._runtime:.4f}s, generated {len(self._trajectories)} trajectories")
+
+    def _generate_trajectories(self):
+        """Generate trajectories to reach goals using simple planning methods"""
+        # For each goal, create a different trajectory option
+        # Limited to n_paths trajectories maximum
+        goals_to_consider = sorted(self._goals, key=lambda g: g[1])[:self._config.n_paths]
+
+        for i, (goal_point, cost) in enumerate(goals_to_consider):
+            # Create a simple trajectory from current position to goal
+            trajectory = self._create_trajectory_to_goal(goal_point, i)
+            self._trajectories.append(trajectory)
+
+            LOG_DEBUG(f"Created trajectory {i} with cost {cost:.2f} to goal {goal_point}")
+
+    def _create_trajectory_to_goal(self, goal_point, traj_id):
+        """Create a simple trajectory to reach a goal point"""
+        # Create a trajectory class with needed attributes
         trajectory = type('Trajectory', (), {})
-        trajectory.topology_class = idx
-        trajectory.color = idx
-        trajectory.previously_selected = False
+        trajectory.topology_class = traj_id  # Unique ID for this trajectory class
+        trajectory.color = traj_id  # Color index for visualization
+        trajectory.previously_selected = (traj_id == self._selected_trajectory_id)
 
-        # Create spline attribute
+        # Create spline for the trajectory
         trajectory.spline = type('Spline', (), {})
-        trajectory.spline.get_trajectory = lambda: type('TrajectorySpline', (), {
-            'get_point': lambda t: np.array([0, 0]),
-            'get_velocity': lambda t: np.array([1, 0])
-        })
+
+        # Define point and velocity getters as lambdas
+        # This is a simple linear trajectory from start to goal
+        start_pos = self._current_pos
+        goal_pos = np.array(goal_point[:2])  # Only take x,y from goal
+        direction = goal_pos - start_pos
+        distance = np.linalg.norm(direction)
+
+        if distance > 0:
+            direction = direction / distance
+        else:
+            direction = np.array([np.cos(self._current_psi), np.sin(self._current_psi)])
+
+        # Create the trajectory function
+        def get_trajectory():
+            traj = type('TrajectorySpline', (), {})
+
+            def get_point(t):
+                # Simple linear interpolation
+                t_total = self._config.N * self._dt
+                t = min(t, t_total)
+                fraction = min(t / t_total, 1.0)
+                return start_pos + direction * distance * fraction
+
+            def get_velocity(t):
+                # Constant velocity along the path
+                t_total = self._config.N * self._dt
+                if t >= t_total:
+                    return np.zeros(2)
+                return direction * self._reference_velocity
+
+            traj.get_point = get_point
+            traj.get_velocity = get_velocity
+            return traj
+
+        trajectory.spline.get_trajectory = get_trajectory
 
         return trajectory
 
+    def succeeded(self):
+        """Return whether the guidance planning succeeded"""
+        return self._success
+
+    def number_of_guidance_trajectories(self):
+        """Return the number of available guidance trajectories"""
+        return len(self._trajectories)
+
+    def get_guidance_trajectory(self, idx):
+        """Get a specific guidance trajectory by index"""
+        if idx < 0 or idx >= len(self._trajectories):
+            LOG_DEBUG(f"Trajectory index {idx} out of range (0-{len(self._trajectories) - 1})")
+            # Return a default trajectory
+            trajectory = type('Trajectory', (), {})
+            trajectory.topology_class = -1
+            trajectory.color = -1
+            trajectory.previously_selected = False
+
+            trajectory.spline = type('Spline', (), {})
+            trajectory.spline.get_trajectory = lambda: type('TrajectorySpline', (), {
+                'get_point': lambda t: self._current_pos,
+                'get_velocity': lambda t: np.array([self._current_v * np.cos(self._current_psi),
+                                                    self._current_v * np.sin(self._current_psi)])
+            })
+
+            return trajectory
+
+        return self._trajectories[idx]
+
     def space_time_point_num_states(self):
-        return 2  # Default to x, y
+        """Return the number of states for space-time points (x,y,[psi])"""
+        # If we're using orientation in goals, return 3, otherwise 2
+        return 3 if len(self._goals) > 0 and len(self._goals[0][0]) > 2 else 2
 
     def set_goals(self, goals):
-        pass
+        """Set the guidance goals (points and costs)"""
+        self._goals = goals
+        LOG_DEBUG(f"Set {len(goals)} guidance goals")
 
     def load_reference_path(self, start_s, path, width_left, width_right):
-        pass
+        """Load a reference path with lateral boundaries"""
+        self._reference_path = path
+        self._start_s = start_s
+        self._width_left = width_left
+        self._width_right = width_right
+        LOG_DEBUG(f"Loaded reference path starting at s={start_s:.2f}, "
+                  f"width_left={width_left:.2f}, width_right={width_right:.2f}")
 
     def load_obstacles(self, obstacles, extra_data):
-        pass
+        """Load dynamic obstacles for planning"""
+        self._dynamic_obstacles = obstacles
+        LOG_DEBUG(f"Loaded {len(obstacles)} dynamic obstacles")
 
     def override_selected_trajectory(self, guidance_id, is_original_planner):
-        pass
+        """Override which trajectory is selected as the best one"""
+        self._selected_trajectory_id = guidance_id
+        self._original_planner_selected = is_original_planner
+        LOG_DEBUG(f"Selected trajectory ID {guidance_id}, original planner: {is_original_planner}")
 
     def visualize(self, highlight_selected, trajectory_nr):
-        pass
+        """Visualize all guidance trajectories"""
+        # Visualize goals as points
+        for i, (goal_point, _) in enumerate(self._goals):
+            # Visualization code would go here - using placeholder
+            pass
+
+        # Visualize all trajectories
+        for i, traj in enumerate(self._trajectories):
+            trajectory_spline = traj.spline.get_trajectory()
+
+            # Create points for visualization
+            trajectory_points = []
+            for k in range(self._config.N):
+                t = k * self._dt
+                pos = trajectory_spline.get_point(t)
+                trajectory_points.append((pos[0], pos[1]))
+
+            # Highlight selected trajectory if requested
+            is_selected = (traj.topology_class == self._selected_trajectory_id) and highlight_selected
+            color = traj.color
+
+            # Call visualization function (placeholder)
+            visualize_trajectory(trajectory_points, "global_guidance/trajectories",
+                                 is_selected, 0.5, color, self._config.n_paths)
 
     def reset(self):
-        pass
+        """Reset the guidance planner"""
+        self._trajectories = []
+        self._selected_trajectory_id = -1
+        self._success = False
+        self._goals = []
+        LOG_DEBUG("GlobalGuidance reset")
 
     def get_last_runtime(self):
-        return 0.0
+        """Get the last planning runtime in seconds"""
+        return self._runtime
 
     def save_data(self, data_saver):
-        pass
+        """Save planning data for analysis"""
+        data_saver.add_data("global_guidance/runtime", self._runtime)
+        data_saver.add_data("global_guidance/num_trajectories", len(self._trajectories))
+        data_saver.add_data("global_guidance/selected_trajectory", self._selected_trajectory_id)
+        data_saver.add_data("global_guidance/original_planner_selected", self._original_planner_selected)
 
+
+def visualize_trajectory(trajectory_points, publisher_name, highlight=False,
+                         scale=0.1, color_int=0, max_color=20, add_markers=False,
+                         connect_points=True):
+    """
+    Visualize a trajectory as a series of points and lines
+
+    Args:
+        trajectory_points: List of (x,y) points in the trajectory
+        publisher_name: Name for the visualization publisher
+        highlight: Whether to highlight this trajectory
+        scale: Scale factor for visualization
+        color_int: Integer color index
+        max_color: Maximum number of colors in the palette
+        add_markers: Whether to add point markers
+        connect_points: Whether to connect points with lines
+    """
+    if not trajectory_points:
+        return
+
+    # Calculate a color from the color integer
+    r, g, b = 0.0, 0.0, 0.0
+
+    if color_int < 0:  # Special colors
+        if color_int == -1:  # Selected trajectory
+            r, g, b = 0.0, 1.0, 0.0  # Green
+        else:
+            r, g, b = 1.0, 1.0, 1.0  # White
+    else:
+        # Generate a color from the color_int using hue rotation
+        import colorsys
+        h = (color_int % max_color) / float(max_color)
+        r, g, b = colorsys.hsv_to_rgb(h, 0.8, 0.8)
+
+    # Adjust alpha and width based on highlight
+    alpha = 1.0 if highlight else 0.7
+    width = 0.03 if highlight else 0.01
+
+    # Create line strips
+    if connect_points and len(trajectory_points) > 1:
+        line = ROSLine()
+        line.header.frame_id = "world"
+        line.id = 0
+        line.ns = publisher_name
+        line.type = line.LINE_STRIP
+        line.action = line.ADD
+        line.scale.x = width * scale
+        line.color.r = r
+        line.color.g = g
+        line.color.b = b
+        line.color.a = alpha
+
+        # Add points to the line
+        for point in trajectory_points:
+            p = type('Point', (), {})
+            p.x = point[0]
+            p.y = point[1]
+            p.z = 0.1  # Slightly above ground
+            line.points.append(p)
+
+        # Publish line (this is a placeholder - actual publishing would depend on your system)
+        # visualization_publisher.publish(line)
+
+    # Add markers if requested
+    if add_markers:
+        for i, point in enumerate(trajectory_points):
+            marker = ROSMarker()
+            marker.header.frame_id = "world"
+            marker.id = i
+            marker.ns = publisher_name + "/points"
+            marker.type = marker.SPHERE
+            marker.action = marker.ADD
+            marker.scale.x = 0.1 * scale
+            marker.scale.y = 0.1 * scale
+            marker.scale.z = 0.1 * scale
+            marker.color.r = r
+            marker.color.g = g
+            marker.color.b = b
+            marker.color.a = alpha
+            marker.pose.position.x = point[0]
+            marker.pose.position.y = point[1]
+            marker.pose.position.z = 0.1  # Slightly above ground
+
+            # Publish marker (placeholder)
+            # visualization_publisher.publish(marker)
 
 class GuidanceConstraints(BaseConstraint):
     def __init__(self, solver):
@@ -136,7 +406,7 @@ class GuidanceConstraints(BaseConstraint):
         planner = type('Planner', (), {})
         planner.id = planner_id
         planner.is_original_planner = is_original_planner
-        planner.localsolver = self.solver.copy() if hasattr(self.solver,
+        planner.local_solver = self.solver.copy() if hasattr(self.solver,
                                                              'copy') else self.solver  # Copy the solver if possible
         planner.taken = False
         planner.existing_guidance = False
@@ -350,7 +620,7 @@ class GuidanceConstraints(BaseConstraint):
                     continue
 
             # Copy the data from the main solver
-            solver = planner.localsolver
+            solver = planner.local_solver
             LOG_DEBUG(f"Planner [{planner.id}]: Copying data from main solver")
             # Copy solver attributes if necessary
 
@@ -362,9 +632,9 @@ class GuidanceConstraints(BaseConstraint):
                 LOG_DEBUG(f"Planner [{planner.id}]: Loading guidance into the solver and constructing constraints")
 
                 if self.get_config_value("t-mpc.warmstart_with_mpc_solution", False) and planner.existing_guidance:
-                    planner.localsolver.initialize_warmstart(state, shift_forward)
+                    planner.local_solver.initialize_warmstart(state, shift_forward)
                 else:
-                    self.initializesolver_with_guidance(planner)
+                    self.initialize_solver_with_guidance(planner)
 
                 planner.guidance_constraints.update(state, data, module_data)  # updates linearization of constraints
                 planner.safety_constraints.update(state, data, module_data)  # updates collision avoidance constraints
@@ -382,10 +652,10 @@ class GuidanceConstraints(BaseConstraint):
             # Set timeout based on remaining planning time
             import time
             used_time = time.time() - data.planning_start_time if hasattr(data, 'planning_start_time') else 0
-            planner.localsolver.params.solver_timeout = self._planning_time - used_time - 0.006
+            planner.local_solver.params.solver_timeout = self._planning_time - used_time - 0.006
 
             # SOLVE OPTIMIZATION
-            planner.localsolver.load_warm_start()
+            planner.local_solver.load_warm_start()
             LOG_DEBUG(f"Planner [{planner.id}]: Solving ...")
             planner.result.exit_code = solver.solve()
             LOG_DEBUG(f"Planner [{planner.id}]: Done! (exitcode = {planner.result.exit_code})")
@@ -412,7 +682,7 @@ class GuidanceConstraints(BaseConstraint):
             return self.planners[0].result.exit_code
 
         best_planner = self.planners[self.best_planner_index_]
-        best_solver = best_planner.localsolver
+        best_solver = best_planner.local_solver
 
         # Communicate to the guidance which topology class we follow (none if it was the original planner)
         self.global_guidance.override_selected_trajectory(
@@ -428,20 +698,20 @@ class GuidanceConstraints(BaseConstraint):
 
         return best_planner.result.exit_code
 
-    def initializesolver_with_guidance(self, planner):
-        solver = planner.localsolver
+    def initialize_solver_with_guidance(self, planner):
+        solver = planner.local_solver
 
         # Initialize the solver with the guidance trajectory
-        trajectoryspline = self.global_guidance.get_guidance_trajectory(planner.id).spline.get_trajectory()
+        trajectory_spline = self.global_guidance.get_guidance_trajectory(planner.id).spline.get_trajectory()
 
         # Initialize the solver in the selected local optimum
         for k in range(solver.N):
             index = k
-            cur_position = trajectoryspline.get_point(index * solver.dt)
+            cur_position = trajectory_spline.get_point(index * solver.dt)
             solver.set_ego_prediction(k, "x", cur_position[0])
             solver.set_ego_prediction(k, "y", cur_position[1])
 
-            cur_velocity = trajectoryspline.get_velocity(index * solver.dt)
+            cur_velocity = trajectory_spline.get_velocity(index * solver.dt)
             solver.set_ego_prediction(k, "psi", atan2(cur_velocity[1], cur_velocity[0]))
             solver.set_ego_prediction(k, "v", np.linalg.norm(cur_velocity))
 
@@ -481,10 +751,10 @@ class GuidanceConstraints(BaseConstraint):
             # Visualize the warmstart
             if self.get_config_value("debug_visuals", False):
                 initial_trajectory = []
-                for k in range(planner.localsolver.N):
+                for k in range(planner.local_solver.N):
                     initial_trajectory.append((
-                        planner.localsolver.get_ego_prediction(k, "x"),
-                        planner.localsolver.get_ego_prediction(k, "y")
+                        planner.local_solver.get_ego_prediction(k, "x"),
+                        planner.local_solver.get_ego_prediction(k, "y")
                     ))
                 visualize_trajectory(initial_trajectory, self.name + "/warmstart_trajectories", False, 0.2, 20, 20)
 
@@ -493,8 +763,8 @@ class GuidanceConstraints(BaseConstraint):
                 trajectory = []
                 for k in range(self.solver.N):
                     trajectory.append((
-                        planner.localsolver.get_output(k, "x"),
-                        planner.localsolver.get_output(k, "y")
+                        planner.local_solver.get_output(k, "x"),
+                        planner.local_solver.get_output(k, "y")
                     ))
 
                 if i == self.best_planner_index_:
@@ -558,7 +828,7 @@ class GuidanceConstraints(BaseConstraint):
         self.global_guidance.reset()
 
         for planner in self.planners:
-            planner.localsolver.reset()
+            planner.local_solver.reset()
 
     def save_data(self, data_saver):
         data_saver.add_data("runtime_guidance", self.global_guidance.get_last_runtime())
@@ -573,7 +843,7 @@ class GuidanceConstraints(BaseConstraint):
 
         data_saver.add_data("best_planner_idx", self.best_planner_index_)
         if self.best_planner_index_ != -1:
-            best_objective = self.planners[self.best_planner_index_].localsolver._info.pobj
+            best_objective = self.planners[self.best_planner_index_].local_solver._info.pobj
         else:
             best_objective = -1
 

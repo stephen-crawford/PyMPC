@@ -8,9 +8,6 @@ from utils.visualizer import VISUALS
 
 CONFIG = read_config_file()
 
-
-
-
 class PathReferenceVelocity:
 
     def __init__(self, solver):
