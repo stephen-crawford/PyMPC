@@ -33,6 +33,8 @@ obstacle_radius: 0.35
 
 linearized_constraints:
   add_halfspaces: 0 #2  # For road constraints
+  max_constraints: 20
+  use_slack: true
 
 scenario_constraints:
   parallelsolvers: 1

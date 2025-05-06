@@ -1,16 +1,10 @@
 import sys
-import os
-import numpy as np
 
-from solver_generator.solver_definition import define_parameters, objective, constraints, constraint_lower_bounds, \
-    constraint_upper_bounds, constraint_number
-from solver_generator.util.files import load_settings, write_to_yaml
-from solver_generator.util.files import solver_path, solver_settings_path
-from solver_generator.util.logging import print_success, print_header, print_path, print_warning
-from solver_generator.solver_config import generate_rqt_reconfigure
-from solver_generator.util.parameters import Parameters
-from solver.casadi_solver import CasADiSolver
-from solver.osqp_solver import OSQPSolver
+from utils.utils import load_settings, write_to_yaml, solver_path, solver_settings_path, print_success, print_header, print_path, print_warning
+from solver.src.solver_config import generate_rqt_reconfigure
+from solver_config import Parameters
+from solver.src.casadi_solver import CasADiSolver
+from solver.src.osqp_solver import OSQPSolver
 
 def generate_casadi_solver(modules, settings, model, skip_solver_generator=False):
     """
@@ -34,9 +28,7 @@ def generate_casadi_solver(modules, settings, model, skip_solver_generator=False
     print_header(f"Creating CasADi Solver: {settings['name']}solver")
 
     # Create parameters for the solver
-    params = Parameters()
-    define_parameters(modules, params, settings)
-    settings["params"] = params
+
 
     # Create solver with settings
     dt = settings.get("integrator_step", 0.1)
@@ -44,6 +36,9 @@ def generate_casadi_solver(modules, settings, model, skip_solver_generator=False
 
     # Initialize the solver with the appropriate parameters
     solver = CasADiSolver(dt=dt, N=N)
+    params = Parameters()
+    solver.define_parameters(modules, params, settings)
+    settings["params"] = params
 
     # Set up model dimensions
     solver.nx = model.nx
@@ -58,10 +53,10 @@ def generate_casadi_solver(modules, settings, model, skip_solver_generator=False
     # Configure the objective and constraints for each stage
     for i in range(0, N):
         def objective_with_stage_index(stage_idx):
-            return lambda z, p: objective(modules, z, p, model, settings, stage_idx)
+            return lambda z, p: solver.objective(modules, z, p, model, settings, stage_idx)
 
         def constraints_with_stage_index(stage_idx):
-            return lambda z, p: constraints(modules, z, p, model, settings, stage_idx)
+            return lambda z, p: solver.constraints(modules, z, p, model, settings, stage_idx)
 
         solver.set_stage_objective(i, objective_with_stage_index(i))
 
@@ -69,9 +64,9 @@ def generate_casadi_solver(modules, settings, model, skip_solver_generator=False
         if i > 0:
             solver.set_stage_constraints(i, constraints_with_stage_index(i))
             solver.set_constraint_bounds(i,
-                                         constraint_lower_bounds(modules),
-                                         constraint_upper_bounds(modules),
-                                         constraint_number(modules))
+                                         solver.constraint_lower_bounds(modules),
+                                         solver.constraint_upper_bounds(modules),
+                                         solver.constraint_number(modules))
         else:
             solver.set_constraint_number(i, 0)  # No constraints for initial stage
 
@@ -116,9 +111,7 @@ def generate_osqp_solver(modules, settings, model, skip_solver_generator=False):
     print_header(f"Creating OSQP Solver: {settings['name']}solver")
 
     # Create parameters for the solver
-    params = Parameters()
-    define_parameters(modules, params, settings)
-    settings["params"] = params
+
 
     # Create solver with settings
     dt = settings.get("integrator_step", 0.1)
@@ -126,7 +119,9 @@ def generate_osqp_solver(modules, settings, model, skip_solver_generator=False):
 
     # Initialize the solver with the appropriate parameters
     solver = OSQPSolver(dt=dt, N=N)
-
+    params = Parameters()
+    solver.define_parameters(modules, params, settings)
+    settings["params"] = params
     # Set up model dimensions
     solver.nx = model.nx
     solver.nu = model.nu
@@ -140,10 +135,10 @@ def generate_osqp_solver(modules, settings, model, skip_solver_generator=False):
     # Configure the objective and constraints for each stage
     for i in range(0, N):
         def objective_with_stage_index(stage_idx):
-            return lambda z, p: objective(modules, z, p, model, settings, stage_idx)
+            return lambda z, p: solver.objective(modules, z, p, model, settings, stage_idx)
 
         def constraints_with_stage_index(stage_idx):
-            return lambda z, p: constraints(modules, z, p, model, settings, stage_idx)
+            return lambda z, p: solver.constraints(modules, z, p, model, settings, stage_idx)
 
         solver.set_stage_objective(i, objective_with_stage_index(i))
 
@@ -151,9 +146,9 @@ def generate_osqp_solver(modules, settings, model, skip_solver_generator=False):
         if i > 0:
             solver.set_stage_constraints(i, constraints_with_stage_index(i))
             solver.set_constraint_bounds(i,
-                                         constraint_lower_bounds(modules),
-                                         constraint_upper_bounds(modules),
-                                         constraint_number(modules))
+                                         solver.constraint_lower_bounds(modules),
+                                         solver.constraint_upper_bounds(modules),
+                                         solver.constraint_number(modules))
         else:
             solver.set_constraint_number(i, 0)  # No constraints for initial stage
 
@@ -190,8 +185,8 @@ def generate_solver(modules, model, settings=None):
         simulator: Simulator instance
     """
     # Parse command line arguments for skipping solver generation
-    skipsolver_generator = len(sys.argv) > 1 and sys.argv[1].lower() == "false"
-    print("Skip solver gen set to: " + str(skipsolver_generator))
+    skip_solver_generator = len(sys.argv) > 1 and sys.argv[1].lower() == "false"
+    print("Skip solver gen set to: " + str(skip_solver_generator))
 
     # Load settings if not provided
     if settings is None:
@@ -209,9 +204,9 @@ def generate_solver(modules, model, settings=None):
     simulator = None
 
     if settings["solver_settings"]["solver"] == "osqp":
-        solver, simulator = generate_osqp_solver(modules, settings, model, skipsolver_generator)
+        solver, simulator = generate_osqp_solver(modules, settings, model, skip_solver_generator)
     elif settings["solver_settings"]["solver"] == "casadi":
-        solver, simulator = generate_casadi_solver(modules, settings, model, skipsolver_generator)
+        solver, simulator = generate_casadi_solver(modules, settings, model, skip_solver_generator)
 
     # Save parameter and model maps if solver was generated
     if solver and simulator:

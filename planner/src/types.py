@@ -1,29 +1,144 @@
-import numpy as np
-from math import sqrt, atan2
 import logging
+import os
 from bisect import bisect_right
 from enum import Enum
-from typing import List, Optional
+from math import atan2
 
+import casadi as cd
+import numpy as np
+from uaclient import yaml
+
+from utils.utils import LOG_DEBUG
 
 logger = logging.getLogger(__name__)
 
+
+def load_config_yaml(path, target_dict):
+    """Load YAML configuration file into the target dictionary."""
+    try:
+        with open(path, 'r') as f:
+            data = yaml.safe_load(f)
+            target_dict.update(data)
+    except Exception as e:
+        LOG_DEBUG(f"Error loading config from {path}: {e}")
+
+
+class State:
+    """
+  State class that manages the vehicle state and integrates with the SMPC constraint system.
+  """
+
+    def __init__(self):
+        # Load configuration
+        self._config = {}
+        self._model_map = {}
+        self._state = None
+        self._nu = 0
+
+        # Initialize empty state
+        self.initialize()
+
+        # Load configuration files
+        file_dir = os.path.dirname(os.path.abspath(__file__))
+        load_config_yaml(os.path.join(file_dir, "config/solver_settings.yaml"), self._config)
+        load_config_yaml(os.path.join(file_dir, "config/model_map.yaml"), self._model_map)
+
+        # Re-initialize with proper dimensions after loading config
+        self.initialize()
+
+    def initialize(self):
+        """Initialize the state vector."""
+        if self._config and "nx" in self._config:
+            nx = self._config["nx"]
+            self._state = np.zeros(nx)
+            if "nu" in self._config:
+                self._nu = self._config["nu"]
+        else:
+            # Default initialization if config is not yet loaded
+            self._state = np.zeros(10)  # Default state size
+            self._nu = 2  # Default control input size
+
+    def get(self, var_name):
+        """Get a state variable by name."""
+        if var_name not in self._model_map:
+            LOG_DEBUG(f"Variable {var_name} not found in model map")
+            return 0.0
+
+        var_index = self._model_map[var_name][1]
+        state_index = var_index - self._nu  # States come after inputs
+
+        if 0 <= state_index < len(self._state):
+            return self._state[state_index]
+        else:
+            LOG_DEBUG(f"State index {state_index} out of bounds")
+            return 0.0
+
+    def get_position(self):
+        """Get the position as a tuple (x, y)."""
+        return self.get("x"), self.get("y")
+
+    def set(self, var_name, value):
+        """Set a state variable by name."""
+        if var_name not in self._model_map:
+            LOG_DEBUG(f"Variable {var_name} not found in model map")
+            return
+
+        var_index = self._model_map[var_name][1]
+        state_index = var_index - self._nu
+
+        if 0 <= state_index < len(self._state):
+            self._state[state_index] = value
+        else:
+            LOG_DEBUG(f"State index {state_index} out of bounds")
+
+    def print(self):
+        """Print the current state values."""
+        LOG_DEBUG("Current state:")
+        for var_name, info in self._model_map.items():
+            if info[0] == "x":  # Assuming "x" indicates a state variable
+                try:
+                    value = self.get(var_name)
+                    LOG_DEBUG(f"{var_name}: {value}")
+                except Exception as e:
+                    LOG_DEBUG(f"Error printing {var_name}: {e}")
+
+    def to_dict(self):
+        """Convert state to dictionary for debugging."""
+        result = {}
+        for var_name, info in self._model_map.items():
+            if info[0] == "x":
+                result[var_name] = self.get(var_name)
+        return result
+
+    def get_full_state(self):
+        """Return the full state vector."""
+        return self._state.copy()
+
+    def set_full_state(self, state_vector):
+        """Set the full state vector."""
+        if len(state_vector) == len(self._state):
+            self._state = np.array(state_vector)
+        else:
+            LOG_DEBUG(f"Error: State vector length mismatch. Expected {len(self._state)}, got {len(state_vector)}")
+
 class Disc:
-    def __init__(self, offset_: float, radius_: float):
-        self.offset = offset_
-        self.radius = radius_
+    def __init__(self, offset: float, radius: float):
+        self.offset = offset
+        self.radius = radius
 
     def get_position(self, robot_position: np.ndarray, angle: float) -> np.ndarray:
-        """Get disc position from robot position and angle"""
-        # Implementation would calculate position based on robot center and angle
-        # This is a placeholder for the actual implementation
-        return np.zeros(2)  # Replace with actual implementation
+        """Returns the disc's position relative to the robot's position and orientation angle."""
+        return robot_position + np.array([
+            self.offset * np.cos(angle),
+            self.offset * np.sin(angle)
+        ])
 
     def to_robot_center(self, disc_position: np.ndarray, angle: float) -> np.ndarray:
-        """Convert disc position to robot center position"""
-        # Implementation would calculate robot center based on disc position and angle
-        # This is a placeholder for the actual implementation
-        return np.zeros(2)  # Replace with actual implementation
+        """Returns the robot's center position from the disc's position and orientation angle."""
+        return disc_position - np.array([
+            self.offset * np.cos(angle),
+            self.offset * np.sin(angle)
+        ])
 
 class Halfspace:
     def __init__(self, A: np.ndarray, b: float):
@@ -574,12 +689,10 @@ class Spline:
         self.t_vector = list(t_vector)
         self.compute_distance_vector(points, self.s_vector)
 
-        # Initialize splines for each dimension
-        dim = len(points)
         self.splines = []
-        for i in range(dim):
+        for i in range(len(points)):
             spline = TkSpline()
-            spline.set_points(points[i])
+            spline.set_points(points[i][0], points[i][1])
             self.splines.append(spline)
 
     def compute_distance_vector(self, points, out):
@@ -607,6 +720,19 @@ class Spline:
     def get_velocity(self, t):
         """Get velocity (first derivative) at parameter value t"""
         return np.array([spline.deriv(1, t) for spline in self.splines])
+
+    def deriv_normalized(self, t):
+        # Get velocity (first derivative) vector
+        velocity = self.get_velocity(t)
+
+        # Extract dx and dy components
+        dx, dy = velocity[0], velocity[1]
+
+        # Calculate norm (using numpy instead of cd)
+        path_norm = np.linalg.norm(velocity)  # or np.sqrt(dx*dx + dy*dy)
+
+        # Return normalized components
+        return dx / path_norm, dy / path_norm
 
     def get_acceleration(self, t):
         """Get acceleration (second derivative) at parameter value t"""
@@ -669,6 +795,7 @@ class Spline:
         return local_segment_out, local_t_out
 
     def find_closest_point(self, point, range_val=2):
+        #TODO: This needs to be tested
         """Find the closest point on the spline to the given point"""
         # If not initialized or point is far from previous query
         if self.closest_segment == -1 or (self.prev_query_point is not None and
@@ -688,7 +815,7 @@ class Spline:
 
         # Find which segment this parameter falls into
         for i in range(first_segment, last_segment):
-            if t_out > self.t_vector[i] and t_out < self.t_vector[i + 1]:
+            if self.t_vector[i] < t_out < self.t_vector[i + 1]:
                 self.closest_segment = i
                 return i, t_out
 
@@ -697,6 +824,7 @@ class Spline:
 
     def find_closest_s_recursively(self, point, low, high, num_recursions=0):
         """Recursively find the closest parameter on the spline to the given point"""
+        #TODO: This needs to be tested
         if abs(high - low) <= 1e-4 or num_recursions > 40:
             if num_recursions > 40:
                 logger.warning("Recursion count exceeded.")
@@ -751,6 +879,9 @@ class TwoDimensionalSpline(Spline):
     def get_y(self, t):
         """Get y coordinate at parameter value t"""
         return self.y_spline(t)
+
+    def get_t_vector(self):
+        return self.t_vector
 
     def get_velocity(self, t):
         """Get velocity vector at parameter value t"""
@@ -893,6 +1024,123 @@ class FourDimensionalSpline(TwoDimensionalSpline):
         return (ax, bx, cx, dx, ay, by, cy, dy,
                 az_val, bz_val, cz_val, dz_val,
                 aw_val, bw_val, cw_val, dw_val)
+
+
+class SplineAdapter:
+    """Adapter class that provides the old Spline interface using the new Spline implementation"""
+
+    def __init__(self, params, name, num_segments, s):
+        # Create points and parameter vector from the old parameters
+        points = [[]]  # Single dimension array for 1D spline
+        t_vector = []
+
+        # Get segment start points and convert to points for the new spline
+        for i in range(num_segments):
+            s_start = params.get(f"spline{i}_start")
+            a = params.get(f"{name}{i}_a")
+            b = params.get(f"{name}{i}_b")
+            c = params.get(f"{name}{i}_c")
+            d = params.get(f"{name}{i}_d")
+
+            # Add the start point of this segment
+            t_vector.append(s_start)
+            points[0].append(d)  # At s=0, only d coefficient matters
+
+            # If this is the last segment, add one more point to end the spline
+            if i == num_segments - 1:
+                # Choose a reasonable end point - adjust as needed
+                s_end = s_start + 1.0
+                s_param = s_end - s_start
+                end_value = a * s_param ** 3 + b * s_param ** 2 + c * s_param + d
+                t_vector.append(s_end)
+                points[0].append(end_value)
+
+        # Initialize the new spline
+        self.spline = Spline(points, t_vector)
+
+    def at(self, s):
+        # Map to get_coordinate with coordinate index 0 for 1D spline
+        return self.spline.get_coordinate(s, 0)
+
+    def deriv(self, s):
+        # Get the velocity vector and return the first component
+        velocity = self.spline.get_velocity(s)
+        return velocity[0]
+
+    def deriv2(self, s):
+        # Get the acceleration vector and return the first component
+        acceleration = self.spline.get_acceleration(s)
+        return acceleration[0]
+
+
+class Spline2DAdapter:
+    """Adapter class that provides the old Spline2D interface using the new Spline implementation"""
+
+    def __init__(self, params, num_segments, s):
+        # Create x and y points arrays
+        points_x = []
+        points_y = []
+        t_vector = []
+
+        # Get points for each segment
+        for i in range(num_segments):
+            s_start = params.get(f"spline{i}_start")
+
+            # X spline coefficients
+            ax = params.get(f"spline_x{i}_a")
+            bx = params.get(f"spline_x{i}_b")
+            cx = params.get(f"spline_x{i}_c")
+            dx = params.get(f"spline_x{i}_d")
+
+            # Y spline coefficients
+            ay = params.get(f"spline_y{i}_a")
+            by = params.get(f"spline_y{i}_b")
+            cy = params.get(f"spline_y{i}_c")
+            dy = params.get(f"spline_y{i}_d")
+
+            # Add start point
+            t_vector.append(s_start)
+            points_x.append(dx)  # At s=0, only d coefficient matters
+            points_y.append(dy)
+
+            # For the last segment, add an end point
+            if i == num_segments - 1:
+                s_end = s_start + 1.0
+                s_param = s_end - s_start
+
+                # Calculate end values
+                x_end = ax * s_param ** 3 + bx * s_param ** 2 + cx * s_param + dx
+                y_end = ay * s_param ** 3 + by * s_param ** 2 + cy * s_param + dy
+
+                t_vector.append(s_end)
+                points_x.append(x_end)
+                points_y.append(y_end)
+
+        # Initialize the new spline with both dimensions
+        self.spline = Spline([points_x, points_y], t_vector)
+
+    def at(self, s):
+        point = self.spline.get_point(s)
+        return point[0], point[1]  # Return as tuple to match old interface
+
+    def deriv(self, s):
+        velocity = self.spline.get_velocity(s)
+        return velocity[0], velocity[1]
+
+    def deriv_normalized(self, s):
+        velocity = self.spline.get_velocity(s)
+        dx, dy = velocity[0], velocity[1]
+        path_norm = cd.sqrt(dx * dx + dy * dy)
+        return dx / path_norm, dy / path_norm
+
+    def deriv2(self, s):
+        acceleration = self.spline.get_acceleration(s)
+        return acceleration[0], acceleration[1]
+
+    def get_curvature(self, s):
+        acceleration = self.spline.get_acceleration(s)
+        path_x_deriv2, path_y_deriv2 = acceleration[0], acceleration[1]
+        return cd.sqrt(path_x_deriv2 * path_x_deriv2 + path_y_deriv2 * path_y_deriv2)
 
 
 class Clothoid2D:

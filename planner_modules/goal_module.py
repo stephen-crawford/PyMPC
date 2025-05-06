@@ -18,9 +18,29 @@ class GoalModule(BaseConstraint):
   def update(self, state, data, module_data):
     return
 
+  def define_parameters(self, params):
+    params.add("goal_weight", add_to_rqt_reconfigure=True, rqt_config_name=lambda p: f'["weights"]["goal"]')
+    params.add("goal_x")
+    params.add("goal_y")
+
+  def get_value(self, model, params, settings, stage_idx):
+    cost = 0
+
+    # if stage_idx == settings["N"] - 1:
+    pos_x = model.get("x")
+    pos_y = model.get("y")
+
+    goal_weight = params.get("goal_weight")
+
+    goal_x = params.get("goal_x")
+    goal_y = params.get("goal_y")
+
+    cost += goal_weight * ((pos_x - goal_x) ** 2 + (pos_y - goal_y) ** 2) / (goal_x ** 2 + goal_y ** 2 + 0.01)
+
+    return cost
+
   def set_parameters(self, data, module_data, k):
-  
-    
+
     if k == 0:
       LOG_DEBUG( "Goal Module.set_parameters()")
 

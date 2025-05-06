@@ -1,5 +1,5 @@
 from planner_modules.contouring import Contouring
-from solver.solver_interface import set_solver_parameter
+from solver.src.solver_interface import set_solver_parameter
 from utils.utils import read_config_file
 CONFIG = read_config_file()
 

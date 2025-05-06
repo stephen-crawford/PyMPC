@@ -11,11 +11,13 @@ CONFIG_MOCK = {
 	"N": 10,
 	"dt": 0.1,
 	"max_obstacles": 3,
+	"max_constraints": 20,
+	"n_discs": 10,
 	"control_frequency": 10.0,
 	"scenario_constraints": {
 		"parallelsolvers": 3,
 		"enable_safe_horizon": True,
-		"visualize_all": False
+		"visualize_all": False,
 	},
 	"debug_visuals": False
 }

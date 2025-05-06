@@ -1,6 +1,6 @@
 import casadi as ca
 import numpy as np
-from solver.solver_interface import BaseSolver
+from solver.src.solver_interface import BaseSolver
 
 
 class CasADiSolver(BaseSolver):
@@ -163,8 +163,7 @@ class CasADiSolver(BaseSolver):
         }
         self.opti.solver("ipopt", {}, solver_opts)
 
-    def set_xinit(self, state):
-        """Set initial state value - implements abstract method"""
+    def set_initial_state(self, state):
         # Convert state object to vector based on state_map
         state_vector = np.zeros(self.nx)
 

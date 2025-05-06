@@ -1,14 +1,15 @@
 import datetime
 import inspect
 import logging
+import math
 import os
 import random
+import sys
 import threading
 import time
 from contextlib import contextmanager
 
-import math
-import numpy as np
+import casadi as cd
 import yaml
 
 # Initialize logger
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def read_config_file():
     print("Reading config file")
-    config_path = os.path.join(os.path.dirname(__file__), "../../PyMPC/utils/CONFIG.yml")
+    config_path = os.path.join(os.path.dirname(__file__), "../../PyMPC/config/CONFIG.yml")
     config_path = os.path.abspath(config_path)
     with open(config_path, 'r') as file:
         try:
@@ -98,6 +99,157 @@ def PYMPC_ASSERT(expr, msg):
                      f"Source:\t\t{file}, line {line}\n")
         raise AssertionError(msg)
 
+
+class bcolors:
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    HEADER = BOLD
+
+
+def print_value(name, value, tab=False, **kwargs):
+    if tab:
+        string = " "
+    else:
+        string = ""
+
+    print(string + bcolors.BOLD + bcolors.UNDERLINE + f"{name}" + bcolors.ENDC + f": {value}", **kwargs)
+
+
+def print_path(name, value, tab=False, **kwargs):
+    print_value(name, os.path.abspath(value), tab, **kwargs)
+
+
+def print_success(msg):
+    print(bcolors.BOLD + bcolors.OKGREEN + f"{msg}" + bcolors.ENDC)
+
+
+def print_warning(msg, no_tab=False):
+    if no_tab:
+        print(bcolors.BOLD + bcolors.WARNING + f"Warning: {msg}" + bcolors.ENDC)
+    else:
+        print("\t" + bcolors.BOLD + bcolors.WARNING + f"Warning: {msg}" + bcolors.ENDC)
+
+
+def print_header(msg):
+    print("==============================================")
+    print("\t" + bcolors.HEADER + f"{msg}" + bcolors.ENDC)
+    print("==============================================")
+
+
+class TimeTracker:
+
+    def __init__(self, name):
+        self.name = name
+        self._times = []
+
+    def add(self, timing):
+        self._times.append(timing)
+
+    def get_stats(self):
+        return np.mean(self._times), np.max(self._times), len(self._times)
+
+    def print_stats(self):
+        print(f"--- Computation Times {self.name} ---")
+        print_value("Mean", f"{np.mean(self._times):.1f} ms", tab=True)
+        print_value("Max", f"{np.max(self._times):.1f} ms", tab=True)
+        print_value("Number of calls", len(self._times), tab=True)
+
+def get_base_path():
+  return os.path.dirname(os.path.realpath('../../utils'))
+
+
+def get_current_package():
+  return os.path.dirname(os.path.realpath(sys.argv[0])).split("/")[-2]
+
+
+def get_package_path(package_name):
+  return os.path.join(os.path.dirname(__file__), f"../../{package_name}")
+
+
+def get_solver_package_path():
+  return get_package_path("mpc_planner_solver")
+
+
+def save_config_path():
+  config_path = os.path.join(get_base_path(), "utils/")
+  os.makedirs(os.path.dirname(config_path), exist_ok=True)
+  return config_path
+
+
+def load_config_path():
+  print("Joining base path of " + str(get_base_path()) + " and /utils")
+  util_path = str(get_base_path())+"/utils"
+  print("Returning path of " + str(util_path))
+  return util_path
+
+
+def load_settings_path(setting_file_name="CONFIG"):
+  return str(load_config_path()) + f"/{setting_file_name}.yml"
+
+
+def load_settings(setting_file_name="CONFIG"):
+  path = load_settings_path(setting_file_name)
+  print_path("Settings", path, end="")
+  with open(path, "r") as stream:
+    settings = yaml.safe_load(stream)
+  print_success(f" -> loaded")
+  return settings
+
+
+def load_test_settings(setting_file_name="settings"):
+  path = f"{get_package_path('mpc_planner')}/config/{setting_file_name}.yml"
+  print_path("Settings", path, end="")
+  with open(path, "r") as stream:
+    settings = yaml.safe_load(stream)
+  print_success(f" -> loaded")
+  return settings
+
+
+def default_solver_path(settings):
+  return os.path.join(os.getcwd(), f"{solver_name(settings)}")
+
+
+def solver_path(settings):
+  return os.path.join(get_solver_package_path(), f"{solver_name(settings)}")
+
+
+def default_casadi_solver_path(settings):
+  return os.path.join(get_package_path("solver_generator"), f"casadi")
+
+
+def casadi_solver_path(settings):
+  return os.path.join(get_solver_package_path(), f"casadi")
+
+
+def parameter_map_path():
+  return os.path.join(save_config_path(), f"parameter_map.yml")
+
+
+def model_map_path():
+  return os.path.join(save_config_path(), f"model_map.yml")
+
+
+def solver_settings_path():
+  return os.path.join(save_config_path(), f"solver_settings.yml")
+
+def generated_src_file(settings):
+  return os.path.join(solver_path(settings), f"mpc_planner_generated.py")
+
+def planner_path():
+  return get_package_path("mpc_planner")
+
+def solver_name(settings):
+  return "Solver"
+
+def write_to_yaml(filename, data):
+  with open(filename, "w") as outfile:
+    yaml.dump(data, outfile, default_flow_style=False)
 
 # Conversion utilities
 
@@ -185,6 +337,11 @@ Create a 2D rotation matrix from a heading angle.
     return np.array([[c, s], [-s, c]])
 
 
+def rotation_matrix(angle):
+    return np.array([[cd.cos(angle), -cd.sin(angle)],
+                    [cd.sin(angle), cd.cos(angle)]])
+
+
 def angular_difference(angle1, angle2):
     """
 Calculate the shortest angular difference between two angles.
@@ -233,6 +390,10 @@ def sgn(val):
 Return the sign of a value.
 """
     return 1 if val > 0 else -1 if val < 0 else 0
+
+
+def haar_difference_without_abs(angle1, angle2):
+    return math.fmod(angle1 - angle2 + np.pi, 2*np.pi) - np.pi
 
 
 # Profiling tools
@@ -527,7 +688,7 @@ class ExperimentManager:
     def __init__(self):
         self.SAVE_FOLDER = CONFIG["recording"]["folder"]
         self.SAVE_FILE = CONFIG["recording"]["file"]
-
+        self.timer = Timer(1.0)
         self.data_saver = DataSaver()
         self.data_saver.set_add_timestamp(CONFIG["recording"]["timestamp"])
 
@@ -600,13 +761,27 @@ class ExperimentManager:
 
         assert self.experiment_counter < num_experiments, "Stopping the planner."
 
-    def set_start_experiment(self):
+    def set_start_experiment(self, duration=1):
         self.iteration_at_last_reset = self.control_iteration
+        self.set_timer(duration)
+
+    def set_timer(self, duration):
+        self.timer = Timer(duration)
+
+    def start_timer(self):
+        self.timer.start()
+
+    def stop_timer(self):
+        duration = self.timer.current_duration()
+        self.timer = Timer(1.0)
+        return duration
+
+    def get_data_saver(self):
+        return self.data_saver
 
 
 import numpy as np
-from typing import List, Tuple, Optional
-from dataclasses import dataclass
+from typing import List
 
 
 class Hyperplane2D:

@@ -19,6 +19,11 @@ class ScenarioConstraints(BaseConstraint):
 		# Initialize scenario config
 		self._SCENARIO_CONFIG = ScenarioConfig()
 		self._SCENARIO_CONFIG.Init()
+		self.n_discs = self.get_config_value("n_discs")
+		self.n_constraints = self.get_config_value("max_constraints") * self.n_discs
+		self.use_slack = self.get_config_value("scenario.use_slack")
+		self.nh = self.n_constraints
+
 
 		# Create parallel solvers
 		parallel_solvers = self.get_config_value("scenario_constraints.parallelsolvers")

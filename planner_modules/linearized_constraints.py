@@ -1,6 +1,6 @@
 import numpy as np
 from utils.const import CONSTRAINT, DETERMINISTIC, GAUSSIAN
-from utils.utils import LOG_DEBUG
+from utils.utils import LOG_DEBUG, rotation_matrix, rotation_matrix
 from utils.visualizer import visualize_linear_constraint
 from planner_modules.base_constraint import BaseConstraint
 
@@ -12,18 +12,20 @@ class LinearizedConstraints(BaseConstraint):
 
 		LOG_DEBUG("Initializing Linearized Constraints")
 
-		self.n_discs = self.get_config_value("n_discs")  # Is overwritten to 1 for topology constraints
+		self.n_discs = int(self.get_config_value("n_discs"))  # Is overwritten to 1 for topology constraints
 		self._n_other_halfspaces = self.get_config_value("linearized_constraints.add_halfspaces")
 		self._max_obstacles = self.get_config_value("max_obstacles")
+		self.num_constraints = self._max_obstacles + self._n_other_halfspaces
+		self.nh = self.num_constraints
+		self.use_slack = self.get_config_value("linearized_constraints.use_slack")
 
-		self.n_constraints = self._max_obstacles + self._n_other_halfspaces
 
 		# Initialize arrays
-		self._a1 = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
+		self._a1 = [[[0 for _ in range(self.num_constraints)] for _ in range(self.get_config_value("N"))] for _ in
 					range(int(self.get_config_value("n_discs")))]
-		self._a2 = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
+		self._a2 = [[[0 for _ in range(self.num_constraints)] for _ in range(self.get_config_value("N"))] for _ in
 					range(int(self.get_config_value("n_discs")))]
-		self._b = [[[0 for _ in range(self.n_constraints)] for _ in range(self.get_config_value("N"))] for _ in
+		self._b = [[[0 for _ in range(self.num_constraints)] for _ in range(self.get_config_value("N"))] for _ in
 				   range(int(self.get_config_value("n_discs")))]
 
 		self._num_obstacles = 0
@@ -126,6 +128,63 @@ class LinearizedConstraints(BaseConstraint):
 		# (This is a placeholder - actual implementation would depend on your system)
 		pass
 
+	def define_parameters(self, params):
+
+		for disc_id in range(self.n_discs):
+			params.add(f"ego_disc_{disc_id}_offset", bundle_name="ego_disc_offset")
+
+			for index in range(self.max_obstacles):
+				params.add(self.constraint_name(index, disc_id) + "_a1", bundle_name="lin_constraint_a1")
+				params.add(self.constraint_name(index, disc_id) + "_a2", bundle_name="lin_constraint_a2")
+				params.add(self.constraint_name(index, disc_id) + "_b", bundle_name="lin_constraint_b")
+
+	def constraint_name(self, index, disc_id):
+		return f"disc_{disc_id}_lin_constraint_{index}"
+
+	def get_lower_bound(self):
+		lower_bound = []
+		for index in range(0, self.num_constraints):
+			lower_bound.append(-np.inf)
+		return lower_bound
+
+	def get_upper_bound(self):
+		upper_bound = []
+		for index in range(0, self.num_constraints):
+			upper_bound.append(0.0)
+		return upper_bound
+
+	def get_constraints(self, model, params, settings, stage_idx):
+		constraints = []
+
+		# States
+		pos_x = model.get("x")
+		pos_y = model.get("y")
+		pos = np.array([pos_x, pos_y])
+		psi = model.get("psi")
+
+		try:
+			if self.use_slack:
+				slack = model.get("slack")
+			else:
+				slack = 0.0
+		except:
+			slack = 0.0
+
+		rotation_car = rotation_matrix(psi)
+		for disc_it in range(self.n_discs):
+			disc_x = params.get(f"ego_disc_{disc_it}_offset")
+			disc_relative_pos = np.array([disc_x, 0])
+			disc_pos = pos + rotation_car.dot(disc_relative_pos)
+
+			for index in range(self.max_obstacles):
+				a1 = params.get(self.constraint_name(index, disc_it) + "_a1")
+				a2 = params.get(self.constraint_name(index, disc_it) + "_a2")
+				b = params.get(self.constraint_name(index, disc_it) + "_b")
+
+				constraints.append(a1 * disc_pos[0] + a2 * disc_pos[1] - (b + slack))
+
+		return constraints
+
 	def set_parameters(self, data, module_data, k):
 		constraint_counter = 0  # Maps disc and obstacle index to a single index
 
@@ -208,7 +267,7 @@ class LinearizedConstraints(BaseConstraint):
 		# Re-initialize arrays with zeros
 		for d in range(self.get_config_value("n_discs")):
 			for k in range(self.get_config_value("N")):
-				for i in range(self.n_constraints):
+				for i in range(self.num_constraints):
 					self._a1[d][k][i] = 0
 					self._a2[d][k][i] = 0
 					self._b[d][k][i] = 0

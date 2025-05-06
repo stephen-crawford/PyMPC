@@ -6,16 +6,15 @@ sys.path.append(os.path.join(sys.path[0], "..", "..", "mpc_planner_modules", "sc
 import numpy as np
 
 from solver_generator.util.parameters import Parameters
-from solver_generator.solver_model import ContouringSecondOrderUnicycleModel
+from solver_generator.dynamics_models import ContouringSecondOrderUnicycleModel
 
-from solver_generator.modules_manager import ModuleManager
+from solver.src.modules_manager import ModuleManager
 from solver_generator.solver_definition import define_parameters, objective, constraints, constraint_lower_bounds, constraint_upper_bounds, constraint_number
 
 from planner_modules.contouring import Contouring
 from planner_modules.path_reference_velocity import PathReferenceVelocity
 from planner_modules.ellipsoid_constraints import EllipsoidConstraints
 
-from planner_modules.mpc_base import MPCBaseModule
 from planner_modules.curvature_aware_contouring import CurvatureAwareContouring
 from planner_modules.goal_module import GoalModule
 from planner_modules.gaussian_constraints import GaussianConstraints

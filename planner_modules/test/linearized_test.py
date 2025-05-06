@@ -12,7 +12,8 @@ CONFIG_MOCK = {
 	"N": 10,
 	"max_obstacles": 3,
 	"linearized_constraints": {
-		"add_halfspaces": 2
+		"add_halfspaces": 2,
+		"max_constraints": 20
 	},
 	"debug_visuals": False
 }
@@ -64,7 +65,7 @@ class TestLinearizedConstraints(unittest.TestCase):
 		self.assertEqual(self.linearized_constraints._n_other_halfspaces,
 		                 CONFIG_MOCK["linearized_constraints"]["add_halfspaces"])
 		self.assertEqual(self.linearized_constraints._max_obstacles, CONFIG_MOCK["max_obstacles"])
-		self.assertEqual(self.linearized_constraints.n_constraints,
+		self.assertEqual(self.linearized_constraints.num_constraints,
 		                 CONFIG_MOCK["max_obstacles"] + CONFIG_MOCK["linearized_constraints"]["add_halfspaces"])
 		self.assertEqual(self.linearized_constraints._dummy_a1, 0.0)
 		self.assertEqual(self.linearized_constraints._dummy_a2, 0.0)

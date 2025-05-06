@@ -379,6 +379,9 @@ class GuidanceConstraints(BaseConstraint):
         self._enable_constraints = self.get_config_value("t-mpc.enable_constraints", True)
         self._control_frequency = self.get_config_value("control_frequency")
         self._planning_time = 1. / self._control_frequency
+        self.max_obstacles = self.get_config_value("max_obstacles")
+        self.n_other_halfspaces = self.get_config_value("guidance.n_other_halfspaces")
+        self.nh = self.max_obstacles + self.n_other_halfspaces
 
         # Initialize the constraint modules
         self.nsolvers = self.global_guidance.get_config().n_paths

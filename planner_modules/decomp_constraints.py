@@ -29,6 +29,11 @@ class DecompConstraints(BaseConstraint):
 
 		self._max_constraints = self.get_config_value("decomp.max_constraints")
 
+		self.n_constraints = self._max_constraints * self.n_discs
+
+		self.nh = self.n_constraints
+		self.use_slack = self.get_config_value("decomp.use_slack")
+
 		# Initialize constraint storage
 		self.a1 = [[[0.0 for _ in range(self._max_constraints)] for _ in range(self.get_config_value("N"))] for _ in
 				   range(self.n_discs)]

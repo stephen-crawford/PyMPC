@@ -3,16 +3,14 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 
 # Import functions and classes to test
-from solver_generator.generatesolver import generatesolver, generate_casadisolver, generate_osqpsolver
-from solver_generator.solver_model import (
+from solver.src.generate_solver import generate_solver, generate_casadi_solver, generate_osqp_solver
+from planner.src.dynamic_models import (
     SecondOrderUnicycleModel,
-    ContouringSecondOrderUnicycleModel,
     BicycleModel2ndOrder,
     ContouringSecondOrderUnicycleModelCurvatureAware
 )
-from solver.casadisolver import CasADiSolver
-from solver.osqpsolver import OSQPSolver
-from solver_generator.util.files import load_settings, write_to_yaml
+from solver.src.casadi_solver import CasADiSolver
+from solver.src.osqp_solver import OSQPSolver
 
 
 class TestSolverGeneration(unittest.TestCase):
@@ -37,37 +35,37 @@ class TestSolverGeneration(unittest.TestCase):
         # Create mock modules
         self.modules = []
 
-    def test_generate_casadisolver(self):
+    def test_generate_casadi_solver(self):
         """Test generating a CasADi solver."""
         model = SecondOrderUnicycleModel()
 
-        solver, simulator = generate_casadisolver(self.modules, self.settings, model)
+        solver, simulator = generate_casadi_solver(self.modules, self.settings, model)
 
         self.assertTrue(isinstance(solver, CasADiSolver))
         self.assertTrue (isinstance(simulator, CasADiSolver))
         # Check if solver and simulator are the same instance
         self.assertEqual(solver, simulator)
 
-    def test_generate_osqpsolver(self):
+    def test_generate_osqp_solver(self):
         """Test generating an OSQP solver."""
         model = SecondOrderUnicycleModel()
 
-        solver, simulator = generate_osqpsolver(self.modules, self.settings, model)
+        solver, simulator = generate_osqp_solver(self.modules, self.settings, model)
 
         self.assertTrue(isinstance(solver, OSQPSolver))
         self.assertTrue(isinstance(simulator, OSQPSolver))
         # Check if solver and simulator are the same instance
         self.assertEqual(solver, simulator)
 
-    def test_invalidsolver_type(self):
+    def test_invalid_solver_type(self):
         """Test behavior with invalid solver type."""
         model = SecondOrderUnicycleModel()
         self.settings["solver_settings"]["solver"] = "invalidsolver"
 
         with self.assertRaises(IOError):
-            generatesolver(self.modules, model, settings=self.settings)
+            generate_solver(self.modules, model, settings=self.settings)
 
-    def test_skipsolver_generation(self):
+    def test_skip_solver_generation(self):
         """Test skipping solver generation."""
         model = SecondOrderUnicycleModel()
 
@@ -80,7 +78,7 @@ class TestSolverGeneration(unittest.TestCase):
                     mock_gen_casadi.return_value = (None, None)
 
                     # Now, when generatesolver is called, it should use the mock load_settings
-                    solver, simulator = generatesolver(self.modules, model)
+                    solver, simulator = generate_solver(self.modules, model)
 
                     # Check if solver generation was skipped
                     self.assertIsNone(solver)
@@ -207,7 +205,7 @@ class TestIntegration(unittest.TestCase):
     @patch('solver_generator.util.files.solver_path')
     @patch('solver_generator.util.files.solver_settings_path')
     @patch('solver_generator.util.logging.print_success')
-    def test_casadisolver_integration(self, mock_print_success, mocksolver_settings_path,
+    def test_casadi_solver_integration(self, mock_print_success, mocksolver_settings_path,
                                        mocksolver_path, mock_print_header,
                                        mock_generate_rqt, mock_write_yaml):
         """Test integration of a model with CasADi solver generation."""
@@ -220,7 +218,7 @@ class TestIntegration(unittest.TestCase):
         self.settings["solver_type"] = "casadi"
 
         # Use generate_casadisolver directly instead of the generic generatesolver
-        solver, simulator = generate_casadisolver(self.modules, self.settings, model)
+        solver, simulator = generate_casadi_solver(self.modules, self.settings, model)
 
         # Assert that we got CasADi solver instances
         self.assertIsInstance(solver, CasADiSolver)
@@ -240,7 +238,7 @@ class TestIntegration(unittest.TestCase):
     @patch('solver_generator.util.files.solver_path')
     @patch('solver_generator.util.files.solver_settings_path')
     @patch('solver_generator.util.logging.print_success')
-    def test_osqpsolver_integration(self, mock_print_success, mocksolver_settings_path,
+    def test_osqp_solver_integration(self, mock_print_success, mocksolver_settings_path,
                                      mocksolver_path, mock_print_header,
                                      mock_generate_rqt):
         """Test integration of a model with OSQP solver generation."""
@@ -253,7 +251,7 @@ class TestIntegration(unittest.TestCase):
         self.settings["solver_type"] = "osqp"
 
         # Use generate_osqpsolver directly instead of the generic generatesolver
-        solver, simulator = generate_osqpsolver(self.modules, self.settings, model)
+        solver, simulator = generate_osqp_solver(self.modules, self.settings, model)
 
         # Assert that we got OSQP solver instances
         self.assertIsInstance(solver, OSQPSolver)

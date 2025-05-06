@@ -1,7 +1,7 @@
 from functools import partial
 
 from planner.src.types import TwoDimensionalSpline
-from solver.solver_interface import set_solver_parameter
+from solver.src.solver_interface import set_solver_parameter
 from utils.const import OBJECTIVE
 from utils.utils import read_config_file, LOG_DEBUG
 from utils.visualizer import VISUALS
@@ -34,6 +34,20 @@ class PathReferenceVelocity:
             LOG_DEBUG("Received Reference Path")
             if data.reference_path.hasVelocity():
                 self.velocity_spline.set_points(data.reference_path.s, data.reference_path.v)
+
+    def define_parameters(self, params):
+
+        for i in range(self.num_segments):
+            params.add(f"spline_v{i}_a", bundle_name="spline_v_a")
+            params.add(f"spline_v{i}_b", bundle_name="spline_v_b")
+            params.add(f"spline_v{i}_c", bundle_name="spline_v_c")
+            params.add(f"spline_v{i}_d", bundle_name="spline_v_d")
+
+        return params
+
+    def get_value(self, model, params, settings, stage_idx):
+        # The cost is computed in the contouring cost
+        return 0.0
 
     def set_parameters(self, data, module_data, k):
         print("Trying to set parameters")

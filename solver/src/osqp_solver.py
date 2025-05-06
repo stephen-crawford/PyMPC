@@ -1,7 +1,7 @@
 import numpy as np
 import osqp
 import scipy.sparse as sp
-from solver.solver_interface import BaseSolver
+from solver.src.solver_interface import BaseSolver
 
 
 class OSQPSolver(BaseSolver):
@@ -193,7 +193,7 @@ class OSQPSolver(BaseSolver):
         # self.solver.update(Px=P_data_new)
         # self.solver.update(Ax=A_data_new)
 
-    def set_xinit(self, state):
+    def set_initial_state(self, state):
         """Set initial state value"""
         self.current_xinit = np.array(state).flatten()
         self.update_problem()

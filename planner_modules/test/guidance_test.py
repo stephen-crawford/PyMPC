@@ -13,6 +13,7 @@ CONFIG_MOCK = {
 	"debug_visuals": False,
 	"shift_previous_solution_forward": True,
 	"enable_output": True,
+	"max_obstacles": 20,
 	"n_discs": 2,
 	"road": {
 		"width": 8.0
@@ -32,6 +33,10 @@ CONFIG_MOCK = {
 		"longitudinal_goals": 5,
 		"vertical_goals": 5,
 		"selection_weight_consistency": 0.8
+	},
+	"guidance":
+		{
+		"n_other_halfspaces": 2
 	}
 }
 

@@ -258,7 +258,7 @@ class TestDecompConstraints(unittest.TestCase):
 
 			# Assertions
 			mock_line.assert_called_once_with(self.decomp_constraints.name + "/free_space")
-			mock_point_marker.assert_called_with(self.decomp_constraints.name + "/points")
+			mock_point_marker.assert_called_with(self.decomp_constraints.name + "/map")
 
 		# Test visualization with debug visuals disabled
 		mock_line.reset_mock()
