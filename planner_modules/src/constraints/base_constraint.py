@@ -1,8 +1,7 @@
 from solver.src.modules_manager import Module
-from solver.src.solver_interface import set_solver_parameter
 from utils.const import CONSTRAINT
-from utils.utils import read_config_file, LOG_DEBUG, CONFIG, get_config_dotted
-from utils.visualizer import ROSLine
+from utils.utils import read_config_file, LOG_DEBUG
+
 
 class BaseConstraint(Module):
 	def __init__(self, solver, settings=None):

@@ -11,16 +11,16 @@ from solver_generator.dynamics_models import ContouringSecondOrderUnicycleModel
 from solver.src.modules_manager import ModuleManager
 from solver_generator.solver_definition import define_parameters, objective, constraints, constraint_lower_bounds, constraint_upper_bounds, constraint_number
 
-from planner_modules.contouring import Contouring
-from planner_modules.path_reference_velocity import PathReferenceVelocity
-from planner_modules.ellipsoid_constraints import EllipsoidConstraints
+from planner_modules.src.objectives.contouring_objective import Contouring
+from planner_modules.src.objectives.path_reference_velocity_objective import PathReferenceVelocity
+from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
 
-from planner_modules.curvature_aware_contouring import CurvatureAwareContouring
-from planner_modules.goal_module import GoalModule
-from planner_modules.gaussian_constraints import GaussianConstraints
-from planner_modules.guidance_constraints import GuidanceConstraints
-from planner_modules.linearized_constraints import LinearizedConstraints
-from planner_modules.scenario_constraints import ScenarioConstraints
+from planner_modules.src.objectives.curvature_aware_contouring_objective import CurvatureAwareContouring
+from planner_modules.src.objectives.goal_objective import GoalModule
+from planner_modules.src.constraints.gaussian_constraints import GaussianConstraints
+from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints
+from planner_modules.src.constraints.linearized_constraints import LinearizedConstraints
+from planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
 
 
 def test_module_manager_objective():

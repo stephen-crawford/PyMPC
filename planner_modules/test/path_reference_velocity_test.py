@@ -3,9 +3,7 @@ from unittest.mock import MagicMock, patch, call
 
 import numpy as np
 
-from planner.src.types import TwoDimensionalSpline
 from utils.const import OBJECTIVE
-from utils.utils import read_config_file
 
 CONFIG_MOCK = {
 	"params": MagicMock(),
@@ -35,8 +33,7 @@ CONFIG_MOCK = {
 
 # Patch the read_config_file function
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.path_reference_velocity import PathReferenceVelocity
-	from planner_modules.base_constraint import BaseConstraint
+	from planner_modules.src.objectives.path_reference_velocity_objective import PathReferenceVelocity
 
 
 class TestPathReferenceVelocity(unittest.TestCase):

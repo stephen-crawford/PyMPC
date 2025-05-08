@@ -24,8 +24,8 @@ CONFIG_MOCK = {
 
 # Patch the read_config_file function
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.ellipsoid_constraints import EllipsoidConstraints
-	from planner_modules.base_constraint import BaseConstraint
+	from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
+	from planner_modules.src.constraints.base_constraint import BaseConstraint
 
 
 class TestEllipsoidConstraints(unittest.TestCase):
@@ -452,7 +452,7 @@ class TestSystemIntegration(unittest.TestCase):
 			mock_get_config_value.side_effect = get_mocked_config
 
 			# Create instance of the class under test
-			from planner_modules.ellipsoid_constraints import EllipsoidConstraints
+			from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
 			self.ellipsoid_constraints = EllipsoidConstraints(self.solver)
 
 		# Create mock planner

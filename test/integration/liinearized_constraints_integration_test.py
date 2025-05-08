@@ -1,6 +1,6 @@
 from solver.src.modules_manager import initialize_module_manager
-from planner_modules.linearized_constraints import LinearizedConstraints
-from planner_modules.goal_module import GoalModule
+from planner_modules.src.constraints.linearized_constraints import LinearizedConstraints
+from planner_modules.src.objectives.goal_objective import GoalModule
 
 
 def initialize_modules(solver=None):

@@ -1,9 +1,9 @@
-from planner_modules.contouring import Contouring
-from solver.src.solver_interface import set_solver_parameter
+from planner_modules.src.objectives.base_objective import BaseObjective
+from planner_modules.src.objectives.contouring_objective import Contouring
 from utils.utils import read_config_file
 CONFIG = read_config_file()
 
-class CurvatureAwareContouring:
+class CurvatureAwareContouring(BaseObjective):
 
   def __init__(self, solver):
     self.solver = solver

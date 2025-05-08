@@ -1,7 +1,7 @@
 import numpy as np
 import osqp
 import scipy.sparse as sp
-from solver.src.solver_interface import BaseSolver
+from solver.src.base_solver import BaseSolver
 
 
 class OSQPSolver(BaseSolver):

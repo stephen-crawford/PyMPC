@@ -12,7 +12,6 @@ CONFIG_MOCK = {
     "params": MagicMock(),
     "contouring": {
         "num_segments": 10,
-        "get_num_segments": 10,
         "add_road_constraints": True,
         "dynamic_velocity_reference": False
     },
@@ -34,19 +33,11 @@ CONFIG_MOCK = {
     "debug_visuals": False
 }
 
-CONFIG_MOCK["params"].parameter_bundles = {
-    "contour": [0, 1, 2],
-    "lag": [1],
-    "terminal_angle": [1],
-    "terminal_contouring": [1]# Example bundle index list
-}
-CONFIG_MOCK["params"].length.return_value = 10
-
 # Patch the read_config_file function
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-    from planner_modules.contouring_constraints import ContouringConstraints
-    from planner_modules.contouring import Contouring
-    from planner_modules.base_constraint import BaseConstraint
+    from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+    from planner_modules.src.objectives.contouring_objective import Contouring
+    from planner_modules.src.constraints.base_constraint import BaseConstraint
 
 class TestContouringConstraints(unittest.TestCase):
     """Test suite for ContouringConstraints class"""
@@ -129,8 +120,13 @@ class TestContouringConstraints(unittest.TestCase):
         self.assertTrue(hasattr(self.contouring_constraints.width_right, 'get_parameters'))
 
 
-    @patch('planner_modules.base_constraint.set_solver_parameter')
-    def test_set_parameters(self, mock_set_param):
+    def test_define_parameters(self):
+        """Test define_parameters"""
+        self.contouring_constraints.define_parameters(self.solver.params)
+        assert(self.solver.params.add.call_count == 8 * self.contouring_constraints.num_segments)
+
+
+    def test_set_parameters(self):
         """Test set_parameters method with boundary data"""
         # Setup
         k = 1
@@ -155,7 +151,7 @@ class TestContouringConstraints(unittest.TestCase):
         self.contouring_constraints.width_right.get_parameters = mock_get_parameters
 
         # Call method under test
-        self.contouring_constraints.set_parameters(MagicMock(), module_data, k)
+        self.contouring_constraints.set_parameters(MagicMock(), None, module_data, k)
 
         # Assertions - check that parameters were set for each segment
         expected_calls = self.contouring_constraints.num_segments * 8  # 8 params per segment
@@ -164,19 +160,13 @@ class TestContouringConstraints(unittest.TestCase):
     def test_is_data_ready(self):
         """Test is_data_ready method"""
         # Test when data is not ready
-        data = MagicMock()
-        data.left_bound.empty.return_value = True
-        data.right_bound.empty.return_value = False
-        missing_data = ""
+        data = []
 
-        result = self.contouring_constraints.is_data_ready(data, missing_data)
+        result = self.contouring_constraints.is_data_ready(data)
         self.assertFalse(result)
 
-        # Test when data is ready
-        data.left_bound.empty.return_value = False
-        data.right_bound.empty.return_value = False
-
-        result = self.contouring_constraints.is_data_ready(data, missing_data)
+        data = {"left_bound": 1, "right_bound": 1}
+        result = self.contouring_constraints.is_data_ready(data)
         self.assertTrue(result)
 
 
@@ -196,7 +186,7 @@ class TestContouring(unittest.TestCase):
         """Test proper initialization of Contouring"""
         self.assertEqual(self.contouring.module_type, OBJECTIVE)
         self.assertEqual(self.contouring.name, "contouring")
-        self.assertEqual(self.contouring.get_num_segments, CONFIG_MOCK["contouring"]["get_num_segments"])
+        self.assertEqual(self.contouring.num_segments, CONFIG_MOCK["contouring"]["num_segments"])
         self.assertEqual(self.contouring.add_road_constraints, CONFIG_MOCK["contouring"]["add_road_constraints"])
         self.assertEqual(self.contouring.two_way_road, CONFIG_MOCK["road"]["two_way"])
         self.assertIsNone(self.contouring.spline)

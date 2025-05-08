@@ -1,6 +1,6 @@
 import casadi as ca
 import numpy as np
-from solver.src.solver_interface import BaseSolver
+from solver.src.base_solver import BaseSolver
 
 
 class CasADiSolver(BaseSolver):

@@ -1,11 +1,12 @@
 import logging
 import numpy as np
-from utils.const import CONSTRAINT
+
+from planner.src.types import State
 from utils.utils import LOG_DEBUG, PROFILE_SCOPE
 from utils.visualizer import ROSLine, ROSPointMarker
 from utils.utils import EllipsoidDecomp2D
 
-from planner_modules.base_constraint import BaseConstraint
+from planner_modules.src.constraints.base_constraint import BaseConstraint
 
 
 class DecompConstraints(BaseConstraint):
@@ -19,7 +20,6 @@ class DecompConstraints(BaseConstraint):
 		self.decomp_util = EllipsoidDecomp2D()
 
 		# Only look around for obstacles using a box with sides of width 2*range
-		print("Self.get config yields: " + str(self.get_config_value("range")))
 		self.range = self.get_config_value("decomp.range")
 		self.decomp_util.set_local_bbox(np.array([self.range, self.range]))
 
@@ -44,7 +44,7 @@ class DecompConstraints(BaseConstraint):
 
 		LOG_DEBUG("Decomp Constraints successfully initialized")
 
-	def update(self, state, data, module_data):
+	def update(self, state: State, data, module_data):
 		PROFILE_SCOPE("DecompConstraints.update")
 		LOG_DEBUG("DecompConstraints.update")
 
@@ -53,7 +53,6 @@ class DecompConstraints(BaseConstraint):
 		_dummy_a2 = 0.0
 
 		self.get_occupied_grid_cells(data)  # Retrieve occupied points from the costmap
-		print("Calling set obs")
 		self.decomp_util.set_obs(self.occ_pos)  # Set obstacles
 
 		path = []
@@ -121,7 +120,19 @@ class DecompConstraints(BaseConstraint):
 
 		return True
 
-	def set_parameters(self, data, module_data, k):
+	def define_parameters(self, params):
+		for segment_index in range(self.num_segments):
+			params.add(f"width_right{segment_index}_a")
+			params.add(f"width_right{segment_index}_b")
+			params.add(f"width_right{segment_index}_c")
+			params.add(f"width_right{segment_index}_d")
+
+			params.add(f"width_left{segment_index}_a")
+			params.add(f"width_left{segment_index}_b")
+			params.add(f"width_left{segment_index}_c")
+			params.add(f"width_left{segment_index}_d")
+
+	def set_parameters(self, parameter_manager, data, module_data, k):
 		if k == 0:  # Dummies
 			for d in range(self.n_discs):
 				# Set solver parameter for ego disc offset
@@ -135,7 +146,7 @@ class DecompConstraints(BaseConstraint):
 					_dummy_a2 = 0.0
 					_dummy_b = 100.0  # Large dummy value
 
-					self.set_solver_parameter("decomp_a1", _dummy_a1, k, constraint_counter)
+					parameter_manager.add(f"decomp_a1{k}", _dummy_a1, k, constraint_counter)
 					self.set_solver_parameter("decomp_a2", _dummy_a2, k, constraint_counter)
 					self.set_solver_parameter("decomp_b", _dummy_b, k, constraint_counter)
 					constraint_counter += 1
@@ -156,81 +167,9 @@ class DecompConstraints(BaseConstraint):
 				self.set_solver_parameter("decomp_b", self.b[d][k][i], k, constraint_counter)
 				constraint_counter += 1
 
-	def is_data_ready(self, data, missing_data):
-		required_fields = ["costmap"]
-		missing_fields = self.check_data_availability(data, required_fields)
+	def is_data_ready(self, data):
+		missing_data = ""
+		if "costmap" not in data:
+			missing_data = "costmap"
 
-		if missing_fields:
-			missing_data += "Costmap "
-			return False
-
-		return True
-
-	def project_to_safety(self, pos):
-		"""Project to a collision free position if necessary."""
-		if not self.occ_pos:  # Empty list check in Python
-			return
-
-		# This would need a separate implementation of douglas_rachford_projection
-		# For now we'll skip the implementation
-		pass
-
-	def visualize(self, data, module_data):
-		super().visualize(data, module_data)
-
-		LOG_DEBUG("DecompConstraints.Visualize")
-
-		# Create a publisher for free space visualization
-		free_space_publisher = self.create_visualization_publisher("free_space", ROSLine)
-		point_marker = self.create_visualization_publisher("points", ROSPointMarker)
-
-		points = point_marker.get_new_point_marker("CUBE")
-		points.set_scale(0.1, 0.1, 0.1)
-		points.set_color(1, 0, 0, 1)
-
-		line = free_space_publisher.add_new_line()
-		line.set_scale(0.1)
-
-		visualize_points = False
-
-		polyhedrons = self.decomp_util.get_polyhedrons()
-
-		k = 0
-		while k < self.solver.N and k < len(polyhedrons):
-			poly = polyhedrons[k]
-			line.set_color_int(k, self.solver.N)
-
-			vertices = poly.vertices
-			if len(vertices) < 2:
-				k += self.get_config_value("visualization.draw_every")
-				continue
-
-			for i in range(len(vertices)):
-				if visualize_points:
-					points.add_point_marker((vertices[i][0], vertices[i][1], 0))
-
-				if i > 0:
-					line.add_line((vertices[i - 1][0], vertices[i - 1][1], 0),
-								  (vertices[i][0], vertices[i][1], 0))
-
-			# Close the loop
-			line.add_line((vertices[-1][0], vertices[-1][1], 0),
-						  (vertices[0][0], vertices[0][1], 0))
-
-			k += self.get_config_value("visualization.draw_every")
-
-		free_space_publisher.publish()
-
-		if not self.get_config_value("debug_visuals"):
-			return
-
-		# Create a publisher for map visualization
-		map_publisher = self.create_visualization_publisher("map", ROSPointMarker)
-		point = map_publisher.get_new_point_marker("CUBE")
-		point.set_scale(0.1, 0.1, 0.1)
-		point.set_color(0, 0, 0, 1)
-
-		for vec in self.occ_pos:
-			point.add_point_marker((vec[0], vec[1], 0))
-
-		map_publisher.publish()
+		return len(missing_data) < 1

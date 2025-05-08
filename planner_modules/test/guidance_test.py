@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch, call
 from math import atan2
 
 # Import modules to test
-from utils.const import CONSTRAINT, OBJECTIVE
+from utils.const import CONSTRAINT
 
 # Manually patch CONFIG to avoid dependency issues in testing
 CONFIG_MOCK = {
@@ -42,8 +42,7 @@ CONFIG_MOCK = {
 
 # Patch the read_config_file function
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.guidance_constraints import GuidanceConstraints, GlobalGuidance
-	from planner_modules.base_constraint import BaseConstraint
+	from planner_modules.src.constraints.guidance_constraints import GlobalGuidance
 
 
 class TestGuidanceConstraints(unittest.TestCase):
@@ -96,7 +95,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.mock_global_guidance.return_value = self.mock_global_guidance_instance
 
 		# Import after patching
-		from planner_modules.guidance_constraints import GuidanceConstraints
+		from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints
 		self.guidance_constraints = GuidanceConstraints(self.solver)
 
 

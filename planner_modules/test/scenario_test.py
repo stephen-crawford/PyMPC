@@ -1,7 +1,6 @@
 import unittest
-import numpy as np
-from unittest.mock import MagicMock, patch, call, ANY
-from datetime import datetime, timedelta
+from unittest.mock import MagicMock, patch, call
+from datetime import datetime
 
 # Import modules to test
 from utils.const import CONSTRAINT, DETERMINISTIC, GAUSSIAN
@@ -24,8 +23,7 @@ CONFIG_MOCK = {
 
 # Patch the read_config_file function
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.scenario_constraints import ScenarioConstraints
-	from planner_modules.base_constraint import BaseConstraint
+	from planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
 
 
 class TestScenarioConstraints(unittest.TestCase):

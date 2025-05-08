@@ -1,7 +1,7 @@
 from functools import partial
 
 from planner.src.types import TwoDimensionalSpline
-from solver.src.solver_interface import set_solver_parameter
+from solver.src.base_solver import set_solver_parameter
 from utils.const import OBJECTIVE
 from utils.utils import read_config_file, LOG_DEBUG
 from utils.visualizer import VISUALS

@@ -1,8 +1,7 @@
-import numpy as np
 from utils.const import DETERMINISTIC
 from utils.utils import LOG_DEBUG, read_config_file
 from datetime import datetime
-from planner_modules.base_constraint import BaseConstraint
+from planner_modules.src.constraints.base_constraint import BaseConstraint
 
 
 class ScenarioConstraints(BaseConstraint):
@@ -12,36 +11,31 @@ class ScenarioConstraints(BaseConstraint):
 
 		LOG_DEBUG("Initializing Scenario Constraints")
 
-		self._planning_time = 1.0 / self.get_config_value("control_frequency")
-		self._scenariosolvers = []
-		self._best_solver = None
+		self.planning_time = 1.0 / self.get_config_value("control_frequency")
+		self.scenario_solvers = []
+		self.best_solver = None
 
 		# Initialize scenario config
-		self._SCENARIO_CONFIG = ScenarioConfig()
-		self._SCENARIO_CONFIG.Init()
-		self.n_discs = self.get_config_value("n_discs")
-		self.n_constraints = self.get_config_value("max_constraints") * self.n_discs
+		self.enable_safe_horizon = self.get_config_value("scenario.enable_safe_horizon")
+		self.num_discs = self.get_config_value("num_discs")
+		self.num_constraints = self.get_config_value("max_constraints") * self.num_discs
 		self.use_slack = self.get_config_value("scenario.use_slack")
-		self.nh = self.n_constraints
+		self.nh = self.num_constraints
 
 
 		# Create parallel solvers
-		parallel_solvers = self.get_config_value("scenario_constraints.parallelsolvers")
+		parallel_solvers = self.get_config_value("scenario_constraints.parallel_solvers")
 		for i in range(parallel_solvers):
-			self._scenariosolvers.append(ScenarioSolver(i))
+			self.scenario_solvers.append(ScenarioSolver(i))
 
 		LOG_DEBUG("Scenario Constraints successfully initialized")
 
 	def update(self, state, data, module_data):
 		LOG_DEBUG("ScenarioConstraints.update")
-		for solver in self._scenariosolvers:
+		for solver in self.scenario_solvers:
 			# Copy the main solver, including its initial guess
 			solver.solver = self.solver
 			solver.scenario_module.update(data, module_data)
-
-	def set_parameters(self, data, module_data, k):
-		# Not implemented in original code
-		return
 
 	def optimize(self, state, data, module_data):
 		# Set OpenMP parameters for parallelization
@@ -50,19 +44,19 @@ class ScenarioConstraints(BaseConstraint):
 		# Initialize best solver search
 		lowest_cost = 1e9
 		self._best_solver = None
-		for solver in self._scenariosolvers:
+		for solver in self.scenario_solvers:
 
 			print(f"Checking solver: {solver}")
 			print(f"exit_code: {solver.exit_code}")
-			print(f"pobj: {solver.solver._info.pobj}")
+			print(f"pobj: {solver.solver.info.pobj}")
 
-			if solver.exit_code == 1 and solver.solver._info.pobj < lowest_cost:
-				lowest_cost = solver.solver._info.pobj
+			if solver.exit_code == 1 and solver.solver.info.pobj < lowest_cost:
+				lowest_cost = solver.solver.info.pobj
 				self._best_solver = solver
 
 			# Set the planning timeout
 			used_time = (datetime.now() - data.planning_start_time).total_seconds()
-			solver.solver.params.solver_timeout = self._planning_time - used_time - 0.008
+			solver.solver.params.solver_timeout = self.planning_time - used_time - 0.008
 
 			# Create a copy of the solver instead of just assigning the reference
 			# solver.solver = self.solver  # This line is causing the issue
@@ -84,17 +78,17 @@ class ScenarioConstraints(BaseConstraint):
 		lowest_cost = 1e9
 		self._best_solver = None
 
-		for solver in self._scenariosolvers:
-			if solver.exit_code == 1 and solver.solver._info.pobj < lowest_cost:
-				lowest_cost = solver.solver._info.pobj
+		for solver in self.scenario_solvers:
+			if solver.exit_code == 1 and solver.solver.info.pobj < lowest_cost:
+				lowest_cost = solver.solver.info.pobj
 				self._best_solver = solver
 
 		if self._best_solver is None:  # No feasible solution
-			return self._scenariosolvers[0].exit_code
+			return self.scenario_solvers[0].exit_code
 
 		# Load the solution into the main lmpcc solver
 		self.solver.output = self._best_solver.solver.output
-		self.solver._info = self._best_solver.solver._info
+		self.solver.info = self._best_solver.solver.info
 		self.solver.params = self._best_solver.solver.params
 
 		return self._best_solver.exit_code
@@ -111,9 +105,9 @@ class ScenarioConstraints(BaseConstraint):
 					"config/configuration.yml to a non-zero value to add uncertainty."
 				)
 
-			if self._SCENARIO_CONFIG.enable_safe_horizon_:
+			if self.enable_safe_horizon:
 				# Draw different samples for all solvers in parallel
-				for solver in self._scenariosolvers:
+				for solver in self.scenario_solvers:
 					solver.scenario_module.get_sampler().integrate_and_translate_to_mean_and_variance(
 						data.dynamic_obstacles, solver.dt
 					)
@@ -139,40 +133,10 @@ class ScenarioConstraints(BaseConstraint):
 				missing_data += "Uncertain Predictions (scenario-based control cannot use deterministic predictions) "
 				return False
 
-		if not self._scenariosolvers[0].scenario_module.is_data_ready(data, missing_data):
+		if not self.scenario_solvers[0].scenario_module.is_data_ready(data, missing_data):
 			return False
 
 		return True
-
-	def visualize(self, data, module_data):
-		super().visualize(data, module_data)
-
-		visualize_all = self.get_config_value("scenario_constraints.visualize_all", False)
-
-		LOG_DEBUG("ScenarioConstraints.visualize")
-
-		if visualize_all:
-			for solver in self._scenariosolvers:
-				solver.scenario_module.visualize(data)
-		elif self._best_solver is not None:
-			self._best_solver.scenario_module.visualize(data)
-
-		# Visualize optimized trajectories
-		for solver in self._scenariosolvers:
-			if solver.exit_code == 1:
-				trajectory = []
-				for k in range(solver.N):
-					trajectory.append([
-						solver.solver.get_output(k, "x"),
-						solver.solver.get_output(k, "y")
-					])
-
-				self.visualize_trajectory(
-					trajectory,
-					"optimized_trajectories",
-					scale=0.2,
-					color_int=solver.solver_id
-				)
 
 	def reset(self):
 		super().reset()
@@ -180,29 +144,8 @@ class ScenarioConstraints(BaseConstraint):
 		self._best_solver = None
 
 		# Reset all scenario solvers
-		for solver in self._scenariosolvers:
+		for solver in self.scenario_solvers:
 			solver.exit_code = 0
-
-	def set_openmp_params(self, nested=None, max_active_levels=None, dynamic=None):
-		"""Helper function to set OpenMP parameters (mock implementation)"""
-		# In a real implementation, this would use the appropriate OpenMP bindings
-		if nested is not None:
-			pass  # omp_set_nested(nested)
-		if max_active_levels is not None:
-			pass  # omp_set_max_active_levels(max_active_levels)
-		if dynamic is not None:
-			pass  # omp_set_dynamic(dynamic)
-
-
-class ScenarioConfig:
-	def __init__(self):
-		config = read_config_file()
-		self.enable_safe_horizon_ = config.get("scenario_constraints", {}).get("enable_safe_horizon", False)
-
-	def Init(self):
-		# Initialize scenario config parameters
-		pass
-
 
 class ScenarioSolver:
 	def __init__(self, solver_id):
@@ -210,8 +153,8 @@ class ScenarioSolver:
 		self.solver = None
 		self.scenario_module = ScenarioModule()
 		self.exit_code = 0
-		self.N = config["N"]
-		self.dt = config["dt"]
+		self.horizon = config["horizon"]
+		self.timestep = config["timestep"]
 		self.solver_id = solver_id
 
 	def get(self):

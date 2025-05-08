@@ -1,26 +1,21 @@
 from planner.src.types import *
-from planner_modules.base_objective import BaseObjective
-from utils.const import OBJECTIVE
+from planner_modules.src.objectives.base_objective import BaseObjective
 from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE, distance, haar_difference_without_abs
-
-from planner_modules.base_constraint import BaseConstraint
 
 CONFIG = read_config_file()
 
-
 class Contouring(BaseObjective):
 	def __init__(self, solver):
-		# Override module_type since Contouring is an OBJECTIVE not a CONSTRAINT
 		super().__init__(solver)
 
 		# Configuration options from CONFIG
-		self.num_segments = self.get_config_value("num_segments")
-		self.add_road_constraints = self.get_config_value("add_road_constraints")
-		self.two_way_road = self.get_config_value("two_way")
-		self.dynamic_velocity_reference = self.get_config_value("dynamic_velocity_reference")
+		self.num_segments = self.get_config_value("contouring.num_segments")
+		self.add_road_constraints = self.get_config_value("contouring.add_road_constraints")
+		self.two_way_road = self.get_config_value("road.two_way")
+		self.dynamic_velocity_reference = self.get_config_value("contouring.dynamic_velocity_reference")
 
 		# Initialize class attributes
-		self.spline = None  # Will be set by on_data_received
+		self.spline = None
 		self.closest_point = 0
 		self.closest_segment = 0
 		self.bound_left = None
@@ -64,23 +59,23 @@ class Contouring(BaseObjective):
 		# Spline parameters
 		for i in range(self.num_segments):
 			# X-coordinates
-			params.add(f"spline_a", bundle_name="spline_a")
-			params.add(f"spline_b", bundle_name="spline_b")
-			params.add(f"spline_c", bundle_name="spline_c")
-			params.add(f"spline_d", bundle_name="spline_d")
+			params.add(f"spline_ax")
+			params.add(f"spline_bx")
+			params.add(f"spline_cx")
+			params.add(f"spline_dx")
 
 			# Y-coordinates
-			params.add(f"spline_ya", bundle_name="spline_ya")
-			params.add(f"spline_yb", bundle_name="spline_yb")
-			params.add(f"spline_yc", bundle_name="spline_yc")
-			params.add(f"spline_yd", bundle_name="spline_yd")
+			params.add(f"spline_ay")
+			params.add(f"spline_by")
+			params.add(f"spline_cy")
+			params.add(f"spline_dy")
 
 			# Segment start
-			params.add(f"spline_start", bundle_name="spline_start")
+			params.add(f"spline_start")
 
 		return params
 
-	def set_parameters(self, data, module_data, k):
+	def set_parameters(self, parameter_manager, data, module_data, k):
 		print(f"set_parameters called with k={k}")
 		# Retrieve weights once
 		if k == 0:
@@ -91,23 +86,20 @@ class Contouring(BaseObjective):
 			terminal_contouring_weight = CONFIG["weights"]["terminal_contouring"]
 
 			if self.dynamic_velocity_reference:
-				reference_velocity = CONFIG["weights"]["reference_velocity"]
+				reference_velocity_weight = CONFIG["weights"]["reference_velocity"]
 				velocity_weight = CONFIG["weights"]["velocity"]
-			else:
-				velocity_weight = None
+				parameter_manager.set_parameter("reference_velocity", reference_velocity_weight, k)
+				parameter_manager.set_parameter("velocity", velocity_weight, k)
 
-			self.set_solver_parameter("contour", contouring_weight, k)
-			self.set_solver_parameter("lag", lag_weight, k)
-			self.set_solver_parameter("terminal_angle", terminal_angle_weight, k)
-			self.set_solver_parameter("terminal_contouring", terminal_contouring_weight, k)
+			parameter_manager.set_parameter("contour", contouring_weight, k)
+			parameter_manager.set_parameter("lag", lag_weight, k)
+			parameter_manager.set_parameter("terminal_angle", terminal_angle_weight, k)
+			parameter_manager.set_parameter("terminal_contouring", terminal_contouring_weight, k)
 
-			if self.dynamic_velocity_reference:
-				self.set_solver_parameter("reference_velocity", velocity_weight, k)
-				self.set_solver_parameter("velocity", velocity_weight, k)
 		print("Setting spline parameters")
-		self.set_spline_parameters(k)
+		self.set_spline_parameters(parameter_manager, k)
 
-	def set_spline_parameters(self, k):
+	def set_spline_parameters(self, parameter_manager, k):
 		print("Now setting spline params")
 		if self.spline is None:
 			return
@@ -128,18 +120,18 @@ class Contouring(BaseObjective):
 			start = self.spline.get_segment_start(index)
 
 			# Set solver parameters for each spline coefficient
-			self.set_solver_parameter("spline_a", ax, k, i)
-			self.set_solver_parameter("spline_b", bx, k, i)
-			self.set_solver_parameter("spline_c", cx, k, i)
-			self.set_solver_parameter("spline_d", dx, k, i)
+			parameter_manager.set_parameter("spline_ax", ax, k, i)
+			parameter_manager.set_parameter("spline_bx", bx, k, i)
+			parameter_manager.set_parameter("spline_cx", cx, k, i)
+			parameter_manager.set_parameter("spline_dx", dx, k, i)
 
-			self.set_solver_parameter("spline_ya", ay, k, i)
-			self.set_solver_parameter("spline_yb", by, k, i)
-			self.set_solver_parameter("spline_yc", cy, k, i)
-			self.set_solver_parameter("spline_yd", dy, k, i)
+			parameter_manager.set_parameter("spline_ay", ay, k, i)
+			parameter_manager.set_parameter("spline_by", by, k, i)
+			parameter_manager.set_parameter("spline_cy", cy, k, i)
+			parameter_manager.set_parameter("spline_dy", dy, k, i)
 
 			# Set solver parameter for spline segment start
-			self.set_solver_parameter("spline_start", start, k, i)
+			parameter_manager.set_parameter("spline_start", start, k, i)
 
 	def get_value(self, model, params, settings, stage_idx):
 		cost = 0
@@ -153,21 +145,12 @@ class Contouring(BaseObjective):
 		contour_weight = params.get("contour")
 		lag_weight = params.get("lag")
 
-		# From path
-		if self.dynamic_velocity_reference:
-			if not params.has_parameter("spline_v0_a"):
-				raise IOError(
-					"contouring/dynamic_velocity_reference is enabled, but there is no PathReferenceVelocity module.")
 
-			path_velocity = SplineAdapter(params, "spline_v", self.get_num_segments, s)
-			reference_velocity = path_velocity.at(s)
-			velocity_weight = params.get("velocity")
-
-		path = Spline2DAdapter(params, self.get_num_segments, s)
+		path = Spline2DAdapter(params, self.num_segments, s)
 		path_x, path_y = path.at(s)
 		path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)
 
-		# MPCC
+
 		contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
 		lag_error = path_dx_normalized * (pos_x - path_x) + path_dy_normalized * (pos_y - path_y)
 
@@ -175,6 +158,14 @@ class Contouring(BaseObjective):
 		cost += contour_weight * contour_error ** 2
 
 		if self.dynamic_velocity_reference:
+			if not params.has_parameter("spline_v0_a"):
+				raise IOError(
+					"contouring/dynamic_velocity_reference is enabled, but there is no PathReferenceVelocity module.")
+
+			path_velocity = SplineAdapter(params, "spline_v", self.num_segments, s)
+			reference_velocity = path_velocity.at(s)
+			velocity_weight = params.get("velocity")
+
 			cost += velocity_weight * (v - reference_velocity) ** 2
 
 		# Terminal cost
@@ -221,17 +212,15 @@ class Contouring(BaseObjective):
 			self.closest_segment = 0
 
 	def is_data_ready(self, data, missing_data):
-		required_fields = ["reference_path"]
-		missing_fields = self.check_data_availability(data, required_fields)
-
-		if missing_fields or data.reference_path.x.empty():
-			missing_data += "Reference Path "
+		if data.reference_path.x.empty():
+			missing_data += "reference_path"
 			return False
-
-		return True
+		return True, missing_data
 
 	def is_objective_reached(self, state, data):
-		if self.spline is None:
+		missing_data = ""
+		is_ready, missing_data = self.is_data_ready(data, missing_data)
+		if missing_data or self.spline is None:
 			return False
 
 		# Check if we reached the end of the spline

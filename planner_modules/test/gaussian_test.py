@@ -1,9 +1,7 @@
 import unittest
 import numpy as np
 from unittest.mock import MagicMock, patch, call, ANY
-from numpy import sqrt
 
-from planner_modules.gaussian_constraints import GaussianConstraints
 # Import modules to test
 from utils.const import CONSTRAINT, GAUSSIAN, DYNAMIC
 
@@ -26,8 +24,7 @@ CONFIG_MOCK = {
 
 # Patch the read_config_file function
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.gaussian_constraints import GaussianConstraints
-	from planner_modules.base_constraint import BaseConstraint
+	from planner_modules.src.constraints.gaussian_constraints import GaussianConstraints
 
 
 class TestGaussianConstraints(unittest.TestCase):
@@ -380,7 +377,7 @@ class TestSystemIntegration(unittest.TestCase):
 
 		# Create instance of the class under test
 		with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-			from planner_modules.gaussian_constraints import GaussianConstraints
+			from planner_modules.src.constraints.gaussian_constraints import GaussianConstraints
 			self.gaussian_constraints = GaussianConstraints(self.solver)
 
 		# Create mock planner

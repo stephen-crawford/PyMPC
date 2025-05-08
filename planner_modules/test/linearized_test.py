@@ -1,7 +1,6 @@
 import unittest
 import numpy as np
 from unittest.mock import MagicMock, patch, call, ANY
-from numpy import sqrt
 
 # Import modules to test
 from utils.const import CONSTRAINT, DETERMINISTIC, GAUSSIAN
@@ -20,8 +19,8 @@ CONFIG_MOCK = {
 
 # Patch the read_config_file function
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.linearized_constraints import LinearizedConstraints
-	from planner_modules.base_constraint import BaseConstraint
+	from planner_modules.src.constraints.linearized_constraints import LinearizedConstraints
+
 
 class TestLinearizedConstraints(unittest.TestCase):
 	"""Test suite for LinearizedConstraints class"""

@@ -1,7 +1,6 @@
 import unittest
-from unittest.mock import MagicMock, patch, call, ANY
+from unittest.mock import MagicMock, patch
 import numpy as np
-import numpy.testing as npt
 
 # Import modules to test
 from utils.const import CONSTRAINT
@@ -41,8 +40,8 @@ CONFIG_MOCK["params"].length.return_value = 10
 
 # Patch the read_config_file function
 with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.decomp_constraints import DecompConstraints
-	from planner_modules.base_constraint import BaseConstraint
+	from planner_modules.src.constraints.decomp_constraints import DecompConstraints
+	from planner_modules.src.constraints.base_constraint import BaseConstraint
 
 
 class TestDecompConstraints(unittest.TestCase):

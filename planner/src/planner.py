@@ -2,38 +2,36 @@ import time
 from utils.utils import CONFIG, Benchmarker, ExperimentManager, LOG_WARN
 from planner.src.types import *
 
-logger = logging.getLogger(__name__)
 
 class Planner:
   def __init__(self, solver):
     self.solver = solver  # Now accepts any solver instance
     self.benchmarkers = []
-    self.experiment_util = ExperimentManager()
+    self.experiment_manager = ExperimentManager()
 
-    self.experiment_util.set_timer(1)
-    self.experiment_util.start_timer()
+    self.experiment_manager.set_timer(1)
+    self.experiment_manager.start_timer()
 
     self.was_reset = False
     self.output = None
     self.warmstart = None
-
-  def init_modules(self):
-    self.solver.init_modules()
 
   def solve_mpc(self, state, data):
     was_feasible = self.output.success if self.output else False
     self.output = PlannerOutput(self.solver.dt, self.solver.N)
     module_data = {}
 
-    is_data_ready = all(module.is_data_ready(data) for module in self.solver)
+    is_data_ready = all(module.is_data_ready(data) for module in self.solver.get_module_manager().get_modules())
+    print("Is data ready: {}".format(is_data_ready))
     if not is_data_ready:
-      if self.experiment_util.timer.has_finished():
+      if self.experiment_manager.timer.has_finished():
         LOG_WARN("Data is not ready")
       self.output.success = False
+      print("Data is not ready")
       return self.output
 
     if self.was_reset:
-      self.experiment_util.set_start_experiment()
+      self.experiment_manager.set_start_experiment()
       self.was_reset = False
 
     planning_benchmarker = Benchmarker("planning")
@@ -61,7 +59,7 @@ class Planner:
 
     for k in range(self.solver.N):
       for module in self.solver.module_manager.get_modules():
-        module.set_parameters(data, module_data, k)
+        module.set_parameters(self.solver.params, data, module_data, k)
 
     self.warmstart = Trajectory()
     for k in range(self.solver.N):
@@ -76,9 +74,12 @@ class Planner:
     for module in self.solver.module_manager.get_modules():
       exit_flag = module.optimize(state, data, module_data)
       if exit_flag != -1:
+        print("Exit flag: {}".format(exit_flag))
+        print("breaking")
         break
 
     if exit_flag == -1:
+      print("Gong to try to solve")
       exit_flag = self.solver.solve()
 
     planning_benchmarker.stop()
@@ -86,6 +87,7 @@ class Planner:
     if exit_flag != 1:
       self.output.success = False
       logger.warning(f"MPC failed: {self.solver.explain_exit_flag(exit_flag)}")
+      print("MPC failed")
       return self.output
 
     self.output.success = True
@@ -97,13 +99,14 @@ class Planner:
       self.solver.print_if_bound_limited()
 
     logger.info("Planner::solveMPC done")
+    print("Planner::solveMPC done")
     return self.output
 
   def get_solution(self, mpc_step, var_name):
     return self.solver.get_output(mpc_step, var_name)
 
   def get_data_saver(self):
-    return self.experiment_util.get_data_saver()
+    return self.experiment_manager.get_data_saver()
 
   def on_data_received(self, data, data_name):
     for module in self.solver.module_manager.modules:
@@ -123,7 +126,7 @@ class Planner:
     if not self.solver.module_manager.is_data_ready(data):
       return
 
-    data_saver = self.experiment_util.get_data_saver()
+    data_saver = self.experiment_manager.get_data_saver()
     planning_time = self.get_benchmarker("planning").get_last()
     data_saver.add_data("runtime_control_loop", planning_time)
     if planning_time > 1.0 / CONFIG["control_frequency"]:
@@ -133,11 +136,11 @@ class Planner:
     data_saver.add_data("status", 2. if self.output.success else 3.)
     for module in self.solver.module_manager.modules:
       module.save_data(data_saver)
-    self.experiment_util.update(state, self.solver, data)
+    self.experiment_manager.update(state, self.solver, data)
 
   def reset(self, state, data, success):
     if CONFIG["recording"]["enable"]:
-      self.experiment_util.on_task_complete(success)
+      self.experiment_manager.on_task_complete(success)
 
     self.solver.reset()
     for module in self.solver.module_manager.modules:
@@ -146,7 +149,7 @@ class Planner:
     state.reset()
     data.reset()
     self.was_reset = True
-    self.experiment_util.start_timer()
+    self.experiment_manager.start_timer()
 
   def is_objective_reached(self, state, data):
     return all(module.is_objective_reached(self, state, data) for module in self.solver.module_manager.modules)
@@ -155,7 +158,6 @@ class Planner:
     for benchmarker in self.benchmarkers:
       if benchmarker.name == name:
         return benchmarker
-
 
 class PlannerOutput:
   def __init__(self, dt: float = None, N: int = None):

@@ -1,9 +1,9 @@
 import numpy as np
 import casadi as cd
-from utils.const import CONSTRAINT, GAUSSIAN, DYNAMIC
+from utils.const import GAUSSIAN, DYNAMIC
 from utils.utils import LOG_DEBUG, PROFILE_SCOPE, exponential_quantile, CONFIG, rotation_matrix
 from utils.visualizer import ROSPointMarker
-from planner_modules.base_constraint import BaseConstraint
+from planner_modules.src.constraints.base_constraint import BaseConstraint
 
 
 class GaussianConstraints(BaseConstraint):
@@ -13,6 +13,9 @@ class GaussianConstraints(BaseConstraint):
 		# Store dummy values for invalid states
 		self._dummy_x = 100.0
 		self._dummy_y = 100.0
+		self.num_discs = self.get_config_value("num_discs")
+		self.robot_radius = self.get_config_value("robot.radius")
+		self.max_obstacles = self.get_config_value("max_obstacles")
 
 		LOG_DEBUG("Gaussian Constraints successfully initialized")
 
@@ -24,85 +27,61 @@ class GaussianConstraints(BaseConstraint):
 		self._dummy_y = state.get("y") + 100.0
 
 	def define_parameters(self, params):
-		params.add("ego_disc_radius")
 
-		for disc_id in range(self.n_discs):
-			params.add(f"ego_disc_{disc_id}_offset", bundle_name="ego_disc_offset")
+		for disc_id in range(self.num_discs):
+			params.add(f"ego_disc_{disc_id}_offset")
 
 		for obs_id in range(self.max_obstacles):
-			params.add(f"gaussian_obst_{obs_id}_x", bundle_name="gaussian_obst_x")
-			params.add(f"gaussian_obst_{obs_id}_y", bundle_name="gaussian_obst_y")
-			params.add(f"gaussian_obst_{obs_id}_major", bundle_name="gaussian_obst_major")
-			params.add(f"gaussian_obst_{obs_id}_minor", bundle_name="gaussian_obst_minor")
-			params.add(f"gaussian_obst_{obs_id}_risk", bundle_name="gaussian_obst_risk")
-			params.add(f"gaussian_obst_{obs_id}_r", bundle_name="gaussian_obst_r")
+			params.add(f"gaussian_obst_{obs_id}_x")
+			params.add(f"gaussian_obst_{obs_id}_y")
+			params.add(f"gaussian_obst_{obs_id}_major")
+			params.add(f"gaussian_obst_{obs_id}_minor")
+			params.add(f"gaussian_obst_{obs_id}_risk")
+			params.add(f"gaussian_obst_{obs_id}_r")
 
-	def set_parameters(self, data, module_data, k):
-		# Set robot parameters
-		self.set_solver_parameter("ego_disc_radius", self.get_config_value("robot.radius"), k)
+	def set_parameters(self, parameter_manager, data, module_data, k):
+		for d in range(self.num_discs):
+			# Set solver parameter for ego disc radius
+			parameter_manager.set(f"ego_disc{d}_radius", self.robot_radius)
 
-		for d in range(self.get_config_value("n_discs")):
+			# Set solver parameter for ego disc offset
 			if hasattr(data, 'robot_area') and len(data.robot_area) > d:
-				self.set_solver_parameter("ego_disc_offset", data.robot_area[d].offset, k, d)
+				parameter_manager.set(f"ego_disc{d}_offset", data.robot_area[d].offset)
 
 		if k == 0:  # Dummies
-			for i in range(data.dynamic_obstacles.size()):
-				self.set_solver_parameter("gaussian_obstacle_x", self._dummy_x, k, i)
-				self.set_solver_parameter("gaussian_obstacle_y", self._dummy_y, k, i)
-				self.set_solver_parameter("gaussian_obstacle_major", 0.1, k, i)
-				self.set_solver_parameter("gaussian_obstacle_minor", 0.1, k, i)
-				self.set_solver_parameter("gaussian_obstacle_risk", 0.05, k, i)
-				self.set_solver_parameter("gaussian_obstacle_r", 0.1, k, i)
+			for obstacle_id in range(data.dynamic_obstacles.size()):
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_x", self._dummy_x)
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_y", self._dummy_y)
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_major", 0.1)
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_minor", 0.1)
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_risk", 0.05)
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_r", 0.1)
 			return
 
 		if k == 1:
 			LOG_DEBUG("GaussianConstraints::set_parameters")
 
 		# Set obstacle parameters
-		for i in range(data.dynamic_obstacles.size()):
-			obstacle = data.dynamic_obstacles[i]
+		for obstacle_id in range(data.dynamic_obstacles.size()):
+			obstacle = data.dynamic_obstacles[obstacle_id]
 
 			if obstacle.prediction.type == GAUSSIAN:
 				# Set position parameters
-				self.set_solver_parameter(
-					"gaussian_obstacle_x",
-					obstacle.prediction.modes[0][k - 1].position[0],
-					k, i
-				)
-				self.set_solver_parameter(
-					"gaussian_obstacle_y",
-					obstacle.prediction.modes[0][k - 1].position[1],
-					k, i
-				)
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_x", obstacle.prediction.modes[0][k - 1].position[0])
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_y", obstacle.prediction.modes[0][k - 1].position[1])
 
 				if obstacle.type == DYNAMIC:
 					# Dynamic obstacles have uncertainty
-					self.set_solver_parameter(
-						"gaussian_obstacle_major",
-						obstacle.prediction.modes[0][k - 1].major_radius,
-						k, i
-					)
-					self.set_solver_parameter(
-						"gaussian_obstacle_minor",
-						obstacle.prediction.modes[0][k - 1].minor_radius,
-						k, i
-					)
+					parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_major", obstacle.prediction.modes[0][k - 1].major_radius)
+					parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_minor", obstacle.prediction.modes[0][k - 1].minor_radius)
 				else:
 					# Static obstacles have minimal uncertainty
-					self.set_solver_parameter("gaussian_obstacle_major", 0.001, k, i)
-					self.set_solver_parameter("gaussian_obstacle_minor", 0.001, k, i)
+					parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_major", 0.001)
+					parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_minor", 0.001)
 
 				# Set risk and radius parameters
-				self.set_solver_parameter(
-					"gaussian_obstacle_risk",
-					self.get_config_value("probabilistic.risk"),
-					k, i
-				)
-				self.set_solver_parameter(
-					"gaussian_obstacle_r",
-					self.get_config_value("obstacle_radius"),
-					k, i
-				)
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_risk", self.get_config_value("probabilistic.risk"))
+				parameter_manager.set(f"gaussian_obstacle_{obstacle_id}_r", self.get_config_value("obstacle_radius"))
 
 		if k == 1:
 			LOG_DEBUG("GaussianConstraints::set_parameters Done")
@@ -110,14 +89,14 @@ class GaussianConstraints(BaseConstraint):
 	def get_lower_bound(self):
 		lower_bound = []
 		for obs in range(0, self.max_obstacles):
-			for disc in range(0, self.n_discs):
+			for disc in range(0, self.num_discs):
 				lower_bound.append(0.0)
 		return lower_bound
 
 	def get_upper_bound(self):
 		upper_bound = []
 		for obs in range(0, self.max_obstacles):
-			for disc in range(0, self.n_discs):
+			for disc in range(0, self.num_discs):
 				upper_bound.append(np.Inf)
 		return upper_bound
 
@@ -148,7 +127,7 @@ class GaussianConstraints(BaseConstraint):
 			r_obstacle = params.get(f"gaussian_obst_{obs_id}_r")
 			combined_radius = r_vehicle + r_obstacle
 
-			for disc_it in range(self.n_discs):
+			for disc_it in range(self.num_discs):
 				# Get and compute the disc position
 				disc_x = params.get(f"ego_disc_{disc_it}_offset")
 				disc_relative_pos = np.array([disc_x, 0])
@@ -175,21 +154,22 @@ class GaussianConstraints(BaseConstraint):
 				constraints.append(a_ij.T @ cd.SX(diff_pos) - b_ij - y_erfinv * cd.sqrt(2.0 * a_ij.T @ Sigma @ a_ij))
 		return constraints
 
-	def is_data_ready(self, data, missing_data):
+	def is_data_ready(self, data):
+		missing_data = ""
 		if data.dynamic_obstacles.size() != self.get_config_value("max_obstacles"):
 			missing_data += "Obstacles "
-			return False
+
 
 		for i in range(data.dynamic_obstacles.size()):
 			if data.dynamic_obstacles[i].prediction.modes.empty():
 				missing_data += "Obstacle Prediction "
-				return False
+
 
 			if data.dynamic_obstacles[i].prediction.type != GAUSSIAN:
 				missing_data += "Obstacle Prediction (Type is not Gaussian) "
-				return False
 
-		return True
+
+		return len(missing_data) > 0
 
 	def visualize(self, data, module_data):
 		if not self.get_config_value("debug_visuals", CONFIG.get("debug_visuals", False)):

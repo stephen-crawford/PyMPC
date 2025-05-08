@@ -30,6 +30,7 @@ def read_config_file():
 def get_config_dotted(config, dotted_key, default=None):
     keys = dotted_key.split('.')
     value = config
+    print("Config is" + str(config))
     for key in keys:
         if isinstance(value, dict) and key in value:
             value = value[key]
