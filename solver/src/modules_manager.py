@@ -29,7 +29,7 @@ class ModuleManager:
         """Define all module parameters for the solver"""
         for module in self.modules:
             if hasattr(module, "define_parameters"):
-                module.define_parameters(params)
+                module.define_parameters(self, params)
 
     def objective(self, param, model, settings, stage_idx):
         """Calculate objective value from all objective modules"""

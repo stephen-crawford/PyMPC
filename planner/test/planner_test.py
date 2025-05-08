@@ -5,6 +5,7 @@ import time
 from planner.src.planner import Planner, PlannerOutput
 from planner.src.types import Trajectory
 from solver.src.base_solver import BaseSolver
+from solver.src.parameter_manager import ParameterManager
 from utils.const import OBJECTIVE, CONSTRAINT
 
 
@@ -34,10 +35,11 @@ class DummyModule:
 class DummyCasadiSolver(BaseSolver):
     def __init__(self):
         super().__init__()
-        self.dt = 0.1
-        self.N = 5
-        self.params = MagicMock()
-        self.params.solver_timeout = 0.1
+        self.timestep = 0.1
+        self.horizon = 5
+        self.params = ParameterManager()
+        self.params.add("solver_timeout")
+        self.params.set_parameter("solver_timeout", "10")
 
     def add(self): pass
     def reset(self): pass
@@ -57,18 +59,18 @@ class DummyCasadiSolver(BaseSolver):
     def set_initial_state(self, state):
         pass
 
-    def define_parameters(self, module_manager, params, settings):
+    def define_parameters(self, module_manager, parameter_manager):
 
         # Define parameters for objectives and constraints (in order)
         for module in module_manager.modules:
             if module.module_type == OBJECTIVE:
-                module.define_parameters(params)
+                module.define_parameters(module_manager, parameter_manager)
 
         for module in module_manager.modules:
             if module.module_type == CONSTRAINT:
-                module.define_parameters(params)
+                module.define_parameters(module_manager, parameter_manager)
 
-        return params
+        return parameter_manager
 
     def objective(self, z, p, model, settings, stage_idx):
         cost = 0.0

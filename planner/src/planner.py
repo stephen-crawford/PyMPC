@@ -5,7 +5,7 @@ from planner.src.types import *
 
 class Planner:
   def __init__(self, solver):
-    self.solver = solver  # Now accepts any solver instance
+    self.solver = solver
     self.benchmarkers = []
     self.experiment_manager = ExperimentManager()
 
@@ -18,16 +18,14 @@ class Planner:
 
   def solve_mpc(self, state, data):
     was_feasible = self.output.success if self.output else False
-    self.output = PlannerOutput(self.solver.dt, self.solver.N)
+    self.output = PlannerOutput(self.solver.timestep, self.solver.horizon)
     module_data = {}
 
     is_data_ready = all(module.is_data_ready(data) for module in self.solver.get_module_manager().get_modules())
-    print("Is data ready: {}".format(is_data_ready))
     if not is_data_ready:
       if self.experiment_manager.timer.has_finished():
         LOG_WARN("Data is not ready")
       self.output.success = False
-      print("Data is not ready")
       return self.output
 
     if self.was_reset:
@@ -57,12 +55,12 @@ class Planner:
     for module in self.solver.module_manager.get_modules():
       module.update(state, data, module_data)
 
-    for k in range(self.solver.N):
+    for k in range(self.solver.horizon):
       for module in self.solver.module_manager.get_modules():
         module.set_parameters(self.solver.params, data, module_data, k)
 
     self.warmstart = Trajectory()
-    for k in range(self.solver.N):
+    for k in range(self.solver.horizon):
       self.warmstart.add(self.solver.get_ego_prediction(k, "x"),
                          self.solver.get_ego_prediction(k, "y"))
     self.solver.load_warmstart()
@@ -79,7 +77,6 @@ class Planner:
         break
 
     if exit_flag == -1:
-      print("Gong to try to solve")
       exit_flag = self.solver.solve()
 
     planning_benchmarker.stop()
@@ -87,11 +84,10 @@ class Planner:
     if exit_flag != 1:
       self.output.success = False
       logger.warning(f"MPC failed: {self.solver.explain_exit_flag(exit_flag)}")
-      print("MPC failed")
       return self.output
 
     self.output.success = True
-    for k in range(1, self.solver.N):
+    for k in range(1, self.solver.horizon):
       self.output.trajectory.add(self.solver.get_output(k, "x"),
                                  self.solver.get_output(k, "y"))
 
@@ -99,7 +95,6 @@ class Planner:
       self.solver.print_if_bound_limited()
 
     logger.info("Planner::solveMPC done")
-    print("Planner::solveMPC done")
     return self.output
 
   def get_solution(self, mpc_step, var_name):

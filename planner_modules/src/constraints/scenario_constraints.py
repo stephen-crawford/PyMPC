@@ -1,3 +1,5 @@
+import copy
+
 from utils.const import DETERMINISTIC
 from utils.utils import LOG_DEBUG, read_config_file
 from datetime import datetime
@@ -22,7 +24,6 @@ class ScenarioConstraints(BaseConstraint):
 		self.use_slack = self.get_config_value("scenario.use_slack")
 		self.nh = self.num_constraints
 
-
 		# Create parallel solvers
 		parallel_solvers = self.get_config_value("scenario_constraints.parallel_solvers")
 		for i in range(parallel_solvers):
@@ -38,31 +39,29 @@ class ScenarioConstraints(BaseConstraint):
 			solver.scenario_module.update(data, module_data)
 
 	def optimize(self, state, data, module_data):
-		# Set OpenMP parameters for parallelization
-		self.set_openmp_params(nested=1, max_active_levels=2, dynamic=0)
-
 		# Initialize best solver search
 		lowest_cost = 1e9
-		self._best_solver = None
+		self.best_solver = None
 		for solver in self.scenario_solvers:
 
-			print(f"Checking solver: {solver}")
-			print(f"exit_code: {solver.exit_code}")
-			print(f"pobj: {solver.solver.info.pobj}")
-
-			if solver.exit_code == 1 and solver.solver.info.pobj < lowest_cost:
-				lowest_cost = solver.solver.info.pobj
-				self._best_solver = solver
+			if solver.exit_code == 1 and solver.info.pobj < lowest_cost:
+				lowest_cost = solver.info.pobj
+				self.best_solver = solver
 
 			# Set the planning timeout
 			used_time = (datetime.now() - data.planning_start_time).total_seconds()
-			solver.solver.params.solver_timeout = self.planning_time - used_time - 0.008
+			solver.params.solver_timeout = self.planning_time - used_time - 0.008
 
 			# Create a copy of the solver instead of just assigning the reference
-			# solver.solver = self.solver  # This line is causing the issue
+			if hasattr(self.solver, 'copy'):
+				# Use custom copy method if available
+				solver.solver = self.solver.copy()
+			else:
+				# Otherwise use a deep copy
+				solver.solver = copy.deepcopy(self.solver)
 
 			# Set the scenario constraint parameters for each solver
-			for k in range(solver.N):
+			for k in range(solver.horizon):
 				solver.scenario_module.set_parameters(data, k)
 
 			# Load the previous solution
@@ -71,27 +70,24 @@ class ScenarioConstraints(BaseConstraint):
 			# Run optimization (Safe Horizon MPC)
 			solver.exit_code = solver.scenario_module.optimize(data)
 
-		# Restore OpenMP dynamic scheduling
-		self.set_openmp_params(dynamic=1)
-
 		# Retrieve the lowest cost solution
 		lowest_cost = 1e9
-		self._best_solver = None
+		self.best_solver = None
 
 		for solver in self.scenario_solvers:
 			if solver.exit_code == 1 and solver.solver.info.pobj < lowest_cost:
 				lowest_cost = solver.solver.info.pobj
-				self._best_solver = solver
+				self.best_solver = solver
 
-		if self._best_solver is None:  # No feasible solution
+		if self.best_solver is None:  # No feasible solution
 			return self.scenario_solvers[0].exit_code
 
 		# Load the solution into the main lmpcc solver
-		self.solver.output = self._best_solver.solver.output
-		self.solver.info = self._best_solver.solver.info
-		self.solver.params = self._best_solver.solver.params
+		self.solver.output = self.best_solver.solver.output
+		self.solver.info = self.best_solver.solver.info
+		self.solver.params = self.best_solver.solver.params
 
-		return self._best_solver.exit_code
+		return self.best_solver.exit_code
 
 	def on_data_received(self, data, data_name):
 		LOG_DEBUG("ScenarioConstraints.on_data_received()")
@@ -109,39 +105,34 @@ class ScenarioConstraints(BaseConstraint):
 				# Draw different samples for all solvers in parallel
 				for solver in self.scenario_solvers:
 					solver.scenario_module.get_sampler().integrate_and_translate_to_mean_and_variance(
-						data.dynamic_obstacles, solver.dt
+						data.dynamic_obstacles, solver.timestep
 					)
 
-	def is_data_ready(self, data, missing_data):
-		required_fields = ["dynamic_obstacles"]
-		missing_fields = self.check_data_availability(data, required_fields)
-
-		if not self.report_missing_data(missing_fields, missing_data):
-			return False
-
+	def is_data_ready(self, data):
+		missing_data = ""
 		max_obstacles = self.get_config_value("max_obstacles")
 		if data.dynamic_obstacles.size() != max_obstacles:
 			missing_data += "Obstacles "
-			return False
+
 
 		for i in range(data.dynamic_obstacles.size()):
 			if data.dynamic_obstacles[i].prediction.empty():
 				missing_data += "Obstacle Prediction "
-				return False
+
 
 			if data.dynamic_obstacles[i].prediction.type == DETERMINISTIC:
 				missing_data += "Uncertain Predictions (scenario-based control cannot use deterministic predictions) "
-				return False
+
 
 		if not self.scenario_solvers[0].scenario_module.is_data_ready(data, missing_data):
 			return False
 
-		return True
+		return len(missing_data) < 1
 
 	def reset(self):
 		super().reset()
 		# Reset constraint-specific state
-		self._best_solver = None
+		self.best_solver = None
 
 		# Reset all scenario solvers
 		for solver in self.scenario_solvers:
@@ -149,6 +140,7 @@ class ScenarioConstraints(BaseConstraint):
 
 class ScenarioSolver:
 	def __init__(self, solver_id):
+		self.info = None
 		config = read_config_file()
 		self.solver = None
 		self.scenario_module = ScenarioModule()

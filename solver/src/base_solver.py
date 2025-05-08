@@ -12,6 +12,8 @@ class BaseSolver(ABC):
         self.parameter_manager = ParameterManager()  # Use the unified parameter manager
         self.module_manager = ModuleManager()
         # Register default parameters
+        self.define_parameters(module_manager=self.module_manager, parameter_manager=self.parameter_manager)
+        self.parameter_manager.add("solver_timeout")
         self.parameter_manager.set_parameter("solver_timeout", 0.1)
 
     def get_module_manager(self):
@@ -41,7 +43,7 @@ class BaseSolver(ABC):
         pass
 
     @staticmethod
-    def define_parameters(module_manager, parameter_manager, settings):
+    def define_parameters(module_manager, parameter_manager):
 
         # Define parameters for objectives and constraints (in order)
         for module in module_manager.modules:

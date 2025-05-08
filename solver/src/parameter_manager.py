@@ -21,7 +21,6 @@ class ParameterManager:
             rqt_min_value=0.0,
             rqt_max_value=100.0):
         """Add a parameter with given length and optional RQT settings."""
-
         if parameter in self.parameter_lookup:
             return
 
@@ -45,7 +44,7 @@ class ParameterManager:
     def set_parameter(self, key, value):
         """Set a parameter value (scalar or vector) in the flat array."""
         if self.parameter_values is None:
-            raise RuntimeError("Call `load()` first to initialize values.")
+            self.parameter_values = []
         if key not in self.parameter_lookup:
             raise KeyError(f"Parameter '{key}' not found.")
 
