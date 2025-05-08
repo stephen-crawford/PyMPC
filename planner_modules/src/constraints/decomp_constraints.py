@@ -3,7 +3,6 @@ import numpy as np
 
 from planner.src.types import State
 from utils.utils import LOG_DEBUG, PROFILE_SCOPE
-from utils.visualizer import ROSLine, ROSPointMarker
 from utils.utils import EllipsoidDecomp2D
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
@@ -58,7 +57,7 @@ class DecompConstraints(BaseConstraint):
 		path = []
 		s = state.get("spline")
 
-		for k in range(self.solver.N):
+		for k in range(self.solver.horizon):
 			# Global (reference) path
 			path_pos = module_data.path.get_point(s)
 			path.append(np.array([path_pos[0], path_pos[1]]))
@@ -75,7 +74,7 @@ class DecompConstraints(BaseConstraint):
 
 		max_decomp_constraints = 0
 
-		for k in range(self.solver.N - 1):
+		for k in range(self.solver.horizon - 1):
 			if k >= len(constraints) or constraints[k] is None:
 				continue
 

@@ -1,78 +1,60 @@
-name: "test"
 N: 30
-dt: 0.1
-integrator_step: 0.1
-n_discs: 1
-
-solver_settings:
-  solver: "casadi"
-
-params:
-  save_map: true
-
-recording:
-  enable: false
-  folder: "tests"
-  file: "planner_test_output"
-  timestamp: true
-  num_experiments: 5
-
-debug_limits: true
-debug_output: false
-
-enable_output: true
-control_frequency: 20
-deceleration_at_infeasible: 3.0
-max_obstacles: 3
-n_discs: 0.325
-robot:
-  length: 0.65
-  width: 0.65
-  com_to_back: 0.0
-obstacle_radius: 0.35
-
-linearized_constraints:
-  add_halfspaces: 0 #2  # For road constraints
-  max_constraints: 20
-  use_slack: true
-
-scenario_constraints:
-  parallelsolvers: 1
-
-road:
-  two_way: false
-  width: 7.0
-
-shift_previous_solution_forward: false
-
 contouring:
+  add_road_constraints: true
   dynamic_velocity_reference: false
   num_segments: 3
   preview: 0.0
-  add_road_constraints: true
-
-t-mpc:
-  use_t-mpc+=1: True
-  enable_constraints: true
-  highlight_selected: true
-  warmstart_with_mpc_solution: false
-
+control_frequency: 20
+debug_limits: true
+debug_output: false
+deceleration_at_infeasible: 3.0
+dt: 0.1
+enable_output: true
+integrator_step: 0.1
+linearized_constraints:
+  add_halfspaces: 0
+  max_constraints: 20
+  use_slack: true
+max_obstacles: 3
+n_discs: 0.325
+name: test
+obstacle_radius: 0.35
+params:
+  save_map: true
 probabilistic:
   enable: true
-  risk: 0.05
   propagate_uncertainty: true
-
-weights:
-  goal: 0.5
-  velocity: 0.3 
-  acceleration_x: 0.25 #0.15
-  acceleration_y: 0.25 #0.15
-  angular_velocity: 0.5 #0.25 
-  reference_velocity: 1.5 #2.0 
-  contour: 0.05 #0.01 #0.05
-  preview: 0.0
-  lag: 0.1
-  slack: 10000.
-
+  risk: 0.05
+recording:
+  enable: false
+  file: planner_test_output
+  folder: tests
+  num_experiments: 5
+  timestamp: true
+road:
+  two_way: false
+  width: 7.0
+road.width: 10.0
+scenario_constraints:
+  parallelsolvers: 1
+shift_previous_solution_forward: false
+solver_settings:
+  solver: casadi
+t-mpc:
+  enable_constraints: true
+  highlight_selected: true
+  use_t-mpc+=1: true
+  warmstart_with_mpc_solution: false
 visualization:
-  draw_every: 5 # stages
+  draw_every: 5
+weights:
+  acceleration_x: 0.25
+  acceleration_y: 0.25
+  angular_velocity: 0.5
+  contour: 0.05
+  goal: 0.5
+  lag: 0.1
+  preview: 0.0
+  reference_velocity: 1.5
+  slack: 10000.0
+  velocity: 0.3

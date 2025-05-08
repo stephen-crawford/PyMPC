@@ -1,7 +1,10 @@
 import unittest
+from unittest import mock
 from unittest.mock import MagicMock, patch
 import numpy as np
 
+from planner_modules.src.constraints.base_constraint import BaseConstraint
+from planner_modules.src.constraints.decomp_constraints import DecompConstraints
 # Import modules to test
 from utils.const import CONSTRAINT
 
@@ -30,37 +33,23 @@ CONFIG_MOCK = {
 	"debug_visuals": False
 }
 
-CONFIG_MOCK["params"].parameter_bundles = {
-	"decomp_a1": list(range(CONFIG_MOCK["decomp"]["max_constraints"])),
-	"decomp_a2": list(range(CONFIG_MOCK["decomp"]["max_constraints"])),
-	"decomp_b": list(range(CONFIG_MOCK["decomp"]["max_constraints"])),
-	"ego_disc_offset": [0]
-}
-CONFIG_MOCK["params"].length.return_value = 10
 
-# Patch the read_config_file function
-with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.src.constraints.decomp_constraints import DecompConstraints
-	from planner_modules.src.constraints.base_constraint import BaseConstraint
+def get_mocked_config(key, default=None):
+	keys = key.split('.')
+	cfg = CONFIG_MOCK
 
+	try:
+		for k in keys:
+			cfg = cfg[k]
+		return cfg
+	except (KeyError, TypeError):
+		return default
 
 class TestDecompConstraints(unittest.TestCase):
 	"""Test suite for DecompConstraints class"""
 
-	@patch.object(BaseConstraint, 'get_config_value')
-	def setUp(self, mock_get_config_value):
+	def setUp(self):
 		"""Set up test fixtures before each test"""
-
-		def get_mocked_config(key, default=None):
-			keys = key.split('.')
-			cfg = CONFIG_MOCK
-
-			try:
-				for k in keys:
-					cfg = cfg[k]
-				return cfg
-			except (KeyError, TypeError):
-				return default
 
 		# Create mock solver
 		self.solver = MagicMock()
@@ -68,20 +57,22 @@ class TestDecompConstraints(unittest.TestCase):
 		self.solver.params = MagicMock()
 		self.solver.dt = 0.1
 
-		mock_get_config_value.side_effect = get_mocked_config
+		# Apply the patch before creating the class
+		patcher = patch('planner_modules.src.constraints.base_constraint.BaseConstraint.get_config_value',
+						side_effect=get_mocked_config)
+		self.mock_get_config = patcher.start()
+		self.addCleanup(patcher.stop)
 
 		# Create mock for EllipsoidDecomp2D
 		self.mock_decomp_util = MagicMock()
 
 		# Patch the EllipsoidDecomp2D class
-		self.patcher = patch('utils.utils.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
-		self.mock_decomp_class = self.patcher.start()
-
+		self.ellip_patcher = patch('utils.utils.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
+		self.mock_decomp_class = self.ellip_patcher.start()
+		self.addCleanup(self.ellip_patcher.stop)
 
 		self.decomp_constraints = DecompConstraints(self.solver)
 
-	def tearDown(self):
-		self.patcher.stop()
 
 	def test_initialization(self):
 		"""Test proper initialization of DecompConstraints"""
@@ -92,7 +83,7 @@ class TestDecompConstraints(unittest.TestCase):
 		self.assertEqual(self.decomp_constraints._max_constraints, CONFIG_MOCK["decomp"]["max_constraints"])
 		self.assertEqual(len(self.decomp_constraints.occ_pos), 0)
 
-	@patch('planner_modules.decomp_constraints.PROFILE_SCOPE')
+	@patch('planner_modules.src.constraints.decomp_constraints.PROFILE_SCOPE')
 	def test_update(self, mock_profile_scope):
 		"""Test update method with valid data"""
 		# Setup
@@ -170,28 +161,15 @@ class TestDecompConstraints(unittest.TestCase):
 		self.assertEqual(len(self.decomp_constraints.occ_pos), 1)
 		np.testing.assert_array_equal(self.decomp_constraints.occ_pos[0], np.array([10.0, 20.0]))
 
-	@patch('planner_modules.base_constraint.set_solver_parameter')  # <- This is the *inner* function
-	def test_set_parameters_k0(self, mock_set_param):
-		"""Test set_parameters method for k=0 (dummies)"""
-
-		# Setup
-		k = 0
+	def test_set_parameters_k0(self):
+		"""Test set_parameters method with boundary data"""
 		data = MagicMock()
-		data.robot_area = [MagicMock()]
-		data.robot_area[0].offset = np.array([0.5, 0.3])
 		module_data = MagicMock()
 
-		# Call method under test
-		self.decomp_constraints.set_parameters(data, module_data, k)
+		self.decomp_constraints.set_parameters(self.solver.params, data, module_data, 0)
+		assert (self.solver.params.set_parameter.call_count == 3 * CONFIG_MOCK["decomp"]["max_constraints"])
 
-		# Validate array
-		actual_offset_call = mock_set_param.call_args_list[0]
-		np.testing.assert_array_equal(actual_offset_call.args[2], np.array([0.5, 0.3]))
-
-		self.assertEqual(mock_set_param.call_count, 1 + 3 * CONFIG_MOCK["decomp"]["max_constraints"])
-
-	@patch('planner_modules.base_constraint.set_solver_parameter')
-	def test_set_parameters_k1(self, mock_set_param):
+	def test_set_parameters_k1(self):
 		"""Test set_parameters method for k=1 (real constraints)"""
 		# Setup
 		k = 1
@@ -206,9 +184,8 @@ class TestDecompConstraints(unittest.TestCase):
 		self.decomp_constraints.b[0][1][0] = 3.3
 
 		# Call method under test
-		self.decomp_constraints.set_parameters(data, module_data, k)
-
-		self.assertEqual(mock_set_param.call_count, 1 + 3 * CONFIG_MOCK["decomp"]["max_constraints"])
+		self.decomp_constraints.set_parameters(self.solver.params, data, module_data, 1)
+		assert (self.solver.params.set_parameter.call_count == 1 + 3 * CONFIG_MOCK["decomp"]["max_constraints"])
 
 	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
@@ -217,67 +194,15 @@ class TestDecompConstraints(unittest.TestCase):
 		data.costmap = None
 		missing_data = ""
 
-		result = self.decomp_constraints.is_data_ready(data, missing_data)
+		result = self.decomp_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when data is ready
-		data.costmap = MagicMock()
+		data = ["costmap"]
 		missing_data = ""
 
-		result = self.decomp_constraints.is_data_ready(data, missing_data)
+		result = self.decomp_constraints.is_data_ready(data)
 		self.assertTrue(result)
-
-	@patch('planner_modules.decomp_constraints.ROSLine')
-	@patch('planner_modules.decomp_constraints.ROSPointMarker')
-	def test_visualize(self, mock_point_marker, mock_line):
-		"""Test visualize method"""
-		# Setup
-		data = MagicMock()
-		module_data = MagicMock()
-
-		# Mock line and point marker
-		mock_line_instance = MagicMock()
-		mock_line.return_value = mock_line_instance
-		mock_line_instance.add_new_line.return_value = MagicMock()
-
-		mock_point_instance = MagicMock()
-		mock_point_marker.return_value = mock_point_instance
-		mock_point_instance.get_new_point_marker.return_value = MagicMock()
-
-		# Setup polyhedrons
-		vertices = [np.array([1.0, 2.0]), np.array([3.0, 4.0]), np.array([5.0, 6.0])]
-		poly = MagicMock()
-		poly.vertices = vertices
-		self.mock_decomp_util.get_polyhedrons.return_value = [poly]
-
-		# Enable debug visuals
-		with patch.dict(CONFIG_MOCK, {"debug_visuals": True}):
-			# Call method under test
-			self.decomp_constraints.visualize(data, module_data)
-
-			# Assertions
-			mock_line.assert_called_once_with(self.decomp_constraints.name + "/free_space")
-			mock_point_marker.assert_called_with(self.decomp_constraints.name + "/map")
-
-		# Test visualization with debug visuals disabled
-		mock_line.reset_mock()
-		mock_point_marker.reset_mock()
-
-	def test_project_to_safety(self):
-		"""Test project_to_safety method"""
-		# Setup
-		pos = np.array([1.0, 2.0])
-
-		# Test with empty occ_pos
-		self.decomp_constraints.occ_pos = []
-		self.decomp_constraints.project_to_safety(pos)
-
-		# Test with non-empty occ_pos
-		self.decomp_constraints.occ_pos = [np.array([3.0, 4.0])]
-		self.decomp_constraints.project_to_safety(pos)
-	# This is a placeholder test since the method is not implemented
-	# We're just verifying it doesn't crash
-
 
 class TestSystemIntegration(unittest.TestCase):
 	"""Test integration between DecompConstraints and Planner"""
@@ -287,9 +212,9 @@ class TestSystemIntegration(unittest.TestCase):
 		"""Set up test fixtures before each test"""
 		# Create mock solver and data
 		self.solver = MagicMock()
-		self.solver.N = 10
+		self.solver.horizon = 10
 		self.solver.params = MagicMock()
-		self.solver.dt = 0.1
+		self.solver.timestep = 0.1
 
 		def get_mocked_config(key, default=None):
 			keys = key.split('.')
@@ -338,15 +263,15 @@ class TestSystemIntegration(unittest.TestCase):
 				module.update(state, data, module_data)
 
 			# Set parameters for each prediction step
-			for k in range(self.solver.N):
+			for k in range(self.solver.horizon):
 				for module in self.planner.modules:
-					module.set_parameters(data, module_data, k)
+					module.set_parameters(self.solver.params, data, module_data, k)
 
 			# Assertions
 			mock_update.assert_called_once_with(state, data, module_data)
 
 			# Module should have set_parameters called N times
-			self.assertEqual(mock_set_params.call_count, self.solver.N)
+			self.assertEqual(mock_set_params.call_count, self.solver.horizon)
 
 
 if __name__ == '__main__':

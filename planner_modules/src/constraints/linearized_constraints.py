@@ -19,6 +19,9 @@ class LinearizedConstraints(BaseConstraint):
 		self.nh = self.num_constraints
 		self.use_slack = self.get_config_value("linearized_constraints.use_slack")
 
+		if self.get_config_value("scenario_constraints.num_constraints"):
+			self.num_constraints = self.get_config_value("scenario_constraints.num_constraints")
+			self.use_slack = self.get_config_value("scenario_constraints.use_slack", True)
 
 		# Initialize arrays
 		self._a1 = [[[0 for _ in range(self.num_constraints)] for _ in range(self.get_config_value("horizon"))] for _ in
@@ -172,15 +175,15 @@ class LinearizedConstraints(BaseConstraint):
 			slack = 0.0
 
 		rotation_car = rotation_matrix(psi)
-		for disc_it in range(self.num_discs):
-			disc_x = params.get(f"ego_disc_{disc_it}_offset")
+		for disc_id in range(self.num_discs):
+			disc_x = params.get(f"ego_disc_{disc_id}_offset")
 			disc_relative_pos = np.array([disc_x, 0])
 			disc_pos = pos + rotation_car.dot(disc_relative_pos)
 
 			for index in range(self.max_obstacles):
-				a1 = params.get(self.constraint_name(index, disc_it) + "_a1")
-				a2 = params.get(self.constraint_name(index, disc_it) + "_a2")
-				b = params.get(self.constraint_name(index, disc_it) + "_b")
+				a1 = params.get(self.constraint_name(index, disc_id) + "_a1")
+				a2 = params.get(self.constraint_name(index, disc_id) + "_a2")
+				b = params.get(self.constraint_name(index, disc_id) + "_b")
 
 				constraints.append(a1 * disc_pos[0] + a2 * disc_pos[1] - (b + slack))
 

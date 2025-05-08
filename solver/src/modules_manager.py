@@ -135,7 +135,7 @@ class Module:
 
     def __init__(self):
         self.name = None
-        self.config = None
+        self.config = CONFIG
         self.module_type = None
         self.description = ""
 
@@ -182,7 +182,8 @@ class Module:
         pass
 
     def get_config_value(self, key, default=None):
-        res = self.config.get(key, CONFIG.get(f"{self.name}.{key}", default))
+        print("self.config " + str(self.config))
+        res = self.config.get(key, self.config.get(f"{self.name}.{key}", default))
         if res is None:
             res = get_config_dotted(self.config, key)
         return res

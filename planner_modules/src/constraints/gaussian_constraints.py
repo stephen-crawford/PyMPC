@@ -184,7 +184,7 @@ class GaussianConstraints(BaseConstraint):
 
 		for obstacle in data.dynamic_obstacles:
 			k = 1
-			while k < self.solver.N:
+			while k < self.solver.horizon:
 				if k - 1 >= len(obstacle.prediction.modes[0]):
 					break
 

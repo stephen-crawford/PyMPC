@@ -15,6 +15,12 @@ import yaml
 # Initialize logger
 logger = logging.getLogger(__name__)
 
+import os
+import yaml
+
+import os
+import yaml
+
 def read_config_file():
     print("Reading config file")
     config_path = os.path.join(os.path.dirname(__file__), "../../PyMPC/config/CONFIG.yml")
@@ -22,7 +28,7 @@ def read_config_file():
     with open(config_path, 'r') as file:
         try:
             return yaml.safe_load(file)
-        except yaml.ymlError as e:
+        except yaml.YAMLError as e:
             print(f"Error reading YAML file: {e}")
             return None
 
@@ -52,10 +58,11 @@ def write_to_config(key, value):
         return False
 
 def get_config_dotted(config, dotted_key, default=None):
+    print("Trying to parse dotted key from config")
     keys = dotted_key.split('.')
     value = config
-    print("Config is" + str(config))
     for key in keys:
+        print("Looking for " + str(key))
         if isinstance(value, dict) and key in value:
             value = value[key]
         else:
@@ -66,8 +73,8 @@ def get_config_dotted(config, dotted_key, default=None):
 
 
 CONFIG = read_config_file()
-SAVE_FOLDER = CONFIG["recording"]["folder"]
-SAVE_FILE = CONFIG["recording"]["file"]
+#SAVE_FOLDER = CONFIG["recording"]["folder"]
+#SAVE_FILE = CONFIG["recording"]["file"]
 
 MOCKED_CONFIG = {
     "max_obstacle_distance": 50.0,

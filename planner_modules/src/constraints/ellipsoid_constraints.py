@@ -47,24 +47,26 @@ class EllipsoidConstraints(BaseConstraint):
 			params.add(f"ellipsoid_obst_{obs_id}_r")
 
 	def set_parameters(self, parameter_manager, data, module_data, k):
+		print("num discs is", self.num_discs)
 		for d in range(self.num_discs):
+
 			# Set solver parameter for ego disc radius
-			parameter_manager.set(f"ego_disc{d}_radius", self.robot_radius)
+			parameter_manager.set_parameter(f"ego_disc_{d}_radius", self.robot_radius)
 
 			# Set solver parameter for ego disc offset
 			if hasattr(data, 'robot_area') and len(data.robot_area) > d:
-				parameter_manager.set(f"ego_disc{d}_offset", data.robot_area[d].offset)
+				parameter_manager.set_parameter(f"ego_disc_{d}_offset", data.robot_area[d].offset)
 
 		if k == 0:  # Dummies
 			# Set dummy values for obstacles at k=0
 			for i in range(data.dynamic_obstacles.size()):
-				parameter_manager.set(f"ellipsoid_obst_{i}_x", self._dummy_x)
-				parameter_manager.set(f"ellipsoid_obst_{i}_y", self._dummy_y)
-				parameter_manager.set(f"ellipsoid_obst_{i}_psi", 0.0)
-				parameter_manager.set(f"ellipsoid_obst_{i}_r", 0.1)
-				parameter_manager.set(f"ellipsoid_obst_{i}_major", 0.0)
-				parameter_manager.set(f"ellipsoid_obst_{i}_minor", 0.0)
-				parameter_manager.set(f"ellipsoid_obst_{i}_chi", 1.0)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_x", self._dummy_x)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_y", self._dummy_y)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_psi", 0.0)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_r", 0.1)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_major", 0.0)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_minor", 0.0)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_chi", 1.0)
 			return
 
 		if k == 1:
@@ -77,25 +79,25 @@ class EllipsoidConstraints(BaseConstraint):
 
 			# The first prediction step is index 1 of the optimization problem
 			# k-1 maps to the predictions for this stage
-			parameter_manager.set(f"ellipsoid_obst_{i}_x", mode[k - 1].position[0])
-			parameter_manager.set(f"ellipsoid_obst_{i}_y", mode[k - 1].position[1])
-			parameter_manager.set(f"ellipsoid_obst_{i}_psi", mode[k - 1].angle)
-			parameter_manager.set(f"ellipsoid_obst_{i}_r", obstacle.radius)
+			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_x", mode[k - 1].position[0])
+			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_y", mode[k - 1].position[1])
+			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_psi", mode[k - 1].angle)
+			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_r", obstacle.radius)
 
 			if obstacle.prediction.type == DETERMINISTIC:
 				# For deterministic obstacles, set zeros for uncertainty ellipse
-				parameter_manager.set(f"ellipsoid_obst_{i}_major", 0.0)
-				parameter_manager.set(f"ellipsoid_obst_{i}_minor", 0.0)
-				parameter_manager.set(f"ellipsoid_obst_{i}_chi", 1.0)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_major", 0.0)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_minor", 0.0)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_chi", 1.0)
 
 			elif obstacle.prediction.type == GAUSSIAN:
 				# Calculate chi-square quantile for desired risk level
 				chi = exponential_quantile(0.5, 1.0 - self.risk)
 
 				# Set uncertainty ellipse parameters
-				parameter_manager.set(f"ellipsoid_obst_{i}_major", mode[k - 1].major_radius)
-				parameter_manager.set(f"ellipsoid_obst_{i}_minor", mode[k - 1].minor_radius)
-				parameter_manager.set(f"ellipsoid_obst_{i}_chi", chi)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_major", mode[k - 1].major_radius)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_minor", mode[k - 1].minor_radius)
+				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_chi", chi)
 
 		if k == 1:
 			LOG_DEBUG("EllipsoidConstraints::set_parameters Done")
@@ -172,18 +174,16 @@ class EllipsoidConstraints(BaseConstraint):
 
 	def is_data_ready(self, data):
 		missing_data = ""
-
-		if data.dynamic_obstacles.size() != self.get_config_value("max_obstacles"):
+		if len(data.dynamic_obstacles) != self.get_config_value("max_obstacles"):
 			missing_data += "Obstacles "
 
 
-		for i in range(data.dynamic_obstacles.size()):
+		for i in range(len(data.dynamic_obstacles)):
 			if data.dynamic_obstacles[i].prediction.empty():
-				print("Found missing obstacle pred")
+				print("Found missing obstacle pred: " + str(data.dynamic_obstacles[i].prediction.empty()))
 
-
-			if (data.dynamic_obstacles[i].prediction.type != GAUSSIAN and
-					data.dynamic_obstacles[i].prediction.type != DETERMINISTIC):
+			if (not (data.dynamic_obstacles[i].prediction.type.equals(GAUSSIAN)) and
+					not (data.dynamic_obstacles[i].prediction.type.equals(DETERMINISTIC))):
 				missing_data += "Obstacle Prediction (Type is incorrect) "
 
 

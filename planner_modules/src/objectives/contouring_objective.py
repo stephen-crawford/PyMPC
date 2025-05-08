@@ -3,12 +3,11 @@ from planner_modules.src.objectives.base_objective import BaseObjective
 from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE, distance, haar_difference_without_abs, \
 	write_to_config
 
-CONFIG = read_config_file()
 
 class Contouring(BaseObjective):
 	def __init__(self, solver):
 		super().__init__(solver)
-
+		print("Contouring Objective intializing")
 		# Configuration options from CONFIG
 		self.num_segments = self.get_config_value("contouring.num_segments")
 		self.add_road_constraints = self.get_config_value("contouring.add_road_constraints")
@@ -205,7 +204,7 @@ class Contouring(BaseObjective):
 					self.spline.get_t_vector())
 
 				# update the road width
-				write_to_config("road.width", distance(self.bound_left.get_point(0), self.bound_right.get_point(0)))
+				#write_to_config("road.width", distance(self.bound_left.get_point(0), self.bound_right.get_point(0)))
 
 			self.closest_segment = 0
 

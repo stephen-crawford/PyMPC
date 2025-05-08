@@ -1,5 +1,6 @@
 import copy
 
+from planner_modules.src.constraints.linearized_constraints import LinearizedConstraints
 from utils.const import DETERMINISTIC
 from utils.utils import LOG_DEBUG, read_config_file
 from datetime import datetime
@@ -9,6 +10,7 @@ from planner_modules.src.constraints.base_constraint import BaseConstraint
 class ScenarioConstraints(BaseConstraint):
 	def __init__(self, solver):
 		super().__init__(solver)
+		self.constraints = []
 		self.name = "scenario_constraints"  # Override name from BaseConstraint
 
 		LOG_DEBUG("Initializing Scenario Constraints")
@@ -23,7 +25,8 @@ class ScenarioConstraints(BaseConstraint):
 		self.num_constraints = self.get_config_value("max_constraints") * self.num_discs
 		self.use_slack = self.get_config_value("scenario.use_slack")
 		self.nh = self.num_constraints
-
+		self.constraints.append(LinearizedConstraints(solver))
+		
 		# Create parallel solvers
 		parallel_solvers = self.get_config_value("scenario_constraints.parallel_solvers")
 		for i in range(parallel_solvers):
