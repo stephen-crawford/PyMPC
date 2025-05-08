@@ -6,6 +6,7 @@ CONFIG = read_config_file()
 class CurvatureAwareContouring(BaseObjective):
 
   def __init__(self, solver):
+    super().__init__(solver)
     self.solver = solver
     self.dynamic_velocity_reference = None
     self.contouring = Contouring(solver)
@@ -14,10 +15,10 @@ class CurvatureAwareContouring(BaseObjective):
 
     if k == 0:
 
-      contouring_weight = CONFIG["weights"]["contour"]
+      contouring_weight = self.get_config_value("weights.contour")
 
-      terminal_angle_weight = CONFIG["weights"]["terminal_angle"]
-      terminal_contouring_weight = CONFIG["weights"]["terminal_contouring"]
+      terminal_angle_weight = self.get_config_value("weights.terminal_angle")
+      terminal_contouring_weight = self.get_config_value("weights.terminal_contouring")
 
       if self.dynamic_velocity_reference:
         velocity_weight = CONFIG["weights"]["velocity"]

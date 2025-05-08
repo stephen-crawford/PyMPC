@@ -137,7 +137,7 @@ class DecompConstraints(BaseConstraint):
 			for d in range(self.n_discs):
 				# Set solver parameter for ego disc offset
 				if hasattr(data, 'robot_area') and len(data.robot_area) > d:
-					self.set_solver_parameter("ego_disc_offset", data.robot_area[d].offset, k, d)
+					parameter_manager.set_parameter(f"ego_disc_{d}_offset", data.robot_area[d].offset)
 
 				constraint_counter = 0
 				for i in range(self._max_constraints):
@@ -145,10 +145,9 @@ class DecompConstraints(BaseConstraint):
 					_dummy_a1 = 0.0
 					_dummy_a2 = 0.0
 					_dummy_b = 100.0  # Large dummy value
-
-					parameter_manager.add(f"decomp_a1{k}", _dummy_a1, k, constraint_counter)
-					self.set_solver_parameter("decomp_a2", _dummy_a2, k, constraint_counter)
-					self.set_solver_parameter("decomp_b", _dummy_b, k, constraint_counter)
+					parameter_manager.set_parameter(f"disc_{d}_decomp_{i}_a1", _dummy_a1)
+					parameter_manager.set_parameter(f"disc_{d}_decomp_{i}_a2", _dummy_a2)
+					parameter_manager.set_parameter(f"disc_{d}_decomp_{i}_b", _dummy_b)
 					constraint_counter += 1
 			return
 
@@ -159,12 +158,12 @@ class DecompConstraints(BaseConstraint):
 		for d in range(self.n_discs):
 			# Set solver parameter for ego disc offset
 			if hasattr(data, 'robot_area') and len(data.robot_area) > d:
-				self.set_solver_parameter("ego_disc_offset", data.robot_area[d].offset, k, d)
+				parameter_manager.set_parameter(f"ego_disc_{d}_offset", data.robot_area[d].offset)
 
 			for i in range(self._max_constraints):
-				self.set_solver_parameter("decomp_a1", self.a1[d][k][i], k, constraint_counter)
-				self.set_solver_parameter("decomp_a2", self.a2[d][k][i], k, constraint_counter)
-				self.set_solver_parameter("decomp_b", self.b[d][k][i], k, constraint_counter)
+				parameter_manager.set_parameter(f"disc_{d}_decomp_{i}_a1","decomp_a1", self.a1[d][k][i])
+				parameter_manager.set_parameter(f"disc_{d}_decomp_{i}_a2","decomp_a2", self.a2[d][k][i])
+				parameter_manager.set_parameter(f"disc_{d}_decomp_{i}_b", self.b[d][k][i])
 				constraint_counter += 1
 
 	def is_data_ready(self, data):

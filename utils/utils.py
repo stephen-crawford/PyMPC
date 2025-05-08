@@ -26,6 +26,30 @@ def read_config_file():
             print(f"Error reading YAML file: {e}")
             return None
 
+def write_to_config(key, value):
+    config_path = os.path.join(os.path.dirname(__file__), "../../PyMPC/config/CONFIG.yml")
+    config_path = os.path.abspath(config_path)
+
+    # Load current config
+    try:
+        with open(config_path, 'r') as file:
+            config_data = yaml.safe_load(file) or {}
+    except yaml.YAMLError as e:
+        print(f"Error reading YAML file: {e}")
+        return False
+
+    # Update config
+    config_data[key] = value
+
+    # Write updated config
+    try:
+        with open(config_path, 'w') as file:
+            yaml.dump(config_data, file, default_flow_style=False)
+        print(f"Updated {key} in config file.")
+        return True
+    except Exception as e:
+        print(f"Error writing to config file: {e}")
+        return False
 
 def get_config_dotted(config, dotted_key, default=None):
     keys = dotted_key.split('.')

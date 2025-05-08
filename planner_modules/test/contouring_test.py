@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -125,37 +126,15 @@ class TestContouringConstraints(unittest.TestCase):
         self.contouring_constraints.define_parameters(self.solver.params)
         assert(self.solver.params.add.call_count == 8 * self.contouring_constraints.num_segments)
 
-
     def test_set_parameters(self):
         """Test set_parameters method with boundary data"""
-        # Setup
-        k = 1
-        module_data = MagicMock()
-        module_data.current_path_segment = 0
-
-        # Create mock splines with proper methods
-        mock_x = np.linspace(0, 10, 10)
-        mock_y = np.sin(mock_x)
-        self.contouring_constraints.width_left = CubicSpline(mock_x, mock_y)
-        self.contouring_constraints.width_right = CubicSpline(mock_x, mock_y)
-
-        # Add custom attributes to match implementation
-        self.contouring_constraints.width_left.m_x_ = mock_x
-        self.contouring_constraints.width_right.m_x_ = mock_x
-
-        # Add custom method to get parameters
-        def mock_get_parameters(index, a, b, c, d):
-            return 1.0, 2.0, 3.0, 4.0 # Mock coefficients
-
-        self.contouring_constraints.width_left.get_parameters = mock_get_parameters
-        self.contouring_constraints.width_right.get_parameters = mock_get_parameters
-
-        # Call method under test
-        self.contouring_constraints.set_parameters(MagicMock(), None, module_data, k)
-
-        # Assertions - check that parameters were set for each segment
-        expected_calls = self.contouring_constraints.num_segments * 8  # 8 params per segment
-        self.assertEqual(mock_set_param.call_count, expected_calls)
+        self.contouring_constraints.width_right = mock.MagicMock()
+        self.contouring_constraints.width_left = mock.MagicMock()
+        self.contouring_constraints.width_right.m_x_ = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        self.contouring_constraints.width_right.get_parameters.return_value = [1, 2, 3, 4]
+        self.contouring_constraints.width_left.get_parameters.return_value = [1, 2, 3, 4]
+        self.contouring_constraints.set_parameters(self.solver.params, mock.MagicMock(), mock.MagicMock(), 1)
+        assert (self.solver.params.set_parameter.call_count ==  self.contouring_constraints.num_segments * 8 )
 
     def test_is_data_ready(self):
         """Test is_data_ready method"""
@@ -170,7 +149,7 @@ class TestContouringConstraints(unittest.TestCase):
         self.assertTrue(result)
 
 
-class TestContouring(unittest.TestCase):
+class TestContouringObjective(unittest.TestCase):
     """Test suite for Contouring class"""
 
     def setUp(self):
@@ -226,8 +205,7 @@ class TestContouring(unittest.TestCase):
         # Assertions - should not update state
         state.set.assert_not_called()
 
-    @patch('planner_modules.contouring.set_solver_parameter')
-    def test_set_parameters(self, mock_set_param):
+    def test_set_parameters(self):
         """Test set_parameters method"""
         # Setup mock spline
         mock_spline = MagicMock()
@@ -242,8 +220,8 @@ class TestContouring(unittest.TestCase):
         # Mock the set_spline_parameters method on the instance
         with patch.object(self.contouring, 'set_spline_parameters') as mock_set_spline_params:
             # Call method under test - first for k=0 then for k=1
-            self.contouring.set_parameters(MagicMock(), MagicMock(), 0)
-            self.contouring.set_parameters(MagicMock(), MagicMock(), 1)
+            self.contouring.set_parameters(MagicMock(), MagicMock(), MagicMock(), 0)
+            self.contouring.set_parameters(MagicMock(), MagicMock(), MagicMock(), 1)
 
             # Verify set_spline_parameters was called twice (once for k=0, once for k=1)
             self.assertEqual(mock_set_spline_params.call_count, 2)
@@ -258,7 +236,7 @@ class TestContouring(unittest.TestCase):
 
         # Setup mock for TwoDimensionalSpline
         mock_spline = MagicMock()
-        with patch('planner_modules.contouring.TwoDimensionalSpline', return_value=mock_spline):
+        with patch('planner_modules.src.objectives.contouring_objective.TwoDimensionalSpline', return_value=mock_spline):
             # Call method under test
             self.contouring.on_data_received(data, "reference_path")
 
@@ -282,7 +260,7 @@ class TestContouring(unittest.TestCase):
         mock_left_bound = MagicMock()
         mock_right_bound = MagicMock()
 
-        with patch('planner_modules.contouring.TwoDimensionalSpline') as mock_spline_class:
+        with patch('planner_modules.src.objectives.contouring_objective.TwoDimensionalSpline') as mock_spline_class:
             mock_spline_class.side_effect = [mock_spline, mock_left_bound, mock_right_bound]
 
             # Enable road constraints
@@ -303,38 +281,38 @@ class TestContouring(unittest.TestCase):
         data.reference_path.x.empty.return_value = True
         missing_data = ""
 
-        result = self.contouring.is_data_ready(data, missing_data)
+        result = self.contouring.is_data_ready(data)
         self.assertFalse(result)
         self.assertIn("", missing_data)
 
         # Test when data is ready
         data.reference_path.x.empty.return_value = False
-        missing_data = ""
 
-        result = self.contouring.is_data_ready(data, missing_data)
+        result = self.contouring.is_data_ready(data)
         self.assertTrue(result)
 
     def test_is_objective_reached(self):
         """Test is_objective_reached method"""
         # Setup state and spline
         state = MagicMock()
-        state.getPos.return_value = np.array([5.0, 5.0])
+        state.get_position.return_value = np.array([5.0, 5.0])
 
         mock_spline = MagicMock()
         mock_spline.parameter_length.return_value = 10.0
-        mock_spline.get_point.return_value = np.array([5.5, 5.5])  # Distance is 0.71
-
-        # Case 1: No spline
-        self.contouring.spline = None
-        self.assertFalse(self.contouring.is_objective_reached(state, MagicMock()))
-
-        # Case 2: Not close enough
-        self.contouring.spline = mock_spline
-        with patch('planner_modules.contouring.distance', return_value=1.5):
+          # Distance is 0.71
+        with patch.object(self.contouring, 'is_data_ready') as mock_is_data_ready:
+            mock_is_data_ready.return_value = True
+            # Case 1: No spline
+            self.contouring.spline = None
             self.assertFalse(self.contouring.is_objective_reached(state, MagicMock()))
 
-        # Case 3: Close enough
-        with patch('planner_modules.contouring.distance', return_value=0.5):
+            # Case 2: Not close enough
+            self.contouring.spline = mock_spline
+            mock_spline.get_point.return_value = np.array([10.5, 10.5])
+            self.assertFalse(self.contouring.is_objective_reached(state, MagicMock()))
+
+            # Case 3: Close enough
+            mock_spline.get_point.return_value = np.array([5.5, 5.5])
             self.assertTrue(self.contouring.is_objective_reached(state, MagicMock()))
 
     def test_construct_road_constraints_from_centerline(self):

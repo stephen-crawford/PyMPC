@@ -169,7 +169,7 @@ class GaussianConstraints(BaseConstraint):
 				missing_data += "Obstacle Prediction (Type is not Gaussian) "
 
 
-		return len(missing_data) > 0
+		return len(missing_data) < 1
 
 	def visualize(self, data, module_data):
 		if not self.get_config_value("debug_visuals", CONFIG.get("debug_visuals", False)):

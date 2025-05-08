@@ -1,6 +1,7 @@
 from planner.src.types import *
 from planner_modules.src.objectives.base_objective import BaseObjective
-from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE, distance, haar_difference_without_abs
+from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE, distance, haar_difference_without_abs, \
+	write_to_config
 
 CONFIG = read_config_file()
 
@@ -59,19 +60,19 @@ class Contouring(BaseObjective):
 		# Spline parameters
 		for i in range(self.num_segments):
 			# X-coordinates
-			params.add(f"spline_ax")
-			params.add(f"spline_bx")
-			params.add(f"spline_cx")
-			params.add(f"spline_dx")
+			params.add(f"spline_{i}_ax")
+			params.add(f"spline_{i}_bx")
+			params.add(f"spline_{i}_cx")
+			params.add(f"spline_{i}_dx")
 
 			# Y-coordinates
-			params.add(f"spline_ay")
-			params.add(f"spline_by")
-			params.add(f"spline_cy")
-			params.add(f"spline_dy")
+			params.add(f"spline_{i}-ay")
+			params.add(f"spline_{i}_by")
+			params.add(f"spline_{i}_cy")
+			params.add(f"spline_{i}_dy")
 
 			# Segment start
-			params.add(f"spline_start")
+			params.add(f"spline_{i}_start")
 
 		return params
 
@@ -79,28 +80,26 @@ class Contouring(BaseObjective):
 		print(f"set_parameters called with k={k}")
 		# Retrieve weights once
 		if k == 0:
-			contouring_weight = CONFIG["weights"]["contour"]
-			lag_weight = CONFIG["weights"]["lag"]
+			contouring_weight = self.get_config_value("weights.contour")
+			lag_weight = self.get_config_value("weights.lag")
 
-			terminal_angle_weight = CONFIG["weights"]["terminal_angle"]
-			terminal_contouring_weight = CONFIG["weights"]["terminal_contouring"]
+			terminal_angle_weight = self.get_config_value("weights.terminal_angle")
+			terminal_contouring_weight = self.get_config_value("weights.terminal_contouring")
 
 			if self.dynamic_velocity_reference:
-				reference_velocity_weight = CONFIG["weights"]["reference_velocity"]
-				velocity_weight = CONFIG["weights"]["velocity"]
-				parameter_manager.set_parameter("reference_velocity", reference_velocity_weight, k)
-				parameter_manager.set_parameter("velocity", velocity_weight, k)
+				reference_velocity_weight = self.get_config_value("weights.reference_velocity")
+				velocity_weight = self.get_config_value("weights.velocity")
+				parameter_manager.set_parameter("reference_velocity", reference_velocity_weight)
+				parameter_manager.set_parameter("velocity", velocity_weight)
 
-			parameter_manager.set_parameter("contour", contouring_weight, k)
-			parameter_manager.set_parameter("lag", lag_weight, k)
-			parameter_manager.set_parameter("terminal_angle", terminal_angle_weight, k)
-			parameter_manager.set_parameter("terminal_contouring", terminal_contouring_weight, k)
+			parameter_manager.set_parameter("contour", contouring_weight)
+			parameter_manager.set_parameter("lag", lag_weight)
+			parameter_manager.set_parameter("terminal_angle", terminal_angle_weight)
+			parameter_manager.set_parameter("terminal_contouring", terminal_contouring_weight)
 
-		print("Setting spline parameters")
 		self.set_spline_parameters(parameter_manager, k)
 
 	def set_spline_parameters(self, parameter_manager, k):
-		print("Now setting spline params")
 		if self.spline is None:
 			return
 
@@ -120,18 +119,18 @@ class Contouring(BaseObjective):
 			start = self.spline.get_segment_start(index)
 
 			# Set solver parameters for each spline coefficient
-			parameter_manager.set_parameter("spline_ax", ax, k, i)
-			parameter_manager.set_parameter("spline_bx", bx, k, i)
-			parameter_manager.set_parameter("spline_cx", cx, k, i)
-			parameter_manager.set_parameter("spline_dx", dx, k, i)
+			parameter_manager.set_parameter(f"spline_{i}_ax", ax)
+			parameter_manager.set_parameter(f"spline_{i}_bx", bx)
+			parameter_manager.set_parameter(f"spline_{i}_cx", cx)
+			parameter_manager.set_parameter(f"spline_{i}_dx", dx)
 
-			parameter_manager.set_parameter("spline_ay", ay, k, i)
-			parameter_manager.set_parameter("spline_by", by, k, i)
-			parameter_manager.set_parameter("spline_cy", cy, k, i)
-			parameter_manager.set_parameter("spline_dy", dy, k, i)
+			parameter_manager.set_parameter(f"spline_{i}_ay", ay)
+			parameter_manager.set_parameter(f"spline_{i}_by", by)
+			parameter_manager.set_parameter(f"spline_{i}_cy", cy)
+			parameter_manager.set_parameter(f"spline_{i}_dy", dy)
 
 			# Set solver parameter for spline segment start
-			parameter_manager.set_parameter("spline_start", start, k, i)
+			parameter_manager.set_parameter(f"spline_{i}_start", start)
 
 	def get_value(self, model, params, settings, stage_idx):
 		cost = 0
@@ -149,7 +148,6 @@ class Contouring(BaseObjective):
 		path = Spline2DAdapter(params, self.num_segments, s)
 		path_x, path_y = path.at(s)
 		path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)
-
 
 		contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
 		lag_error = path_dx_normalized * (pos_x - path_x) + path_dy_normalized * (pos_y - path_y)
@@ -169,7 +167,7 @@ class Contouring(BaseObjective):
 			cost += velocity_weight * (v - reference_velocity) ** 2
 
 		# Terminal cost
-		if True and stage_idx == settings["N"] - 1:
+		if True and stage_idx == settings["horizon"] - 1:
 			terminal_angle_weight = params.get("terminal_angle")
 			terminal_contouring_mp = params.get("terminal_contouring")
 
@@ -207,24 +205,27 @@ class Contouring(BaseObjective):
 					self.spline.get_t_vector())
 
 				# update the road width
-				CONFIG["road"]["width"] = distance(self.bound_left.get_point(0), self.bound_right.get_point(0))
+				write_to_config("road.width", distance(self.bound_left.get_point(0), self.bound_right.get_point(0)))
 
 			self.closest_segment = 0
 
-	def is_data_ready(self, data, missing_data):
+	def is_data_ready(self, data):
+		missing_data = ""
 		if data.reference_path.x.empty():
 			missing_data += "reference_path"
-			return False
-		return True, missing_data
+
+		return len(missing_data) < 1
 
 	def is_objective_reached(self, state, data):
-		missing_data = ""
-		is_ready, missing_data = self.is_data_ready(data, missing_data)
-		if missing_data or self.spline is None:
+		is_ready = self.is_data_ready(data)
+		if not is_ready:
+			LOG_DEBUG("Data not ready yet")
+			return False
+		if self.spline is None:
+			LOG_DEBUG("Spline not found")
 			return False
 
-		# Check if we reached the end of the spline
-		return distance(state.getPos(), self.spline.get_point(self.spline.parameter_length())) < 1.0
+		return distance(state.get_position(), self.spline.get_point(self.spline.parameter_length())) < 1.0
 
 	def construct_road_constraints(self, data, module_data):
 		LOG_DEBUG("Constructing road constraints.")
@@ -236,18 +237,15 @@ class Contouring(BaseObjective):
 
 	def construct_road_constraints_from_centerline(self, data, module_data):
 		# If bounds are not supplied construct road constraints based on a set width
-		print("Constructing road constraints from centerline")
 
 		if module_data.static_obstacles.empty():
-			print("Static obstacles empty")
-			module_data.static_obstacles.resize(self.solver.N)
+			module_data.static_obstacles.resize(self.solver.horizon)
 			for k in range(module_data.static_obstacles.size()):
 				module_data.static_obstacles[k].reserve(2)
 
 		# Get road width
-		road_width_half = CONFIG["road"]["width"] / 2.0
-		print("Static obstacles: " + str(module_data.static_obstacles))
-		for k in range(self.solver.N):
+		road_width_half = self.get_config_value("road.width") / 2.0
+		for k in range(self.solver.horizon):
 			module_data.static_obstacles[k].clear()
 
 			cur_s = self.solver.get_ego_prediction(k, "spline")
