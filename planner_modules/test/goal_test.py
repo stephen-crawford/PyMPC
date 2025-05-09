@@ -1,14 +1,12 @@
 import unittest
+from unittest.mock import MagicMock, patch
+
 import numpy as np
-from unittest.mock import MagicMock, patch, call, ANY
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
-from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
-# Import modules to test
-from utils.const import CONSTRAINT, GAUSSIAN, DETERMINISTIC
-from utils.visualizer import ROSLine
+from planner_modules.src.objectives.goal_objective import GoalObjective
+from utils.const import GAUSSIAN, DETERMINISTIC, OBJECTIVE
 
-# Manually patch CONFIG to avoid dependency issues in testing
 CONFIG_MOCK = {
 	"contouring": {
 		"num_segments": 10
@@ -21,9 +19,9 @@ CONFIG_MOCK = {
 		"risk": 0.05
 	},
 	"max_obstacles": 3,
-	"debug_visuals": False
+	"debug_visuals": False,
+	"goal_weight": 0.5
 }
-
 
 def get_mocked_config(key, default=None):
 	"""Static method to handle config mocking"""
@@ -37,39 +35,30 @@ def get_mocked_config(key, default=None):
 		return default
 
 
-class TestEllipsoidConstraints(unittest.TestCase):
+class TestGoalObjective(unittest.TestCase):
 	"""Test suite for EllipsoidConstraints class"""
 
 	def setUp(self):
+		"""Set up test fixtures before each test"""
+
+		patcher = patch('planner_modules.src.objectives.base_objective.BaseObjective.get_config_value',
+						side_effect=get_mocked_config)
+		self.mock_get_config = patcher.start()
+		self.addCleanup(patcher.stop)
+
 		"""Set up test fixtures before each test"""
 		# Create mock solver
 		self.solver = MagicMock()
 		self.solver.horizon = 10
 		self.solver.params = MagicMock()
-		self.solver.dt = 0.1
-
-		# Apply the patch before creating the class
-		patcher = patch('planner_modules.src.constraints.base_constraint.BaseConstraint.get_config_value',
-						side_effect=get_mocked_config)
-		self.mock_get_config = patcher.start()
-		self.addCleanup(patcher.stop)
-
-		# Create your class instance after the patch
-		self.ellipsoid_constraints = EllipsoidConstraints(self.solver)
-
-		# Add create_visualization_publisher mock
-		self.ellipsoid_constraints.create_visualization_publisher = MagicMock()
+		# Create instance of the class under test
+		self.goal_objective = GoalObjective(self.solver)
 
 	def test_initialization(self):
 		"""Test proper initialization of EllipsoidConstraints"""
-		self.assertEqual(self.ellipsoid_constraints.module_type, CONSTRAINT)
-		self.assertEqual(self.ellipsoid_constraints.name, "ellipsoid_constraints")
-		self.assertEqual(self.ellipsoid_constraints.num_segments, CONFIG_MOCK["contouring"]["num_segments"])
-		self.assertEqual(self.ellipsoid_constraints.num_discs, CONFIG_MOCK["num_discs"])
-		self.assertEqual(self.ellipsoid_constraints.robot_radius, CONFIG_MOCK["robot"]["radius"])
-		self.assertEqual(self.ellipsoid_constraints.risk, CONFIG_MOCK["probabilistic"]["risk"])
-		self.assertEqual(self.ellipsoid_constraints._dummy_x, 50.0)
-		self.assertEqual(self.ellipsoid_constraints._dummy_y, 50.0)
+		self.assertEqual(self.goal_objective.module_type, OBJECTIVE)
+		self.assertEqual(self.goal_objective.name, "goal_objective")
+		self.assertEqual(self.goal_objective.goal_weight, CONFIG_MOCK["goal_weight"])
 
 	def test_update(self):
 		"""Test update method with valid data"""
@@ -81,16 +70,12 @@ class TestEllipsoidConstraints(unittest.TestCase):
 		module_data = MagicMock()
 
 		# Call method under test
-		self.ellipsoid_constraints.update(state, data, module_data)
+		self.goal_objective.update(state, data, module_data)
 
-		# Assertions
-		self.assertEqual(self.ellipsoid_constraints._dummy_x, 60.0)  # 10.0 + 50.0
-		self.assertEqual(self.ellipsoid_constraints._dummy_y, 70.0)  # 20.0 + 50.0
 
 	def test_set_parameters_k0(self):
 		"""Test set_parameters method for k=0 (dummies)"""
 		# Setup
-		from unittest.mock import ANY  # Make sure to import ANY
 
 		k = 0
 		data = MagicMock()
@@ -104,12 +89,10 @@ class TestEllipsoidConstraints(unittest.TestCase):
 		module_data = MagicMock()
 
 		# Call method under test
-		self.ellipsoid_constraints.set_parameters(self.solver.params, data, module_data, 0)
-		assert (self.solver.params.set_parameter.call_count == 18)  # 2 radius + 2 offset + 7 params * 2 obstacles
+		self.goal_objective.set_parameters(self.solver.params, data, module_data, 0)
+		assert (self.solver.params.set_parameter.call_count == 3)
 
-
-	@patch('utils.utils.exponential_quantile')
-	def test_set_parameters_k1_deterministic(self, mock_exp_quantile):
+	def test_set_parameters_k1_deterministic(self):
 		"""Test set_parameters method for k=1 with deterministic obstacles"""
 		# Setup
 		k = 1
@@ -140,14 +123,13 @@ class TestEllipsoidConstraints(unittest.TestCase):
 
 		module_data = MagicMock()
 
-		# Call method under test
-		self.ellipsoid_constraints.set_parameters(self.solver.params, data, module_data, k)
-		self.assertEqual(self.solver.params.set_parameter.call_count, 11)
-		# Ensure exponential_quantile was not called for deterministic obstacles
-		mock_exp_quantile.assert_not_called()
+		module_data = MagicMock()
 
-	@patch('utils.utils.exponential_quantile')
-	def test_set_parameters_k1_gaussian(self, mock_exp_quantile):
+		# Call method under test
+		self.goal_objective.set_parameters(self.solver.params, data, module_data, 1)
+		assert (self.solver.params.set_parameter.call_count == 3)
+
+	def test_set_parameters_k1_gaussian(self):
 		"""Test set_parameters method for k=1 with gaussian obstacles"""
 		# Setup
 
@@ -182,14 +164,11 @@ class TestEllipsoidConstraints(unittest.TestCase):
 
 		module_data = MagicMock()
 
-		# Mock the return value for exponential_quantile
-		mock_exp_quantile.return_value = 3.0
+		module_data = MagicMock()
 
 		# Call method under test
-		self.ellipsoid_constraints.set_parameters(self.solver.params, data, module_data, k)
-		self.assertEqual(self.solver.params.set_parameter.call_count, 11)
-		# Ensure exponential_quantile was not called for deterministic obstacles
-		mock_exp_quantile.assert_not_called()
+		self.goal_objective.set_parameters(self.solver.params, data, module_data, 1)
+		assert (self.solver.params.set_parameter.call_count == 3)
 
 	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
@@ -201,7 +180,7 @@ class TestEllipsoidConstraints(unittest.TestCase):
 		dyn_obstacle.prediction.empty.return_value = False
 		data.dynamic_obstacles = [dyn_obstacle, dyn_obstacle, dyn_obstacle]
 
-		result = self.ellipsoid_constraints.is_data_ready(data)
+		result = self.goal_objective.is_data_ready(data)
 		self.assertTrue(result)
 
 class TestSystemIntegration(unittest.TestCase):
@@ -214,31 +193,24 @@ class TestSystemIntegration(unittest.TestCase):
 		self.solver.horizon = 10
 		self.solver.params = MagicMock()
 
-		# Patch get_config_value to use our CONFIG_MOCK
-		with patch.object(BaseConstraint, 'get_config_value') as mock_get_config_value:
-			def get_mocked_config(key, default=None):
-				keys = key.split('.')
-				cfg = CONFIG_MOCK
+		patcher = patch('planner_modules.src.objectives.base_objective.BaseObjective.get_config_value',
+						side_effect=get_mocked_config)
+		self.mock_get_config = patcher.start()
+		self.addCleanup(patcher.stop)
 
-				try:
-					for k in keys:
-						cfg = cfg[k]
-					return cfg
-				except (KeyError, TypeError):
-					return default
-
-			mock_get_config_value.side_effect = get_mocked_config
-
-			# Create instance of the class under test
-			from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
-			self.ellipsoid_constraints = EllipsoidConstraints(self.solver)
-
+		"""Set up test fixtures before each test"""
+		# Create mock solver
+		self.solver = MagicMock()
+		self.solver.horizon = 10
+		self.solver.params = MagicMock()
+		# Create instance of the class under test
+		self.goal_objective = GoalObjective(self.solver)
 		# Create mock planner
 		self.planner = MagicMock()
-		self.planner.modules = [self.ellipsoid_constraints]
+		self.planner.modules = [self.goal_objective]
 
 		# Add create_visualization_publisher mock
-		self.ellipsoid_constraints.create_visualization_publisher = MagicMock()
+		self.goal_objective.create_visualization_publisher = MagicMock()
 
 	@patch('utils.utils.LOG_DEBUG')
 	def test_planner_integration(self, mock_log_debug):
@@ -249,9 +221,9 @@ class TestSystemIntegration(unittest.TestCase):
 		module_data = MagicMock()
 
 		# Setup data ready mocks
-		with patch.object(self.ellipsoid_constraints, 'is_data_ready', return_value=True), \
-				patch.object(self.ellipsoid_constraints, 'update') as mock_update, \
-				patch.object(self.ellipsoid_constraints, 'set_parameters') as mock_set_params:
+		with patch.object(self.goal_objective, 'is_data_ready', return_value=True), \
+				patch.object(self.goal_objective, 'update') as mock_update, \
+				patch.object(self.goal_objective, 'set_parameters') as mock_set_params:
 
 			# Mock planner.solve_mpc similar to the actual implementation
 			# Update modules

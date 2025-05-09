@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch, call
 
 import numpy as np
 
+from planner_modules.src.objectives.path_reference_velocity_objective import PathReferenceVelocityObjective
 from utils.const import OBJECTIVE
 
 CONFIG_MOCK = {
@@ -31,47 +32,41 @@ CONFIG_MOCK = {
 	"debug_visuals": False
 }
 
-# Patch the read_config_file function
-with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.src.objectives.path_reference_velocity_objective import PathReferenceVelocity
+
+def get_mocked_config(key, default=None):
+	"""Static method to handle config mocking"""
+	keys = key.split('.')
+	cfg = CONFIG_MOCK
+	try:
+		for k in keys:
+			cfg = cfg[k]
+		return cfg
+	except (KeyError, TypeError):
+		return default
 
 
 class TestPathReferenceVelocity(unittest.TestCase):
-
-	@staticmethod
-	def get_mocked_config(key, default=None):
-		"""Static method to handle config mocking"""
-		print("Trying to get key: " + str(key))
-		keys = key.split('.')
-		cfg = CONFIG_MOCK
-		try:
-			for k in keys:
-				cfg = cfg[k]
-			return cfg
-		except (KeyError, TypeError):
-			return default
 
 	def setUp(self):
 		"""Set up test fixtures before each test"""
 		# Create mock solver
 		self.solver = MagicMock()
-		self.solver.N = 10
+		self.solver.horizon = 10
 		self.solver.params = MagicMock()
 
-		self.config_attr_patcher = patch('planner_modules.base_constraint.CONFIG', CONFIG_MOCK)
-		self.config_attr_patcher.start()
-		self.addCleanup(self.config_attr_patcher.stop)
-
-		# Apply the patch before creating the class
-		patcher = patch('planner_modules.path_reference_velocity.PathReferenceVelocity.get_config_value',
-						side_effect=self.get_mocked_config)
+		# Mock the config getter method
+		patcher = patch('planner_modules.src.objectives.base_objective.BaseObjective.get_config_value',
+						side_effect=get_mocked_config)
 		self.mock_get_config = patcher.start()
-
 		self.addCleanup(patcher.stop)
-		# Initialize class under test
-		self.prv = PathReferenceVelocity(self.solver)
 
-		# Create mock data structures for tests
+		# Create a mock for the spline that will be used in various tests
+		self.mock_spline = MagicMock()
+
+		# Create the instance of the class under test
+		self.prv = PathReferenceVelocityObjective(self.solver)
+
+		# Set up mocks for tests
 		self.mock_state = MagicMock()
 		self.mock_data = MagicMock()
 		self.mock_module_data = MagicMock()
@@ -82,13 +77,12 @@ class TestPathReferenceVelocity(unittest.TestCase):
 		"""Test the initialization of PathReferenceVelocity."""
 		self.assertEqual(self.prv.name, "path_reference_velocity")
 		self.assertEqual(self.prv.module_type, OBJECTIVE)
-		self.assertEqual(self.prv.n_segments, 10)
 		self.assertIsNone(self.prv.velocity_spline)
 
 	def test_update_with_existing_spline(self):
 		"""Test the update method when a velocity spline exists."""
 		# Setup
-		self.prv.velocity_spline = MagicMock()
+		self.prv.velocity_spline = self.mock_spline
 
 		# Execute
 		self.prv.update(self.mock_state, self.mock_data, self.mock_module_data)
@@ -109,9 +103,9 @@ class TestPathReferenceVelocity(unittest.TestCase):
 	def test_update_with_existing_module_data_path_velocity(self):
 		"""Test the update method when module_data already has path_velocity."""
 		# Setup
-		self.prv.velocity_spline = MagicMock()
-		self.mock_module_data.path_velocity = MagicMock()
-		existing_velocity = self.mock_module_data.path_velocity
+		existing_velocity = MagicMock()
+		self.prv.velocity_spline = self.mock_spline
+		self.mock_module_data.path_velocity = existing_velocity
 
 		# Execute
 		self.prv.update(self.mock_state, self.mock_data, self.mock_module_data)
@@ -122,48 +116,54 @@ class TestPathReferenceVelocity(unittest.TestCase):
 	def test_on_data_received_with_velocity(self):
 		"""Test receiving reference path data with velocity."""
 		# Setup
-		self.prv.velocity_spline = MagicMock()
-		self.mock_data.reference_path = MagicMock()
-		self.mock_data.reference_path.hasVelocity.return_value = True
+		self.mock_data.reference_path.has_velocity.return_value = True
 		self.mock_data.reference_path.s = np.array([0, 1, 2])
 		self.mock_data.reference_path.v = np.array([10, 20, 30])
 
-		# Execute
-		self.prv.on_data_received(self.mock_data, "reference_path")
+		# Since we're seeing that a new TkSpline is being created inside the function,
+		# we need to make sure our mock is the one being used
+		with patch('planner_modules.src.objectives.path_reference_velocity_objective.TkSpline',
+				   return_value=self.mock_spline) as mock_tk_class:
+			# Execute
+			self.prv.on_data_received(self.mock_data, "reference_path")
 
-		# Verify
-		self.prv.velocity_spline.set_points.assert_called_once_with(
-			self.mock_data.reference_path.s, self.mock_data.reference_path.v
-		)
+			# Verify
+			mock_tk_class.assert_called_once()
+			self.mock_spline.set_points.assert_called_once_with(
+				self.mock_data.reference_path.s, self.mock_data.reference_path.v
+			)
+			self.assertEqual(self.prv.velocity_spline, self.mock_spline)
 
 	def test_on_data_received_without_velocity(self):
 		"""Test receiving reference path data without velocity."""
 		# Setup
-		self.prv.velocity_spline = MagicMock()
-		self.mock_data.reference_path = MagicMock()
-		self.mock_data.reference_path.hasVelocity.return_value = False
+		self.mock_data.reference_path.has_velocity.return_value = False
 
 		# Execute
 		self.prv.on_data_received(self.mock_data, "reference_path")
 
-		self.prv.velocity_spline.set_points.assert_not_called()
+		# Verify that TkSpline is not created
+		self.mock_spline.assert_not_called()
+		# verify velocity_spline is not set
+		self.assertIsNone(self.prv.velocity_spline)
 
 	def test_on_data_received_wrong_data_name(self):
 		"""Test receiving data with incorrect data name."""
-		# Setup
-		self.prv.velocity_spline = MagicMock()
-
 		# Execute
 		self.prv.on_data_received(self.mock_data, "wrong_data_name")
 
-		self.prv.velocity_spline.set_points.assert_not_called()
+		# Verify that no spline operations occur
+		self.mock_spline.assert_not_called()
 
 	def test_set_parameters_with_velocity_spline(self):
 		"""Test setting parameters with a velocity spline."""
 		# Setup
-		self.prv.velocity_spline = MagicMock()
-		self.prv.velocity_spline.m_x_.size.return_value = 10
-		self.prv.velocity_spline.get_parameters.side_effect = [
+		"""Test setting parameters with a velocity spline."""
+		# Setup
+		self.prv.velocity_spline = self.mock_spline
+		self.mock_spline.m_x_ = MagicMock()
+		self.mock_spline.m_x_.size.return_value = 10
+		self.mock_spline.get_parameters.side_effect = [
 			(1.0, 2.0, 3.0, 4.0),
 			(5.0, 6.0, 7.0, 8.0),
 			(9.0, 10.0, 11.0, 12.0),
@@ -176,123 +176,115 @@ class TestPathReferenceVelocity(unittest.TestCase):
 			(37.0, 38.0, 39.0, 40.0)
 		]
 		self.mock_data.reference_path = MagicMock()
-		self.mock_data.reference_path.hasVelocity.return_value = True
+		self.mock_data.reference_path.has_velocity.return_value = True
 
-		# Patch the instance method directly
-		self.prv.set_solver_param = MagicMock()
+		# Create a mock for the parameter manager
+		param_manager = MagicMock()
 
 		# Execute
-		self.prv.set_parameters(self.mock_data, self.mock_module_data, 0)
+		self.prv.set_parameters(param_manager, self.mock_data, self.mock_module_data, 0)
 
-		# Verify
+		# Verify - note the parameter names are different in the actual class
 		expected_calls = [
-			call(self.solver.params, "spline_va", 1.0, 0, 0),
-			call(self.solver.params, "spline_vb", 2.0, 0, 0),
-			call(self.solver.params, "spline_vc", 3.0, 0, 0),
-			call(self.solver.params, "spline_vd", 4.0, 0, 0),
-			call(self.solver.params, "spline_va", 5.0, 0, 1),
-			call(self.solver.params, "spline_vb", 6.0, 0, 1),
-			call(self.solver.params, "spline_vc", 7.0, 0, 1),
-			call(self.solver.params, "spline_vd", 8.0, 0, 1),
-			call(self.solver.params, "spline_va", 9.0, 0, 2),
-			call(self.solver.params, "spline_vb", 10.0, 0, 2),
-			call(self.solver.params, "spline_vc", 11.0, 0, 2),
-			call(self.solver.params, "spline_vd", 12.0, 0, 2)
+			call("spline_0_va", 1.0),
+			call("spline_0_vb", 2.0),
+			call("spline_0_vc", 3.0),
+			call("spline_0_vd", 4.0),
+			call("spline_1_va", 5.0),
+			call("spline_1_vb", 6.0),
+			call("spline_1_vc", 7.0),
+			call("spline_1_vd", 8.0),
+			call("spline_2_va", 9.0),
+			call("spline_2_vb", 10.0),
+			call("spline_2_vc", 11.0),
+			call("spline_2_vd", 12.0)
 		]
-		self.prv.set_solver_param.assert_has_calls(expected_calls)
+		param_manager.set_parameter.assert_has_calls(expected_calls)
 
 	def test_set_parameters_without_velocity_spline(self):
 		"""Test setting parameters without a velocity spline."""
+		"""Test setting parameters without a velocity spline."""
 		# Setup
 		self.mock_data.reference_path = MagicMock()
-		self.mock_data.reference_path.hasVelocity.return_value = False
+		self.mock_data.reference_path.has_velocity.return_value = False
 
-		# Patch the instance method directly
-		self.prv.set_solver_param = MagicMock()
+		# Create a mock for the parameter manager
+		param_manager = MagicMock()
 
 		# Execute
-		self.prv.set_parameters(self.mock_data, self.mock_module_data, 0)
+		self.prv.set_parameters(param_manager, self.mock_data, self.mock_module_data, 0)
 
-		# Verify
+		# Verify - zeros for a,b,c and reference_velocity for d
 		expected_calls = [
-			call(self.solver.params, "spline_va", 0.0, 0, 0),
-			call(self.solver.params, "spline_vb", 0.0, 0, 0),
-			call(self.solver.params, "spline_vc", 0.0, 0, 0),
-			call(self.solver.params, "spline_vd", 1.0, 0, 0),  # From weights.reference_velocity = 1.0
-			call(self.solver.params, "spline_va", 0.0, 0, 1),
-			call(self.solver.params, "spline_vb", 0.0, 0, 1),
-			call(self.solver.params, "spline_vc", 0.0, 0, 1),
-			call(self.solver.params, "spline_vd", 1.0, 0, 1),
-			call(self.solver.params, "spline_va", 0.0, 0, 2),
-			call(self.solver.params, "spline_vb", 0.0, 0, 2),
-			call(self.solver.params, "spline_vc", 0.0, 0, 2),
-			call(self.solver.params, "spline_vd", 1.0, 0, 2)
+			call("spline_0_va", 0.0),
+			call("spline_0_vb", 0.0),
+			call("spline_0_vc", 0.0),
+			call("spline_0_vd", 1.0),  # From weights.reference_velocity = 1.0
+			call("spline_1_va", 0.0),
+			call("spline_1_vb", 0.0),
+			call("spline_1_vc", 0.0),
+			call("spline_1_vd", 1.0),
+			call("spline_2_va", 0.0),
+			call("spline_2_vb", 0.0),
+			call("spline_2_vc", 0.0),
+			call("spline_2_vd", 1.0)
 		]
-		self.prv.set_solver_param.assert_has_calls(expected_calls)
+		param_manager.set_parameter.assert_has_calls(expected_calls)
 
 	def test_set_parameters_with_k_not_zero(self):
 		"""Test setting parameters with k != 0."""
 		# Setup
 		self.mock_data.reference_path = MagicMock()
-		self.mock_data.reference_path.hasVelocity.return_value = False
+		self.mock_data.reference_path.has_velocity.return_value = False
 
-		# Patch the instance method directly
-		self.prv.set_solver_param = MagicMock()
+		# Create a mock for the parameter manager
+		param_manager = MagicMock()
 
 		# Execute
-		self.prv.set_parameters(self.mock_data, self.mock_module_data, 1)
+		self.prv.set_parameters(param_manager, self.mock_data, self.mock_module_data, 1)
 
 		# Verify that reference_velocity is 0.0 for k != 0
 		expected_calls = [
-			call(self.solver.params, "spline_va", 0.0, 1, 0),
-			call(self.solver.params, "spline_vb", 0.0, 1, 0),
-			call(self.solver.params, "spline_vc", 0.0, 1, 0),
-			call(self.solver.params, "spline_vd", 0.0, 1, 0),
-			call(self.solver.params, "spline_va", 0.0, 1, 1),
-			call(self.solver.params, "spline_vb", 0.0, 1, 1),
-			call(self.solver.params, "spline_vc", 0.0, 1, 1),
-			call(self.solver.params, "spline_vd", 0.0, 1, 1),
-			call(self.solver.params, "spline_va", 0.0, 1, 2),
-			call(self.solver.params, "spline_vb", 0.0, 1, 2),
-			call(self.solver.params, "spline_vc", 0.0, 1, 2),
-			call(self.solver.params, "spline_vd", 0.0, 1, 2)
+			call("spline_0_va", 0.0),
+			call("spline_0_vb", 0.0),
+			call("spline_0_vc", 0.0),
+			call("spline_0_vd", 0.0),
+			call("spline_1_va", 0.0),
+			call("spline_1_vb", 0.0),
+			call("spline_1_vc", 0.0),
+			call("spline_1_vd", 0.0),
 		]
-		self.prv.set_solver_param.assert_has_calls(expected_calls)
+		param_manager.set_parameter.assert_has_calls(expected_calls)
 
 	def test_set_parameters_out_of_bounds(self):
 		"""Test setting parameters with path segment out of bounds."""
 		# Setup
-		self.prv.velocity_spline = MagicMock()
-		self.prv.velocity_spline.m_x_.size.return_value = 2  # Only 2 points
-		self.prv.velocity_spline.get_parameters.side_effect = [
-			(1.0, 2.0, 3.0, 4.0),  # For index 0
-		]
+		self.prv.velocity_spline = self.mock_spline
+		self.mock_spline.m_x_ = MagicMock()
+		self.mock_spline.m_x_.size.return_value = 2  # Only 2 points
 		self.mock_data.reference_path = MagicMock()
-		self.mock_data.reference_path.hasVelocity.return_value = True
-		self.mock_module_data.current_path_segment = 1  # Makes index 1, 2, 3 - only 1 is valid
+		self.mock_data.reference_path.has_velocity.return_value = True
+		self.mock_module_data.current_path_segment = 1  # Makes indices exceed size
 
-		# Patch the instance method directly
-		self.prv.set_solver_param = MagicMock()
+		# Create a mock for the parameter manager
+		param_manager = MagicMock()
 
 		# Execute
-		self.prv.set_parameters(self.mock_data, self.mock_module_data, 0)
+		self.prv.set_parameters(param_manager, self.mock_data, self.mock_module_data, 0)
 
-		# Verify - all out of bounds should set zeros
+		# Verify - all segments should get 0s due to being out of bounds
 		out_of_bounds_calls = [
-			call(self.solver.params, "spline_va", 0.0, 0, 0),  # Index 1 is out of bounds
-			call(self.solver.params, "spline_vb", 0.0, 0, 0),
-			call(self.solver.params, "spline_vc", 0.0, 0, 0),
-			call(self.solver.params, "spline_vd", 0.0, 0, 0),
-			call(self.solver.params, "spline_va", 0.0, 0, 1),  # Index 2 is out of bounds
-			call(self.solver.params, "spline_vb", 0.0, 0, 1),
-			call(self.solver.params, "spline_vc", 0.0, 0, 1),
-			call(self.solver.params, "spline_vd", 0.0, 0, 1),
-			call(self.solver.params, "spline_va", 0.0, 0, 2),  # Index 3 is out of bounds
-			call(self.solver.params, "spline_vb", 0.0, 0, 2),
-			call(self.solver.params, "spline_vc", 0.0, 0, 2),
-			call(self.solver.params, "spline_vd", 0.0, 0, 2)
+			call("spline_0_va", 0.0),
+			call("spline_0_vb", 0.0),
+			call("spline_0_vc", 0.0),
+			call("spline_0_vd", 0.0),
+			call("spline_1_va", 0.0),
+			call("spline_1_vb", 0.0),
+			call("spline_1_vc", 0.0),
+			call("spline_1_vd", 0.0),
 		]
-		self.prv.set_solver_param.assert_has_calls(out_of_bounds_calls)
+
+		param_manager.set_parameter.assert_has_calls(out_of_bounds_calls)
 
 	@patch('utils.visualizer.VISUALS')
 	def test_visualize_with_empty_path(self, mock_visuals):

@@ -2,6 +2,7 @@ import numpy as np
 
 from planner.src.planner import Planner
 from planner_modules.src.constraints.base_constraint import BaseConstraint
+from utils.const import CONSTRAINT
 from utils.utils import LOG_DEBUG
 
 
@@ -10,22 +11,31 @@ class GuidanceConstraints(BaseConstraint):
         super().__init__(solver)
         LOG_DEBUG("Initializing Guidance Constraints")
         self.name = "guidance_constraints"
+        self.module_type = CONSTRAINT
 
         # Core configuration parameters
         self.planning_frequency = self.get_config_value("control_frequency")
         self.control_frequency = self.get_config_value("control_frequency")
         self.planning_time = 1. / self.control_frequency
         self.max_obstacles = self.get_config_value("max_obstacles")
-        self.num_other_halfspaces = self.get_config_value("guidance.n_other_halfspaces")
+        self.num_other_halfspaces = self.get_config_value("guidance.num_other_halfspaces")
         self.nh = self.max_obstacles + self.num_other_halfspaces
 
         # Guidance-specific parameters
         self.num_paths = self.get_config_value("num_paths", 1)
         self.longitudinal_goals = self.get_config_value("guidance.longitudinal_goals", 5)
         self.vertical_goals = self.get_config_value("guidance.vertical_goals", 5)
+        self.use_tmpc = self.get_config_value("use_tmpc", False)
 
-        # Create planner for trajectory generation
-        self.planner = self._create_guidance_planner()
+        # Initialize constraint dimensions
+        self.num_constraints = 2  # Position and velocity constraints
+
+        # Create planners for trajectory generation
+        self.planners = []
+        for path in range(self.num_paths):
+            self.planners.append(self._create_guidance_planner())
+        if self.use_tmpc:
+            self.planners.append(self._create_guidance_planner())
         self.best_planner_index = -1
 
         # Path and trajectory data
@@ -47,7 +57,7 @@ class GuidanceConstraints(BaseConstraint):
     def update(self, state, data, module_data):
         LOG_DEBUG("Guidance Constraints.update")
 
-        if module_data.path is None:
+        if not hasattr(module_data, 'path') or module_data.path is None:
             LOG_DEBUG("Path data not yet available")
             return
 
@@ -56,53 +66,64 @@ class GuidanceConstraints(BaseConstraint):
             halfspaces = []
             for i in range(len(module_data.static_obstacles[0])):
                 halfspaces.append((module_data.static_obstacles[0][i].A, module_data.static_obstacles[0][i].b))
-            self.planner.load_static_obstacles(halfspaces)
 
-        # Set up planner with current state
-        self.planner.set_start(state.get_pos(), state.get("psi"), state.get("v"))
+            for planner in self.planners:
+                planner.load_static_obstacles(halfspaces)
 
-        # Set reference velocity
-        if module_data.path_velocity is not None:
-            self.planner.set_reference_velocity(module_data.path_velocity(state.get("spline")))
-        else:
-            self.planner.set_reference_velocity(self.get_config_value("weights.reference_velocity"))
+        # Set up planners with current state
 
-        # Set goals for the guidance planner
-        self.set_goals(state, module_data)
+        for planner in self.planners:
+            planner.set_start(state.get_pos(), state.get("psi"), state.get("v"))
+
+            # Set reference velocity
+            if hasattr(module_data, 'path_velocity') and module_data.path_velocity is not None:
+                planner.set_reference_velocity(module_data.path_velocity(state.get("spline")))
+            else:
+                planner.set_reference_velocity(self.get_config_value("weights.reference_velocity"))
+
+            # Set goals for the guidance planner
+            self.set_goals(state, module_data, planner)
 
         # Set the width parameters if available
-        if module_data.path_width_left is not None and module_data.path_width_right is not None:
+        if hasattr(module_data, 'path_width_left') and module_data.path_width_left is not None and \
+                hasattr(module_data, 'path_width_right') and module_data.path_width_right is not None:
             self.width_left = module_data.path_width_left
             self.width_right = module_data.path_width_right
 
-        # Run the planner
+        # Run the planners
         LOG_DEBUG("Running Guidance Search")
-        self.planner.update()
+        for planner in self.planners:
+            planner.update()
 
         # Store trajectories
-        self.trajectories = [self.planner.get_guidance_trajectory(i)
-                             for i in range(self.planner.number_of_guidance_trajectories())]
+        self.trajectories = []
+        for planner in self.planners:
+            for trajectory in planner.trajectories:
+                self.trajectories.append(trajectory)
 
-    def set_goals(self, state, module_data):
+        # Find the best trajectory
+        self.optimize(state, data, module_data)
+
+    def set_goals(self, state, module_data, planner):
         LOG_DEBUG("Setting guidance planner goals")
 
         current_s = state.get("spline")
-        n_discs = self.get_config_value("n_discs", 0.1)
+        num_discs = self.get_config_value("num_discs", 0.1)
 
         # Handle case when path data is incomplete
-        if (module_data.path_velocity is None or
-                module_data.path_width_left is None or
-                module_data.path_width_right is None):
-            self.planner.load_reference_path(
+        if not hasattr(module_data, 'path_velocity') or module_data.path_velocity is None or \
+                not hasattr(module_data, 'path_width_left') or module_data.path_width_left is None or \
+                not hasattr(module_data, 'path_width_right') or module_data.path_width_right is None:
+            planner.load_reference_path(
                 max(0., state.get("spline")),
                 module_data.path,
-                self.get_config_value("road.width") / 2. - n_discs - 0.1,
-                self.get_config_value("road.width") / 2. - n_discs - 0.1)
+                self.get_config_value("road.width") / 2. - num_discs - 0.1,
+                self.get_config_value("road.width") / 2. - num_discs - 0.1)
             return
 
         # Calculate final position based on velocity
         final_s = current_s
-        for k in range(self.planner.horizon):
+        for k in range(planner.horizon):
             final_s += module_data.path_velocity(final_s) * self.solver.dt
 
         n_long = self.longitudinal_goals
@@ -130,8 +151,8 @@ class GuidanceConstraints(BaseConstraint):
 
             # Place goals orthogonally to the path
             dist_lat = np.linspace(
-                -module_data.path_width_left(s) + n_discs,
-                module_data.path_width_right(s) - n_discs,
+                -module_data.path_width_left(s) + num_discs,
+                module_data.path_width_right(s) - num_discs,
                 n_lat)
 
             # Put the middle goal on the reference path
@@ -150,15 +171,29 @@ class GuidanceConstraints(BaseConstraint):
                 # Create space-time point
                 result = [res[0], res[1]]  # x, y
 
-                if self.planner.space_time_point_num_states() == 3:
+                if planner.space_time_point_num_states() == 3:
                     result.append(angle)  # Add angle if needed
 
                 goals.append((result, long_cost + lat_cost))
 
-        self.planner.set_goals(goals)
+        planner.set_goals(goals)
 
-    def set_parameters(self, data, module_data, k):
+    def define_parameters(self, params):
+        """Define the parameters needed for guidance constraints"""
+        LOG_DEBUG("Defining guidance parameters")
+
+        # Define trajectory guidance parameters for each timestep
+        for k in range(self.solver.horizon):
+            params.add(f"guidance_x_{k}")
+            params.add(f"guidance_y_{k}")
+            params.add(f"guidance_vx_{k}")
+            params.add(f"guidance_vy_{k}")
+
+    def set_parameters(self, parameter_manager, data, module_data, k):
+        """Set parameter values for the solver"""
+        print("Setting guidance parameters")
         if k == 0:
+            print("k is 0 ")
             LOG_DEBUG("Setting guidance parameters")
 
             # If we have a selected trajectory, use it to set parameters
@@ -166,20 +201,29 @@ class GuidanceConstraints(BaseConstraint):
                 trajectory_spline = self.selected_trajectory.spline.get_trajectory()
 
                 # Set parameters based on the trajectory
-                for segment_idx in range(min(k + 1, self.solver.N)):
+                print("horizon is " + str(self.solver.horizon))
+                print("trajectories len is " + str(len(self.trajectories)))
+                for segment_idx in range(min(self.solver.horizon, len(self.trajectories))):
                     pos = trajectory_spline.get_point(segment_idx * self.solver.dt)
                     vel = trajectory_spline.get_velocity(segment_idx * self.solver.dt)
 
                     # Set position and velocity guidance parameters for this timestep
-                    self.solver.set_parameter(f"guidance_x_{segment_idx}", pos[0])
-                    self.solver.set_parameter(f"guidance_y_{segment_idx}", pos[1])
-                    self.solver.set_parameter(f"guidance_vx_{segment_idx}", vel[0])
-                    self.solver.set_parameter(f"guidance_vy_{segment_idx}", vel[1])
+                    parameter_manager.set_parameter(f"guidance_x_{segment_idx}", pos[0])
+                    parameter_manager.set_parameter(f"guidance_y_{segment_idx}", pos[1])
+                    parameter_manager.set_parameter(f"guidance_vx_{segment_idx}", vel[0])
+                    parameter_manager.set_parameter(f"guidance_vy_{segment_idx}", vel[1])
 
     def optimize(self, state, data, module_data):
         LOG_DEBUG("Guidance Constraints.optimize")
 
-        if not self.planner.succeeded():
+        # Check if planners have successful solutions
+        all_successful = True
+        for planner in self.planners:
+            if not planner.succeeded():
+                all_successful = False
+
+        if not all_successful or not self.trajectories:
+            LOG_DEBUG("No successful trajectories found")
             return 0
 
         # Find the best trajectory based on cost
@@ -195,7 +239,8 @@ class GuidanceConstraints(BaseConstraint):
 
         if best_traj_index >= 0:
             self.selected_trajectory = self.trajectories[best_traj_index]
-            self.planner.override_selected_trajectory(best_traj_index)
+            self.best_planner_index = best_traj_index
+            LOG_DEBUG(f"Selected trajectory {best_traj_index} with cost {best_cost}")
             return 1
 
         return 0
@@ -208,10 +253,13 @@ class GuidanceConstraints(BaseConstraint):
         # Basic cost is the stored cost
         cost = trajectory.cost if hasattr(trajectory, 'cost') else 0
 
+        print("basic cost is " + str(cost))
         # Add distance to current position
+
         current_pos = np.array(state.get_pos())
         start_pos = np.array(traj_spline.get_point(0))
         cost += np.linalg.norm(current_pos - start_pos) * 0.5
+        print("cost plus norm is ", cost)
 
         # Prefer previously selected trajectory for consistency
         if hasattr(trajectory, 'previously_selected') and trajectory.previously_selected:
@@ -219,30 +267,22 @@ class GuidanceConstraints(BaseConstraint):
 
         return cost
 
-    def define_parameters(self, params):
-        """Define the parameters needed for guidance constraints"""
-        # Define trajectory guidance parameters for each timestep
-        for k in range(self.solver.N):
-            params.add(f"guidance_x_{k}")
-            params.add(f"guidance_y_{k}")
-            params.add(f"guidance_vx_{k}")
-            params.add(f"guidance_vy_{k}")
-
-    def get_lower_bound(self):
+    def lower_bounds(self):
         """Return lower bounds for the constraints"""
         # Return soft guidance constraint bounds
-        return [-float('inf'), -float('inf')]
+        return [-float('inf'), -float('inf')]  # Position and velocity constraints
 
-    def get_upper_bound(self):
+    def upper_bounds(self):
         """Return upper bounds for the constraints"""
         # Return soft guidance constraint bounds
-        return [0.0, 0.0]
+        return [0.0, 0.0]  # Position and velocity constraints
 
-    def get_constraints(self, model, params, settings, stage_idx):
+    def calculate_constraints(self, params, settings, stage_idx):
         """Define the guidance constraints for the optimization model"""
         constraints = []
 
-        # Get state variables
+        # Get state variables from the model
+        model = settings.model
         pos_x = model.get("x")
         pos_y = model.get("y")
         vel_x = model.get("vx") if "vx" in model.vars else model.get("v") * np.cos(model.get("psi"))
@@ -281,16 +321,16 @@ class GuidanceConstraints(BaseConstraint):
 
         return constraints
 
-    def is_data_ready(self, data, missing_data):
+    def is_data_ready(self, data):
         """Check if all required data is available"""
-        ready = True
+
+        missing_data = ""
 
         # Check for required data fields
         if not hasattr(data, 'path') or data.path is None:
-            missing_data.append("path")
-            ready = False
+            missing_data += "path"
 
-        return ready
+        return len(missing_data) < 1
 
     def on_data_received(self, data, data_name):
         """Handle incoming data"""
@@ -310,12 +350,14 @@ class GuidanceConstraints(BaseConstraint):
                     obstacle.radius + data.robot_area[0].radius
                 ))
 
-            self.planner.load_obstacles(obstacles)
+            for planner in self.planners:
+                planner.load_obstacles(obstacles)
 
     def reset(self):
         """Reset the guidance constraints"""
         super().reset()
-        self.planner.reset()
+        for planner in self.planners:
+            planner.reset()
         self.trajectories = []
         self.selected_trajectory = None
 
@@ -324,7 +366,7 @@ class GuidancePlanner(Planner):
     def __init__(self, solver):
         """Initialize the guidance planner with default parameters"""
         super().__init__(solver)
-        self.success = False
+        self._success = False
         self._planning_frequency = 10.0  # Hz
         self._dt = 1.0 / self._planning_frequency
 
@@ -338,7 +380,7 @@ class GuidancePlanner(Planner):
         self.reference_path = None
         self.start_s = 0.0
         self.width_left = 0.0
-        self.width_right  = 0.0
+        self.width_right = 0.0
         self.static_obstacles = []
         self.dynamic_obstacles = []
 
@@ -348,7 +390,7 @@ class GuidancePlanner(Planner):
         self.selected_trajectory_id = -1
 
         # Configuration
-        self.horizon = solver.N if hasattr(solver, 'N') else 10
+        self.horizon = solver.horizon if hasattr(solver, 'horizon') else 10
         self.longitudinal_goals = 5
         self.vertical_goals = 5
 
@@ -381,7 +423,7 @@ class GuidancePlanner(Planner):
         self.reference_path = path
         self.start_s = start_s
         self.width_left = width_left
-        self.width_right  = width_right
+        self.width_right = width_right
 
     def update(self):
         """Main update function to generate trajectories"""
@@ -390,14 +432,14 @@ class GuidancePlanner(Planner):
 
         if len(self.goals) == 0:
             LOG_DEBUG("No goals set, cannot update guidance")
-            self.success = False
+            self._success = False
             return
 
         # Plan trajectories to reach goals
         self.generate_trajectories()
 
         # Mark planning as successful if we have trajectories
-        self.success = len(self.trajectories) > 0
+        self._success = len(self.trajectories) > 0
 
     def generate_trajectories(self):
         """Generate trajectories to reach goals"""
@@ -460,7 +502,7 @@ class GuidancePlanner(Planner):
 
     def succeeded(self):
         """Return whether the guidance planning succeeded"""
-        return getattr(self, '_success', False)
+        return self._success
 
     def number_of_guidance_trajectories(self):
         """Return the number of available guidance trajectories"""
@@ -498,5 +540,5 @@ class GuidancePlanner(Planner):
         """Reset the guidance planner"""
         self.trajectories = []
         self.selected_trajectory_id = -1
-        self.success = False
+        self._success = False
         self.goals = []

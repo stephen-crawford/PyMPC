@@ -417,6 +417,7 @@ class TkSpline:
 
     def __init__(self):
         """Initialize spline with default parameters."""
+        print("Creating tk spline")
         self.m_x = []
         self.m_y = []
         self.m_x_ = []  # Copy of x coordinates as in original code

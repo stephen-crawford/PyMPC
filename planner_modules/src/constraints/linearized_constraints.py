@@ -195,30 +195,30 @@ class LinearizedConstraints(BaseConstraint):
 		if k == 0:
 			for disc_id in range(self.num_discs):
 				for i in range(self.max_obstacles + self.num_other_halfspaces):
-					parameter_manager.set(self.constraint_name(i, disc_id) + "_a1", self._dummy_a1)
-					parameter_manager.set(self.constraint_name(i, disc_id) + "_a2", self._dummy_a2)
-					parameter_manager.set(self.constraint_name(i, disc_id) + "_b", self._dummy_b)
+					parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_a1", self._dummy_a1)
+					parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_a2", self._dummy_a2)
+					parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_b", self._dummy_b)
 					constraint_counter += 1
 			return
 
 		for disc_id in range(self.num_discs):
 
 			if not self.use_guidance:
-				parameter_manager.set(f"ego_disc_{disc_id}_offset", data.robot_area[disc_id].offset)
+				parameter_manager.set_parameter(f"ego_disc_{disc_id}_offset", data.robot_area[disc_id].offset)
 
 			# Set actual constraints
 			for i in range(data.dynamic_obstacles.size() + self.num_other_halfspaces):
-				parameter_manager.set(self.constraint_name(i, disc_id) + "_a1", self._a1[disc_id][k][i])
-				parameter_manager.set(self.constraint_name(i, disc_id) + "_a2", self._a2[disc_id][k][i])
-				parameter_manager.set(self.constraint_name(i, disc_id) + "_b", self._b[disc_id][k][i])
+				parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_a1", self._a1[disc_id][k][i])
+				parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_a2", self._a2[disc_id][k][i])
+				parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_b", self._b[disc_id][k][i])
 				constraint_counter += 1
 
 			# Set dummy constraints for remaining slots
 			for i in range(data.dynamic_obstacles.size() + self.num_other_halfspaces,
 						   self.max_obstacles + self.num_other_halfspaces):
-				parameter_manager.set(self.constraint_name(i, disc_id) + "_a1", self._dummy_a1)
-				parameter_manager.set(self.constraint_name(i, disc_id) + "_a2", self._dummy_a2)
-				parameter_manager.set(self.constraint_name(i, disc_id) + "_b", self._dummy_b)
+				parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_a1", self._dummy_a1)
+				parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_a2", self._dummy_a2)
+				parameter_manager.set_parameter(self.constraint_name(i, disc_id) + "_b", self._dummy_b)
 				constraint_counter += 1
 
 	def is_data_ready(self, data):

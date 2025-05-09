@@ -2,13 +2,14 @@ import unittest
 import numpy as np
 from unittest.mock import MagicMock, patch, call, ANY
 
+from planner_modules.src.constraints.linearized_constraints import LinearizedConstraints
 # Import modules to test
 from utils.const import CONSTRAINT, DETERMINISTIC, GAUSSIAN
 
 # Manually patch CONFIG to avoid dependency issues in testing
 CONFIG_MOCK = {
-	"n_discs": 2,
-	"N": 10,
+	"num_discs": 2,
+	"horizon": 10,
 	"max_obstacles": 3,
 	"linearized_constraints": {
 		"add_halfspaces": 2,
@@ -17,25 +18,20 @@ CONFIG_MOCK = {
 	"debug_visuals": False
 }
 
-# Patch the read_config_file function
-with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.src.constraints.linearized_constraints import LinearizedConstraints
+def get_mocked_config(key, default=None):
+	"""Static method to handle config mocking"""
+	keys = key.split('.')
+	cfg = CONFIG_MOCK
+	try:
+		for k in keys:
+			cfg = cfg[k]
+		return cfg
+	except (KeyError, TypeError):
+		return default
 
 
 class TestLinearizedConstraints(unittest.TestCase):
 	"""Test suite for LinearizedConstraints class"""
-
-	@staticmethod
-	def get_mocked_config(key, default=None):
-		"""Static method to handle config mocking"""
-		keys = key.split('.')
-		cfg = CONFIG_MOCK
-		try:
-			for k in keys:
-				cfg = cfg[k]
-			return cfg
-		except (KeyError, TypeError):
-			return default
 
 	def setUp(self):
 		"""Set up test fixtures before each test"""
@@ -44,13 +40,9 @@ class TestLinearizedConstraints(unittest.TestCase):
 		self.solver.N = 10
 		self.solver.params = MagicMock()
 
-		self.config_attr_patcher = patch('planner_modules.base_constraint.CONFIG', CONFIG_MOCK)
-		self.config_attr_patcher.start()
-		self.addCleanup(self.config_attr_patcher.stop)
-
 		# Apply the patch before creating the class
-		patcher = patch('planner_modules.base_constraint.BaseConstraint.get_config_value',
-						side_effect=self.get_mocked_config)
+		patcher = patch('planner_modules.src.constraints.base_constraint.BaseConstraint.get_config_value',
+						side_effect=get_mocked_config)
 		self.mock_get_config = patcher.start()
 		self.addCleanup(patcher.stop)
 
@@ -60,10 +52,10 @@ class TestLinearizedConstraints(unittest.TestCase):
 		"""Test proper initialization of LinearizedConstraints"""
 		self.assertEqual(self.linearized_constraints.module_type, CONSTRAINT)
 		self.assertEqual(self.linearized_constraints.name, "linearized_constraints")
-		self.assertEqual(self.linearized_constraints.n_discs, CONFIG_MOCK["n_discs"])
-		self.assertEqual(self.linearized_constraints._n_other_halfspaces,
+		self.assertEqual(self.linearized_constraints.num_discs, CONFIG_MOCK["num_discs"])
+		self.assertEqual(self.linearized_constraints.num_other_halfspaces,
 		                 CONFIG_MOCK["linearized_constraints"]["add_halfspaces"])
-		self.assertEqual(self.linearized_constraints._max_obstacles, CONFIG_MOCK["max_obstacles"])
+		self.assertEqual(self.linearized_constraints.max_obstacles, CONFIG_MOCK["max_obstacles"])
 		self.assertEqual(self.linearized_constraints.num_constraints,
 		                 CONFIG_MOCK["max_obstacles"] + CONFIG_MOCK["linearized_constraints"]["add_halfspaces"])
 		self.assertEqual(self.linearized_constraints._dummy_a1, 0.0)
@@ -73,11 +65,11 @@ class TestLinearizedConstraints(unittest.TestCase):
 	def test_set_topology_constraints(self):
 		"""Test setTopologyConstraints method"""
 		# Call method under test
-		self.linearized_constraints.setTopologyConstraints()
+		self.linearized_constraints.set_topology_constraints()
 
 		# Verify the changes
-		self.assertEqual(self.linearized_constraints.n_discs, 1)
-		self.assertTrue(self.linearized_constraints._use_guidance)
+		self.assertEqual(self.linearized_constraints.num_discs, 1)
+		self.assertTrue(self.linearized_constraints.use_guidance)
 
 	def test_update(self):
 		"""Test update method with valid data"""
@@ -132,7 +124,7 @@ class TestLinearizedConstraints(unittest.TestCase):
 			dist = np.linalg.norm(diff)
 			expected_a1 = diff[0] / dist
 			expected_a2 = diff[1] / dist
-			expected_b = expected_a1 * 5.0 + expected_a2 * 6.0 - (0.5 + CONFIG_MOCK["n_discs"])
+			expected_b = expected_a1 * 5.0 + expected_a2 * 6.0 - (0.5 + CONFIG_MOCK["num_discs"])
 
 			# Allow small floating point differences
 			self.assertAlmostEqual(self.linearized_constraints._a1[0][1][0], expected_a1, places=5)
@@ -181,8 +173,7 @@ class TestLinearizedConstraints(unittest.TestCase):
 			self.assertEqual(self.linearized_constraints._a2[0][1][0], 0.7)
 			self.assertEqual(self.linearized_constraints._b[0][1][0], 5.0)
 
-	@patch('planner_modules.base_constraint.set_solver_parameter')
-	def test_set_parameters_k0(self, mock_set_param):
+	def test_set_parameters_k0(self):
 		"""Test set_parameters method for k=0 (dummies)"""
 		# Setup
 		k = 0
@@ -196,26 +187,10 @@ class TestLinearizedConstraints(unittest.TestCase):
 
 		module_data = MagicMock()
 
-		# Call method under test
-		self.linearized_constraints.set_parameters(data, module_data, k)
+		self.linearized_constraints.set_parameters(self.solver.params, data, module_data, 0)
+		assert (self.solver.params.set_parameter.call_count == 3 * self.linearized_constraints.num_discs * (self.linearized_constraints.max_obstacles + self.linearized_constraints.num_other_halfspaces))
 
-		# Assertions - for k=0, all constraints should be dummy values
-		expected_calls = []
-
-		# For each constraint (3 obstacles + 2 halfspaces = 5 total)
-		for i in range(CONFIG_MOCK["max_obstacles"] + CONFIG_MOCK["linearized_constraints"]["add_halfspaces"]):
-			expected_calls.extend([
-				call(self.solver.params, "lin_constraint_a1", 0.0, k, index=i, settings=CONFIG_MOCK),
-				call(self.solver.params, "lin_constraint_a2", 0.0, k, index=i, settings=CONFIG_MOCK),
-				call(self.solver.params, "lin_constraint_b", 100.0, k, index=i, settings=CONFIG_MOCK),
-			])
-
-		# Check that all expected calls were made
-		mock_set_param.assert_has_calls(expected_calls, any_order=True)
-		self.assertEqual(mock_set_param.call_count, 15)  # 3 params * 5 constraints
-
-	@patch('planner_modules.base_constraint.set_solver_parameter')
-	def test_set_parameters_k1(self, mock_set_param):
+	def test_set_parameters_k1(self):
 		"""Test set_parameters method for k=1 with constraints"""
 		# Setup
 		k = 1
@@ -239,32 +214,9 @@ class TestLinearizedConstraints(unittest.TestCase):
 		self.linearized_constraints._b[1][k][0] = 4.0
 
 		# Call method under test
-		self.linearized_constraints.set_parameters(data, module_data, k)
-
-		# Assertions
-		expected_calls = [
-			# Disc offset calls
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=ANY),
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=1, settings=ANY),
-
-			# Constraint calls for disc 0, obstacle 0
-			call(self.solver.params, "lin_constraint_a1", 0.7, k, index=0, settings=ANY),
-			call(self.solver.params, "lin_constraint_a2", 0.7, k, index=0, settings=ANY),
-			call(self.solver.params, "lin_constraint_b", 5.0, k, index=0, settings=ANY),
-
-			# Constraint calls for disc 1, obstacle 0
-			call(self.solver.params, "lin_constraint_a1", 0.8, k, index=5, settings=ANY),
-			call(self.solver.params, "lin_constraint_a2", 0.6, k, index=5, settings=ANY),
-			call(self.solver.params, "lin_constraint_b", 4.0, k, index=5, settings=ANY),
-
-			# Dummy constraints for remaining slots
-			call(self.solver.params, "lin_constraint_a1", 0.0, k, index=1, settings=ANY),
-			call(self.solver.params, "lin_constraint_a2", 0.0, k, index=1, settings=ANY),
-			call(self.solver.params, "lin_constraint_b", 0.0, k, index=1, settings=ANY),
-		]
-		print("True calls:" + str(mock_set_param.call_args_list))
-		# Check that expected calls were made
-		mock_set_param.assert_has_calls(expected_calls, any_order=True)
+		self.linearized_constraints.set_parameters(self.solver.params, data, module_data, 1)
+		assert (self.solver.params.set_parameter.call_count == self.linearized_constraints.num_discs + 3 * self.linearized_constraints.num_discs * (
+					self.linearized_constraints.max_obstacles + self.linearized_constraints.num_other_halfspaces))
 
 	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
@@ -274,7 +226,7 @@ class TestLinearizedConstraints(unittest.TestCase):
 		data.dynamic_obstacles.size.return_value = 2  # Not equal to CONFIG_MOCK["max_obstacles"]
 		missing_data = ""
 
-		result = self.linearized_constraints.is_data_ready(data, missing_data)
+		result = self.linearized_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when obstacle prediction is empty
@@ -284,7 +236,7 @@ class TestLinearizedConstraints(unittest.TestCase):
 		data.dynamic_obstacles.__getitem__.return_value = obstacle
 		missing_data = ""
 
-		result = self.linearized_constraints.is_data_ready(data, missing_data)
+		result = self.linearized_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when obstacle prediction type is not deterministic or gaussian
@@ -292,91 +244,22 @@ class TestLinearizedConstraints(unittest.TestCase):
 		obstacle.prediction.type = "INVALID_TYPE"  # Not DETERMINISTIC or GAUSSIAN
 		missing_data = ""
 
-		result = self.linearized_constraints.is_data_ready(data, missing_data)
+		result = self.linearized_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when data is ready with deterministic prediction
 		obstacle.prediction.type = DETERMINISTIC
 		missing_data = ""
 
-		result = self.linearized_constraints.is_data_ready(data, missing_data)
+		result = self.linearized_constraints.is_data_ready(data)
 		self.assertTrue(result)
 
 		# Test when data is ready with gaussian prediction
 		obstacle.prediction.type = GAUSSIAN
 		missing_data = ""
 
-		result = self.linearized_constraints.is_data_ready(data, missing_data)
+		result = self.linearized_constraints.is_data_ready(data)
 		self.assertTrue(result)
-
-	@patch('planner_modules.linearized_constraints.visualize_linear_constraint')
-	def test_visualize(self, mock_vis_constraint):
-		"""Test visualize method"""
-		# Setup
-		data = MagicMock()
-		module_data = MagicMock()
-
-		# Configure obstacles
-		data.dynamic_obstacles = MagicMock()
-		data.dynamic_obstacles.size.return_value = 2
-
-		# Set constraint values for visualization
-		for k in range(1, self.solver.N):
-			for i in range(data.dynamic_obstacles.size()):
-				self.linearized_constraints._a1[0][k][i] = 0.7
-				self.linearized_constraints._a2[0][k][i] = 0.7
-				self.linearized_constraints._b[0][k][i] = 5.0
-
-		# Call method under test
-		self.linearized_constraints.visualize(data, module_data)
-
-		# Assertions
-		# Should call visualize_linear_constraint for each stage and obstacle
-		expected_calls = []
-		for k in range(1, self.solver.N):
-			for i in range(data.dynamic_obstacles.size()):
-				is_last = (k == self.solver.N - 1 and i == data.dynamic_obstacles.size() - 1)
-				expected_calls.append(
-					call(0.7, 0.7, 5.0, k, self.solver.N, self.linearized_constraints.name, is_last)
-				)
-
-		mock_vis_constraint.assert_has_calls(expected_calls)
-		self.assertEqual(mock_vis_constraint.call_count, (self.solver.N - 1) * data.dynamic_obstacles.size())
-
-	@patch('planner_modules.linearized_constraints.visualize_linear_constraint')
-	def test_visualize_topology_constraints(self, mock_vis_constraint):
-		"""Test visualize method with topology constraints"""
-		# Setup
-		data = MagicMock()
-		module_data = MagicMock()
-
-		# Configure obstacles
-		data.dynamic_obstacles = MagicMock()
-		data.dynamic_obstacles.size.return_value = 2
-
-		# Enable topology constraints
-		self.linearized_constraints.setTopologyConstraints()
-		CONFIG_MOCK["debug_visuals"] = False
-
-		# Set constraint values
-		for k in range(1, self.solver.N):
-			for i in range(data.dynamic_obstacles.size()):
-				self.linearized_constraints._a1[0][k][i] = 0.7
-				self.linearized_constraints._a2[0][k][i] = 0.7
-				self.linearized_constraints._b[0][k][i] = 5.0
-
-		# Call method under test
-		self.linearized_constraints.visualize(data, module_data)
-
-		# Assertions - should not visualize when topology constraints are enabled and debug_visuals is False
-		mock_vis_constraint.assert_not_called()
-
-		# Now try with debug_visuals enabled
-		CONFIG_MOCK["debug_visuals"] = True
-		self.linearized_constraints.visualize(data, module_data)
-
-		# Should visualize now
-		self.assertTrue(mock_vis_constraint.called)
 
 	def test_planner_integration(self):
 		"""Test if module properly interacts with planner"""

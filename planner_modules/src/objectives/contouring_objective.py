@@ -4,7 +4,7 @@ from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE, distance, ha
 	write_to_config
 
 
-class Contouring(BaseObjective):
+class ContouringObjective(BaseObjective):
 	def __init__(self, solver):
 		super().__init__(solver)
 		print("Contouring Objective intializing")

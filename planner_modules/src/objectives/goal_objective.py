@@ -1,19 +1,19 @@
 from planner_modules.src.constraints.base_constraint import BaseConstraint
+from planner_modules.src.objectives.base_objective import BaseObjective
 from utils.const import OBJECTIVE
 
 from utils.utils import LOG_DEBUG, distance
-from utils.visualizer import VISUALS
 
 
-
-class GoalObjective(BaseConstraint):
+class GoalObjective(BaseObjective):
 
   def __init__(self, solver):
     super().__init__(solver)
     self.module_type = OBJECTIVE
-    self.name = "goal_module"
+    self.name = "goal_objective"
     LOG_DEBUG( "Initializing Goal Module")
     LOG_DEBUG( "Goal Module successfully initialized")
+    self.goal_weight = self.get_config_value("goal_weight")
 
   def update(self, state, data, module_data):
     return
@@ -39,20 +39,21 @@ class GoalObjective(BaseConstraint):
 
     return cost
 
-  def set_parameters(self, data, module_data, k):
+  def set_parameters(self, parameter_manager, data, module_data, k):
 
     if k == 0:
       LOG_DEBUG( "Goal Module.set_parameters()")
 
-    set_solver_parameter_goal_x(k, self.solver.params, data.goal(0))
-    set_solver_parameter_goal_y(k, self.solver.params, data.goal(1))
-    set_solver_parameter_goal_weight(k, self.solver.params, CONFIG["weights"]["goal"])
+    parameter_manager.set_parameter("goal_x", data.goal(0))
+    parameter_manager.set_parameter("goal_y", data.goal(1))
+    parameter_manager.set_parameter("goal_weight", self.goal_weight)
 
-  def is_data_ready(self, data, missing_data):
+  def is_data_ready(self, data):
+    missing_data = ""
     if not data.goal_received:
       missing_data += "Goal "
 
-    return data.goal_received
+    return len(missing_data) < 1
 
   def is_objective_reached(self, state, data):
 
@@ -60,19 +61,4 @@ class GoalObjective(BaseConstraint):
       return False
 
     # Check if we reached the goal
-    return distance(self, state.get_pos(), data.goal) < 1.0
-
-
-  def visualize(self, data, module_data):
-
-    if not data.goal_received:
-      return
-
-    publisher = VISUALS.get_publisher(self.name)
-    sphere = publisher.get_new_point_marker("SPHERE")
-
-    sphere.set_color_int(5)
-    sphere.set_scale(0.4, 0.4, 0.4)
-    sphere.add_point_marker(data.goal, 0.0)
-
-    publisher.publish()
+    return distance(state.get_pos(), data.goal) < 1.0

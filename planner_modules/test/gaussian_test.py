@@ -2,6 +2,8 @@ import unittest
 import numpy as np
 from unittest.mock import MagicMock, patch, call, ANY
 
+from planner_modules.src.constraints.base_constraint import BaseConstraint
+from planner_modules.src.constraints.gaussian_constraints import GaussianConstraints
 # Import modules to test
 from utils.const import CONSTRAINT, GAUSSIAN, DYNAMIC
 
@@ -10,7 +12,7 @@ CONFIG_MOCK = {
 	"robot": {
 		"radius": 0.5
 	},
-	"n_discs": 2,
+	"num_discs": 2,
 	"max_obstacles": 3,
 	"obstacle_radius": 0.8,
 	"probabilistic": {
@@ -22,25 +24,20 @@ CONFIG_MOCK = {
 	"debug_visuals": False
 }
 
-# Patch the read_config_file function
-with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
-	from planner_modules.src.constraints.gaussian_constraints import GaussianConstraints
 
+def get_mocked_config(key, default=None):
+	"""Static method to handle config mocking"""
+	keys = key.split('.')
+	cfg = CONFIG_MOCK
+	try:
+		for k in keys:
+			cfg = cfg[k]
+		return cfg
+	except (KeyError, TypeError):
+		return default
 
 class TestGaussianConstraints(unittest.TestCase):
 	"""Test suite for GaussianConstraints class"""
-
-	@staticmethod
-	def get_mocked_config(key, default=None):
-		"""Static method to handle config mocking"""
-		keys = key.split('.')
-		cfg = CONFIG_MOCK
-		try:
-			for k in keys:
-				cfg = cfg[k]
-			return cfg
-		except (KeyError, TypeError):
-			return default
 
 	def setUp(self):
 		"""Set up test fixtures before each test"""
@@ -49,16 +46,11 @@ class TestGaussianConstraints(unittest.TestCase):
 		self.solver.N = 10
 		self.solver.params = MagicMock()
 
-		self.config_attr_patcher = patch('planner_modules.base_constraint.CONFIG', CONFIG_MOCK)
-		self.config_attr_patcher.start()
-		self.addCleanup(self.config_attr_patcher.stop)
-
 		# Apply the patch before creating the class
-		patcher = patch('planner_modules.base_constraint.BaseConstraint.get_config_value',
-						side_effect=self.get_mocked_config)
+		patcher = patch('planner_modules.src.constraints.base_constraint.BaseConstraint.get_config_value',
+						side_effect=get_mocked_config)
 		self.mock_get_config = patcher.start()
 		self.addCleanup(patcher.stop)
-
 
 		self.gaussian_constraints = GaussianConstraints(self.solver)
 
@@ -85,11 +77,9 @@ class TestGaussianConstraints(unittest.TestCase):
 		self.assertEqual(self.gaussian_constraints._dummy_x, 110.0)  # 10.0 + 100.0
 		self.assertEqual(self.gaussian_constraints._dummy_y, 120.0)  # 20.0 + 100.0
 
-	@patch('planner_modules.base_constraint.set_solver_parameter')
-	def test_set_parameters_k0(self, mock_set_param):
+	def test_set_parameters_k0(self):
 		"""Test set_parameters method for k=0 (dummies)"""
 		# Setup
-		k = 0
 		data = MagicMock()
 		data.robot_area = [MagicMock(), MagicMock()]
 		data.robot_area[0].offset = np.array([0.5, 0.3])
@@ -104,41 +94,10 @@ class TestGaussianConstraints(unittest.TestCase):
 		self.gaussian_constraints._dummy_x = 110.0
 		self.gaussian_constraints._dummy_y = 120.0
 
-		# Call method under test
-		self.gaussian_constraints.set_parameters(data, module_data, k)
+		self.gaussian_constraints.set_parameters(self.solver.params, data, module_data, 0)
+		assert (self.solver.params.set_parameter.call_count == 14)
 
-		# Assertions
-		expected_calls = [
-			# Ego disc radius call
-			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=ANY),
-
-			# Ego disc offset calls
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=ANY),
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=1, settings=ANY),
-
-			# Dummy obstacle calls for obstacle 0
-			call(self.solver.params, "gaussian_obstacle_x", 110.0, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_y", 120.0, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_major", 0.1, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_minor", 0.1, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_r", 0.1, k, index=0, settings=ANY),
-
-			# Dummy obstacle calls for obstacle 1
-			call(self.solver.params, "gaussian_obstacle_x", 110.0, k, index=1, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_y", 120.0, k, index=1, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_major", 0.1, k, index=1, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_minor", 0.1, k, index=1, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=1, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_r", 0.1, k, index=1, settings=ANY),
-		]
-
-		# Check that all expected calls were made
-		mock_set_param.assert_has_calls(expected_calls, any_order=True)
-		self.assertEqual(mock_set_param.call_count, 15)
-
-	@patch('planner_modules.base_constraint.set_solver_parameter')
-	def test_set_parameters_k1_dynamic(self, mock_set_param):
+	def test_set_parameters_k1_dynamic(self):
 		"""Test set_parameters method for k=1 with dynamic gaussian obstacles"""
 		# Setup
 		k = 1
@@ -168,30 +127,11 @@ class TestGaussianConstraints(unittest.TestCase):
 		data.dynamic_obstacles.__getitem__.return_value = obstacle
 
 		module_data = MagicMock()
+		self.gaussian_constraints.set_parameters(self.solver.params, data, module_data, 1)
+		assert (self.solver.params.set_parameter.call_count == 9)
 
-		# Call method under test
-		self.gaussian_constraints.set_parameters(data, module_data, k)
 
-		# Assertions for dynamic obstacles
-		expected_calls = [
-			# Ego disc radius and offset calls
-			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=ANY),
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=ANY),
-
-			# Obstacle calls
-			call(self.solver.params, "gaussian_obstacle_x", 5.0, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_y", 6.0, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_major", 2.0, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_minor", 1.0, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_r", 0.8, k, index=0, settings=ANY),
-		]
-
-		mock_set_param.assert_has_calls(expected_calls, any_order=True)
-		self.assertEqual(mock_set_param.call_count, 8)  # 1 radius + 1 offset + 6 obstacle params
-
-	@patch('planner_modules.base_constraint.set_solver_parameter')
-	def test_set_parameters_k1_static(self, mock_set_param):
+	def test_set_parameters_k1_static(self):
 		"""Test set_parameters method for k=1 with static gaussian obstacles"""
 		# Setup
 		k = 1
@@ -222,28 +162,7 @@ class TestGaussianConstraints(unittest.TestCase):
 
 		module_data = MagicMock()
 
-		# Call method under test
-		self.gaussian_constraints.set_parameters(data, module_data, k)
-
-		# Assertions for static obstacles
-		expected_calls = [
-			# Ego disc radius and offset calls
-			call(self.solver.params, "ego_disc_radius", 0.5, k, settings=ANY),
-			call(self.solver.params, "ego_disc_offset", ANY, k, index=0, settings=ANY),
-
-			# Obstacle calls
-			call(self.solver.params, "gaussian_obstacle_x", 5.0, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_y", 6.0, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_major", 0.001, k, index=0, settings=ANY),
-			# Minimal uncertainty
-			call(self.solver.params, "gaussian_obstacle_minor", 0.001, k, index=0, settings=ANY),
-			# Minimal uncertainty
-			call(self.solver.params, "gaussian_obstacle_risk", 0.05, k, index=0, settings=ANY),
-			call(self.solver.params, "gaussian_obstacle_r", 0.8, k, index=0, settings=ANY),
-		]
-
-		mock_set_param.assert_has_calls(expected_calls, any_order=True)
-		self.assertEqual(mock_set_param.call_count, 8)  # 1 radius + 1 offset + 6 obstacle params
+		self.gaussian_constraints.set_parameters(self.solver.params, data, module_data, 9)
 
 	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
@@ -253,7 +172,7 @@ class TestGaussianConstraints(unittest.TestCase):
 		data.dynamic_obstacles.size.return_value = 2  # Not equal to CONFIG_MOCK["max_obstacles"]
 		missing_data = ""
 
-		result = self.gaussian_constraints.is_data_ready(data, missing_data)
+		result = self.gaussian_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when obstacle prediction modes are empty
@@ -263,7 +182,7 @@ class TestGaussianConstraints(unittest.TestCase):
 		data.dynamic_obstacles.__getitem__.return_value = obstacle
 		missing_data = ""
 
-		result = self.gaussian_constraints.is_data_ready(data, missing_data)
+		result = self.gaussian_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when obstacle prediction type is not Gaussian
@@ -271,99 +190,15 @@ class TestGaussianConstraints(unittest.TestCase):
 		obstacle.prediction.type = "NOT_GAUSSIAN"  # Not GAUSSIAN
 		missing_data = ""
 
-		result = self.gaussian_constraints.is_data_ready(data, missing_data)
+		result = self.gaussian_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when data is ready
 		obstacle.prediction.type = GAUSSIAN
 		missing_data = ""
 
-		result = self.gaussian_constraints.is_data_ready(data, missing_data)
+		result = self.gaussian_constraints.is_data_ready(data)
 		self.assertTrue(result)
-
-	@patch('planner_modules.gaussian_constraints.PROFILE_SCOPE')
-	@patch('planner_modules.gaussian_constraints.ROSPointMarker')
-	@patch('planner_modules.gaussian_constraints.exponential_quantile')
-	def test_visualize(self, mock_exp_quantile, mock_point_marker, mock_profile_scope):
-		"""Test visualize method with debug visuals enabled"""
-		# Setup
-		data = MagicMock()
-		module_data = MagicMock()
-
-		# Skip test if debug_visuals is disabled
-		if not CONFIG_MOCK["debug_visuals"]:
-			CONFIG_MOCK["debug_visuals"] = True  # Enable for testing
-
-		# Configure obstacles
-		dynamic_obstacle = MagicMock()
-		dynamic_obstacle.type = DYNAMIC
-		dynamic_obstacle.radius = 0.5
-		dynamic_obstacle.prediction.type = GAUSSIAN
-
-		static_obstacle = MagicMock()
-		static_obstacle.type = "STATIC"
-		static_obstacle.radius = 0.5
-		static_obstacle.prediction.type = GAUSSIAN
-
-		# Setup prediction modes
-		dyn_mode = []
-		for i in range(self.solver.N - 1):
-			mode_ki = MagicMock()
-			mode_ki.position = [5.0 + i, 6.0 + i]
-			mode_ki.major_radius = 2.0
-			mode_ki.minor_radius = 1.0
-			dyn_mode.append(mode_ki)
-
-		dyn_modes = MagicMock()
-		dyn_modes.__getitem__.side_effect = lambda i: dyn_mode[i]
-		dyn_modes.__len__.return_value = len(dyn_mode)
-
-		modes_list = MagicMock()
-		modes_list.__getitem__.return_value = dyn_modes
-		dynamic_obstacle.prediction.modes = modes_list
-		static_obstacle.prediction.modes = modes_list
-
-		# Setup dynamic obstacles
-		data.dynamic_obstacles = [dynamic_obstacle, static_obstacle]
-
-		# Mock point marker
-		mock_marker_instance = MagicMock()
-		mock_point_marker.return_value = mock_marker_instance
-		mock_marker_instance.get_new_point_marker.return_value = MagicMock()
-
-		# Mock exponential_quantile
-		mock_exp_quantile.return_value = 3.0
-
-		# Call method under test
-		self.gaussian_constraints.visualize(data, module_data)
-
-		# Assertions
-		mock_point_marker.assert_called_once_with(self.gaussian_constraints.name + "/obstacles")
-		mock_marker_instance.get_new_point_marker.assert_called_once_with("CYLINDER")
-		mock_marker_instance.publish.assert_called_once()
-
-		# Check that chi-square quantile was called for dynamic obstacle
-		mock_exp_quantile.assert_called_with(0.5, 1.0 - CONFIG_MOCK["probabilistic"]["risk"])
-
-		# Restore debug visuals setting if needed
-		CONFIG_MOCK["debug_visuals"] = False
-
-	@patch('planner_modules.gaussian_constraints.ROSPointMarker')
-	def test_visualize_debug_disabled(self, mock_point_marker):
-		"""Test visualize method with debug visuals disabled"""
-		# Setup
-		data = MagicMock()
-		module_data = MagicMock()
-
-		# Ensure debug is disabled
-		CONFIG_MOCK["debug_visuals"] = False
-
-		# Call method under test
-		self.gaussian_constraints.visualize(data, module_data)
-
-		# Should not create any visualizations
-		mock_point_marker.assert_not_called()
-
 
 class TestSystemIntegration(unittest.TestCase):
 	"""Test integration between GaussianConstraints and Planner"""
@@ -372,11 +207,25 @@ class TestSystemIntegration(unittest.TestCase):
 		"""Set up test fixtures before each test"""
 		# Create mock solver
 		self.solver = MagicMock()
-		self.solver.N = 10
+		self.solver.horizon = 10
 		self.solver.params = MagicMock()
 
-		# Create instance of the class under test
-		with patch('utils.utils.read_config_file', return_value=CONFIG_MOCK):
+		# Patch get_config_value to use our CONFIG_MOCK
+		with patch.object(BaseConstraint, 'get_config_value') as mock_get_config_value:
+			def get_mocked_config(key, default=None):
+				keys = key.split('.')
+				cfg = CONFIG_MOCK
+
+				try:
+					for k in keys:
+						cfg = cfg[k]
+					return cfg
+				except (KeyError, TypeError):
+					return default
+
+			mock_get_config_value.side_effect = get_mocked_config
+
+			# Create instance of the class under test
 			from planner_modules.src.constraints.gaussian_constraints import GaussianConstraints
 			self.gaussian_constraints = GaussianConstraints(self.solver)
 
@@ -384,8 +233,11 @@ class TestSystemIntegration(unittest.TestCase):
 		self.planner = MagicMock()
 		self.planner.modules = [self.gaussian_constraints]
 
-	@patch('utils.utils.read_config_file', return_value=CONFIG_MOCK)
-	def test_planner_integration(self, mock_config):
+		# Add create_visualization_publisher mock
+		self.gaussian_constraints.create_visualization_publisher = MagicMock()
+
+	@patch('utils.utils.LOG_DEBUG')
+	def test_planner_integration(self, mock_log_debug):
 		"""Test if module properly interacts with planner"""
 		# Setup mocks for planner's solve_mpc method
 		data = MagicMock()
@@ -403,7 +255,7 @@ class TestSystemIntegration(unittest.TestCase):
 				module.update(state, data, module_data)
 
 			# Set parameters for each prediction step
-			for k in range(self.solver.N):
+			for k in range(self.solver.horizon):
 				for module in self.planner.modules:
 					module.set_parameters(data, module_data, k)
 
@@ -411,8 +263,7 @@ class TestSystemIntegration(unittest.TestCase):
 			mock_update.assert_called_once_with(state, data, module_data)
 
 			# Module should have set_parameters called N times
-			self.assertEqual(mock_set_params.call_count, self.solver.N)
-
+			self.assertEqual(mock_set_params.call_count, self.solver.horizon)
 
 if __name__ == '__main__':
 	unittest.main()

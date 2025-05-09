@@ -6,8 +6,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
-from planner_modules.src.objectives.base_objective import BaseObjective
-from planner_modules.src.objectives.contouring_objective import Contouring
+from planner_modules.src.objectives.contouring_objective import ContouringObjective
 # Import modules to test
 from utils.const import OBJECTIVE, CONSTRAINT
 
@@ -168,7 +167,7 @@ class TestContouringObjective(unittest.TestCase):
         self.solver.horizon = 10
         self.solver.params = MagicMock()
         # Create instance of the class under test
-        self.contouring = Contouring(self.solver)
+        self.contouring = ContouringObjective(self.solver)
 
     def test_initialization(self):
         """Test proper initialization of Contouring"""
@@ -378,7 +377,7 @@ class TestSystemIntegration(unittest.TestCase):
         self.solver.params = MagicMock()
 
         # Create instances
-        self.contouring = Contouring(self.solver)
+        self.contouring = ContouringObjective(self.solver)
         self.contouring_constraints = ContouringConstraints(self.solver)
 
         # Create mock planner
