@@ -2,8 +2,8 @@ import unittest
 from unittest.mock import MagicMock
 import time
 
-from planner.src.planner import Planner, PlannerOutput
-from planner.src.types import Trajectory
+from planning.src.planner import Planner, PlannerOutput
+from planning.src.types import Trajectory
 from solver.src.base_solver import BaseSolver
 from solver.src.parameter_manager import ParameterManager
 from utils.const import OBJECTIVE, CONSTRAINT

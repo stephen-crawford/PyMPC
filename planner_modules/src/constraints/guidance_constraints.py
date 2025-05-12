@@ -1,6 +1,6 @@
 import numpy as np
 
-from planner.src.planner import Planner
+from planning.src.planner import Planner
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from utils.const import CONSTRAINT
 from utils.utils import LOG_DEBUG
@@ -48,7 +48,7 @@ class GuidanceConstraints(BaseConstraint):
         LOG_DEBUG("Guidance Constraints successfully initialized")
 
     def _create_guidance_planner(self):
-        """Create a guidance planner instance"""
+        """Create a guidance planning instance"""
         planner = GuidancePlanner(self.solver)
         planner.longitudinal_goals = self.longitudinal_goals
         planner.vertical_goals = self.vertical_goals
@@ -81,7 +81,7 @@ class GuidanceConstraints(BaseConstraint):
             else:
                 planner.set_reference_velocity(self.get_config_value("weights.reference_velocity"))
 
-            # Set goals for the guidance planner
+            # Set goals for the guidance planning
             self.set_goals(state, module_data, planner)
 
         # Set the width parameters if available
@@ -105,7 +105,7 @@ class GuidanceConstraints(BaseConstraint):
         self.optimize(state, data, module_data)
 
     def set_goals(self, state, module_data, planner):
-        LOG_DEBUG("Setting guidance planner goals")
+        LOG_DEBUG("Setting guidance planning goals")
 
         current_s = state.get("spline")
         num_discs = self.get_config_value("num_discs", 0.1)
@@ -364,7 +364,7 @@ class GuidanceConstraints(BaseConstraint):
 
 class GuidancePlanner(Planner):
     def __init__(self, solver):
-        """Initialize the guidance planner with default parameters"""
+        """Initialize the guidance planning with default parameters"""
         super().__init__(solver)
         self._success = False
         self._planning_frequency = 10.0  # Hz
@@ -537,7 +537,7 @@ class GuidancePlanner(Planner):
         self.selected_trajectory_id = guidance_id
 
     def reset(self):
-        """Reset the guidance planner"""
+        """Reset the guidance planning"""
         self.trajectories = []
         self.selected_trajectory_id = -1
         self._success = False

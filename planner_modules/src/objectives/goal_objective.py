@@ -1,8 +1,8 @@
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.objectives.base_objective import BaseObjective
 from utils.const import OBJECTIVE
-
-from utils.utils import LOG_DEBUG, distance
+from utils.math_utils import distance
+from utils.utils import LOG_DEBUG
 
 
 class GoalObjective(BaseObjective):

@@ -85,14 +85,14 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.mock_planner_class.assert_called_with(self.solver)
 
 	def test_create_guidance_planner(self):
-		"""Test creation of guidance planner"""
+		"""Test creation of guidance planning"""
 		# Reset the mock to clear previous calls
 		self.mock_planner_class.reset_mock()
 
 		# Call method under test
 		planner = self.guidance_constraints._create_guidance_planner()
 
-		# Assert planner was created with correct parameters
+		# Assert planning was created with correct parameters
 		self.mock_planner_class.assert_called_once_with(self.solver)
 		self.assertEqual(planner.longitudinal_goals, CONFIG_MOCK["guidance"]["longitudinal_goals"])
 		self.assertEqual(planner.vertical_goals, CONFIG_MOCK["guidance"]["vertical_goals"])
@@ -131,7 +131,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		module_data.static_obstacles[0][0].A = np.array([[1.0, 0.0], [0.0, 1.0]])
 		module_data.static_obstacles[0][0].b = np.array([10.0, 10.0])
 
-		# Setup mock for planner
+		# Setup mock for planning
 		self.mock_planner.update.return_value = None
 		self.mock_planner.trajectories = [MagicMock()]
 		self.mock_planner.succeeded.return_value = True
@@ -144,7 +144,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.guidance_constraints.update(state, data, module_data)
 
 
-		# Check planner setup
+		# Check planning setup
 		self.mock_planner.set_start.assert_called_with([1.0, 2.0], 0.5, 3.0)
 		self.mock_planner.set_reference_velocity.assert_called_with(5.0)
 		self.mock_planner.load_static_obstacles.assert_called()
@@ -154,7 +154,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		self.guidance_constraints.optimize.assert_called_with(state, data, module_data)
 
 	def test_set_goals(self):
-		"""Test setting goals for guidance planner"""
+		"""Test setting goals for guidance planning"""
 		# Setup
 		state = MagicMock()
 		state.get.return_value = 2.0  # spline
@@ -176,7 +176,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		# Call method under test
 		self.guidance_constraints.set_goals(state, module_data, planner)
 
-		# Verify planner.set_goals was called with correct parameters
+		# Verify planning.set_goals was called with correct parameters
 		planner.set_goals.assert_called_once()
 		# Check first argument is a list of goals (tuples of position and cost)
 		goals = planner.set_goals.call_args[0][0]
@@ -409,7 +409,7 @@ class TestGuidanceConstraints(unittest.TestCase):
 		# Call method under test
 		self.guidance_constraints.on_data_received(data, "dynamic obstacles")
 
-		# Verify planner method calls
+		# Verify planning method calls
 		expected_obstacles = [
 			(1, [[5.0, 6.0], [7.0, 8.0]], 1.5)  # index, positions, combined radius
 		]
@@ -441,7 +441,7 @@ class TestGuidancePlanner(unittest.TestCase):
 		self.solver.horizon = 10
 		self.solver.dt = 0.1
 
-		# Create planner instance directly (no need to patch)
+		# Create planning instance directly (no need to patch)
 		with patch('planner_modules.src.constraints.guidance_constraints.Planner'):
 			self.planner = GuidancePlanner(self.solver)
 
@@ -681,7 +681,7 @@ class TestSystemIntegration(unittest.TestCase):
 			from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints
 			self.guidance_constraints = GuidanceConstraints(self.solver)
 
-		# Create mock planner
+		# Create mock planning
 		self.planner = MagicMock()
 		self.planner.modules = [self.guidance_constraints]
 
@@ -690,8 +690,8 @@ class TestSystemIntegration(unittest.TestCase):
 
 	@patch('utils.utils.LOG_DEBUG')
 	def test_planner_integration(self, mock_log_debug):
-		"""Test if module properly interacts with planner"""
-		# Setup mocks for planner's solve_mpc method
+		"""Test if module properly interacts with planning"""
+		# Setup mocks for planning's solve_mpc method
 		data = MagicMock()
 		state = MagicMock()
 		module_data = MagicMock()
@@ -701,7 +701,7 @@ class TestSystemIntegration(unittest.TestCase):
 				patch.object(self.guidance_constraints, 'update') as mock_update, \
 				patch.object(self.guidance_constraints, 'set_parameters') as mock_set_params:
 
-			# Mock planner.solve_mpc similar to the actual implementation
+			# Mock planning.solve_mpc similar to the actual implementation
 			# Update modules
 			for module in self.planner.modules:
 				module.update(state, data, module_data)

@@ -1,12 +1,9 @@
 import casadi as cd
 import numpy as np
 
-from solver_generator.util.files import model_map_path, write_to_yaml
-from solver_generator.util.logging import print_warning
-
 from solver_generator.spline import Spline2D
 
-import casadi as ca
+from utils.utils import model_map_path, write_to_yaml, print_warning
 
 
 def casadi_discrete_dynamics(z, p, model, settings, nx=None, integration_step=None):
@@ -33,41 +30,34 @@ def casadi_discrete_dynamics(z, p, model, settings, nx=None, integration_step=No
 
     # Define the continuous dynamics function
     # Make sure the continuous_model returns a CasADi MX/SX object, not a numpy array
-    def f(x_val, u_val):
+    def f(x_val, u_val, params):
         # Ensure result is a CasADi vector
-        result = model.continuous_model(x_val, u_val)
+        result = model.continuous_model(x_val, u_val, params)
         # If result is a numpy array, convert it to CasADi vector
         if isinstance(result, np.ndarray):
-            return ca.vertcat(*[ca.MX(r) if not isinstance(r, (ca.MX, ca.SX)) else r for r in result])
+            return cd.vertcat(*[cd.MX(r) if not isinstance(r, (cd.MX, cd.SX)) else r for r in result])
         return result
 
-    dt = ca.MX(integration_step)
-
+    dt = cd.MX(integration_step)
     # RK4 integration
-    k1 = f(x, u)
-    k2 = f(x + dt / 2 * k1, u)
-    k3 = f(x + dt / 2 * k2, u)
-    k4 = f(x + dt * k3, u)
-
-    # Update the state
-    x_next = x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    h = dt
+    k1 = f(x, u, p)
+    k2 = f(x + h / 2 * k1, u, p)
+    k3 = f(x + h / 2 * k2, u, p)
+    k4 = f(x + h * k3, u, p)
+    x_next = x + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
     return x_next
 
 
 def numpy_to_casadi(x: np.array) -> cd.SX:
-    result = None
-    for param in x:
-        if result is None:
-            result = param
-        else:
-            result = cd.vertcat(result, param)
-    return result
-
+    return cd.vertcat(*x.tolist())
 
 class DynamicsModel:
 
     def __init__(self):
+        self.settings = None
+        self._z = None
         self.nu = 0  # number of control variables
         self.nx = 0  # number of states
 
@@ -98,8 +88,7 @@ class DynamicsModel:
         # Call the discretization function
         integrated_states = casadi_discrete_dynamics(z, p, self, settings,
                                                      nx=nx_integrate,
-                                                     integration_step=integration_step,
-                                                     **kwargs)
+                                                     integration_step=integration_step)
 
         # Apply model-specific discrete dynamics
         integrated_states = self.model_discrete_dynamics(z, integrated_states, **kwargs)
@@ -121,24 +110,10 @@ class DynamicsModel:
         self.load(z)
         return z
 
-    def get_acados_dynamics(self):
-        self._x_dot = cd.SX.sym("x_dot", self.nx)
-
-        # Correctly pass parameters to continuous_model
-        f_expl = numpy_to_casadi(self.continuous_model(self._z[self.nu:], self._z[:self.nu]))
-        f_impl = self._x_dot - f_expl
-        return f_expl, f_impl
-
     def get_x(self):
         return self._z[self.nu:]
 
     def get_u(self):
-        return self._z[:self.nu]
-
-    def get_acados_x_dot(self):
-        return self._x_dot
-
-    def get_acados_u(self):
         return self._z[:self.nu]
 
     def load(self, z):
@@ -151,14 +126,14 @@ class DynamicsModel:
     def save_map(self):
         file_path = model_map_path()
 
-        map = dict()
+        map_to_save = dict()
         for idx, state in enumerate(self.states):
-            map[state] = ["x", idx + self.nu, self.get_bounds(state)[0], self.get_bounds(state)[1]]
+            map_to_save[state] = ["x", idx + self.nu, self.get_bounds(state)[0], self.get_bounds(state)[1]]
 
-        for idx, input in enumerate(self.inputs):
-            map[input] = ["u", idx, self.get_bounds(input)[0], self.get_bounds(input)[1]]
+        for idx, i in enumerate(self.inputs):
+            map_to_save[i] = ["u", idx, self.get_bounds(i)[0], self.get_bounds(i)[1]]
 
-        write_to_yaml(file_path, map)
+        write_to_yaml(file_path, map_to_save)
 
     def integrate(self, z, settings, integration_step):
         # This function should handle params correctly
@@ -203,7 +178,7 @@ class DynamicsModel:
                 f"Requested a state or input `{state_or_input}' that was neither a state nor an input for the selected model")
 
     # This is the method that needs to be implemented by subclasses
-    def continuous_model(self, x, u):
+    def continuous_model(self, x, u, p):
         """
     Compute the continuous-time dynamics for the model.
 
@@ -227,13 +202,14 @@ class SecondOrderUnicycleModel(DynamicsModel):
         self.lower_bound = [-2.0, -2.0, -200.0, -200.0, -np.pi * 4, -2.0]
         self.upper_bound = [2.0, 2.0, 200.0, 200.0, np.pi * 4, 3.0]
 
-    def continuous_model(self, x, u):
+    def continuous_model(self, x, u, p):
+        self.params = p
         a = u[0]
         w = u[1]
         psi = x[2]
         v = x[3]
 
-        return np.array([v * cd.cos(psi), v * cd.sin(psi), w, a])
+        return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a)
 
 
 class ContouringSecondOrderUnicycleModel(DynamicsModel):
@@ -250,21 +226,20 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 4, -0.01, -1.0]
         self.upper_bound = [2.0, 0.8, 2000.0, 2000.0, np.pi * 4, 3.0, 10000.0]
 
-    def continuous_model(self, x, u):
+    def continuous_model(self, x, u, p):
+        self.params = p
         a = u[0]
         w = u[1]
         psi = x[2]
         v = x[3]
 
-        return np.array([v * cd.cos(psi), v * cd.sin(psi), w, a, v])
+        return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a, v)
 
 
 class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
 
     def __init__(self):
         super().__init__()
-        print_warning(
-            "ContouringSecondOrderUnicycleModelCurvatureAware is not supported in Acados as discrete dynamics are necessary for the spline state")
         self.nu = 2  # number of control variables
         self.nx = 5  # number of states
 
@@ -276,13 +251,14 @@ class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
         self.lower_bound = [-4.0, -0.8, -2000.0, -2000.0, -np.pi * 4, -0.01, -1.0]
         self.upper_bound = [4.0, 0.8, 2000.0, 2000.0, np.pi * 4, 3.0, 10000.0]
 
-    def continuous_model(self, x, u):
+    def continuous_model(self, x, u, p):
+        self.params = p
         a = u[0]
         w = u[1]
         psi = x[2]
         v = x[3]
 
-        return np.array([v * cd.cos(psi), v * cd.sin(psi), w, a])
+        return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a)
 
     def model_discrete_dynamics(self, z, integrated_states, **kwargs):
         x = self.get_x()
@@ -300,12 +276,15 @@ class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
         # Contour = n_vec
         contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
 
-        dp = np.array([integrated_states[0] - pos_x, integrated_states[1] - pos_y])
-        t_vec = np.array([path_dx_normalized, path_dy_normalized])
-        n_vec = np.array([path_dy_normalized, -path_dx_normalized])
+        # dp = np.array([integrated_states[0] - pos_x, integrated_states[1] - pos_y])
+        # t_vec = np.array([path_dx_normalized, path_dy_normalized])
+        # n_vec = np.array([path_dy_normalized, -path_dx_normalized])
 
+
+        dp = integrated_states[0:2] - cd.vertcat(pos_x, pos_y)
+        t_vec = cd.vertcat(path_dx_normalized, path_dy_normalized)
+        vn_t = dp.T @ cd.vertcat(path_dy_normalized, -path_dx_normalized)
         vt_t = dp.dot(t_vec)
-        vn_t = dp.dot(n_vec)
 
         R = 1.0 / path.get_curvature(s)  # max(R) = 1 / 0.0001
         R = cd.fmax(R, 1e5)
@@ -328,13 +307,14 @@ class ContouringSecondOrderUnicycleModelWithSlack(DynamicsModel):
         self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 4, -0.01, -1.0, 0.0]  # v -0.01
         self.upper_bound = [2.0, 0.8, 2000.0, 2000.0, np.pi * 4, 3.0, 10000.0, 5000.0]  # w 0.8
 
-    def continuous_model(self, x, u):
+    def continuous_model(self, x, u, p):
+        self.params = p
         a = u[0]
         w = u[1]
         psi = x[2]
         v = x[3]
 
-        return np.array([v * cd.cos(psi), v * cd.sin(psi), w, a, v, 0.0])
+        return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a, v, 0.0)
 
     # NOTE: No initialization for slack variable
     def get_xinit(self):
@@ -362,29 +342,30 @@ class BicycleModel2ndOrder(DynamicsModel):
         self.lower_bound = [-3.0, -1.5, 0.0, -1.0e6, -1.0e6, -np.pi * 4, -0.01, -0.55, -1.0]
         self.upper_bound = [3.0, 1.5, 1.0e2, 1.0e6, 1.0e6, np.pi * 4, 5.0, 0.55, 5000.0]
 
-    def continuous_model(self, x, u):
+    def continuous_model(self, x, u, p):
+        self.params = p
         a = u[0]
         w = u[1]
         psi = x[2]
         v = x[3]
         delta = x[4]
 
-        wheel_base = 2.79  # between front wheel center and rear wheel center
-        wheel_tread = 1.64  # between left wheel center and right wheel center
-        front_overhang = 1.0  # between front wheel center and vehicle front
-        rear_overhang = 1.1  # between rear wheel center and vehicle rear
-        left_overhang = 0.128  # between left wheel center and vehicle left
-        right_overhang = 0.128  # between right wheel center and vehicle right
+        wheel_base = self.params("wheel_base") # 2.79  between front wheel center and rear wheel center
+        wheel_tread = self.params("wheel_tread") # 1.64  between left wheel center and right wheel center
+        front_overhang = self.params("front_overhang") # 1.0  between front wheel center and vehicle front
+        rear_overhang = self.params("rear_overhang") # 1.1  # between rear wheel center and vehicle rear
+        left_overhang = self.params("left_overhang") # 0.128  # between left wheel center and vehicle left
+        right_overhang = self.params("right_overhang") # 0.128  # between right wheel center and vehicle right
+        width = self.params("width")  # 2.25
 
         # NOTE: Mass is equally distributed according to the parameters
         lr = wheel_base / 2.0
         lf = wheel_base / 2.0
         ratio = lr / (lr + lf)
-        self.width = 2.25
 
         beta = cd.arctan(ratio * cd.tan(delta))
 
-        return np.array([v * cd.cos(psi + beta), v * cd.sin(psi + beta), (v / lr) * cd.sin(beta), a, w, v])
+        return cd.vertcat(v * cd.cos(psi + beta), v * cd.sin(psi + beta), (v / lr) * cd.sin(beta), a, w, v)
 
 
 # Bicycle model with dynamic steering
@@ -392,6 +373,9 @@ class BicycleModel2ndOrderCurvatureAware(DynamicsModel):
 
     def __init__(self):
         super().__init__()
+        self.width = None
+        self.lr = None
+        self.lf = None
         self.nu = 3
         self.nx = 6
 
@@ -411,25 +395,25 @@ class BicycleModel2ndOrderCurvatureAware(DynamicsModel):
         self.lower_bound = [-3.0, -1.5, 0.0, -1.0e6, -1.0e6, -np.pi * 4, -0.01, -0.55, -1.0]
         self.upper_bound = [3.0, 1.5, 1.0e2, 1.0e6, 1.0e6, np.pi * 4, 8.0, 0.55, 5000.0]
 
-    def continuous_model(self, x, u):
+    def continuous_model(self, x, u, p):
+        self.params = p
         a = u[0]
         w = u[1]
         psi = x[2]
         v = x[3]
         delta = x[4]
 
-        wheel_base = 2.79  # between front wheel center and rear wheel center
+        wheel_base = self.params("wheel_base") # 2.79  between front wheel center and rear wheel center
+        width = self.params("width") # 2.25
 
         # NOTE: Mass is equally distributed according to the parameters
         self.lr = wheel_base / 2.0
         self.lf = wheel_base / 2.0
         ratio = self.lr / (self.lr + self.lf)
 
-        self.width = 2.25
-
         beta = cd.arctan(ratio * cd.tan(delta))
 
-        return np.array([v * cd.cos(psi + beta), v * cd.sin(psi + beta), (v / self.lr) * cd.sin(beta), a, w])
+        return cd.vertcat(v * cd.cos(psi + beta), v * cd.sin(psi + beta), (v / self.lr) * cd.sin(beta), a, w)
 
     def model_discrete_dynamics(self, z, integrated_states, **kwargs):
         x = self.get_x()
@@ -449,12 +433,15 @@ class BicycleModel2ndOrderCurvatureAware(DynamicsModel):
         # Contour = n_vec
         contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
 
-        dp = np.array([integrated_states[0] - pos_x, integrated_states[1] - pos_y])
-        t_vec = np.array([path_dx_normalized, path_dy_normalized])
-        n_vec = np.array([path_dy_normalized, -path_dx_normalized])
+        # dp = np.array([integrated_states[0] - pos_x, integrated_states[1] - pos_y])
+        # t_vec = np.array([path_dx_normalized, path_dy_normalized])
+        # n_vec = np.array([path_dy_normalized, -path_dx_normalized])
+
+        dp = integrated_states[0:2] - cd.vertcat(pos_x, pos_y)
+        t_vec = cd.vertcat(path_dx_normalized, path_dy_normalized)
+        vn_t = dp.T @ cd.vertcat(path_dy_normalized, -path_dx_normalized)
 
         vt_t = dp.dot(t_vec)
-        vn_t = dp.dot(n_vec)
 
         R = 1.0 / path.get_curvature(s)  # max(R) = 1 / 0.0001
         R = cd.fmax(R, 1e5)

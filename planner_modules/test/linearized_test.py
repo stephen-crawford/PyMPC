@@ -37,7 +37,7 @@ class TestLinearizedConstraints(unittest.TestCase):
 		"""Set up test fixtures before each test"""
 		# Create mock solver
 		self.solver = MagicMock()
-		self.solver.N = 10
+		self.solver.horizon = 10
 		self.solver.params = MagicMock()
 
 		# Apply the patch before creating the class
@@ -262,8 +262,8 @@ class TestLinearizedConstraints(unittest.TestCase):
 		self.assertTrue(result)
 
 	def test_planner_integration(self):
-		"""Test if module properly interacts with planner"""
-		# Setup mocks for planner's solve_mpc method
+		"""Test if module properly interacts with planning"""
+		# Setup mocks for planning's solve_mpc method
 		data = MagicMock()
 		state = MagicMock()
 		module_data = MagicMock()
@@ -275,13 +275,13 @@ class TestLinearizedConstraints(unittest.TestCase):
 				patch.object(self.linearized_constraints, 'update') as mock_update, \
 				patch.object(self.linearized_constraints, 'set_parameters') as mock_set_params:
 
-			# Mock planner.solve_mpc similar to the actual implementation
+			# Mock planning.solve_mpc similar to the actual implementation
 			# Update modules
 			for module in self.planner.modules:
 				module.update(state, data, module_data)
 
 			# Set parameters for each prediction step
-			for k in range(self.solver.N):
+			for k in range(self.solver.horizon):
 				for module in self.planner.modules:
 					module.set_parameters(data, module_data, k)
 
@@ -289,7 +289,7 @@ class TestLinearizedConstraints(unittest.TestCase):
 			mock_update.assert_called_once_with(state, data, module_data)
 
 			# Module should have set_parameters called N times
-			self.assertEqual(mock_set_params.call_count, self.solver.N)
+			self.assertEqual(mock_set_params.call_count, self.solver.horizon)
 
 
 if __name__ == '__main__':

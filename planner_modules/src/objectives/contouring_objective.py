@@ -1,14 +1,15 @@
-from planner.src.types import *
+import casadi as cd
+
 from planner_modules.src.objectives.base_objective import BaseObjective
-from utils.utils import read_config_file, LOG_DEBUG, PROFILE_SCOPE, distance, haar_difference_without_abs, \
-	write_to_config
+from utils.math_utils import Spline2DAdapter, SplineAdapter, TwoDimensionalSpline, haar_difference_without_abs, distance
+from utils.utils import LOG_DEBUG, PROFILE_SCOPE
 
 
 class ContouringObjective(BaseObjective):
 	def __init__(self, solver):
 		super().__init__(solver)
 		print("Contouring Objective intializing")
-		# Configuration options from CONFIG
+		# Configuration options from CONFIGs
 		self.num_segments = self.get_config_value("contouring.num_segments")
 		self.add_road_constraints = self.get_config_value("contouring.add_road_constraints")
 		self.two_way_road = self.get_config_value("road.two_way")
@@ -277,11 +278,11 @@ class ContouringObjective(BaseObjective):
 
 	def construct_road_constraints_from_bounds(self, data, module_data):
 		if module_data.static_obstacles.empty():
-			module_data.static_obstacles.resize(self.solver.N)
+			module_data.static_obstacles.resize(self.solver.horizon)
 			for k in range(module_data.static_obstacles.size()):
 				module_data.static_obstacles[k].reserve(2)
 
-		for k in range(self.solver.N):
+		for k in range(self.solver.horizon):
 			module_data.static_obstacles[k].clear()
 			cur_s = self.solver.get_ego_prediction(k, "spline")
 

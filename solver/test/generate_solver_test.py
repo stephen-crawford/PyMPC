@@ -4,7 +4,7 @@ from unittest.mock import patch, MagicMock
 
 # Import functions and classes to test
 from solver.src.generate_solver import generate_solver, generate_casadi_solver, generate_osqp_solver
-from planner.src.dynamic_models import (
+from planning.src.dynamic_models import (
     SecondOrderUnicycleModel,
     BicycleModel2ndOrder,
     ContouringSecondOrderUnicycleModelCurvatureAware

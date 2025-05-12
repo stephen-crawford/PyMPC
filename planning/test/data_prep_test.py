@@ -4,11 +4,11 @@ from unittest.mock import MagicMock, patch
 import logging
 import math
 
-from planner.src.data_prep import propagate_prediction_uncertainty_for_obstacles, propagate_prediction_uncertainty, \
+from planning.src.data_prep import propagate_prediction_uncertainty_for_obstacles, propagate_prediction_uncertainty, \
     ensure_obstacle_size, remove_distant_obstacles, get_constant_velocity_prediction, get_dummy_obstacle, \
     define_robot_area
-from planner.src.types import Prediction, PredictionStep, PredictionType, DynamicObstacle
-from utils.utils import distance
+from planning.src.types import Prediction, PredictionStep, PredictionType, DynamicObstacle
+from utils.math_utils import distance
 
 
 # Import the module to test (adjust the import path as needed)
@@ -23,7 +23,7 @@ class MockState:
     def get(self, key):
         return self._values.get(key, 0.0)
 
-    def get_pos(self):
+    def get_position(self):
         return self._pos
 
 # Mock CONFIG for testing
@@ -42,7 +42,7 @@ class TestDataPreparation(unittest.TestCase):
         global CONFIG
         CONFIG = mock_config
 
-        self.patcher = patch('planner.src.data_prep.CONFIG', mock_config)
+        self.patcher = patch('planning.src.data_prep.CONFIG', mock_config)
         self.mock_config = self.patcher.start()
 
         # Set up basic test objects

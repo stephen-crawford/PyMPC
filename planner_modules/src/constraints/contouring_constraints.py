@@ -2,9 +2,9 @@ import numpy as np
 import casadi as cd
 from scipy.interpolate import CubicSpline
 
-from planner.src.types import Spline2DAdapter, SplineAdapter
 from planner_modules.src.constraints.base_constraint import BaseConstraint
-from utils.utils import LOG_DEBUG, haar_difference_without_abs
+from utils.math_utils import Spline2DAdapter, SplineAdapter, haar_difference_without_abs
+from utils.utils import LOG_DEBUG
 
 
 class ContouringConstraints(BaseConstraint):

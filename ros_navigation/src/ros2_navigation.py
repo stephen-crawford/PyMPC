@@ -120,7 +120,7 @@ class ROS2NavigationPlanner(Controller):
 
         self._data.robot_area = [Disc(0.0, CONFIG["robot_radius"])]
 
-        # Initialize the planner
+        # Initialize the planning
         self._planner = Planner()
 
         # Initialize the ROS interface
@@ -169,15 +169,15 @@ class ROS2NavigationPlanner(Controller):
         """
         # check if plugin is initialized
         if not self.initialized_:
-            self.logger.error("Planner has not been initialized, please call configure() before using this planner")
+            self.logger.error("Planner has not been initialized, please call configure() before using this planning")
             return False
 
         # store the global plan
         self.global_plan_ = []
         self.global_plan_ = path.poses
 
-        # we do not clear the local planner here, since setPlan is called frequently whenever the global planner updates the plan.
-        # the local planner checks whether it is required to reinitialize the trajectory or not within each velocity computation step.
+        # we do not clear the local planning here, since setPlan is called frequently whenever the global planning updates the plan.
+        # the local planning checks whether it is required to reinitialize the trajectory or not within each velocity computation step.
 
         return True
 
@@ -186,7 +186,7 @@ class ROS2NavigationPlanner(Controller):
         Given the current state of the robot, compute velocity command to send to base
         """
         if not self.initialized_:
-            self.logger.error("This planner has not been initialized")
+            self.logger.error("This planning has not been initialized")
             return Twist()
 
         # Convert Path format
@@ -374,7 +374,7 @@ class ROS2NavigationPlanner(Controller):
         Check if the goal has been reached
         """
         if not self.initialized_:
-            self.logger.error("This planner has not been initialized")
+            self.logger.error("This planning has not been initialized")
             return False
 
         goal_reached = self._planner.isObjectiveReached(self._state, self._data) and not self.done_
@@ -575,7 +575,7 @@ class ROS2NavigationPlanner(Controller):
                 self._data.reference_path.psi.append(quaternion_to_angle(pose.pose.orientation))
             count += 1
 
-        # Notify planner of updated path
+        # Notify planning of updated path
         self._planner.onDataReceived(self._data, "reference_path")
 
     def obstacleCallback(self, msg):
@@ -674,7 +674,7 @@ class ROS2NavigationPlanner(Controller):
                 self._x_buffer[i] = 0.0
                 self._y_buffer[i] = 0.0
 
-            # Reset planner
+            # Reset planning
             self._planner.reset(self._state, self._data, success)
             self._data.costmap = self.costmap_
 

@@ -2,8 +2,8 @@ import numpy as np
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from utils.const import DETERMINISTIC, GAUSSIAN
-from utils.utils import LOG_DEBUG, rotation_matrix
-
+from utils.math_utils import rotation_matrix
+from utils.utils import LOG_DEBUG
 
 class LinearizedConstraints(BaseConstraint):
 	def __init__(self, solver):
@@ -55,7 +55,7 @@ class LinearizedConstraints(BaseConstraint):
 		self.num_obstacles = copied_obstacles.size()
 
 		# For all stages
-		for k in range(1, self.solver.N):
+		for k in range(1, self.solver.horizon):
 			for d in range(self.num_discs):
 				# Get ego position
 				pos = np.array([

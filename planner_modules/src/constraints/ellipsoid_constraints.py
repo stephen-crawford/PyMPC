@@ -4,8 +4,8 @@ import numpy as np
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from solver.src.parameter_manager import ParameterManager
 from utils.const import DETERMINISTIC, GAUSSIAN
-from utils.utils import LOG_DEBUG, exponential_quantile
-from utils.utils import rotation_matrix
+from utils.math_utils import exponential_quantile, rotation_matrix
+from utils.utils import LOG_DEBUG
 
 
 class EllipsoidConstraints(BaseConstraint):

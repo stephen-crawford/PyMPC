@@ -1,6 +1,6 @@
 import time
 from utils.utils import CONFIG, Benchmarker, ExperimentManager, LOG_WARN
-from planner.src.types import *
+from planning.src.types import *
 
 
 class Planner:

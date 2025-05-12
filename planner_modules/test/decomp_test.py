@@ -1,6 +1,6 @@
 import unittest
-from unittest import mock
 from unittest.mock import MagicMock, patch
+
 import numpy as np
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
@@ -53,7 +53,7 @@ class TestDecompConstraints(unittest.TestCase):
 
 		# Create mock solver
 		self.solver = MagicMock()
-		self.solver.N = 10
+		self.solver.horizon = 10
 		self.solver.params = MagicMock()
 		self.solver.dt = 0.1
 
@@ -67,7 +67,7 @@ class TestDecompConstraints(unittest.TestCase):
 		self.mock_decomp_util = MagicMock()
 
 		# Patch the EllipsoidDecomp2D class
-		self.ellip_patcher = patch('utils.utils.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
+		self.ellip_patcher = patch('utils.math.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
 		self.mock_decomp_class = self.ellip_patcher.start()
 		self.addCleanup(self.ellip_patcher.stop)
 
@@ -232,13 +232,13 @@ class TestSystemIntegration(unittest.TestCase):
 		self.mock_decomp_util = MagicMock()
 
 		# Patch the EllipsoidDecomp2D class
-		self.patcher = patch('utils.utils.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
+		self.patcher = patch('utils.math.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
 		self.mock_decomp_class = self.patcher.start()
 
 		# Create instance of the class under test
 		self.decomp_constraints = DecompConstraints(self.solver)
 
-		# Create mock planner
+		# Create mock planning
 		self.planner = MagicMock()
 		self.planner.modules = [self.decomp_constraints]
 
@@ -246,8 +246,8 @@ class TestSystemIntegration(unittest.TestCase):
 		self.patcher.stop()
 
 	def test_planner_integration(self):
-		"""Test if module properly interacts with planner"""
-		# Setup mocks for planner's solve_mpc method
+		"""Test if module properly interacts with planning"""
+		# Setup mocks for planning's solve_mpc method
 		data = MagicMock()
 		state = MagicMock()
 		module_data = MagicMock()
@@ -257,7 +257,7 @@ class TestSystemIntegration(unittest.TestCase):
 				patch.object(self.decomp_constraints, 'update') as mock_update, \
 				patch.object(self.decomp_constraints, 'set_parameters') as mock_set_params:
 
-			# Mock planner.solve_mpc similar to the actual implementation
+			# Mock planning.solve_mpc similar to the actual implementation
 			# Update modules
 			for module in self.planner.modules:
 				module.update(state, data, module_data)

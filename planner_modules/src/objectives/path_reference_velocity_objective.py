@@ -1,4 +1,4 @@
-from planner.src.types import TkSpline
+from utils.math_utils import TkSpline
 from planner_modules.src.objectives.base_objective import BaseObjective
 from utils.utils import LOG_DEBUG
 

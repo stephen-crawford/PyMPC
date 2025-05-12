@@ -1,4 +1,4 @@
-from planner.src.planner import Planner
+from planning.src.planner import Planner
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
 from planner_modules.src.objectives.goal_objective import GoalObjective
 from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints

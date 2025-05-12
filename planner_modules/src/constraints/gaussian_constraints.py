@@ -1,10 +1,10 @@
 import numpy as np
 import casadi as cd
 from utils.const import GAUSSIAN, DYNAMIC
-from utils.utils import LOG_DEBUG, PROFILE_SCOPE, exponential_quantile, CONFIG, rotation_matrix
+from utils.math_utils import exponential_quantile, rotation_matrix
+from utils.utils import LOG_DEBUG, PROFILE_SCOPE, CONFIG
 from utils.visualizer import ROSPointMarker
 from planner_modules.src.constraints.base_constraint import BaseConstraint
-
 
 class GaussianConstraints(BaseConstraint):
 	def __init__(self, solver):
@@ -189,7 +189,7 @@ class GaussianConstraints(BaseConstraint):
 				if k - 1 >= len(obstacle.prediction.modes[0]):
 					break
 
-				ellipsoid.set_color_int(k, self.solver.N, 0.5)
+				ellipsoid.set_color_int(k, self.solver.horizon, 0.5)
 
 				# Calculate chi-square value for confidence ellipse
 				if obstacle.type == DYNAMIC:

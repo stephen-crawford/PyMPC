@@ -108,7 +108,7 @@ class TestEllipsoidConstraints(unittest.TestCase):
 		assert (self.solver.params.set_parameter.call_count == 18)  # 2 radius + 2 offset + 7 params * 2 obstacles
 
 
-	@patch('utils.utils.exponential_quantile')
+	@patch('utils.math.exponential_quantile')
 	def test_set_parameters_k1_deterministic(self, mock_exp_quantile):
 		"""Test set_parameters method for k=1 with deterministic obstacles"""
 		# Setup
@@ -146,7 +146,7 @@ class TestEllipsoidConstraints(unittest.TestCase):
 		# Ensure exponential_quantile was not called for deterministic obstacles
 		mock_exp_quantile.assert_not_called()
 
-	@patch('utils.utils.exponential_quantile')
+	@patch('utils.math.exponential_quantile')
 	def test_set_parameters_k1_gaussian(self, mock_exp_quantile):
 		"""Test set_parameters method for k=1 with gaussian obstacles"""
 		# Setup
@@ -233,7 +233,7 @@ class TestSystemIntegration(unittest.TestCase):
 			from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
 			self.ellipsoid_constraints = EllipsoidConstraints(self.solver)
 
-		# Create mock planner
+		# Create mock planning
 		self.planner = MagicMock()
 		self.planner.modules = [self.ellipsoid_constraints]
 
@@ -242,8 +242,8 @@ class TestSystemIntegration(unittest.TestCase):
 
 	@patch('utils.utils.LOG_DEBUG')
 	def test_planner_integration(self, mock_log_debug):
-		"""Test if module properly interacts with planner"""
-		# Setup mocks for planner's solve_mpc method
+		"""Test if module properly interacts with planning"""
+		# Setup mocks for planning's solve_mpc method
 		data = MagicMock()
 		state = MagicMock()
 		module_data = MagicMock()
@@ -253,7 +253,7 @@ class TestSystemIntegration(unittest.TestCase):
 				patch.object(self.ellipsoid_constraints, 'update') as mock_update, \
 				patch.object(self.ellipsoid_constraints, 'set_parameters') as mock_set_params:
 
-			# Mock planner.solve_mpc similar to the actual implementation
+			# Mock planning.solve_mpc similar to the actual implementation
 			# Update modules
 			for module in self.planner.modules:
 				module.update(state, data, module_data)

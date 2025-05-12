@@ -5,8 +5,8 @@ from solver.src.base_solver import BaseSolver
 
 
 class OSQPSolver(BaseSolver):
-    def __init__(self, dt=0.1, N=20):
-        super().__init__(dt, N)
+    def __init__(self, timestep=0.1, horizon=20):
+        super().__init__(timestep, horizon)
         # Properties to match the FORCES approach
         self.nx = 0  # Will be set later
         self.nu = 0  # Will be set later
@@ -16,11 +16,11 @@ class OSQPSolver(BaseSolver):
         self.ub = None  # Upper bounds
 
         # Stage-specific objectives and constraints
-        self.stage_objectives = [None] * N
-        self.stage_constraints = [None] * N
-        self.constraint_numbers = [0] * N
-        self.constraint_lbs = [None] * N
-        self.constraint_ubs = [None] * N
+        self.stage_objectives = [None] * horizon
+        self.stage_constraints = [None] * horizon
+        self.constraint_numbers = [0] * horizon
+        self.constraint_lbs = [None] * horizon
+        self.constraint_ubs = [None] * horizon
 
         # Dynamics function
         self.dynamics_func = None
@@ -75,12 +75,12 @@ class OSQPSolver(BaseSolver):
         # For OSQP, we need to construct sparse matrices for the quadratic program
 
         # Compute dimensions
-        n_states = (self.N + 1) * self.nx
-        n_inputs = self.N * self.nu
+        n_states = (self.horizon + 1) * self.nx
+        n_inputs = self.horizon * self.nu
         n_vars = n_states + n_inputs  # Total number of decision variables
 
         # Count the number of constraints
-        n_dynamics_constraints = self.N * self.nx  # Dynamics constraints
+        n_dynamics_constraints = self.horizon * self.nx  # Dynamics constraints
         n_stage_constraints = sum(self.constraint_numbers)  # Stage constraints
         n_initial_constraints = self.nx  # Initial state constraint
         n_constraints = n_dynamics_constraints + n_stage_constraints + n_initial_constraints
@@ -132,7 +132,7 @@ class OSQPSolver(BaseSolver):
 
         # Dynamics constraints - simplified linear approximation
         # In real implementation, these would be based on your dynamics function
-        for k in range(self.N):
+        for k in range(self.horizon):
             for i in range(self.nx):
                 # x_{k+1}[i] = x_k[i] + ...
                 x_idx_k = k * self.nx + i
@@ -226,7 +226,7 @@ class OSQPSolver(BaseSolver):
         if var_name.startswith("u"):
             # Input variable
             idx = int(var_name[1:]) if len(var_name) > 1 else 0
-            u_start_idx = (self.N + 1) * self.nx  # After all states
+            u_start_idx = (self.horizon + 1) * self.nx  # After all states
             return self.solution_x[u_start_idx + k * self.nu + idx]
         else:
             # State variable

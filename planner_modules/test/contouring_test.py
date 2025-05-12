@@ -172,7 +172,7 @@ class TestContouringObjective(unittest.TestCase):
     def test_initialization(self):
         """Test proper initialization of Contouring"""
         self.assertEqual(self.contouring.module_type, OBJECTIVE)
-        self.assertEqual(self.contouring.name, "contouring")
+        self.assertEqual(self.contouring.name, "contouringobjective")
         self.assertEqual(self.contouring.num_segments, CONFIG_MOCK["contouring"]["num_segments"])
         self.assertEqual(self.contouring.add_road_constraints, CONFIG_MOCK["contouring"]["add_road_constraints"])
         self.assertEqual(self.contouring.two_way_road, CONFIG_MOCK["road"]["two_way"])
@@ -380,14 +380,14 @@ class TestSystemIntegration(unittest.TestCase):
         self.contouring = ContouringObjective(self.solver)
         self.contouring_constraints = ContouringConstraints(self.solver)
 
-        # Create mock planner
+        # Create mock planning
         self.planner = MagicMock()
         self.planner.modules = [self.contouring, self.contouring_constraints]
 
     @patch('utils.utils.read_config_file', return_value=CONFIG_MOCK)
     def test_planner_integration(self, mock_config):
-        """Test if modules properly interact with planner"""
-        # Setup mocks for planner's solve_mpc method
+        """Test if modules properly interact with planning"""
+        # Setup mocks for planning's solve_mpc method
         data = MagicMock()
         state = MagicMock()
         module_data = MagicMock()
@@ -400,7 +400,7 @@ class TestSystemIntegration(unittest.TestCase):
                 patch.object(self.contouring, 'set_parameters') as mock_cont_set_params, \
                 patch.object(self.contouring_constraints, 'set_parameters') as mock_cons_set_params:
 
-            # Mock planner.solve_mpc similar to the actual implementation
+            # Mock planning.solve_mpc similar to the actual implementation
             # Update modules
             for module in self.planner.modules:
                 module.update(state, data, module_data)

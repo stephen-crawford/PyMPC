@@ -1,4 +1,4 @@
-N: 30
+horizon: 30
 contouring:
   add_road_constraints: true
   dynamic_velocity_reference: false
@@ -8,7 +8,7 @@ control_frequency: 20
 debug_limits: true
 debug_output: false
 deceleration_at_infeasible: 3.0
-dt: 0.1
+timestep: 0.1
 enable_output: true
 integrator_step: 0.1
 linearized_constraints:
@@ -16,7 +16,7 @@ linearized_constraints:
   max_constraints: 20
   use_slack: true
 max_obstacles: 3
-n_discs: 0.325
+num_discs: 0.325
 name: test
 obstacle_radius: 0.35
 params:

@@ -113,7 +113,7 @@ class ROSNavigationPlanner(BaseLocalPlanner):
 
             self._data.robot_area = [Disc(0.0, CONFIG["robot_radius"])]
 
-            # Initialize the planner
+            # Initialize the planning
             self._planner = Planner()
 
             # Initialize the ROS interface
@@ -143,15 +143,15 @@ class ROSNavigationPlanner(BaseLocalPlanner):
     def setPlan(self, orig_global_plan):
         # check if plugin is initialized
         if not self.initialized_:
-            rospy.logerr("planner has not been initialized, please call initialize() before using this planner")
+            rospy.logerr("planning has not been initialized, please call initialize() before using this planning")
             return False
 
         # store the global plan
         self.global_plan_ = []
         self.global_plan_ = orig_global_plan
 
-        # we do not clear the local planner here, since setPlan is called frequently whenever the global planner updates the plan.
-        # the local planner checks whether it is required to reinitialize the trajectory or not within each velocity computation step.
+        # we do not clear the local planning here, since setPlan is called frequently whenever the global planning updates the plan.
+        # the local planning checks whether it is required to reinitialize the trajectory or not within each velocity computation step.
 
         # reset goal_reached_ flag
         # self.goal_reached_ = False
@@ -160,7 +160,7 @@ class ROSNavigationPlanner(BaseLocalPlanner):
 
     def computeVelocityCommands(self, cmd_vel):
         if not self.initialized_:
-            rospy.logerr("This planner has not been initialized")
+            rospy.logerr("This planning has not been initialized")
             return False
 
         path = Path()
@@ -242,7 +242,7 @@ class ROSNavigationPlanner(BaseLocalPlanner):
 
     def isGoalReached(self):
         if not self.initialized_:
-            rospy.logerr("This planner has not been initialized")
+            rospy.logerr("This planning has not been initialized")
             return False
 
         goal_reached = self._planner.isObjectiveReached(self._state, self._data) and not self.done_  # Activate once

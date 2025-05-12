@@ -1,5 +1,5 @@
 import numpy as np
-import casadi as ca
+import casadi as cd
 from utils.utils import print_header, print_value, parameter_map_path, write_to_yaml
 
 
@@ -84,7 +84,7 @@ class ParameterManager:
 
     def get_casadi_parameters(self):
         """Get symbolic vector for use in CasADi problem definition."""
-        return ca.SX.sym('p', self.parameter_count)
+        return cd.SX.sym('p', self.parameter_count)
 
     def get_parameter_values(self):
         return self.parameter_values

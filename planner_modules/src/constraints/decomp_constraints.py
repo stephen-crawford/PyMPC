@@ -1,9 +1,9 @@
 import logging
 import numpy as np
 
-from planner.src.types import State
+from planning.src.types import State
+from utils.math_utils import EllipsoidDecomp2D
 from utils.utils import LOG_DEBUG, PROFILE_SCOPE
-from utils.utils import EllipsoidDecomp2D
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 

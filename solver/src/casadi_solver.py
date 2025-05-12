@@ -28,7 +28,7 @@ class CasADiSolver(BaseSolver):
         self.xinit_indices = None
 
         # Initialize CasADi optimizer
-        self.opti = ca.Opti()
+        self.opti = cd.Opti()
         self.solution = None
 
         # State vector map for name-based access
@@ -51,12 +51,12 @@ class CasADiSolver(BaseSolver):
         """Initialize parameter storage according to bundles configuration"""
         self.parameter_bundles = parameter_bundles
         self.parameter_length = length
-        total_params = self.N * length
+        total_params = self.horizon * length
         self.all_parameters = np.zeros(total_params)
         self.npar = total_params
 
     def get_ego_prediction(self, k, var_name):
-        """Get predicted state/input variable at stage k - used by planner"""
+        """Get predicted state/input variable at stage k - used by planning"""
         if self.solution is None:
             # If no solution yet, return current initial values
             if var_name in self.state_map:
@@ -103,8 +103,8 @@ class CasADiSolver(BaseSolver):
     def finalize_problem(self):
         """Set up the optimization problem with all configured components"""
         # Create state and input variables for each stage
-        self.X = [self.opti.variable(self.nx) for _ in range(self.N + 1)]
-        self.U = [self.opti.variable(self.nu) for _ in range(self.N)]
+        self.X = [self.opti.variable(self.nx) for _ in range(self.horizon + 1)]
+        self.U = [self.opti.variable(self.nu) for _ in range(self.horizon)]
 
         # Parameter vector
         self.P = self.opti.parameter(self.npar)
@@ -116,9 +116,9 @@ class CasADiSolver(BaseSolver):
         total_cost = 0
 
         # Add objective and constraints for each stage
-        for k in range(self.N):
+        for k in range(self.horizon):
             # Create stage variable z = [u_k, x_k]
-            z_k = ca.vertcat(self.U[k], self.X[k])
+            z_k = cd.vertcat(self.U[k], self.X[k])
 
             # Add stage cost if objective is defined
             if self.stage_objectives[k] is not None:
@@ -142,7 +142,7 @@ class CasADiSolver(BaseSolver):
                 u_k = self.U[k]
 
                 # Compute next state using dynamics
-                z_k_full = ca.vertcat(u_k, x_k)
+                z_k_full = cd.vertcat(u_k, x_k)
                 x_next = self.dynamics_func(z_k_full, self.P)
 
                 # Enforce next state equals predicted next state
@@ -200,8 +200,8 @@ class CasADiSolver(BaseSolver):
     def load_warmstart(self):
         """Load warmstart values into the optimizer"""
         if self.prev_solution is not None:
-            for k in range(self.N + 1):
-                if k < self.N:
+            for k in range(self.horizon + 1):
+                if k < self.horizon:
                     self.opti.set_initial(self.U[k], self.prev_solution['U'][k])
                 self.opti.set_initial(self.X[k], self.prev_solution['X'][k])
 
@@ -212,22 +212,22 @@ class CasADiSolver(BaseSolver):
             return
 
         # Get the previous solution
-        prev_X = [self.solution.value(self.X[k]) for k in range(self.N + 1)]
-        prev_U = [self.solution.value(self.U[k]) for k in range(self.N)]
+        prev_X = [self.solution.value(self.X[k]) for k in range(self.horizon + 1)]
+        prev_U = [self.solution.value(self.U[k]) for k in range(self.horizon)]
 
         if shift_forward:
             # Shift solution forward
-            for k in range(self.N - 1):
+            for k in range(self.horizon - 1):
                 self.opti.set_initial(self.X[k], prev_X[k + 1])
-                self.opti.set_initial(self.U[k], prev_U[min(k + 1, self.N - 1)])
+                self.opti.set_initial(self.U[k], prev_U[min(k + 1, self.horizon - 1)])
 
             # Last point - extrapolate or repeat last
-            self.opti.set_initial(self.X[self.N], prev_X[self.N])
+            self.opti.set_initial(self.X[self.horizon], prev_X[self.horizon])
 
         else:
             # Just use previous solution as is
-            for k in range(self.N + 1):
-                if k < self.N:
+            for k in range(self.horizon + 1):
+                if k < self.horizon:
                     self.opti.set_initial(self.U[k], prev_U[k])
                 self.opti.set_initial(self.X[k], prev_X[k])
 
@@ -278,7 +278,7 @@ class CasADiSolver(BaseSolver):
         x_traj = []
         u_traj = []
 
-        for k in range(self.N + 1):
+        for k in range(self.horizon + 1):
             t = k * self.dt
             v = max(0, v0 - decel * t)
             s = v0 * t - 0.5 * decel * t * t
@@ -301,15 +301,15 @@ class CasADiSolver(BaseSolver):
             x_traj.append(x_k)
 
             # Control inputs - deceleration
-            if k < self.N:
+            if k < self.horizon:
                 u_k = np.zeros(self.nu)
                 if "acceleration" in self.state_map and self.nu > 0:
                     u_k[0] = -decel  # Assuming first control is acceleration
                 u_traj.append(u_k)
 
         # Set initial values for optimizer
-        for k in range(self.N + 1):
-            if k < self.N:
+        for k in range(self.horizon + 1):
+            if k < self.horizon:
                 self.opti.set_initial(self.U[k], u_traj[k])
             self.opti.set_initial(self.X[k], x_traj[k])
 
@@ -335,8 +335,8 @@ class CasADiSolver(BaseSolver):
             self.solution = self.opti.solve()
 
             # Store solution for warm starting
-            prev_X = [self.solution.value(self.X[k]) for k in range(self.N + 1)]
-            prev_U = [self.solution.value(self.U[k]) for k in range(self.N)]
+            prev_X = [self.solution.value(self.X[k]) for k in range(self.horizon + 1)]
+            prev_U = [self.solution.value(self.U[k]) for k in range(self.horizon)]
             self.prev_solution = {'X': prev_X, 'U': prev_U}
 
             return 1  # Success
@@ -368,13 +368,13 @@ class CasADiSolver(BaseSolver):
 
     def reset(self):
         """Reset the solver - implements abstract method"""
-        self.opti = ca.Opti()
+        self.opti = cd.Opti()
         self.solution = None
         self.prev_solution = None
 
         # Re-initialize all_parameters
         if hasattr(self, 'parameter_length'):
-            total_params = self.N * self.parameter_length
+            total_params = self.horizon * self.parameter_length
             self.all_parameters = np.zeros(total_params)
 
         # Re-setup the problem

@@ -205,7 +205,7 @@ class TestSystemIntegration(unittest.TestCase):
 		self.solver.params = MagicMock()
 		# Create instance of the class under test
 		self.goal_objective = GoalObjective(self.solver)
-		# Create mock planner
+		# Create mock planning
 		self.planner = MagicMock()
 		self.planner.modules = [self.goal_objective]
 
@@ -214,8 +214,8 @@ class TestSystemIntegration(unittest.TestCase):
 
 	@patch('utils.utils.LOG_DEBUG')
 	def test_planner_integration(self, mock_log_debug):
-		"""Test if module properly interacts with planner"""
-		# Setup mocks for planner's solve_mpc method
+		"""Test if module properly interacts with planning"""
+		# Setup mocks for planning's solve_mpc method
 		data = MagicMock()
 		state = MagicMock()
 		module_data = MagicMock()
@@ -225,7 +225,7 @@ class TestSystemIntegration(unittest.TestCase):
 				patch.object(self.goal_objective, 'update') as mock_update, \
 				patch.object(self.goal_objective, 'set_parameters') as mock_set_params:
 
-			# Mock planner.solve_mpc similar to the actual implementation
+			# Mock planning.solve_mpc similar to the actual implementation
 			# Update modules
 			for module in self.planner.modules:
 				module.update(state, data, module_data)

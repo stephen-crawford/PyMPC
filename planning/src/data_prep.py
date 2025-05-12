@@ -1,13 +1,10 @@
-from typing import Any
-
-import numpy as np
-from enum import Enum
 import logging
 
-from numpy import floating
+import numpy as np
 
-from planner.src.types import Disc, DynamicObstacle, Prediction, PredictionType, PredictionStep
-from utils.utils import CONFIG, MOCKED_CONFIG
+from planning.src.types import Disc, DynamicObstacle, Prediction, PredictionType, PredictionStep, State
+from utils.math_utils import distance
+from utils.utils import CONFIG
 
 
 # Assuming these are already defined elsewhere based on your code snippet:
@@ -43,7 +40,7 @@ def define_robot_area(length: float, width: float, n_discs: int) -> list[Disc]:
     return robot_area
 
 
-def get_dummy_obstacle(state: 'State') -> DynamicObstacle:
+def get_dummy_obstacle(state: State) -> DynamicObstacle:
     """Create a dummy obstacle far from the current state."""
     return DynamicObstacle(
         -1,
@@ -79,17 +76,11 @@ def get_constant_velocity_prediction(position: np.ndarray, velocity: np.ndarray,
 
     return prediction
 
-
-def distance(a: np.ndarray, b: np.ndarray) -> floating[Any]:
-    """Calculate Euclidean distance between two points."""
-    return np.linalg.norm(a - b)
-
-
 def remove_distant_obstacles(obstacles: list[DynamicObstacle], state: 'State') -> None:
     """Remove obstacles that are far from the current state."""
     nearby_obstacles = []
 
-    pos = state.get_pos()
+    pos = state.get_position()
     for obstacle in obstacles:
         if distance(pos, obstacle.position) < CONFIG["max_obstacle_distance"]:
             nearby_obstacles.append(obstacle)
@@ -117,7 +108,7 @@ def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> No
                 # Linearly scaled
                 dist = (k + 1) * 0.6 * distance(
                     obstacle.prediction.modes[0][k].position,
-                    state.get_pos() + state.get("v") * k * direction
+                    state.get_position() + state.get("v") * k * direction
                 )
 
                 if dist < min_dist:
@@ -126,7 +117,7 @@ def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> No
             distances.append(min_dist)
 
         # Sort obstacles on distance
-        indices.sort(key=lambda i: distances[i])
+        indices.sort(key=lambda j: distances[j])
 
         # Keep the closest obstacles
         processed_obstacles = []

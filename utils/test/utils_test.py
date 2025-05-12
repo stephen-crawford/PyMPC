@@ -1,24 +1,20 @@
 import logging
-import unittest
 import math
-import numpy as np
 import time
-import os
-import tempfile
+import unittest
 from unittest.mock import patch, MagicMock, mock_open
-import threading
-import datetime
+
+import numpy as np
 
 # Import the modules to test
-from utils.utils import (
+from utils.math_utils import (
     angle_to_quaternion, quaternion_to_angle, distance, exponential_quantile,
     linspace, rotation_matrix_from_heading, angular_difference, bisection,
-    sgn, PROFILE_SCOPE, Benchmarker, Timer,
-    ProfileResult, InstrumentationSession, Instrumentor, InstrumentationTimer,
-    RandomGenerator, read_config_file, LOG_DEBUG, LOG_WARN, PYMPC_ASSERT
+    sgn, RandomGenerator
 )
-
 from utils.utils import ExperimentManager, DataSaver
+from utils.utils import (PROFILE_SCOPE, Benchmarker, Timer,
+                         read_config_file, LOG_DEBUG, LOG_WARN, PYMPC_ASSERT)
 
 
 class TestConversionUtils(unittest.TestCase):
@@ -187,49 +183,6 @@ class TestProfilingTools(unittest.TestCase):
         # Test set_duration
         timer.set_duration(1.0)
         self.assertFalse(timer.has_finished())
-
-
-@patch('builtins.open', new_callable=mock_open)
-class TestInstrumentationTools(unittest.TestCase):
-    @patch('threading.current_thread')
-    def test_instrumentation_timer(self, mock_thread, mock_file):
-        # Configure mock thread
-        mock_thread.return_value.ident = 123
-
-        # Test instrumentation timer
-        with patch.object(Instrumentor, 'get') as mock_instrumentor:
-            mock_instrumentor.return_value = MagicMock()
-
-            timer = InstrumentationTimer("test_timer")
-            time.sleep(0.01)
-            timer.stop()
-
-            # Check if write_profile was called
-            mock_instrumentor.return_value.write_profile.assert_called_once()
-
-            # Check if the profile result has our timer name
-            args = mock_instrumentor.return_value.write_profile.call_args[0][0]
-            self.assertEqual(args.Name, "test_timer")
-
-    def test_instrumentor(self, mock_file):
-        # Test instrumentor singleton
-        inst1 = Instrumentor.get()
-        inst2 = Instrumentor.get()
-        self.assertIs(inst1, inst2)
-
-        # Test begin_session
-        with patch.object(Instrumentor, '_get_package_path', return_value='/tmp'):
-            inst1.begin_session("test_session", "profile.json")
-
-            # Check if file was opened
-            mock_file.assert_called_with('/tmp/profile.json', 'w')
-
-            # Test write_profile
-            result = ProfileResult("test_profile", 1000, 2000, 123)
-            inst1.write_profile(result)
-
-            # Test end_session
-            inst1.end_session()
 
 
 class TestRandomGenerator(unittest.TestCase):

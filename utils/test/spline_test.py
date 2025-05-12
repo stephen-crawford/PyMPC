@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Import your spline implementations
-from planner.src.types import TkSpline, Spline, TwoDimensionalSpline, FourDimensionalSpline, Clothoid2D
+from utils.math_utils import TkSpline, Spline, TwoDimensionalSpline, FourDimensionalSpline, Clothoid2D
 
 class TestTkSpline(unittest.TestCase):
     """Tests for the TkSpline class"""
