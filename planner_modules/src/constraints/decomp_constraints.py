@@ -135,7 +135,7 @@ class DecompConstraints(BaseConstraint):
 		if k == 0:  # Dummies
 			for d in range(self.n_discs):
 				# Set solver parameter for ego disc offset
-				if hasattr(data, 'robot_area') and len(data.robot_area) > d:
+				if data.has('robot_area') and len(data.robot_area) > d:
 					parameter_manager.set_parameter(f"ego_disc_{d}_offset", data.robot_area[d].offset)
 
 				constraint_counter = 0
@@ -156,7 +156,7 @@ class DecompConstraints(BaseConstraint):
 		constraint_counter = 0  # Necessary for now to map the disc and obstacle index to a single index
 		for d in range(self.n_discs):
 			# Set solver parameter for ego disc offset
-			if hasattr(data, 'robot_area') and len(data.robot_area) > d:
+			if data.has('robot_area') and len(data.robot_area) > d:
 				parameter_manager.set_parameter(f"ego_disc_{d}_offset", data.robot_area[d].offset)
 
 			for i in range(self._max_constraints):
@@ -167,7 +167,7 @@ class DecompConstraints(BaseConstraint):
 
 	def is_data_ready(self, data):
 		missing_data = ""
-		if "costmap" not in data:
+		if  not data.has("costmap"):
 			missing_data = "costmap"
 
 		return len(missing_data) < 1

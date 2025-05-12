@@ -1,4 +1,4 @@
-import casadi as ca
+import casadi as cd
 import numpy as np
 from solver.src.base_solver import BaseSolver
 
@@ -46,6 +46,7 @@ class CasADiSolver(BaseSolver):
         # Parameter bundles to match the set_solver_parameter interface
         self.parameter_bundles = {}
         self.parameter_length = 0
+        self.solution_ready = False
 
     def initialize_parameters(self, parameter_bundles, length):
         """Initialize parameter storage according to bundles configuration"""
@@ -57,18 +58,10 @@ class CasADiSolver(BaseSolver):
 
     def get_ego_prediction(self, k, var_name):
         """Get predicted state/input variable at stage k - used by planning"""
-        if self.solution is None:
-            # If no solution yet, return current initial values
-            if var_name in self.state_map:
-                idx = self.state_map[var_name]
-                return self.opti.debug.value(self.X[k][idx])
-            return 0.0
-        else:
-            # Return solution value
-            if var_name in self.state_map:
-                idx = self.state_map[var_name]
-                return self.solution.value(self.X[k][idx])
-            return 0.0
+        idx = self.state_map[var_name]
+        if not self.solution_ready:
+            raise RuntimeError("Cannot get prediction before solving the problem.")
+        return self.opti.debug.value(self.X[k][idx])
 
     def set_state_map(self, state_map):
         """Set the mapping from state names to indices"""
@@ -279,7 +272,7 @@ class CasADiSolver(BaseSolver):
         u_traj = []
 
         for k in range(self.horizon + 1):
-            t = k * self.dt
+            t = k * self.timestep
             v = max(0, v0 - decel * t)
             s = v0 * t - 0.5 * decel * t * t
 
@@ -334,15 +327,18 @@ class CasADiSolver(BaseSolver):
             # Solve the problem
             self.solution = self.opti.solve()
 
+            self.solution_ready = True
+
             # Store solution for warm starting
             prev_X = [self.solution.value(self.X[k]) for k in range(self.horizon + 1)]
             prev_U = [self.solution.value(self.U[k]) for k in range(self.horizon)]
             self.prev_solution = {'X': prev_X, 'U': prev_U}
 
-            return 1  # Success
+            return SolveOutput(success=True)
+
         except Exception as e:
             print(f"Solver failed: {e}")
-            return -1  # Failure
+            return SolveOutput(success=False, message=str(e))
 
     def get_output(self, k, var_name):
         """Get variable value from solution - implements abstract method"""

@@ -108,7 +108,7 @@ class TestEllipsoidConstraints(unittest.TestCase):
 		assert (self.solver.params.set_parameter.call_count == 18)  # 2 radius + 2 offset + 7 params * 2 obstacles
 
 
-	@patch('utils.math.exponential_quantile')
+	@patch('utils.math_utils.exponential_quantile')
 	def test_set_parameters_k1_deterministic(self, mock_exp_quantile):
 		"""Test set_parameters method for k=1 with deterministic obstacles"""
 		# Setup
@@ -146,7 +146,7 @@ class TestEllipsoidConstraints(unittest.TestCase):
 		# Ensure exponential_quantile was not called for deterministic obstacles
 		mock_exp_quantile.assert_not_called()
 
-	@patch('utils.math.exponential_quantile')
+	@patch('utils.math_utils.exponential_quantile')
 	def test_set_parameters_k1_gaussian(self, mock_exp_quantile):
 		"""Test set_parameters method for k=1 with gaussian obstacles"""
 		# Setup

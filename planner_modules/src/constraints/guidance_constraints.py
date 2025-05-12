@@ -327,7 +327,7 @@ class GuidanceConstraints(BaseConstraint):
         missing_data = ""
 
         # Check for required data fields
-        if not hasattr(data, 'path') or data.path is None:
+        if not data.has('path') or data.path is None:
             missing_data += "path"
 
         return len(missing_data) < 1

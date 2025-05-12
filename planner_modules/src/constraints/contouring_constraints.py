@@ -176,7 +176,7 @@ class ContouringConstraints(BaseConstraint):
         required_fields = ["left_bound", "right_bound"]
         missing_data = ""
         for field in required_fields:
-            if field not in data:
+            if not data.has(field):
                 missing_data += f"{field.replace('_', ' ').title()} "
         return len(missing_data) < 1
 

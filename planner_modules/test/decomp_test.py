@@ -5,6 +5,7 @@ import numpy as np
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.constraints.decomp_constraints import DecompConstraints
+from planning.src.types import Data
 # Import modules to test
 from utils.const import CONSTRAINT
 
@@ -67,7 +68,7 @@ class TestDecompConstraints(unittest.TestCase):
 		self.mock_decomp_util = MagicMock()
 
 		# Patch the EllipsoidDecomp2D class
-		self.ellip_patcher = patch('utils.math.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
+		self.ellip_patcher = patch('utils.math_utils.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
 		self.mock_decomp_class = self.ellip_patcher.start()
 		self.addCleanup(self.ellip_patcher.stop)
 
@@ -190,15 +191,15 @@ class TestDecompConstraints(unittest.TestCase):
 	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
 		# Test when data is not ready
-		data = MagicMock()
-		data.costmap = None
+		data = Data()
+
 		missing_data = ""
 
 		result = self.decomp_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when data is ready
-		data = ["costmap"]
+		data.set("costmap", None)
 		missing_data = ""
 
 		result = self.decomp_constraints.is_data_ready(data)
@@ -232,7 +233,7 @@ class TestSystemIntegration(unittest.TestCase):
 		self.mock_decomp_util = MagicMock()
 
 		# Patch the EllipsoidDecomp2D class
-		self.patcher = patch('utils.math.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
+		self.patcher = patch('utils.math_utils.EllipsoidDecomp2D', return_value=self.mock_decomp_util)
 		self.mock_decomp_class = self.patcher.start()
 
 		# Create instance of the class under test

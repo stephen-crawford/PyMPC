@@ -1,12 +1,9 @@
-import logging
 import os
 from enum import Enum
 
 import numpy as np
 
 from utils.utils import LOG_DEBUG, load_yaml
-
-logger = logging.getLogger(__name__)
 
 
 class State:
@@ -222,3 +219,44 @@ class FixedSizeTrajectory:
         self.positions.append(p.copy())
         if len(self.positions) > self._size:
             self.positions.pop(0)
+
+class Data:
+    def __init__(self):
+        self._store = {}
+
+    def empty(self):
+        return len(self._store) == 0
+
+    def add(self, key, value):
+        if key in self._store:
+            self._store[key].append(value)
+        else:
+            self._store[key] = [value]
+
+    def has(self, key):
+        return key in self._store
+
+    def set(self, key, value):
+        self._store[key] = value
+
+    def get(self, key):
+        return self._store.get(key, None)
+
+    def remove(self, key):
+        if key in self._store:
+            del self._store[key]
+
+    def reset(self):
+        self._store.clear()
+
+    def __getattr__(self, key):
+        if key in self._store:
+            return self._store[key]
+        raise AttributeError(f"'Data' object has no attribute '{key}'")
+
+    def __setattr__(self, key, value):
+        if key.startswith("_"):
+            super().__setattr__(key, value)
+        else:
+            self._store[key] = value
+

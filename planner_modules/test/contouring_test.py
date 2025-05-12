@@ -7,6 +7,7 @@ from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
+from planning.src.types import Data
 # Import modules to test
 from utils.const import OBJECTIVE, CONSTRAINT
 
@@ -140,12 +141,13 @@ class TestContouringConstraints(unittest.TestCase):
     def test_is_data_ready(self):
         """Test is_data_ready method"""
         # Test when data is not ready
-        data = []
+        data = Data()
 
         result = self.contouring_constraints.is_data_ready(data)
         self.assertFalse(result)
 
-        data = {"left_bound": 1, "right_bound": 1}
+        data.set("left_bound", 1)
+        data.set("right_bound", 1)
         result = self.contouring_constraints.is_data_ready(data)
         self.assertTrue(result)
 

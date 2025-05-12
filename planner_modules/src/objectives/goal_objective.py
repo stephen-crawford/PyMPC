@@ -50,7 +50,7 @@ class GoalObjective(BaseObjective):
 
   def is_data_ready(self, data):
     missing_data = ""
-    if not data.goal_received:
+    if not data.has("goal_received") or data.goal_received is None or data.goal_received == False:
       missing_data += "Goal "
 
     return len(missing_data) < 1

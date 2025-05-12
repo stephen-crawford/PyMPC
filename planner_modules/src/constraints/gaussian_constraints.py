@@ -157,11 +157,11 @@ class GaussianConstraints(BaseConstraint):
 
 	def is_data_ready(self, data):
 		missing_data = ""
-		if data.dynamic_obstacles.size() != self.get_config_value("max_obstacles"):
+		if not data.has("dynamic_obstacles") or len(data.dynamic_obstacles) != self.get_config_value("max_obstacles"):
 			missing_data += "Obstacles "
 
 
-		for i in range(data.dynamic_obstacles.size()):
+		for i in range(len(data.dynamic_obstacles)):
 			if data.dynamic_obstacles[i].prediction.modes.empty():
 				missing_data += "Obstacle Prediction "
 

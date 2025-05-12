@@ -191,7 +191,7 @@ class ScenarioConstraints(BaseConstraint):
 
 		# Check if any scenario solver is ready
 		for solver in self.scenario_solvers:
-			if not solver.scenario_module.is_data_ready(data, missing_data):
+			if not solver.scenario_module.is_data_ready(data):
 				return False
 
 		return len(missing_data) < 1
@@ -334,7 +334,7 @@ class ScenarioModule:
 	def is_data_ready(self, data):
 		"""Check if all required data is available"""
 		missing_data = ""
-		if not data.dynamic_obstacles:
+		if not data.has("dynamic_obstacles"):
 			missing_data += "No dynamic obstacles "
 
 

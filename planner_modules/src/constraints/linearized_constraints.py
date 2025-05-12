@@ -224,7 +224,7 @@ class LinearizedConstraints(BaseConstraint):
 	def is_data_ready(self, data):
 		missing_data = ""
 
-		if data.dynamic_obstacles.size() != self.max_obstacles:
+		if not data.has("dynamic_obsatcles") or data.dynamic_obstacles.size() != self.max_obstacles:
 			missing_data += "Obstacles "
 
 		for i in range(data.dynamic_obstacles.size()):

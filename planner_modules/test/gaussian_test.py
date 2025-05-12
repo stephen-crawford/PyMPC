@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch, call, ANY
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.constraints.gaussian_constraints import GaussianConstraints
+from planning.src.types import Data
 # Import modules to test
 from utils.const import CONSTRAINT, GAUSSIAN, DYNAMIC
 
@@ -167,34 +168,33 @@ class TestGaussianConstraints(unittest.TestCase):
 	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
 		# Test when obstacles count does not match max_obstacles
-		data = MagicMock()
-		data.dynamic_obstacles = MagicMock()
-		data.dynamic_obstacles.size.return_value = 2  # Not equal to CONFIG_MOCK["max_obstacles"]
+		data = Data()
+		obst = MagicMock()
+		obsts = [obst, obst]
+		data.set("dynamic_obstacles", obsts)
 		missing_data = ""
 
 		result = self.gaussian_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when obstacle prediction modes are empty
-		data.dynamic_obstacles.size.return_value = CONFIG_MOCK["max_obstacles"]
-		obstacle = MagicMock()
-		obstacle.prediction.modes.empty.return_value = True
-		data.dynamic_obstacles.__getitem__.return_value = obstacle
+		data.set("dynamic_obstacles", [obst, obst, obst])
+		obst.prediction.modes.empty.return_value = True
 		missing_data = ""
 
 		result = self.gaussian_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when obstacle prediction type is not Gaussian
-		obstacle.prediction.modes.empty.return_value = False
-		obstacle.prediction.type = "NOT_GAUSSIAN"  # Not GAUSSIAN
+		obst.prediction.modes.empty.return_value = False
+		obst.prediction.type = "NOT_GAUSSIAN"  # Not GAUSSIAN
 		missing_data = ""
 
 		result = self.gaussian_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when data is ready
-		obstacle.prediction.type = GAUSSIAN
+		obst.prediction.type = GAUSSIAN
 		missing_data = ""
 
 		result = self.gaussian_constraints.is_data_ready(data)

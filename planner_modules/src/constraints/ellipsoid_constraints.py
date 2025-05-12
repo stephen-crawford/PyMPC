@@ -174,7 +174,7 @@ class EllipsoidConstraints(BaseConstraint):
 
 	def is_data_ready(self, data):
 		missing_data = ""
-		if len(data.dynamic_obstacles) != self.get_config_value("max_obstacles"):
+		if not data.has("dynamic_obstacles") or len(data.dynamic_obstacles) != self.get_config_value("max_obstacles"):
 			missing_data += "Obstacles "
 
 

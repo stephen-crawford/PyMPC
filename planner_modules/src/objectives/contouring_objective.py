@@ -211,7 +211,7 @@ class ContouringObjective(BaseObjective):
 
 	def is_data_ready(self, data):
 		missing_data = ""
-		if data.reference_path.x.empty():
+		if not data.has("reference_path") or data.reference_path.x.empty():
 			missing_data += "reference_path"
 
 		return len(missing_data) < 1

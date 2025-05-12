@@ -5,6 +5,7 @@ import numpy as np
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints, GuidancePlanner
+from planning.src.types import Data
 from utils.const import CONSTRAINT
 
 # Manually patch CONFIG to avoid dependency issues in testing
@@ -377,14 +378,14 @@ class TestGuidanceConstraints(unittest.TestCase):
 	def test_is_data_ready(self):
 		"""Test is_data_ready method"""
 		# Test when data is not ready
-		data = ""
+		data = Data()
 
 		result = self.guidance_constraints.is_data_ready(data)
 		self.assertFalse(result)
 
 		# Test when data is ready
-		data = MagicMock
-		data.path = MagicMock()
+
+		data.set("path", MagicMock())
 
 		result = self.guidance_constraints.is_data_ready(data)
 		self.assertTrue(result)
