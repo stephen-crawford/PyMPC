@@ -1,5 +1,6 @@
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.objectives.base_objective import BaseObjective
+from planning.src.types import State
 from utils.const import OBJECTIVE
 from utils.math_utils import distance
 from utils.utils import LOG_DEBUG
@@ -13,12 +14,13 @@ class GoalObjective(BaseObjective):
     self.name = "goal_objective"
     LOG_DEBUG( "Initializing Goal Module")
     LOG_DEBUG( "Goal Module successfully initialized")
-    self.goal_weight = self.get_config_value("goal_weight")
+    self.goal_weight = self.get_config_value("weights.goal_weight")
 
-  def update(self, state, data, module_data):
+  def update(self, state, data):
     return
 
   def define_parameters(self, params):
+    print("Defining parameters for Goal Objective")
     params.add("goal_weight", add_to_rqt_reconfigure=True, rqt_config_name=lambda p: f'["weights"]["goal"]')
     params.add("goal_x")
     params.add("goal_y")
@@ -26,12 +28,11 @@ class GoalObjective(BaseObjective):
   def get_value(self, model, params, settings, stage_idx):
     cost = 0
 
-    # if stage_idx == settings["N"] - 1:
+    # Get position at the specific stage index
     pos_x = model.get("x")
     pos_y = model.get("y")
 
     goal_weight = params.get("goal_weight")
-
     goal_x = params.get("goal_x")
     goal_y = params.get("goal_y")
 
@@ -39,13 +40,13 @@ class GoalObjective(BaseObjective):
 
     return cost
 
-  def set_parameters(self, parameter_manager, data, module_data, k):
-
+  def set_parameters(self, parameter_manager, data, k):
+    LOG_DEBUG("Setting parameters for Goal Objective")
     if k == 0:
       LOG_DEBUG( "Goal Module.set_parameters()")
 
-    parameter_manager.set_parameter("goal_x", data.goal(0))
-    parameter_manager.set_parameter("goal_y", data.goal(1))
+    parameter_manager.set_parameter("goal_x", data.goal[0])
+    parameter_manager.set_parameter("goal_y", data.goal[1])
     parameter_manager.set_parameter("goal_weight", self.goal_weight)
 
   def is_data_ready(self, data):
@@ -55,10 +56,10 @@ class GoalObjective(BaseObjective):
 
     return len(missing_data) < 1
 
-  def is_objective_reached(self, state, data):
+  def is_objective_reached(self, state: State, data):
 
     if not data.goal_received:
       return False
 
     # Check if we reached the goal
-    return distance(state.get_pos(), data.goal) < 1.0
+    return distance(state.get_position(), data.goal) < 1.0

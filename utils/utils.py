@@ -8,7 +8,10 @@ from contextlib import contextmanager
 import numpy as np
 
 # Initialize logger
-logger = logging.getLogger(__name__)
+
+import logging
+
+# Configure logging once at module level
 
 import os
 import yaml
@@ -92,17 +95,36 @@ def PROFILE_SCOPE(name):
         elapsed_time = end_time - start_time
         logging.debug(f"{name} took {elapsed_time:.6f} seconds")
 
-def LOG_DEBUG(message):
-    logging.basicConfig(level=logging.DEBUG)  # Configure logging level
-    logger = logging.getLogger(__name__)
-    logger.debug(message)
+# Optional named logger for your module
+logger = logging.getLogger("PyMPC")
 
+# Create a handler that outputs to the console (stdout)
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)  # Set the handler to DEBUG level
 
-def LOG_WARN(message):
-    logging.basicConfig(level=logging.WARN)  # Configure logging level
-    logger = logging.getLogger(__name__)
-    logger.debug(message)
+# Create a simple format for the log messages
+formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+console_handler.setFormatter(formatter)
 
+# Add the handler to the logger
+logger.addHandler(console_handler)
+
+file_handler = logging.FileHandler('debug.log')
+file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+logger.addHandler(file_handler)
+
+# Export short-hand debug logging
+def LOG_DEBUG(msg):
+    logger.debug(msg)
+
+def LOG_INFO(msg):
+    logger.info(msg)
+
+def LOG_WARN(msg):
+    logger.warning(msg)
+
+def LOG_ERROR(msg):
+    logger.error(msg)
 
 def PYMPC_ASSERT(expr, msg):
     logging.basicConfig(level=logging.ERROR)

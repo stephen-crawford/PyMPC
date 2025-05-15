@@ -5,6 +5,7 @@ import numpy as np
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints, GuidancePlanner
+from planning.src.dynamic_models import SecondOrderUnicycleModel
 from planning.src.types import Data
 from utils.const import CONSTRAINT
 
@@ -441,6 +442,7 @@ class TestGuidancePlanner(unittest.TestCase):
 		self.solver = MagicMock()
 		self.solver.horizon = 10
 		self.solver.dt = 0.1
+		dynamics_model = SecondOrderUnicycleModel
 
 		# Create planning instance directly (no need to patch)
 		with patch('planner_modules.src.constraints.guidance_constraints.Planner'):

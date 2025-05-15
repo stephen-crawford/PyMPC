@@ -52,7 +52,9 @@ weights:
   acceleration_y: 0.25
   angular_velocity: 0.5
   contour: 0.05
-  goal: 0.5
+  goal_weight: 0.5
+  terminal_angle: 0.02
+  terminal_contouring: 0.02
   lag: 0.1
   preview: 0.0
   reference_velocity: 1.5

@@ -1,12 +1,11 @@
 import casadi as cd
 import numpy as np
 
-from solver_generator.spline import Spline2D
-
+from utils.math_utils import Spline2DBySegment
 from utils.utils import model_map_path, write_to_yaml, print_warning
 
 
-def casadi_discrete_dynamics(z, p, model, settings, nx=None, integration_step=None):
+def casadi_discrete_dynamics(z, p, model, nx=None, integration_step=None):
     """
     Discretizes a continuous-time model using RK4, implemented with CasADi.
 
@@ -22,7 +21,7 @@ def casadi_discrete_dynamics(z, p, model, settings, nx=None, integration_step=No
         nx = model.nx
 
     if integration_step is None:
-        integration_step = settings["integrator_step"]
+        integration_step = 0.1
 
     # Extract control and state
     u = z[0:model.nu]
@@ -61,7 +60,7 @@ class DynamicsModel:
         self.nu = 0  # number of control variables
         self.nx = 0  # number of states
 
-        self.states = []
+        self.state_vars = []
         self.inputs = []
 
         self.lower_bound = []
@@ -70,31 +69,86 @@ class DynamicsModel:
         self.params = None
         self.nx_integrate = None
 
-    def discrete_dynamics(self, z, p, settings, **kwargs):
-        # Load parameters and settings
-        params = settings["params"]
-        params.load(p)
-        self.load(z)
-        self.load_settings(settings)
 
-        # Get integration step (default to 0.1 if not provided)
-        integration_step = settings.get("dt", 0.1)
-        if integration_step is None:
-            integration_step = 0.1
+    def get_vars(self):
+        return self.state_vars
+
+    def discrete_dynamics(self, z, p, timestep, **kwargs):
+        """
+        Discretize the continuous-time dynamics model.
+        This method uses the z vector to compute the next state after one time step.
+
+        Parameters:
+        ----------
+        z : CasADi MX or SX vector or numpy array
+            Vector containing control inputs followed by states [u, x]
+        p : CasADi MX or SX vector or numpy array
+            Parameters vector
+        settings : dict
+            Dictionary containing settings for the discretization
+
+        Returns:
+        -------
+        CasADi MX or SX vector or numpy array
+            The state vector after one discrete time step
+        """
+        # Load parameters and settings
+        import casadi as cd
+
+        # Load the z vector into _z
+        self.load(z)
+
+        if timestep is None:
+            timestep = 0.1
 
         # Determine how many states to integrate
         nx_integrate = self.nx if self.nx_integrate is None else self.nx_integrate
 
-        # Call the discretization function
-        integrated_states = casadi_discrete_dynamics(z, p, self, settings,
+        # Call the discretization function (directly passing z since we've already loaded it)
+        integrated_states = casadi_discrete_dynamics(z, p, self,
                                                      nx=nx_integrate,
-                                                     integration_step=integration_step)
+                                                     integration_step=timestep)
 
         # Apply model-specific discrete dynamics
         integrated_states = self.model_discrete_dynamics(z, integrated_states, **kwargs)
         return integrated_states
 
+    def load(self, z):
+        """
+        Load state and control variables from the z vector.
+
+        Parameters:
+        ----------
+        z : CasADi MX or SX vector or numpy array
+            Vector containing control inputs followed by states [u, x]
+        """
+        # Store the full vector
+        self._z = z
+
+        # For debugging, you can print or verify the shape
+        # import casadi as cd
+        # if isinstance(z, (cd.MX, cd.SX)):
+        #     print(f"Loaded symbolic z with shape {z.shape}")
+        # else:
+        #     print(f"Loaded numeric z with shape {len(z)}")
+
     def model_discrete_dynamics(self, z, integrated_states, **kwargs):
+        """
+        Apply model-specific discrete dynamics logic after integration.
+        This method can be overridden by subclasses to implement model-specific behavior.
+
+        Parameters:
+        ----------
+        z : CasADi MX or SX vector or numpy array
+            Vector containing control inputs followed by states [u, x]
+        integrated_states : CasADi MX or SX vector or numpy array
+            The states after integration
+
+        Returns:
+        -------
+        CasADi MX or SX vector or numpy array
+            The updated states after model-specific logic
+        """
         return integrated_states
 
     def get_nvar(self):
@@ -103,21 +157,11 @@ class DynamicsModel:
     def get_xinit(self):
         return range(self.nu, self.get_nvar())
 
-    def acados_symbolics(self):
-        x = cd.SX.sym("x", self.nx)  # [px, py, vx, vy]
-        u = cd.SX.sym("u", self.nu)  # [ax, ay]
-        z = cd.vertcat(u, x)
-        self.load(z)
-        return z
-
     def get_x(self):
         return self._z[self.nu:]
 
     def get_u(self):
         return self._z[:self.nu]
-
-    def load(self, z):
-        self._z = z
 
     def load_settings(self, settings):
         self.params = settings["params"]
@@ -125,26 +169,82 @@ class DynamicsModel:
 
     def save_map(self):
         file_path = model_map_path()
+        for idx, state in enumerate(self.state_vars):
+            map[state] = ["x", idx + self.nu, self.get_bounds(state)[0], self.get_bounds(state)[1]]
 
-        map_to_save = dict()
-        for idx, state in enumerate(self.states):
-            map_to_save[state] = ["x", idx + self.nu, self.get_bounds(state)[0], self.get_bounds(state)[1]]
+        for idx, input in enumerate(self.inputs):
+            map[input] = ["u", idx, self.get_bounds(input)[0], self.get_bounds(input)[1]]
 
-        for idx, i in enumerate(self.inputs):
-            map_to_save[i] = ["u", idx, self.get_bounds(i)[0], self.get_bounds(i)[1]]
-
-        write_to_yaml(file_path, map_to_save)
+        write_to_yaml(file_path, map)
 
     def integrate(self, z, settings, integration_step):
         # This function should handle params correctly
         return self.discrete_dynamics(z, settings["params"].get_p(), settings, integration_step=integration_step)
 
+    def debug_z_vector(self):
+        """
+        Helper method to print information about the current z vector.
+        Useful for debugging purposes.
+
+        Returns:
+        -------
+        dict
+            Dictionary with control and state values from _z
+        """
+        if self._z is None:
+            print("Warning: _z is None. load() has not been called yet.")
+            return None
+
+        import casadi as cd
+        import numpy as np
+
+        result = {}
+
+        # Check if _z is a numeric or symbolic vector
+        is_symbolic = isinstance(self._z, (cd.MX, cd.SX))
+
+        if is_symbolic:
+            print(f"_z is symbolic with shape {self._z.shape}")
+            # Can't extract numeric values from symbolic expressions
+            return {"type": "symbolic", "shape": self._z.shape}
+        else:
+            # Try to treat _z as a numeric array or list
+            try:
+                # Extract control inputs
+                controls = {}
+                for i, input_name in enumerate(self.inputs):
+                    if i < len(self._z):
+                        controls[input_name] = self._z[i]
+
+                # Extract states
+                states = {}
+                for i, state_name in enumerate(self.state_vars):
+                    idx = self.nu + i
+                    if idx < len(self._z):
+                        states[state_name] = self._z[idx]
+
+                result = {
+                    "type": "numeric",
+                    "controls": controls,
+                    "states": states,
+                    "length": len(self._z),
+                    "expected_length": self.nu + self.nx
+                }
+
+                print(f"_z contains {len(self._z)} elements (expected {self.nu + self.nx})")
+                print(f"Controls: {controls}")
+                print(f"States: {states}")
+                return result
+            except Exception as e:
+                print(f"Error parsing _z: {e}")
+                return {"type": "error", "error": str(e)}
+
     def do_not_use_integration_for_last_n_states(self, n):
         self.nx_integrate = self.nx - n
 
     def get(self, state_or_input):
-        if state_or_input in self.states:
-            i = self.states.index(state_or_input)
+        if state_or_input in self.state_vars:
+            i = self.state_vars.index(state_or_input)
             return self._z[self.nu + i]
         elif state_or_input in self.inputs:
             i = self.inputs.index(state_or_input)
@@ -159,8 +259,8 @@ class DynamicsModel:
         self.upper_bound = upper_bound
 
     def get_bounds(self, state_or_input):
-        if state_or_input in self.states:
-            i = self.states.index(state_or_input)
+        if state_or_input in self.state_vars:
+            i = self.state_vars.index(state_or_input)
             return (
                 self.lower_bound[self.nu + i],
                 self.upper_bound[self.nu + i],
@@ -196,7 +296,7 @@ class SecondOrderUnicycleModel(DynamicsModel):
         self.nu = 2  # number of control variables
         self.nx = 4  # number of states
 
-        self.states = ["x", "y", "psi", "v"]
+        self.state_vars = ["x", "y", "psi", "v"]
         self.inputs = ["a", "w"]
 
         self.lower_bound = [-2.0, -2.0, -200.0, -200.0, -np.pi * 4, -2.0]
@@ -211,7 +311,6 @@ class SecondOrderUnicycleModel(DynamicsModel):
 
         return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a)
 
-
 class ContouringSecondOrderUnicycleModel(DynamicsModel):
 
     def __init__(self):
@@ -219,7 +318,7 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         self.nu = 2  # number of control variables
         self.nx = 5  # number of states
 
-        self.states = ["x", "y", "psi", "v", "spline"]
+        self.state_vars = ["x", "y", "psi", "v", "spline"]
         self.inputs = ["a", "w"]
 
         # w = 0.8
@@ -243,7 +342,7 @@ class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
         self.nu = 2  # number of control variables
         self.nx = 5  # number of states
 
-        self.states = ["x", "y", "psi", "v", "spline"]
+        self.state_vars = ["x", "y", "psi", "v", "spline"]
         self.inputs = ["a", "w"]
 
         self.do_not_use_integration_for_last_n_states(n=1)
@@ -268,7 +367,7 @@ class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
         s = x[-1]
 
         # CA-MPC
-        path = Spline2D(self.params, self.settings["contouring"]["get_num_segments"], s)
+        path = Spline2DBySegment(self.params, self.settings["contouring"]["get_num_segments"], s)
         path_x, path_y = path.at(s)
         path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)
         path_ddx, path_ddy = path.deriv2(s)
@@ -301,7 +400,7 @@ class ContouringSecondOrderUnicycleModelWithSlack(DynamicsModel):
         self.nu = 2  # number of control variables
         self.nx = 6  # number of states
 
-        self.states = ["x", "y", "psi", "v", "spline", "slack"]
+        self.state_vars = ["x", "y", "psi", "v", "spline", "slack"]
         self.inputs = ["a", "w"]
 
         self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 4, -0.01, -1.0, 0.0]  # v -0.01
@@ -322,14 +421,14 @@ class ContouringSecondOrderUnicycleModelWithSlack(DynamicsModel):
 
 
 # Bicycle model with dynamic steering
-class BicycleModel2ndOrder(DynamicsModel):
+class SecondOrderBicycleModel(DynamicsModel):
 
     def __init__(self):
         super().__init__()
         self.nu = 3
         self.nx = 6
 
-        self.states = ["x", "y", "psi", "v", "delta", "spline"]
+        self.state_vars = ["x", "y", "psi", "v", "delta", "spline"]
         self.inputs = ["a", "w", "slack"]
 
         # Prius limits: https:#github.com/oscardegroot/lmpcc/blob/prius/lmpccsolver/scripts/systems.py
@@ -356,12 +455,12 @@ class BicycleModel2ndOrder(DynamicsModel):
         rear_overhang = self.params("rear_overhang") # 1.1  # between rear wheel center and vehicle rear
         left_overhang = self.params("left_overhang") # 0.128  # between left wheel center and vehicle left
         right_overhang = self.params("right_overhang") # 0.128  # between right wheel center and vehicle right
-        width = self.params("width")  # 2.25
 
         # NOTE: Mass is equally distributed according to the parameters
         lr = wheel_base / 2.0
         lf = wheel_base / 2.0
         ratio = lr / (lr + lf)
+        self.width = 2.25
 
         beta = cd.arctan(ratio * cd.tan(delta))
 
@@ -369,17 +468,14 @@ class BicycleModel2ndOrder(DynamicsModel):
 
 
 # Bicycle model with dynamic steering
-class BicycleModel2ndOrderCurvatureAware(DynamicsModel):
+class CurvatureAwareSecondOrderBicycleModel(DynamicsModel):
 
     def __init__(self):
         super().__init__()
-        self.width = None
-        self.lr = None
-        self.lf = None
         self.nu = 3
         self.nx = 6
 
-        self.states = ["x", "y", "psi", "v", "delta", "spline"]
+        self.state_vars = ["x", "y", "psi", "v", "delta", "spline"]
         self.inputs = ["a", "w", "slack"]
 
         self.do_not_use_integration_for_last_n_states(n=1)
@@ -403,13 +499,14 @@ class BicycleModel2ndOrderCurvatureAware(DynamicsModel):
         v = x[3]
         delta = x[4]
 
-        wheel_base = self.params("wheel_base") # 2.79  between front wheel center and rear wheel center
-        width = self.params("width") # 2.25
+        wheel_base = 2.79  # between front wheel center and rear wheel center
 
         # NOTE: Mass is equally distributed according to the parameters
         self.lr = wheel_base / 2.0
         self.lf = wheel_base / 2.0
         ratio = self.lr / (self.lr + self.lf)
+
+        self.width = 2.25
 
         beta = cd.arctan(ratio * cd.tan(delta))
 
@@ -425,7 +522,7 @@ class BicycleModel2ndOrderCurvatureAware(DynamicsModel):
         s = x[-1]
 
         # CA-MPC
-        path = Spline2D(self.params, self.settings["contouring"]["get_num_segments"], s)
+        path = Spline2DBySegment(self.params, self.settings["contouring"]["get_num_segments"], s)
         path_x, path_y = path.at(s)
         path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)
         path_ddx, path_ddy = path.deriv2(s)

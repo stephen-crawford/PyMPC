@@ -20,7 +20,9 @@ CONFIG_MOCK = {
 	},
 	"max_obstacles": 3,
 	"debug_visuals": False,
-	"goal_weight": 0.5
+	"weights": {
+		"goal_weight": 0.5
+	}
 }
 
 def get_mocked_config(key, default=None):
@@ -58,7 +60,7 @@ class TestGoalObjective(unittest.TestCase):
 		"""Test proper initialization of EllipsoidConstraints"""
 		self.assertEqual(self.goal_objective.module_type, OBJECTIVE)
 		self.assertEqual(self.goal_objective.name, "goal_objective")
-		self.assertEqual(self.goal_objective.goal_weight, CONFIG_MOCK["goal_weight"])
+		self.assertEqual(self.goal_objective.goal_weight, CONFIG_MOCK["weights"]["goal_weight"])
 
 	def test_update(self):
 		"""Test update method with valid data"""

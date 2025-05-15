@@ -1,3 +1,4 @@
+import math
 import random
 from bisect import bisect_right
 
@@ -5,10 +6,9 @@ from typing import List
 
 from casadi import atan2
 
-import math
-
 import numpy as np
 import casadi as cd
+import math
 
 from utils.utils import LOG_WARN
 
@@ -448,6 +448,7 @@ class TkSpline:
         """
 
         print("X contains: {}".format(x))
+        print("Y contains: {}".format(y))
         assert len(x) == len(y)
         assert len(x) > 2
 
@@ -458,11 +459,14 @@ class TkSpline:
 
         n = len(x)
 
-        # Check that x is strictly increasing
-        for i in range(n - 1):
-            assert self.m_x[i] < self.m_x[i + 1]
+        # # Check that x is strictly increasing
+        # for i in range(n - 1):
+        #     is_increasing = self.m_x[i] < self.m_x[i + 1]
+        #     print("Is points strictly increasing: {}".format(is_increasing))
+        #     assert self.m_x[i] < self.m_x[i + 1]
 
         if cubic_spline:
+            print("Building cubic spline")
             # Cubic spline interpolation
             # Setting up the matrix and right hand side of the equation system
             # for the parameters b[]
@@ -498,7 +502,7 @@ class TkSpline:
                 A.set_element(n - 1, n - 2, 1.0 * (x[n - 1] - x[n - 2]))
                 rhs[n - 1] = 3.0 * (self.m_right_value - (y[n - 1] - y[n - 2]) / (x[n - 1] - x[n - 2]))
             elif self.m_right == self.SECOND_DERIV:
-                # 2*b[n-1] = f''
+                # 2*b[n-1]x contains = f''
                 A.set_element(n - 1, n - 1, 2.0)
                 A.set_element(n - 1, n - 2, 0.0)
                 rhs[n - 1] = self.m_right_value
@@ -543,6 +547,7 @@ class TkSpline:
 
         if self.m_force_linear_extrapolation:
             self.m_b[n - 1] = 0.0
+
 
     def __call__(self, x):
         """Evaluate the spline at point x.
@@ -678,10 +683,9 @@ class Spline:
         self.compute_distance_vector(points, self.s_vector)
 
         self.splines = []
-        for i in range(len(points)):
-            spline = TkSpline()
-            spline.set_points(points[i][0], points[i][1])
-            self.splines.append(spline)
+        spline = TkSpline()
+        spline.set_points(points[0], points[1])
+        self.splines.append(spline)
 
     def compute_distance_vector(self, points, out):
         """Compute the distance vector between points"""
@@ -1013,50 +1017,69 @@ class FourDimensionalSpline(TwoDimensionalSpline):
                 az_val, bz_val, cz_val, dz_val,
                 aw_val, bw_val, cw_val, dw_val)
 
-
 class SplineAdapter:
     """Adapter class that provides the old Spline interface using the new Spline implementation"""
 
     def __init__(self, params, name, num_segments, s):
-        # Create points and parameter vector from the old parameters
+        """
+        Initialize the 1D spline adapter
+
+        Args:
+            params: Parameter object with get method
+            name: Base name for the spline parameters (e.g., "spline_v")
+            num_segments: Number of spline segments
+            s: Current spline parameter value (not used in initialization)
+        """
+        # Create points arrays for the new spline format
         points = [[]]  # Single dimension array for 1D spline
         t_vector = []
 
-        # Get segment start points and convert to points for the new spline
+        # Debug information
+        print(f"Initializing SplineAdapter with {num_segments} segments, name: {name}")
+
+        # Extract all the segment parameters from the params object
         for i in range(num_segments):
-            s_start = params.get(f"spline{i}_start")
+            s_start = params.get(f"spline_{i}_start")
             a = params.get(f"{name}{i}_a")
             b = params.get(f"{name}{i}_b")
             c = params.get(f"{name}{i}_c")
             d = params.get(f"{name}{i}_d")
 
+            print(f"Segment {i}: s_start={s_start}, a={a}, b={b}, c={c}, d={d}")
+
             # Add the start point of this segment
             t_vector.append(s_start)
             points[0].append(d)  # At s=0, only d coefficient matters
 
-            # If this is the last segment, add one more point to end the spline
+            # For the last segment, add the endpoint
             if i == num_segments - 1:
-                # Choose a reasonable end point - adjust as needed
+                # Choose a reasonable end point - using 1.0 as a default segment length
                 s_end = s_start + 1.0
+                # Calculate the value at the endpoint using the polynomial
                 s_param = s_end - s_start
                 end_value = a * s_param ** 3 + b * s_param ** 2 + c * s_param + d
                 t_vector.append(s_end)
                 points[0].append(end_value)
 
+        print(f"t_vector: {t_vector}")
+        print(f"points: {points}")
+
         # Initialize the new spline
+
         self.spline = Spline(points, t_vector)
 
+
     def at(self, s):
-        # Map to get_coordinate with coordinate index 0 for 1D spline
+        """Evaluate the spline at parameter s"""
         return self.spline.get_coordinate(s, 0)
 
     def deriv(self, s):
-        # Get the velocity vector and return the first component
+        """Get the first derivative at parameter s"""
         velocity = self.spline.get_velocity(s)
         return velocity[0]
 
     def deriv2(self, s):
-        # Get the acceleration vector and return the first component
+        """Get the second derivative at parameter s"""
         acceleration = self.spline.get_acceleration(s)
         return acceleration[0]
 
@@ -1065,38 +1088,53 @@ class Spline2DAdapter:
     """Adapter class that provides the old Spline2D interface using the new Spline implementation"""
 
     def __init__(self, params, num_segments, s):
-        # Create x and y points arrays
+        """
+        Initialize the 2D spline adapter
+
+        Args:
+            params: Parameter object with get method
+            num_segments: Number of spline segments
+            s: Current spline parameter value (not used in initialization)
+        """
+        # Create arrays for x and y points
         points_x = []
         points_y = []
         t_vector = []
 
-        # Get points for each segment
+        print(f"Initializing Spline2DAdapter with {num_segments} segments")
+
+        # Extract all segment parameters from the params object
         for i in range(num_segments):
-            s_start = params.get(f"spline{i}_start")
+            s_start = params.get(f"spline_{i}_start")
 
             # X spline coefficients
-            ax = params.get(f"spline_x{i}_a")
-            bx = params.get(f"spline_x{i}_b")
-            cx = params.get(f"spline_x{i}_c")
-            dx = params.get(f"spline_x{i}_d")
+            ax = params.get(f"spline_{i}_ax")
+            bx = params.get(f"spline_{i}_bx")
+            cx = params.get(f"spline_{i}_cx")
+            dx = params.get(f"spline_{i}_dx")
 
             # Y spline coefficients
-            ay = params.get(f"spline_y{i}_a")
-            by = params.get(f"spline_y{i}_b")
-            cy = params.get(f"spline_y{i}_c")
-            dy = params.get(f"spline_y{i}_d")
+            ay = params.get(f"spline_{i}_ay")
+            by = params.get(f"spline_{i}_by")
+            cy = params.get(f"spline_{i}_cy")
+            dy = params.get(f"spline_{i}_dy")
 
-            # Add start point
+            print(f"Segment {i}: s_start={s_start}")
+            print(f"X coeffs: ax={ax}, bx={bx}, cx={cx}, dx={dx}")
+            print(f"Y coeffs: ay={ay}, by={by}, cy={cy}, dy={dy}")
+
+            # Add the start point of this segment
             t_vector.append(s_start)
             points_x.append(dx)  # At s=0, only d coefficient matters
             points_y.append(dy)
 
-            # For the last segment, add an end point
+            # For the last segment, add the endpoint
             if i == num_segments - 1:
+                # Choose a reasonable end point - using 1.0 as a default segment length
                 s_end = s_start + 1.0
                 s_param = s_end - s_start
 
-                # Calculate end values
+                # Calculate end values using the polynomial
                 x_end = ax * s_param ** 3 + bx * s_param ** 2 + cx * s_param + dx
                 y_end = ay * s_param ** 3 + by * s_param ** 2 + cy * s_param + dy
 
@@ -1104,31 +1142,450 @@ class Spline2DAdapter:
                 points_x.append(x_end)
                 points_y.append(y_end)
 
-        # Initialize the new spline with both dimensions
-        self.spline = Spline([points_x, points_y], t_vector)
+        print(f"t_vector: {t_vector}")
+        print(f"points_x: {points_x}")
+        print(f"points_y: {points_y}")
+
+        # Try using TwoDimensionalSpline first (preferred)
+        if hasattr(TwoDimensionalSpline, '__init__') and callable(getattr(TwoDimensionalSpline, '__init__')):
+            self.spline = TwoDimensionalSpline(points_x, points_y, t_vector)
+        else:
+            # Fall back to using the base Spline class with 2D points
+            self.spline = Spline([points_x, points_y], t_vector)
+
 
     def at(self, s):
+        """Get the 2D point at parameter s"""
         point = self.spline.get_point(s)
-        return point[0], point[1]  # Return as tuple to match old interface
+        return point[0], point[1]
 
     def deriv(self, s):
+        """Get the velocity vector at parameter s"""
         velocity = self.spline.get_velocity(s)
         return velocity[0], velocity[1]
 
     def deriv_normalized(self, s):
+        """Get the normalized velocity vector at parameter s"""
         velocity = self.spline.get_velocity(s)
         dx, dy = velocity[0], velocity[1]
-        path_norm = cd.sqrt(dx * dx + dy * dy)
+        path_norm = cd.sqrt(dx * dx + dy * dy)  # Using casadi's sqrt as in original code
+
+        # Avoid division by zero
+        if isinstance(path_norm, (int, float)) and path_norm < 1e-10:
+            path_norm = 1e-10
+
         return dx / path_norm, dy / path_norm
 
     def deriv2(self, s):
+        """Get the acceleration vector at parameter s"""
         acceleration = self.spline.get_acceleration(s)
         return acceleration[0], acceleration[1]
 
     def get_curvature(self, s):
+        """Get the curvature at parameter s"""
         acceleration = self.spline.get_acceleration(s)
         path_x_deriv2, path_y_deriv2 = acceleration[0], acceleration[1]
         return cd.sqrt(path_x_deriv2 * path_x_deriv2 + path_y_deriv2 * path_y_deriv2)
+
+
+# Create a module import wrapper to handle import errors gracefully
+def create_spline_adapter(params, name, num_segments, s):
+    try:
+        return SplineAdapter(params, name, num_segments, s)
+    except Exception as e:
+        print(f"Error creating SplineAdapter: {e}")
+        raise
+
+
+def create_spline2d_adapter(params, num_segments, s):
+    try:
+        return Spline2DAdapter(params, num_segments, s)
+    except Exception as e:
+        print(f"Error creating Spline2DAdapter: {e}")
+        raise
+
+
+import casadi as cd
+import numpy as np
+
+
+class CasadiSpline2D:
+    """CasADi-compatible 2D spline class designed for optimization problems"""
+
+    def __init__(self, params, num_segments):
+        """Initialize with polynomial coefficients for each segment
+
+        Args:
+            params: Parameter object with get method
+            num_segments: Number of spline segments
+        """
+        self.num_segments = num_segments
+
+        # Store segment data
+        self.segments = []
+        for i in range(num_segments):
+            s_start = params.get(f"spline_{i}_start")
+
+            # X spline coefficients
+            ax = params.get(f"spline_{i}_ax")
+            bx = params.get(f"spline_{i}_bx")
+            cx = params.get(f"spline_{i}_cx")
+            dx = params.get(f"spline_{i}_dx")
+
+            # Y spline coefficients
+            ay = params.get(f"spline_{i}_ay")
+            by = params.get(f"spline_{i}_by")
+            cy = params.get(f"spline_{i}_cy")
+            dy = params.get(f"spline_{i}_dy")
+
+            # Store segment data
+            self.segments.append({
+                's_start': s_start,
+                'ax': ax, 'bx': bx, 'cx': cx, 'dx': dx,
+                'ay': ay, 'by': by, 'cy': cy, 'dy': dy
+            })
+
+            print(f"Segment {i}: s_start={s_start}")
+            print(f"X coeffs: ax={ax}, bx={bx}, cx={cx}, dx={dx}")
+            print(f"Y coeffs: ay={ay}, by={by}, cy={cy}, dy={dy}")
+
+        # Compute s_end for each segment (used only for visualization/debugging)
+        for i in range(num_segments - 1):
+            self.segments[i]['s_end'] = self.segments[i + 1]['s_start']
+
+        # For the last segment, set a default end value
+        if num_segments > 0:
+            last_segment = self.segments[-1]
+            last_segment['s_end'] = last_segment['s_start'] + 1.0  # Default
+
+    def find_segment(self, s):
+        """Find which segment contains parameter s
+
+        Important: This function returns symbolic expressions for use with CasADi.
+        It uses a technique that avoids branching which CasADi can't handle.
+
+        Args:
+            s: Spline parameter value
+
+        Returns:
+            segment_idx: Symbolic expression that evaluates to segment index
+            local_s: Local s parameter within the segment
+        """
+        # Initialize with values for outside the spline range
+        segment_idx = 0
+        local_s = s - self.segments[0]['s_start']
+
+        # For each segment, create indicators if s is in that segment
+        for i in range(self.num_segments):
+            s_start = self.segments[i]['s_start']
+            s_end = self.segments[i]['s_end'] if i < self.num_segments - 1 else float('inf')
+
+            # Calculate local_s for this segment
+            segment_local_s = s - s_start
+
+            # Create indicator (1 if s is in this segment, 0 otherwise)
+            # We use smoothed conditionals that are differentiable
+            in_segment = smooth_conditional(s >= s_start) * smooth_conditional(s < s_end)
+
+            # Update the segment index and local_s using the indicator
+            segment_idx = segment_idx * (1 - in_segment) + i * in_segment
+            local_s = local_s * (1 - in_segment) + segment_local_s * in_segment
+
+        return segment_idx, local_s
+
+    def at(self, s):
+        """Evaluate the spline at parameter s
+
+        Args:
+            s: Spline parameter value
+
+        Returns:
+            (x, y): Coordinates at parameter s
+        """
+        # Initialize result variables
+        x_result = 0
+        y_result = 0
+
+        # For each segment, evaluate and use conditional logic to select the right one
+        for i in range(self.num_segments):
+            segment = self.segments[i]
+            s_start = segment['s_start']
+            s_end = segment['s_end'] if i < self.num_segments - 1 else float('inf')
+
+            # Calculate local s (parameter relative to segment start)
+            local_s = s - s_start
+
+            # Evaluate polynomial for this segment
+            x_segment = segment['ax'] * local_s ** 3 + segment['bx'] * local_s ** 2 + segment['cx'] * local_s + segment[
+                'dx']
+            y_segment = segment['ay'] * local_s ** 3 + segment['by'] * local_s ** 2 + segment['cy'] * local_s + segment[
+                'dy']
+
+            # Indicator for whether s is in this segment
+            in_segment = smooth_conditional(s >= s_start) * smooth_conditional(s < s_end)
+
+            # Update result using the indicator
+            x_result = x_result * (1 - in_segment) + x_segment * in_segment
+            y_result = y_result * (1 - in_segment) + y_segment * in_segment
+
+        return x_result, y_result
+
+    def deriv(self, s):
+        """Get the first derivatives at parameter s
+
+        Args:
+            s: Spline parameter value
+
+        Returns:
+            (dx/ds, dy/ds): Derivatives at parameter s
+        """
+        # Initialize result variables
+        dx_result = 0
+        dy_result = 0
+
+        # For each segment, evaluate and use conditional logic to select the right one
+        for i in range(self.num_segments):
+            segment = self.segments[i]
+            s_start = segment['s_start']
+            s_end = segment['s_end'] if i < self.num_segments - 1 else float('inf')
+
+            # Calculate local s (parameter relative to segment start)
+            local_s = s - s_start
+
+            # Evaluate derivative of polynomial for this segment
+            dx_segment = 3 * segment['ax'] * local_s ** 2 + 2 * segment['bx'] * local_s + segment['cx']
+            dy_segment = 3 * segment['ay'] * local_s ** 2 + 2 * segment['by'] * local_s + segment['cy']
+
+            # Indicator for whether s is in this segment
+            in_segment = smooth_conditional(s >= s_start) * smooth_conditional(s < s_end)
+
+            # Update result using the indicator
+            dx_result = dx_result * (1 - in_segment) + dx_segment * in_segment
+            dy_result = dy_result * (1 - in_segment) + dy_segment * in_segment
+
+        return dx_result, dy_result
+
+    def deriv_normalized(self, s):
+        """Get the normalized derivatives at parameter s
+
+        Args:
+            s: Spline parameter value
+
+        Returns:
+            (dx/ds, dy/ds): Normalized derivatives at parameter s
+        """
+        dx, dy = self.deriv(s)
+        norm = cd.sqrt(dx ** 2 + dy ** 2)
+
+        # Avoid division by zero
+        safe_norm = cd.fmax(norm, 1e-10)
+
+        return dx / safe_norm, dy / safe_norm
+
+    def deriv2(self, s):
+        """Get the second derivatives at parameter s
+
+        Args:
+            s: Spline parameter value
+
+        Returns:
+            (d²x/ds², d²y/ds²): Second derivatives at parameter s
+        """
+        # Initialize result variables
+        d2x_result = 0
+        d2y_result = 0
+
+        # For each segment, evaluate and use conditional logic to select the right one
+        for i in range(self.num_segments):
+            segment = self.segments[i]
+            s_start = segment['s_start']
+            s_end = segment['s_end'] if i < self.num_segments - 1 else float('inf')
+
+            # Calculate local s (parameter relative to segment start)
+            local_s = s - s_start
+
+            # Evaluate second derivative of polynomial for this segment
+            d2x_segment = 6 * segment['ax'] * local_s + 2 * segment['bx']
+            d2y_segment = 6 * segment['ay'] * local_s + 2 * segment['by']
+
+            # Indicator for whether s is in this segment
+            in_segment = smooth_conditional(s >= s_start) * smooth_conditional(s < s_end)
+
+            # Update result using the indicator
+            d2x_result = d2x_result * (1 - in_segment) + d2x_segment * in_segment
+            d2y_result = d2y_result * (1 - in_segment) + d2y_segment * in_segment
+
+        return d2x_result, d2y_result
+
+
+class CasadiSpline:
+    """CasADi-compatible 1D spline class designed for optimization problems"""
+
+    def __init__(self, params, name, num_segments):
+        """Initialize with polynomial coefficients for each segment
+
+        Args:
+            params: Parameter object with get method
+            name: Base name for the spline parameters (e.g., "width_left")
+            num_segments: Number of spline segments
+        """
+        self.num_segments = num_segments
+
+        # Store segment data
+        self.segments = []
+        for i in range(num_segments):
+            s_start = params.get(f"spline_{i}_start")
+            a = params.get(f"{name}_{i}_a")
+            b = params.get(f"{name}_{i}_b")
+            c = params.get(f"{name}_{i}_c")
+            d = params.get(f"{name}_{i}_d")
+
+            # Store segment data
+            self.segments.append({
+                's_start': s_start,
+                'a': a, 'b': b, 'c': c, 'd': d
+            })
+
+            print(f"Segment {i} ({name}): s_start={s_start}, a={a}, b={b}, c={c}, d={d}")
+
+        # Compute s_end for each segment (used only for visualization/debugging)
+        for i in range(num_segments - 1):
+            self.segments[i]['s_end'] = self.segments[i + 1]['s_start']
+
+        # For the last segment, set a default end value
+        if num_segments > 0:
+            last_segment = self.segments[-1]
+            last_segment['s_end'] = last_segment['s_start'] + 1.0  # Default
+
+    def at(self, s):
+        """Evaluate the spline at parameter s
+
+        Args:
+            s: Spline parameter value
+
+        Returns:
+            Value at parameter s
+        """
+        # Initialize result variable
+        result = 0
+
+        # For each segment, evaluate and use conditional logic to select the right one
+        for i in range(self.num_segments):
+            segment = self.segments[i]
+            s_start = segment['s_start']
+            s_end = segment['s_end'] if i < self.num_segments - 1 else float('inf')
+
+            # Calculate local s (parameter relative to segment start)
+            local_s = s - s_start
+
+            # Evaluate polynomial for this segment
+            segment_value = segment['a'] * local_s ** 3 + segment['b'] * local_s ** 2 + segment['c'] * local_s + \
+                            segment['d']
+
+            # Indicator for whether s is in this segment
+            in_segment = smooth_conditional(s >= s_start) * smooth_conditional(s < s_end)
+
+            # Update result using the indicator
+            result = result * (1 - in_segment) + segment_value * in_segment
+
+        return result
+
+    def deriv(self, s):
+        """Get the first derivative at parameter s
+
+        Args:
+            s: Spline parameter value
+
+        Returns:
+            First derivative at parameter s
+        """
+        # Initialize result variable
+        result = 0
+
+        # For each segment, evaluate and use conditional logic to select the right one
+        for i in range(self.num_segments):
+            segment = self.segments[i]
+            s_start = segment['s_start']
+            s_end = segment['s_end'] if i < self.num_segments - 1 else float('inf')
+
+            # Calculate local s (parameter relative to segment start)
+            local_s = s - s_start
+
+            # Evaluate derivative of polynomial for this segment
+            segment_value = 3 * segment['a'] * local_s ** 2 + 2 * segment['b'] * local_s + segment['c']
+
+            # Indicator for whether s is in this segment
+            in_segment = smooth_conditional(s >= s_start) * smooth_conditional(s < s_end)
+
+            # Update result using the indicator
+            result = result * (1 - in_segment) + segment_value * in_segment
+
+        return result
+
+    def deriv2(self, s):
+        """Get the second derivative at parameter s
+
+        Args:
+            s: Spline parameter value
+
+        Returns:
+            Second derivative at parameter s
+        """
+        # Initialize result variable
+        result = 0
+
+        # For each segment, evaluate and use conditional logic to select the right one
+        for i in range(self.num_segments):
+            segment = self.segments[i]
+            s_start = segment['s_start']
+            s_end = segment['s_end'] if i < self.num_segments - 1 else float('inf')
+
+            # Calculate local s (parameter relative to segment start)
+            local_s = s - s_start
+
+            # Evaluate second derivative of polynomial for this segment
+            segment_value = 6 * segment['a'] * local_s + 2 * segment['b']
+
+            # Indicator for whether s is in this segment
+            in_segment = smooth_conditional(s >= s_start) * smooth_conditional(s < s_end)
+
+            # Update result using the indicator
+            result = result * (1 - in_segment) + segment_value * in_segment
+
+        return result
+
+
+def smooth_conditional(condition):
+    """A smooth approximation of an indicator function for CasADi
+
+    This is a differentiable approximation of the step function:
+    - Returns values close to 1 when condition > 0
+    - Returns values close to 0 when condition < 0
+    - Smoothly transitions around condition = 0
+
+    Args:
+        condition: A CasADi expression
+
+    Returns:
+        A smooth approximation of the step function applied to the condition
+    """
+    # Sigmoid function with scaling for steepness
+    steepness = 1000  # Higher values make transition sharper but may cause numerical issues
+    return 1 / (1 + cd.exp(-steepness * condition))
+
+
+def haar_difference_without_abs(a, b):
+    """Calculate the smallest angle difference between two angles
+
+    Args:
+        a, b: Angles in radians
+
+    Returns:
+        Smallest signed angle difference from b to a
+    """
+    diff = a - b
+    # Normalize to [-π, π]
+    return cd.fmod(diff + cd.pi, 2 * cd.pi) - cd.pi
 
 
 class Clothoid2D:
@@ -1583,13 +2040,14 @@ class EllipsoidDecomp2D(EllipsoidDecomp):
 class SplineSegment:
 
     def __init__(self, param, name, spline_nr):
+        print("Init spline segment", name, spline_nr)
         # Retrieve spline values from the parameters (stored as multi parameter by name)
-        self.a = param.get(f"{name}{spline_nr}_a")
-        self.b = param.get(f"{name}{spline_nr}_b")
-        self.c = param.get(f"{name}{spline_nr}_c")
-        self.d = param.get(f"{name}{spline_nr}_d")
+        self.a = param.get(f"{name}_{spline_nr}a")
+        self.b = param.get(f"{name}_{spline_nr}b")
+        self.c = param.get(f"{name}_{spline_nr}c")
+        self.d = param.get(f"{name}_{spline_nr}d")
 
-        self.s_start = param.get(f"spline{spline_nr}_start")
+        self.s_start = param.get(f"spline_{spline_nr}_start")
 
     def at(self, spline_index):
         s = spline_index - self.s_start

@@ -121,15 +121,15 @@ class DecompConstraints(BaseConstraint):
 
 	def define_parameters(self, params):
 		for segment_index in range(self.num_segments):
-			params.add(f"width_right{segment_index}_a")
-			params.add(f"width_right{segment_index}_b")
-			params.add(f"width_right{segment_index}_c")
-			params.add(f"width_right{segment_index}_d")
+			params.add(f"width_right_{segment_index}_a")
+			params.add(f"width_right_{segment_index}_b")
+			params.add(f"width_right_{segment_index}_c")
+			params.add(f"width_right_{segment_index}_d")
 
-			params.add(f"width_left{segment_index}_a")
-			params.add(f"width_left{segment_index}_b")
-			params.add(f"width_left{segment_index}_c")
-			params.add(f"width_left{segment_index}_d")
+			params.add(f"width_left_{segment_index}_a")
+			params.add(f"width_left_{segment_index}_b")
+			params.add(f"width_left_{segment_index}_c")
+			params.add(f"width_left_{segment_index}_d")
 
 	def set_parameters(self, parameter_manager, data, module_data, k):
 		if k == 0:  # Dummies

@@ -25,10 +25,10 @@ class PathReferenceVelocityObjective(BaseObjective):
     def define_parameters(self, params):
 
         for i in range(self.num_segments):
-            params.add(f"spline_v{i}_a")
-            params.add(f"spline_v{i}_b")
-            params.add(f"spline_v{i}_c")
-            params.add(f"spline_v{i}_d")
+            params.add(f"spline_{i}_va")
+            params.add(f"spline_{i}_vb")
+            params.add(f"spline_{i}_vc")
+            params.add(f"spline_{i}_vd")
 
         return params
 

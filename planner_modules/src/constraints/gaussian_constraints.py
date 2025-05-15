@@ -84,9 +84,6 @@ class GaussianConstraints(BaseConstraint):
 				parameter_manager.set_parameter(f"gaussian_obstacle_{obstacle_id}_risk", self.get_config_value("probabilistic.risk"))
 				parameter_manager.set_parameter(f"gaussian_obstacle_{obstacle_id}_r", self.get_config_value("obstacle_radius"))
 
-		if k == 1:
-			LOG_DEBUG("GaussianConstraints::set_parameters Done")
-
 	def get_lower_bound(self):
 		lower_bound = []
 		for obs in range(0, self.max_obstacles):

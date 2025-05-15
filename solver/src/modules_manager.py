@@ -76,27 +76,27 @@ class ModuleManager:
                     count += module.n_constraints
         return count
 
-    def update_all(self, state, data, module_data):
+    def update_all(self, state, data):
         """Update all modules with current state and data"""
         for module in self.modules:
             missing_data = ""
             if module.is_data_ready(data, missing_data):
-                module.update(state, data, module_data)
+                module.update(state, data)
 
-    def set_parameters_all(self, data, module_data, solver_N):
+    def set_parameters_all(self, data, horizon):
         """Set parameters for all modules across all stages"""
-        for k in range(solver_N):
+        for k in range(horizon):
             for module in self.modules:
-                missing_data = ""
-                if module.is_data_ready(data, missing_data):
-                    module.set_parameters(data, module_data, k)
+                if module.is_data_ready(data):
+                    print("Setting parameters for module: {}".format(module.module_type))
+                    module.set_parameters(data, k)
 
-    def visualize_all(self, data, module_data):
+    def visualize_all(self, data):
         """Trigger visualization for all modules"""
         for module in self.modules:
             missing_data = ""
             if module.is_data_ready(data, missing_data):
-                module.visualize(data, module_data)
+                module.visualize(data)
 
     def check_objectives_reached(self, state, data):
         """Check if all objectives have been reached"""
@@ -150,20 +150,20 @@ class Module:
         result = self.description
         return result
 
-    def set_parameters(self, parameter_manager, data, module_data, k):
+    def set_parameters(self, parameter_manager, data, k):
         pass
 
     def add_definitions(self, header_file):
         pass
 
-    def update(self, state, data, module_data):
+    def update(self, state, data):
         """Update constraint with current state and data"""
         pass
 
     def get_module_parameter_requests(self):
         return self.parameters_requests
 
-    def visualize(self, data, module_data):
+    def visualize(self, data):
         """Visualize constraint state"""
         if not self.config.get("debug_visuals", CONFIG.get("debug_visuals", False)):
             return

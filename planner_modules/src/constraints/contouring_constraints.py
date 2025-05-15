@@ -3,7 +3,8 @@ import casadi as cd
 from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
-from utils.math_utils import Spline2DAdapter, SplineAdapter, haar_difference_without_abs
+from planning.src.types import Data
+from utils.math_utils import Spline2DAdapter, SplineAdapter, haar_difference_without_abs, CasadiSpline2D, CasadiSpline
 from utils.utils import LOG_DEBUG
 
 
@@ -17,12 +18,12 @@ class ContouringConstraints(BaseConstraint):
         self.num_segments = self.get_config_value("contouring.num_segments")
         LOG_DEBUG(f"{self.name.title()} Constraints successfully initialized")
 
-    def update(self, state, data, module_data):
-        if module_data.path_width_left is None and self.width_left is not None:
-            module_data.path_width_left = self.width_left
+    def update(self, state, data: Data):
+        if data.get("path_width_left") is None and self.width_left is not None:
+            data.set("path_width_left", self.width_left)
 
-        if module_data.path_width_right is None and self.width_right is not None:
-            module_data.path_width_right = self.width_right
+        if data.get("path_width_right") is None and self.width_right is not None:
+            data.set("path_width_right", self.width_right)
 
     def on_data_received(self, data, data_name):
         if data_name == "reference_path":
@@ -31,7 +32,7 @@ class ContouringConstraints(BaseConstraint):
     def process_reference_path(self, data):
         LOG_DEBUG("Reference Path Received")
 
-        if not data.left_bound.empty() and not data.right_bound.empty():
+        if not data.left_bound is None and not data.right_bound is None:
             LOG_DEBUG("Received Road Boundaries")
             self.calculate_road_widths(data)
 
@@ -72,27 +73,25 @@ class ContouringConstraints(BaseConstraint):
         self.width_left.get_parameters = get_parameters.__get__(self.width_left)
         self.width_right.get_parameters = get_parameters.__get__(self.width_right)
 
-    def set_parameters(self, parameter_manager, data, module_data, k):
+    def set_parameters(self, parameter_manager, data, k):
         if k == 1:
             LOG_DEBUG(f"{self.name}::set_parameters")
 
         for segment_index in range(self.num_segments):
             self.set_boundary_parameters(parameter_manager, segment_index)
 
-        if k == 1:
-            LOG_DEBUG(f"{self.name}.set_parameters Done")
-
     def define_parameters(self, params):
+        print("Defining contouring parameters")
         for segment_index in range(self.num_segments):
-            params.add(f"width_right{segment_index}_a")
-            params.add(f"width_right{segment_index}_b")
-            params.add(f"width_right{segment_index}_c")
-            params.add(f"width_right{segment_index}_d")
+            params.add(f"width_right_{segment_index}_a")
+            params.add(f"width_right_{segment_index}_b")
+            params.add(f"width_right_{segment_index}_c")
+            params.add(f"width_right_{segment_index}_d")
 
-            params.add(f"width_left{segment_index}_a")
-            params.add(f"width_left{segment_index}_b")
-            params.add(f"width_left{segment_index}_c")
-            params.add(f"width_left{segment_index}_d")
+            params.add(f"width_left_{segment_index}_a")
+            params.add(f"width_left_{segment_index}_b")
+            params.add(f"width_left_{segment_index}_c")
+            params.add(f"width_left_{segment_index}_d")
 
     def get_lower_bound(self):
         lower_bound = [-np.inf, -np.inf]
@@ -103,10 +102,22 @@ class ContouringConstraints(BaseConstraint):
         return upper_bound
 
     def get_constraints(self, model, params, settings, stage_idx):
+        print("Trying to get constraints in contouring constraints")
         constraints = []
         pos_x = model.get("x")
         pos_y = model.get("y")
         s = model.get("spline")
+
+        # Create adapters
+        spline = CasadiSpline2D(params, self.num_segments)
+        path_x, path_y = spline.at(s)
+
+        # Debug: Sample a few points to verify spline correctness
+        if stage_idx == 0:  # Only log for first stage to avoid flooding logs
+            LOG_DEBUG("Sampling spline points:")
+            for test_s in [0.0, 0.5, 1.0]:  # Sample at different s values
+                test_xy = spline.at(test_s)
+                LOG_DEBUG(f"  spline={test_s}: x={test_xy[0]}, y={test_xy[1]}")
 
         try:
             slack = model.get("slack")
@@ -118,14 +129,12 @@ class ContouringConstraints(BaseConstraint):
         except:
             psi = 0.0
 
-        spline = Spline2DAdapter(params, self.num_segments, s)
-        path_x, path_y = spline.at(s)
         path_dx_normalized, path_dy_normalized = spline.deriv_normalized(s)
 
         contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
 
-        width_left = SplineAdapter(params, "width_left", self.num_segments, s)
-        width_right = SplineAdapter(params, "width_right", self.num_segments, s)
+        width_left = CasadiSpline(params, "width_left", self.num_segments)
+        width_right = CasadiSpline(params, "width_right", self.num_segments)
 
         # Accurate width of the vehicle incorporating its orientation w.r.t. the path
         delta_psi = haar_difference_without_abs(psi, cd.atan2(path_dy_normalized, path_dx_normalized)) # Angle w.r.t. the path
@@ -161,16 +170,16 @@ class ContouringConstraints(BaseConstraint):
             la = lb = lc = 0.
 
         # Set right boundary parameters
-        parameter_manager.set_parameter(f"width_right{segment_index}_a", ra)
-        parameter_manager.set_parameter(f"width_right{segment_index}_b", rb)
-        parameter_manager.set_parameter(f"width_right{segment_index}_c", rc)
-        parameter_manager.set_parameter(f"width_right{segment_index}_d", rd)
+        parameter_manager.set_parameter(f"width_right_{segment_index}_a", ra)
+        parameter_manager.set_parameter(f"width_right_{segment_index}_b", rb)
+        parameter_manager.set_parameter(f"width_right_{segment_index}_c", rc)
+        parameter_manager.set_parameter(f"width_right_{segment_index}_d", rd)
 
         # Set left boundary parameters
-        parameter_manager.set_parameter(f"width_left{segment_index}_a", la)
-        parameter_manager.set_parameter(f"width_left{segment_index}_b", lb)
-        parameter_manager.set_parameter(f"width_left{segment_index}_c", lc)
-        parameter_manager.set_parameter(f"width_left{segment_index}_d", ld)
+        parameter_manager.set_parameter(f"width_left_{segment_index}_a", la)
+        parameter_manager.set_parameter(f"width_left_{segment_index}_b", lb)
+        parameter_manager.set_parameter(f"width_left_{segment_index}_c", lc)
+        parameter_manager.set_parameter(f"width_left_{segment_index}_d", ld)
 
     def is_data_ready(self, data):
         required_fields = ["left_bound", "right_bound"]
@@ -180,10 +189,10 @@ class ContouringConstraints(BaseConstraint):
                 missing_data += f"{field.replace('_', ' ').title()} "
         return len(missing_data) < 1
 
-    def visualize(self, data, module_data):
+    def visualize(self, data):
         # Use the parent class method to check debug_visuals setting
-        super().visualize(data, module_data)
+        super().visualize(data)
 
         # Additional check for required data
-        if self.width_right is None or self.width_left is None or module_data.path is None:
+        if self.width_right is None or self.width_left is None or data.path is None:
             return

@@ -99,9 +99,6 @@ class EllipsoidConstraints(BaseConstraint):
 				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_minor", mode[k - 1].minor_radius)
 				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_chi", chi)
 
-		if k == 1:
-			LOG_DEBUG("EllipsoidConstraints::set_parameters Done")
-
 	def get_lower_bound(self):
 		lower_bound = []
 		for obs in range(self.max_obstacles):

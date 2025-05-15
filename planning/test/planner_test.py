@@ -59,18 +59,16 @@ class DummyCasadiSolver(BaseSolver):
     def set_initial_state(self, state):
         pass
 
-    def define_parameters(self, module_manager, parameter_manager):
+    def define_parameters(self):
 
         # Define parameters for objectives and constraints (in order)
-        for module in module_manager.modules:
+        for module in self.module_manager.modules:
             if module.module_type == OBJECTIVE:
-                module.define_parameters(module_manager, parameter_manager)
+                module.define_parameters(self.module_manager, self.parameter_manager)
 
-        for module in module_manager.modules:
+        for module in self.module_manager.modules:
             if module.module_type == CONSTRAINT:
-                module.define_parameters(module_manager, parameter_manager)
-
-        return parameter_manager
+                module.define_parameters(self.module_manager, self.parameter_manager)
 
     def objective(self, z, p, model, settings, stage_idx):
         cost = 0.0

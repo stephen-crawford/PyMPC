@@ -6,11 +6,6 @@ from planning.src.types import Disc, DynamicObstacle, Prediction, PredictionType
 from utils.math_utils import distance
 from utils.utils import CONFIG
 
-
-# Assuming these are already defined elsewhere based on your code snippet:
-# - State class
-# - CONFIG dictionary
-
 def define_robot_area(length: float, width: float, n_discs: int) -> list[Disc]:
     """Define the robot area using discs."""
     # Where is the center w.r.t. the back of the vehicle

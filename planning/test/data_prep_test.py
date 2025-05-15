@@ -10,11 +10,6 @@ from planning.src.data_prep import propagate_prediction_uncertainty_for_obstacle
 from planning.src.types import Prediction, PredictionStep, PredictionType, DynamicObstacle
 from utils.math_utils import distance
 
-
-# Import the module to test (adjust the import path as needed)
-# from mpc_planner.data_preparation import *
-
-# Mock State class for testing
 class MockState:
     def __init__(self, x=0.0, y=0.0, psi=0.0, v=0.0):
         self._values = {"x": x, "y": y, "psi": psi, "v": v}

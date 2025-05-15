@@ -1,6 +1,7 @@
 import copy
 from abc import ABC, abstractmethod
 
+from planning.src.types import Data
 from solver.src.modules_manager import ModuleManager
 from solver.src.parameter_manager import ParameterManager
 from utils.const import CONSTRAINT, OBJECTIVE
@@ -11,18 +12,86 @@ class BaseSolver(ABC):
     def __init__(self, timestep=0.1, horizon=30):
         self.timestep = timestep
         self.horizon = horizon
-        self.parameter_manager = ParameterManager()  # Use the unified parameter manager
+        self.parameter_manager = ParameterManager()
         self.module_manager = ModuleManager()
         # Register default parameters
-        self.define_parameters(module_manager=self.module_manager, parameter_manager=self.parameter_manager)
+        self.define_parameters()
         self.parameter_manager.add("solver_timeout")
         self.parameter_manager.set_parameter("solver_timeout", 0.1)
+
+        self.dynamics_model = None
 
     def get_module_manager(self):
         return self.module_manager
 
     def get_parameter_manager(self):
         return self.parameter_manager
+
+    def initialize(self):
+        self.define_parameters()
+        self.module_manager.set_parameters_all(Data(), self.horizon)
+
+    def initialize_warmstart(self, state, shift_forward):
+        pass
+
+    def initialize_base_rollout(self, state):
+        pass
+
+    def set_initial_state(self, state):
+        pass
+
+    def set_dynamics_model(self, dynamics_model):
+        self.dynamics_model = dynamics_model
+        print("Set dynamics model to instance ", self.dynamics_model)
+
+    def define_parameters(self):
+
+        # Define parameters for objectives and constraints (in order)
+        for module in self.module_manager.modules:
+            if module.module_type == OBJECTIVE:
+                module.define_parameters(self.parameter_manager)
+
+        for module in self.module_manager.modules:
+            if module.module_type == CONSTRAINT:
+                module.define_parameters(self.parameter_manager)
+
+    def get_objective_cost(self, z, settings, stage_idx):
+        cost = 0.0
+        for module in self.module_manager.modules:
+            if module.module_type == OBJECTIVE:
+                cost += module.get_value(self.dynamics_model, self.parameter_manager, settings, stage_idx)
+
+        print("Objective cost is", cost)
+        # if stage_idx == 0:
+        # print(cost)
+
+        return cost
+
+
+    def get_constraint_list(self, z, settings, stage_idx):
+        constraints = []
+
+        for module in self.module_manager.modules:
+            if module.module_type == CONSTRAINT:
+                constraints += module.get_constraints(self.dynamics_model, self.parameter_manager, settings, stage_idx)
+
+        return constraints
+
+    def get_constraint_upper_bounds_list(self):
+        ub = []
+        for module in self.module_manager.modules:
+            if module.module_type == CONSTRAINT:
+                ub += module.get_upper_bound()
+        return ub
+
+
+    def get_constraint_lower_bounds_list(self):
+        lb = []
+        for module in self.module_manager.modules:
+            if module.module_type == CONSTRAINT:
+                lb += module.get_lower_bound()
+        return lb
+
 
     @abstractmethod
     def reset(self):
@@ -33,77 +102,12 @@ class BaseSolver(ABC):
         pass
 
     @abstractmethod
-    def set_initial_state(self, state):
-        pass
-
-    @abstractmethod
     def get_output(self, k, var_name):
         pass
 
     @abstractmethod
     def explain_exit_flag(self, code):
         pass
-
-    @staticmethod
-    def define_parameters(module_manager, parameter_manager):
-
-        # Define parameters for objectives and constraints (in order)
-        for module in module_manager.modules:
-            if module.module_type == OBJECTIVE:
-                module.define_parameters(parameter_manager)
-
-        for module in module_manager.modules:
-            if module.module_type == CONSTRAINT:
-                module.define_parameters(parameter_manager)
-
-        return parameter_manager
-    @staticmethod
-    def get_objective_cost(module_manager, z, p, model, settings, stage_idx):
-        cost = 0.0
-
-        parameter_manager = settings["parameter_manager"]
-        parameter_manager.load(p)
-        model.load(z)
-
-        for module in module_manager.modules:
-            if module.module_type == OBJECTIVE:
-                cost += module.get_value(model, parameter_manager, settings, stage_idx)
-
-        # if stage_idx == 0:
-        # print(cost)
-
-        return cost
-
-
-    @staticmethod
-    def get_constraint_list(module_manager, z, p, model, settings, stage_idx):
-        constraints = []
-
-        parameter_manager = settings["parameter_manager"]
-        parameter_manager.load(p)
-        model.load(z)
-
-        for module in module_manager.modules:
-            if module.module_type == CONSTRAINT:
-                constraints += module.get_constraints(model, parameter_manager, settings, stage_idx)
-
-        return constraints
-
-    @staticmethod
-    def get_constraint_upper_bounds_list(module_manager):
-        ub = []
-        for module in module_manager.modules:
-            if module.module_type == CONSTRAINT:
-                ub += module.get_upper_bound()
-        return ub
-
-    @staticmethod
-    def get_constraint_lower_bounds_list(module_manager):
-        lb = []
-        for module in module_manager.modules:
-            if module.module_type == CONSTRAINT:
-                lb += module.get_lower_bound()
-        return lb
 
 
 ##### SOLVER MANAGEMENT
