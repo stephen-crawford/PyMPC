@@ -1,10 +1,9 @@
 import numpy as np
 import casadi as cd
-from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planning.src.types import Data
-from utils.math_utils import Spline2DAdapter, SplineAdapter, haar_difference_without_abs, CasadiSpline2D, CasadiSpline
+from utils.math_utils import haar_difference_without_abs, CasadiSpline2D, CasadiSpline, CubicSpline
 from utils.utils import LOG_DEBUG
 
 
@@ -29,11 +28,9 @@ class ContouringConstraints(BaseConstraint):
         if data_name == "reference_path":
             self.process_reference_path(data)
 
+    # Used for testing
     def process_reference_path(self, data):
-        LOG_DEBUG("Reference Path Received")
-
         if not data.left_bound is None and not data.right_bound is None:
-            LOG_DEBUG("Received Road Boundaries")
             self.calculate_road_widths(data)
 
     def calculate_road_widths(self, data):
@@ -49,29 +46,13 @@ class ContouringConstraints(BaseConstraint):
             widths_right[i] = np.linalg.norm(center - right)
 
         # Initialize splines
-        self.width_left = CubicSpline(data.reference_path.s, widths_left)
-        self.width_right = CubicSpline(data.reference_path.s, widths_right)
+        self.width_left = CubicSpline()
+        self.width_right = CubicSpline()
+        self.width_left.set_points(data.reference_path.s, widths_left)
+        self.width_right.set_points(data.reference_path.s, widths_right)
 
-        # Add custom methods to match C++ implementation
         self.width_left.m_x_ = data.reference_path.s
         self.width_right.m_x_ = data.reference_path.s
-
-        # Add method to get spline parameters
-        self._add_parameter_methods_to_splines()
-
-    def _add_parameter_methods_to_splines(self):
-        def get_parameters(spline, index, a, b, c, d):
-            # Extract cubic spline parameters for the segment
-            if index < len(spline.c[0]) - 1:
-                a = spline.c[0][index]
-                b = spline.c[1][index]
-                c = spline.c[2][index]
-                d = spline.c[3][index]
-            return a, b, c, d
-
-        # Attach method to the splines
-        self.width_left.get_parameters = get_parameters.__get__(self.width_left)
-        self.width_right.get_parameters = get_parameters.__get__(self.width_right)
 
     def set_parameters(self, parameter_manager, data, k):
         if k == 1:
@@ -102,7 +83,6 @@ class ContouringConstraints(BaseConstraint):
         return upper_bound
 
     def get_constraints(self, model, params, settings, stage_idx):
-        print("Trying to get constraints in contouring constraints")
         constraints = []
         pos_x = model.get("x")
         pos_y = model.get("y")
@@ -158,12 +138,12 @@ class ContouringConstraints(BaseConstraint):
 
         # Get appropriate parameter values
         if segment_index < len(self.width_right.m_x_) - 1:
-            ra, rb, rc, rd = self.width_right.get_parameters(segment_index, ra, rb, rc, rd)
-            la, lb, lc, ld = self.width_left.get_parameters(segment_index, la, lb, lc, ld)
+            ra, rb, rc, rd = self.width_right.get_parameters(segment_index)
+            la, lb, lc, ld = self.width_left.get_parameters(segment_index)
         else:
             # Handle edge case for last segment
-            ra, rb, rc, rd = self.width_right.get_parameters(len(self.width_right.m_x_) - 1, ra, rb, rc, rd)
-            la, lb, lc, ld = self.width_left.get_parameters(len(self.width_left.m_x_) - 1, la, lb, lc, ld)
+            ra, rb, rc, rd = self.width_right.get_parameters(len(self.width_right.m_x_) - 1)
+            la, lb, lc, ld = self.width_left.get_parameters(len(self.width_left.m_x_) - 1)
 
             # Zero out certain parameters for last segment
             ra = rb = rc = 0.

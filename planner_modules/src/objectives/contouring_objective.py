@@ -1,7 +1,8 @@
 import casadi as cd
 
 from planner_modules.src.objectives.base_objective import BaseObjective
-from utils.math_utils import Spline2DAdapter, SplineAdapter, TwoDimensionalSpline, haar_difference_without_abs, \
+from planning.src.types import StaticObstacle
+from utils.math_utils import TwoDimensionalSpline, haar_difference_without_abs, \
 	distance, CasadiSpline, CasadiSpline2D
 from utils.utils import LOG_DEBUG, PROFILE_SCOPE
 
@@ -34,12 +35,13 @@ class ContouringObjective(BaseObjective):
 			return
 
 		# Update the closest point
-		last_segment, self.closest_segment = self.spline.find_closest_point(state.get_position(), self.closest_segment)
+		segment_index, parameter_value = self.spline.find_closest_point(state.get_position(), self.closest_segment)
+		self.closest_segment = segment_index
 
 		if  self.spline is not None:
 			data.path = self.spline
 
-		state.set("spline", last_segment)  # Initialize the spline state
+		state.set("spline", self.closest_segment)  # Initialize the spline state
 		data.current_path_segment = self.closest_segment
 
 		if self.add_road_constraints:
@@ -47,7 +49,7 @@ class ContouringObjective(BaseObjective):
 
 	def define_parameters(self, params):
 		"""Define all parameters used by this module"""
-		print("defining parameters for contouring objective")
+		LOG_DEBUG("Defining contouring objective parameters")
 		# Core parameters
 		params.add("contour", add_to_rqt_reconfigure=True)
 		params.add("lag", add_to_rqt_reconfigure=True)
@@ -113,7 +115,7 @@ class ContouringObjective(BaseObjective):
 			if index >= self.spline.get_num_segments():
 				# Use the last segment if we're past the end
 				index = self.spline.get_num_segments() - 1
-
+			LOG_DEBUG("Contouring objective trying to set spline parameters for index, " + str(index) + " given numb segments is " + str(self.spline.get_num_segments()))
 			# Retrieve spline parameters
 			ax, bx, cx, dx, ay, by, cy, dy = self.spline.get_parameters(index)
 
@@ -172,28 +174,37 @@ class ContouringObjective(BaseObjective):
 		if True and stage_idx == settings["horizon"] - 1:
 			terminal_angle_weight = params.get("terminal_angle")
 			terminal_contouring_mp = params.get("terminal_contouring")
-
+			LOG_DEBUG(f"DEBUG: terminal_angle_weight = {terminal_angle_weight}")
+			LOG_DEBUG(f"DEBUG: terminal_contouring = {terminal_contouring_mp}")
 			# Compute the angle w.r.t. the path
+			LOG_DEBUG(f"path_dx_normalized = {path_dx_normalized}")
+			LOG_DEBUG(f"path_dy_normalized = {path_dy_normalized}")
 			path_angle = cd.atan2(path_dy_normalized, path_dx_normalized)
 			angle_error = haar_difference_without_abs(psi, path_angle)
-
+			LOG_DEBUG(f"DEBUG: angle_error = {angle_error}")
+			LOG_DEBUG(f"DEBUG: path_angle = {path_angle}")
 			# Penalize the angle error
 			cost += terminal_angle_weight * angle_error ** 2
 			cost += terminal_contouring_mp * lag_weight * lag_error ** 2
 			cost += terminal_contouring_mp * contour_weight * contour_error ** 2
+			LOG_DEBUG(f"DEBUG: cost = {cost}")
 
 		return cost
 
 	def on_data_received(self, data, data_name):
+		LOG_DEBUG("RECEIVED DATA FOR CONTOURING OBJ")
 		if data_name == "reference_path":
 			LOG_DEBUG("Received Reference Path")
 
 			# Construct a spline from the given points
 			if data.reference_path.s is None:
+				LOG_DEBUG("data.reference.s is None")
 				self.spline = TwoDimensionalSpline(data.reference_path.x, data.reference_path.y)
 			else:
+				LOG_DEBUG("data.reference.s is not None")
 				self.spline = TwoDimensionalSpline(data.reference_path.x, data.reference_path.y, data.reference_path.s)
 
+			LOG_DEBUG("self.spline now" + str(self.spline))
 			if self.add_road_constraints and (not data.left_bound is None and not data.right_bound is None):
 				# Add bounds
 				self.bound_left = TwoDimensionalSpline(
@@ -210,6 +221,11 @@ class ContouringObjective(BaseObjective):
 				#write_to_config("road.width", distance(self.bound_left.get_point(0), self.bound_right.get_point(0)))
 
 			self.closest_segment = 0
+
+	def process_reference_path(self, data):
+		LOG_DEBUG("Processing reference path for objective")
+
+		self.on_data_received(data, "reference_path")
 
 	def is_data_ready(self, data):
 		missing_data = ""
@@ -279,25 +295,26 @@ class ContouringObjective(BaseObjective):
 			data.static_obstacles[k].emplace_back(-A, -b)
 
 	def construct_road_constraints_from_bounds(self, data):
-		print("At top of construct constraints from bounds ")
-		if data.static_obstacles.empty():
-			data.static_obstacles.resize(self.solver.horizon)
-			for k in range(data.static_obstacles.size()):
-				data.static_obstacles[k].reserve(2)
-		print("Forecasting road from bounds")
+		if data.static_obstacles is None:
+			data.set("static_obstacles", [None] * self.solver.horizon)
+
+		LOG_DEBUG("Forecasting road from bounds")
 		for k in range(self.solver.horizon):
-			data.static_obstacles[k].clear()
+			# Create a static obstacle for this time step
+			data.static_obstacles[k] = StaticObstacle()
+
+			# Get the current position on the spline
 			cur_s = self.solver.get_ego_prediction(k, "spline")
 
-			# left
+			# Left bound halfspace constraint
 			Al = self.bound_left.get_orthogonal(cur_s)
-			bl = Al.transpose() * (self.bound_left.get_point(cur_s) + Al * data.robot_area[0].radius)
-			data.static_obstacles[k].emplace_back(-Al, -bl)
+			bl = Al.transpose() @ (self.bound_left.get_point(cur_s) + Al * data.robot_area[0].radius)
+			data.static_obstacles[k].add_halfspace(-Al, -bl)
 
-			# right HALFSPACE
+			# Right bound halfspace constraint
 			Ar = self.bound_right.get_orthogonal(cur_s)
-			br = Ar.transpose() * (self.bound_right.get_point(cur_s) - Ar * data.robot_area[0].radius)
-			data.static_obstacles[k].emplace_back(Ar, br)
+			br = Ar.transpose() @ (self.bound_right.get_point(cur_s) - Ar * data.robot_area[0].radius)
+			data.static_obstacles[k].add_halfspace(Ar, br)
 
 	def reset(self):
 		if hasattr(self, 'spline') and self.spline is not None:

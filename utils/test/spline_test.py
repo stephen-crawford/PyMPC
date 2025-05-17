@@ -5,16 +5,16 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Import your spline implementations
-from utils.math_utils import TkSpline, Spline, TwoDimensionalSpline, FourDimensionalSpline, Clothoid2D
+from utils.math_utils import CubicSpline, Spline, TwoDimensionalSpline, FourDimensionalSpline, Clothoid2D
 
-class TestTkSpline(unittest.TestCase):
-    """Tests for the TkSpline class"""
+class TestCubicSpline(unittest.TestCase):
+    """Tests for the CubicSpline class"""
 
     def setUp(self):
         # Create standard test data
         self.x = [0.0, 1.0, 2.0, 3.0, 4.0]
         self.y = [0.0, 1.0, 0.0, 1.0, 0.0]
-        self.spline = TkSpline()
+        self.spline = CubicSpline()
         self.spline.set_points(self.x, self.y)
 
     def test_initialization(self):
@@ -82,7 +82,7 @@ class TestTkSpline(unittest.TestCase):
 
     def test_linear_spline(self):
         """Test linear spline option"""
-        linear_spline = TkSpline()
+        linear_spline = CubicSpline()
         linear_spline.set_points(self.x, self.y, cubic_spline=False)
 
         # For linear spline, the value at midpoint should be average of endpoints

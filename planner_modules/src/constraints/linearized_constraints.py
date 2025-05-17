@@ -94,7 +94,7 @@ class LinearizedConstraints(BaseConstraint):
 											 (radius + self.get_config_value("num_discs")))
 
 				# Handle static obstacles
-				if not module_data.static_obstacles.empty():
+				if not module_data.static_obstacles is None:
 					if module_data.static_obstacles[k].size() < self.num_other_halfspaces:
 						LOG_DEBUG(
 							f"{self.num_other_halfspaces} halfspaces expected, but {module_data.static_obstacles[k].size()} are present")

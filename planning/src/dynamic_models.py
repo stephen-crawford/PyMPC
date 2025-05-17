@@ -321,6 +321,12 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         self.state_vars = ["x", "y", "psi", "v", "spline"]
         self.inputs = ["a", "w"]
 
+        self.width = 0.5
+        self.length = 0.5
+
+        self.lr = .5
+        self.lf = .5
+
         # w = 0.8
         self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 4, -0.01, -1.0]
         self.upper_bound = [2.0, 0.8, 2000.0, 2000.0, np.pi * 4, 3.0, 10000.0]
@@ -366,7 +372,7 @@ class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
         pos_y = x[1]
         s = x[-1]
 
-        # CA-MPC
+
         path = Spline2DBySegment(self.params, self.settings["contouring"]["get_num_segments"], s)
         path_x, path_y = path.at(s)
         path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)

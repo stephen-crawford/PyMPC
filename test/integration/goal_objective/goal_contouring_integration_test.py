@@ -4,11 +4,12 @@ import numpy as np
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
 from planner_modules.src.objectives.goal_objective import GoalObjective
+from planning.src.data_prep import define_robot_area
 from planning.src.dynamic_models import SecondOrderUnicycleModel, ContouringSecondOrderUnicycleModel
 from planning.src.planner import Planner
 from planning.src.types import State, Data
 from solver.src.casadi_solver import CasADiSolver
-from utils.math_utils import Spline
+from utils.math_utils import Spline, TwoDimensionalSpline
 from utils.utils import CONFIG
 
 
@@ -56,6 +57,7 @@ def test_objective():
 
 	# Create data object with goal - use a much closer goal for testing
 	data = Data()
+	data.start = np.array([0.0, 0.0])
 	data.goal = np.array([5.0, 5.0])  # Set a much closer goal
 	data.goal_received = True
 	data.planning_start_time = 0.0
@@ -69,36 +71,68 @@ def test_objective():
 	# Create reference path for visualization
 
 	path = Spline()
-	x_vals = np.linspace(0, 5, 50)
-	y_vals = np.linspace(0, 5, 50)
-	s_vals = np.linspace(0, np.sqrt(50), 50)
+	mid = 0.5 * (data.start + data.goal)
+	x_points = [data.start[0], mid[0], data.goal[0]]
+	y_points = [data.start[1], mid[1], data.goal[1]]
 
-	path.x = x_vals.tolist()
-	path.y = y_vals.tolist()
-	path.s = s_vals.tolist()
+	t_vector = [0.0, 0.5, 1.0]
+	ref_spline = TwoDimensionalSpline(x_points, y_points, t_vector)
+	points, _ = ref_spline.sample_points(ds=0.1)
+	points = np.array(points)
+
+	path.x = points[0].tolist()
+	path.y = points[1].tolist()
+
+	s_vals = [0]
+	for i in range(1, len(path.x)):
+		dx = path.x[i] - path.x[i - 1]
+		dy = path.y[i] - path.y[i - 1]
+		s_vals.append(s_vals[-1] + np.sqrt(dx ** 2 + dy ** 2))
+
+	path.s = s_vals
 
 	data.reference_path = path
 
-	# Create left and right boundaries
-	# Left boundary (wider than the path)
 	left_bound = Spline()
-	left_bound.x = (x_vals + 1.0).tolist()  # 1m to the left (offset perpendicular to path)
-	left_bound.y = (y_vals + 1.0).tolist()
-	left_bound.s = s_vals.tolist()
-
-	# Right boundary (wider than the path)
 	right_bound = Spline()
-	right_bound.x = (x_vals - 1.0).tolist()  # 1m to the right
-	right_bound.y = (y_vals - 1.0).tolist()
-	right_bound.s = s_vals.tolist()
+
+	# Create left and right boundaries
+	left_bound.x = []
+	left_bound.y = []
+	right_bound.x = []
+	right_bound.y = []
+
+	for i in range(len(path.x)):
+		if i == len(path.x) - 1:
+			dx = path.x[i] - path.x[i - 1]
+			dy = path.y[i] - path.y[i - 1]
+		else:
+			dx = path.x[i + 1] - path.x[i]
+			dy = path.y[i + 1] - path.y[i]
+
+		norm = np.hypot(dx, dy)
+		nx = -dy / norm
+		ny = dx / norm
+
+		left_bound.x.append(path.x[i] + 1.0 * nx)
+		left_bound.y.append(path.y[i] + 1.0 * ny)
+
+		right_bound.x.append(path.x[i] - 1.0 * nx)
+		right_bound.y.append(path.y[i] - 1.0 * ny)
+
+	left_bound.s = path.s
+	right_bound.s = path.s
+
 
 	# Add boundaries to data
 	data.left_bound = left_bound
 	data.right_bound = right_bound
 
-	# Process the reference path to calculate width parameters
-	# This is needed to initialize the contouring constraints
+	# Mimics behavior of a robot receiving data
 	contouring_constraint.process_reference_path(data)
+	contouring_objective.process_reference_path(data)
+
+	data.robot_area = define_robot_area(bike.length, bike.width, 1)
 
 	# Create initial state - make sure to match the model's state variables
 	state = planner.get_state()
@@ -106,6 +140,7 @@ def test_objective():
 	state.set("y", 0.0)
 	state.set("psi", 0.1)
 	state.set("v", 0.5)
+
 
 	# Check if model uses vx/vy or not
 	if "vx" in bike.get_vars():
@@ -121,8 +156,7 @@ def test_objective():
 	# Print the state to verify values
 	print("INITIAL STATE:", {var: state.get(var) for var in bike.get_vars()})
 
-
-	# Set initial state constraint
+	# Set initial state constraintmath_utils
 	casadi_solver.set_initial_state(state)
 
 	# Initialize with a simple trajectory
@@ -135,7 +169,7 @@ def test_objective():
 
 	print("Starting MPC simulation loop...")
 
-	max_iterations = 100  # Increased max iterations
+	max_iterations = 5  # Increased max iterations
 
 	# Add arrays to store trajectories for visualization
 	all_trajectories_x = []
@@ -270,6 +304,15 @@ def test_objective():
 	success_rate = sum(success_flags) / len(success_flags) * 100
 	info_text = f"Iterations: {iterations}\nSuccess rate: {success_rate:.1f}%\nFinal pos: ({states_x[-1]:.2f}, {states_y[-1]:.2f})"
 	plt.figtext(0.02, 0.02, info_text, fontsize=10, bbox=dict(facecolor='white', alpha=0.5))
+
+	# Plot the reference centerline path
+	plt.plot(data.reference_path.x, data.reference_path.y, 'k-', linewidth=2, label='Reference path')
+
+	# Plot the left boundary
+	plt.plot(data.left_bound.x, data.left_bound.y, 'r--', linewidth=1.5, label='Left bound')
+
+	# Plot the right boundary
+	plt.plot(data.right_bound.x, data.right_bound.y, 'r--', linewidth=1.5, label='Right bound')
 
 	plt.tight_layout()
 	plt.show()

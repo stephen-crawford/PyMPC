@@ -34,7 +34,6 @@ class Planner:
     was_feasible = self.output.success if self.output else False
     self.output = PlannerOutput(self.solver.timestep, self.solver.horizon)
 
-    print("checking if data is ready")
     is_data_ready = all(module.is_data_ready(data) for module in self.solver.get_module_manager().get_modules())
     if not is_data_ready:
       if self.experiment_manager.timer.has_finished():
@@ -42,7 +41,6 @@ class Planner:
       self.output.success = False
       return self.output
 
-    print("checking if was reset")
     if self.was_reset:
       self.experiment_manager.set_start_experiment()
       self.was_reset = False
@@ -67,23 +65,18 @@ class Planner:
 
     self.solver.set_initial_state(state)
 
-    print("updating modules")
     for module in self.solver.module_manager.get_modules():
       module.update(state, data)
 
-    print("iterating over horizion")
     for k in range(self.solver.horizon):
       for module in self.solver.module_manager.get_modules():
         module.set_parameters(self.solver.parameter_manager, data, k)
 
-    print("loading warmstart")
     self.solver.load_warmstart()
-
 
     used_time = time.time() - data.planning_start_time
     self.solver.parameter_manager.solver_timeout = 1.0 / CONFIG["control_frequency"] - used_time - 0.006
 
-    print("Optimizing each module")
     exit_flag = -1
     for module in self.solver.module_manager.get_modules():
       if hasattr(module, "optimize"):
@@ -93,7 +86,6 @@ class Planner:
           break
 
     if exit_flag == -1:
-      print("Going to try to solve")
       exit_flag = self.solver.solve()
 
     planning_benchmarker.stop()
@@ -103,7 +95,6 @@ class Planner:
       LOG_WARN(f"MPC failed: {self.solver.explain_exit_flag(exit_flag)}")
       return self.output
 
-    print("Updating trajectory")
     self.output.success = True
     for k in range(1, self.solver.horizon):
       self.output.trajectory.add(self.solver.get_output(k, "x"),
@@ -112,7 +103,7 @@ class Planner:
     if self.output.success and CONFIG["debug_limits"]:
       self.solver.print_if_bound_limited()
 
-    LOG_DEBUG("Planner::solveMPC done")
+    LOG_DEBUG("Planner.solve_mpc done")
     return self.output
 
   def get_solution(self, mpc_step, var_name):

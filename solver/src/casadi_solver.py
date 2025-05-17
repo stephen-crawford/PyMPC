@@ -417,7 +417,7 @@ class CasADiSolver(BaseSolver):
 					clean_values[np.isnan(clean_values)] = 0.0
 					self.opti.set_initial(self.var_dict[var_name], clean_values)
 				else:
-					# If no NaN values, proceed normally
+					# If no NaN values, proceed up
 					self.opti.set_initial(self.var_dict[var_name], values)
 
 	def set_initial_state(self, state: State):
@@ -524,7 +524,7 @@ class CasADiSolver(BaseSolver):
 	def get_ego_prediction(self, k, var_name):
 		"""Get ego prediction for visualization and warmstart
 
-		Args:
+		Args:iter
 			k (int): Time step index
 			var_name (str): Variable name
 

@@ -120,9 +120,9 @@ class TestPathReferenceVelocity(unittest.TestCase):
 		self.mock_data.reference_path.s = np.array([0, 1, 2])
 		self.mock_data.reference_path.v = np.array([10, 20, 30])
 
-		# Since we're seeing that a new TkSpline is being created inside the function,
+		# Since we're seeing that a new CubicSpline is being created inside the function,
 		# we need to make sure our mock is the one being used
-		with patch('planner_modules.src.objectives.path_reference_velocity_objective.TkSpline',
+		with patch('planner_modules.src.objectives.path_reference_velocity_objective.CubicSpline',
 				   return_value=self.mock_spline) as mock_tk_class:
 			# Execute
 			self.prv.on_data_received(self.mock_data, "reference_path")
@@ -142,7 +142,7 @@ class TestPathReferenceVelocity(unittest.TestCase):
 		# Execute
 		self.prv.on_data_received(self.mock_data, "reference_path")
 
-		# Verify that TkSpline is not created
+		# Verify that CubicSpline is not created
 		self.mock_spline.assert_not_called()
 		# verify velocity_spline is not set
 		self.assertIsNone(self.prv.velocity_spline)

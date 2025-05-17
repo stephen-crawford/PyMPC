@@ -9,7 +9,6 @@ class BaseObjective(Module):
 		self.name = self.__class__.__name__.lower()
 		self.module_type = OBJECTIVE
 		self.controller = (self.module_type, solver, self.name)
-		print("self.name is ", self.name)
 		if settings is None:
 			self.config = read_config_file()
 		else:

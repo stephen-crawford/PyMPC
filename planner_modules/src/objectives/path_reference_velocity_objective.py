@@ -1,4 +1,4 @@
-from utils.math_utils import TkSpline
+from utils.math_utils import CubicSpline
 from planner_modules.src.objectives.base_objective import BaseObjective
 from utils.utils import LOG_DEBUG
 
@@ -19,7 +19,7 @@ class PathReferenceVelocityObjective(BaseObjective):
         if data_name == "reference_path":
             LOG_DEBUG("Received Reference Path")
             if data.reference_path.has_velocity():
-                self.velocity_spline = TkSpline()
+                self.velocity_spline = CubicSpline()
                 self.velocity_spline.set_points(data.reference_path.s, data.reference_path.v)
 
     def define_parameters(self, params):

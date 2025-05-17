@@ -4,10 +4,6 @@ from enum import Enum
 import numpy as np
 
 from planning.src.dynamic_models import DynamicsModel
-from utils.utils import LOG_DEBUG, load_yaml
-
-import os
-import numpy as np
 from utils.utils import LOG_DEBUG, LOG_WARN
 
 
@@ -179,11 +175,13 @@ class State:
             self._state_dict[key] = 0.0
         self._state_vector = np.zeros_like(self._state_vector)
 
-    def print(self):
-        """Print the current state values."""
-        print(f"Current state ({self._model_type}):")
+    def __str__(self):
+        """Return a readable string representation of the current state."""
+        lines = [f"Current state ({self._model_type}):"]
         for var, value in self._state_dict.items():
-            print(f"  {var}: {value}")
+            lines.append(f"  {var}: {value:.3f}")
+        return "\n".join(lines)
+
 
 class Disc:
     def __init__(self, offset: float, radius: float):
@@ -219,9 +217,6 @@ class PredictionStep:
         self.major_radius = major_radius
         self.minor_radius = minor_radius
 
-# Type definition for Mode
-# Mode = List[PredictionStep]
-
 class Prediction:
     def __init__(self, type_=None):
         self.type = type_
@@ -234,6 +229,20 @@ class Prediction:
 class ObstacleType(Enum):
     STATIC = 0
     DYNAMIC = 1
+
+
+class StaticObstacle:
+    def __init__(self, position=None, angle=None, radius=None, _type=None):
+        self.position = position
+        self.angle = angle
+        self.radius = radius
+        self.type = _type if _type is not None else ObstacleType.STATIC
+        self.prediction = Prediction()
+        self.halfspaces = []  # List to store halfspace constraints
+
+    def add_halfspace(self, A, b):
+        """Add a halfspace constraint defined by Ax <= b"""
+        self.halfspaces.append({"A": A, "b": b})
 
 class DynamicObstacle:
     def __init__(self, index: int, position: np.ndarray, angle: float, radius: float,
@@ -333,7 +342,8 @@ class Data:
     def __getattr__(self, key):
         if key in self._store:
             return self._store[key]
-        raise AttributeError(f"'Data' object has no attribute '{key}'")
+        else:
+            self.__setattr__(key, None)
 
     def __setattr__(self, key, value):
         if key.startswith("_"):

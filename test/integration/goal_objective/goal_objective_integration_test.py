@@ -213,39 +213,39 @@ def test_goal_objective():
 			# Print more debug info when solver fails
 			casadi_solver.print_if_bound_limited()
 			print(casadi_solver.explain_exit_flag())
-
-	# Plot both actual path and MPC predictions
-	plt.figure(figsize=(12, 8))
-
-	# Plot the goal and start points
-	plt.plot(data.goal[0], data.goal[1], 'r*', markersize=12, label='Goal')
-	plt.plot(0, 0, 'go', markersize=8, label='Start')
-
-	# Plot the actual vehicle trajectory
-	plt.plot(states_x, states_y, 'b-', linewidth=2, label='Vehicle trajectory')
-
-	# Plot all predicted trajectories (MPC horizon predictions at each step)
-	for i, (traj_x, traj_y) in enumerate(zip(all_trajectories_x, all_trajectories_y)):
-		if i % 5 == 0:  # Plot every 5th trajectory to avoid cluttering
-			# Use a very faint line for earlier trajectories
-			alpha = 0.3
-			plt.plot(traj_x, traj_y, 'g--', alpha=alpha, linewidth=1)
-
-	plt.xlabel('X position [m]')
-	plt.ylabel('Y position [m]')
-	plt.title('MPC Goal Objective Test with Trajectory Predictions')
-	plt.legend()
-	plt.grid(True)
-	plt.axis('equal')
-
-	# Add info text
-	iterations = len(states_x) - 1
-	success_rate = sum(success_flags) / len(success_flags) * 100
-	info_text = f"Iterations: {iterations}\nSuccess rate: {success_rate:.1f}%\nFinal pos: ({states_x[-1]:.2f}, {states_y[-1]:.2f})"
-	plt.figtext(0.02, 0.02, info_text, fontsize=10, bbox=dict(facecolor='white', alpha=0.5))
-
-	plt.tight_layout()
-	plt.show()
+	#
+	# # Plot both actual path and MPC predictions
+	# plt.figure(figsize=(12, 8))
+	#
+	# # Plot the goal and start points
+	# plt.plot(data.goal[0], data.goal[1], 'r*', markersize=12, label='Goal')
+	# plt.plot(0, 0, 'go', markersize=8, label='Start')
+	#
+	# # Plot the actual vehicle trajectory
+	# plt.plot(states_x, states_y, 'b-', linewidth=2, label='Vehicle trajectory')
+	#
+	# # Plot all predicted trajectories (MPC horizon predictions at each step)
+	# for i, (traj_x, traj_y) in enumerate(zip(all_trajectories_x, all_trajectories_y)):
+	# 	if i % 5 == 0:  # Plot every 5th trajectory to avoid cluttering
+	# 		# Use a very faint line for earlier trajectories
+	# 		alpha = 0.3
+	# 		plt.plot(traj_x, traj_y, 'g--', alpha=alpha, linewidth=1)
+	#
+	# plt.xlabel('X position [m]')
+	# plt.ylabel('Y position [m]')
+	# plt.title('MPC Goal Objective Test with Trajectory Predictions')
+	# plt.legend()
+	# plt.grid(True)
+	# plt.axis('equal')
+	#
+	# # Add info text
+	# iterations = len(states_x) - 1
+	# success_rate = sum(success_flags) / len(success_flags) * 100
+	# info_text = f"Iterations: {iterations}\nSuccess rate: {success_rate:.1f}%\nFinal pos: ({states_x[-1]:.2f}, {states_y[-1]:.2f})"
+	# plt.figtext(0.02, 0.02, info_text, fontsize=10, bbox=dict(facecolor='white', alpha=0.5))
+	#
+	# plt.tight_layout()
+	# plt.show()
 
 	# Print statistics
 	print(f"Success rate: {sum(success_flags) / len(success_flags) * 100:.1f}%")
