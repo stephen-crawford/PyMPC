@@ -3,7 +3,7 @@ from planner_modules.src.objectives.base_objective import BaseObjective
 from planning.src.types import State
 from utils.const import OBJECTIVE
 from utils.math_utils import distance
-from utils.utils import LOG_DEBUG
+from utils.utils import LOG_DEBUG, LOG_WARN
 
 
 class GoalObjective(BaseObjective):
@@ -25,7 +25,7 @@ class GoalObjective(BaseObjective):
     params.add("goal_x")
     params.add("goal_y")
 
-  def get_value(self, model, params, settings, stage_idx):
+  def get_value(self, model, params, stage_idx):
     cost = 0
 
     # Get position at the specific stage index
@@ -37,7 +37,7 @@ class GoalObjective(BaseObjective):
     goal_y = params.get("goal_y")
 
     cost += goal_weight * ((pos_x - goal_x) ** 2 + (pos_y - goal_y) ** 2) / (goal_x ** 2 + goal_y ** 2 + 0.01)
-
+    LOG_DEBUG("Returning goal objective cost: " + str(cost))
     return cost
 
   def set_parameters(self, parameter_manager, data, k):
@@ -57,9 +57,10 @@ class GoalObjective(BaseObjective):
     return len(missing_data) < 1
 
   def is_objective_reached(self, state: State, data):
-
     if not data.goal_received:
       return False
 
     # Check if we reached the goal
-    return distance(state.get_position(), data.goal) < 1.0
+    reached = distance(state.get_position(), data.goal) < 1.0
+    LOG_DEBUG(f"Goal Objective.is_objective_reached(): {reached}")
+    return reached

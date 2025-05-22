@@ -28,7 +28,7 @@ class DummyModule:
     def visualize(self, data): pass
     def save_data(self, saver): pass
     def reset(self): pass
-    def is_objective_reached(self, planner, state, data): return True
+    def is_objective_reached(self, state, data): return True
     def on_data_received(self, data, data_name): pass
 
 # Dummy CasADi solver mock

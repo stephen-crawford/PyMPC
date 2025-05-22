@@ -27,14 +27,17 @@ class BaseSolver(ABC):
     def get_parameter_manager(self):
         return self.parameter_manager
 
+    def get_ego_prediction(self, k, var):
+        pass
+
     def initialize(self):
         self.define_parameters()
         self.module_manager.set_parameters_all(Data(), self.horizon)
 
-    def initialize_warmstart(self, state, shift_forward):
+    def initialize_rollout(self, state, shift_forward=True):
         pass
 
-    def initialize_base_rollout(self, state):
+    def _initialize_base_rollout(self, state):
         pass
 
     def set_initial_state(self, state):
@@ -42,7 +45,6 @@ class BaseSolver(ABC):
 
     def set_dynamics_model(self, dynamics_model):
         self.dynamics_model = dynamics_model
-        print("Set dynamics model to instance ", self.dynamics_model)
 
     def define_parameters(self):
 
@@ -55,25 +57,17 @@ class BaseSolver(ABC):
             if module.module_type == CONSTRAINT:
                 module.define_parameters(self.parameter_manager)
 
-    def get_objective_cost(self, z, settings, stage_idx):
-        cost = 0.0
-        for module in self.module_manager.modules:
-            if module.module_type == OBJECTIVE:
-                cost += module.get_value(self.dynamics_model, self.parameter_manager, settings, stage_idx)
-
-        print("Objective cost is", cost)
-        # if stage_idx == 0:
-        # print(cost)
-
+    def get_objective_cost(self, stage_idx):
+        cost = self.module_manager.objective(self.dynamics_model, self.parameter_manager,  stage_idx)
+        LOG_DEBUG("Total Objective cost is" + str(cost))
         return cost
 
-
-    def get_constraint_list(self, z, settings, stage_idx):
+    def get_constraint_list(self, stage_idx):
         constraints = []
 
         for module in self.module_manager.modules:
             if module.module_type == CONSTRAINT:
-                constraints += module.get_constraints(self.dynamics_model, self.parameter_manager, settings, stage_idx)
+                constraints += module.get_constraints(self.dynamics_model, self.parameter_manager, stage_idx)
 
         return constraints
 

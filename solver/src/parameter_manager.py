@@ -1,6 +1,6 @@
 import numpy as np
 import casadi as cd
-from utils.utils import print_header, print_value, parameter_map_path, write_to_yaml, LOG_DEBUG
+from utils.utils import print_header, print_value, parameter_map_path, write_to_yaml, LOG_INFO
 
 
 class ParameterManager:
@@ -67,15 +67,28 @@ class ParameterManager:
 
     def get(self, key):
         """Retrieve a parameter value (scalar or vector)."""
-        LOG_DEBUG(f"Trying to get parameter '{key}'")
+        LOG_INFO(f"Trying to get parameter '{key}'")
         if self.parameter_values is None:
             raise RuntimeError("Parameters not loaded.")
         if key not in self.parameter_lookup:
             print("Parameter manager get key failing because key missing")
             raise KeyError(f"Parameter '{key}' not found.")
         start, length = self.parameter_lookup[key]
+        LOG_INFO(f"For parameter {key}, start is {start}, length is {length}")
         val = self.parameter_values[start:start + length]
+        LOG_INFO(f"For parameter {key}, val is {val}")
         return val[0] if length == 1 else val
+
+    def get_all(self):
+        """Return all parameters as a dictionary: {key: value}"""
+        if self.parameter_values is None:
+            raise RuntimeError("Parameters not loaded.")
+
+        all_params = {}
+        for key, (start, length) in self.parameter_lookup.items():
+            value = self.parameter_values[start:start + length]
+            all_params[key] = value[0] if length == 1 else value.copy()
+        return all_params
 
     def update_from_dict(self, param_dict):
         for key, value in param_dict.items():
@@ -103,18 +116,29 @@ class ParameterManager:
         }
         write_to_yaml(file_path, save_map)
 
-    def print(self):
-        print_header("Parameters")
+    def __str__(self):
+        lines = [self.format_header("Parameters")]
         for key, (start, length) in self.parameter_lookup.items():
             tag = " (in rqt_reconfigure)" if key in self.rqt_parameters else ""
-            print_value(f"[{start}:{start + length}]", f"{key}{tag}", tab=True)
 
-    def print_values(self):
-        print_header("Parameter Values")
-        for key, (start, length) in self.parameter_lookup.items():
+            # Default to "Not loaded" in case of errors
+            val_str = "Not loaded"
             if self.parameter_values is not None:
-                value = self.parameter_values[start:start + length]
-                val_str = value[0] if length == 1 else value
-                print_value(key, val_str, tab=True)
-            else:
-                print_value(key, "Not loaded", tab=True)
+                try:
+                    value = self.parameter_values[start:start + length]
+                    if len(value) == length:
+                        val_str = value[0] if length == 1 else value.tolist()
+                except Exception as e:
+                    val_str = f"Error: {str(e)}"
+
+            lines.append(self.format_value(f"[{start}:{start + length}]", f"{key}{tag} = {val_str}", tab=True))
+        return "\n".join(lines)
+
+    def format_header(self, title):
+        return f"\n=== {title} ==="
+
+    def format_value(self, name, value, tab=False):
+        prefix = "  " if tab else ""
+        return f"{prefix}{name}: {value}"
+
+

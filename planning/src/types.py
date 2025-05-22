@@ -2,6 +2,8 @@ import os
 from enum import Enum
 
 import numpy as np
+from matplotlib import pyplot as plt
+from scipy.interpolate import CubicSpline
 
 from planning.src.dynamic_models import DynamicsModel
 from utils.utils import LOG_DEBUG, LOG_WARN
@@ -15,91 +17,37 @@ class State:
 
     def __init__(self, model_type=None):
         # Internal state storage
-        self._state_dict = {}  # Dictionary for name-based access
-        self._state_vector = None  # Vector for numeric operations
+        self._state_dict = {}  # Dictionary for name-based access--this includes both state values for the model and its control inputs
+        self._state_vector = []  # Vector for numeric operations
 
         # Model configuration
         self._model_type = model_type
-        self._model_map = {}  # Maps variable names to indices
         self._config = {}
 
-        # Load configuration files
-        self._load_config()
-
-        # Initialize state based on model type or default
         self.initialize(model_type)
 
-    def _load_config(self):
-        """Load configuration files for solver settings and model mappings."""
-        try:
-            file_dir = os.path.dirname(os.path.abspath(__file__))
-            config_path = os.path.join(file_dir, "config/solver_settings.yaml")
-            model_map_path = os.path.join(file_dir, "config/model_map.yaml")
-
-            # Implement your YAML loader here or use a library
-            from utils.utils import load_yaml
-            load_yaml(config_path, self._config)
-            load_yaml(model_map_path, self._model_map)
-
-            LOG_DEBUG(f"Loaded configuration with {len(self._config)} settings")
-            LOG_DEBUG(f"Loaded model map with {len(self._model_map)} variables")
-        except Exception as e:
-            LOG_WARN(f"Error loading configuration: {e}")
-            # Set default configuration
-            self._config = {"nx": 6, "nu": 2}
-
     def initialize(self, model_type: DynamicsModel):
-        """Initialize the state vector based on model type."""
+        LOG_DEBUG("Initializing state")
         if model_type:
             self._model_type = model_type
-
-        # Clear current state
+        else:
+            return
         self._state_dict = {}
-        state_vars = self._model_type.get_vars()
-        self._state_vector = np.zeros(len(model_type.get_vars()))
+        state_vars = self._model_type.get_vars() + self._model_type.get_inputs()
+        self._state_vector = np.zeros(len(model_type.get_vars()) + len(model_type.get_inputs()))
 
-        # Initialize state dictionary
         for i, var in enumerate(state_vars):
             self._state_dict[var] = 0.0
 
         LOG_DEBUG(f"Initialized state with variables: {state_vars}")
-
-
-    def set_from_dynamics_model(self, dynamics_model):
-        """Configure state based on a dynamics model."""
-        if not dynamics_model:
-            LOG_WARN("No dynamics model provided to set state from")
-            return
-
-        # Extract state variables from dynamics model
-        state_vars = dynamics_model.states
-
-        # Reset state vector and dictionary
-        self._state_vector = np.zeros(len(state_vars))
-        self._state_dict = {var: 0.0 for var in state_vars}
-
-        # Update model type based on dynamics model class name
-        self._model_type = dynamics_model.__class__.__name__
-
-        LOG_DEBUG(f"Set state from dynamics model: {self._model_type} with {len(state_vars)} variables")
 
     def get(self, var_name):
         """Get a state variable by name."""
         # First check if it's in the state dictionary
         if var_name in self._state_dict:
             return self._state_dict[var_name]
-
-        # Then check if it's in the model map
-        if var_name in self._model_map:
-            var_info = self._model_map[var_name]
-            if isinstance(var_info, (list, tuple)) and len(var_info) >= 2:
-                var_type, idx = var_info[0], var_info[1]
-                if var_type == "x" and isinstance(idx, int):
-                    if 0 <= idx < len(self._state_vector):
-                        return self._state_vector[idx]
-
         # Not found
-        LOG_DEBUG(f"Variable {var_name} not found in state")
+        LOG_DEBUG(f"Variable {var_name} not found in State, returning 0.0")
         return 0.0
 
     def set(self, var_name, value):
@@ -124,19 +72,12 @@ class State:
             if var_name in keys:
                 return keys.index(var_name)
 
-        # Then check if it's in the model map
-        if var_name in self._model_map:
-            var_info = self._model_map[var_name]
-            if isinstance(var_info, (list, tuple)) and len(var_info) >= 2:
-                if var_info[0] == "x":  # Check if it's a state variable
-                    return var_info[1]
-
         # Not found
         return None
 
     def has(self, key):
         """Check if the state has a specific variable."""
-        return key in self._state_dict or key in self._model_map
+        return key in self._state_dict
 
     def get_position(self):
         """Get the position as a tuple (x, y)."""
@@ -175,12 +116,26 @@ class State:
             self._state_dict[key] = 0.0
         self._state_vector = np.zeros_like(self._state_vector)
 
+    def get_state_dict(self):
+        return self._state_dict.copy()
+
+    def get_model_type(self):
+        return self._model_type
+
     def __str__(self):
         """Return a readable string representation of the current state."""
-        lines = [f"Current state ({self._model_type}):"]
+        lines = [f"State: ({self._model_type}):"]
         for var, value in self._state_dict.items():
-            lines.append(f"  {var}: {value:.3f}")
+            lines.append(f" {var}: {value}")
         return "\n".join(lines)
+
+    def copy(self):
+        state = State()
+        state.initialize(self._model_type)
+        state._state_dict = self._state_dict.copy()
+        state._config = self._config.copy()
+        state._state_vector = self._state_vector.copy()
+        return state
 
 
 class Disc:
@@ -244,6 +199,9 @@ class StaticObstacle:
         """Add a halfspace constraint defined by Ax <= b"""
         self.halfspaces.append({"A": A, "b": b})
 
+    def set(self, attribute, value):
+        self.__setattr__(attribute, value)
+
 class DynamicObstacle:
     def __init__(self, index: int, position: np.ndarray, angle: float, radius: float,
                  _type: 'ObstacleType' = ObstacleType.DYNAMIC):
@@ -255,12 +213,18 @@ class DynamicObstacle:
         self.prediction = Prediction()
 
 class ReferencePath:
-    def __init__(self, length: int = 10):
-        self.x = []
-        self.y = []
-        self.psi = []
-        self.v = []
-        self.s = []
+    def __init__(self):
+        self.x = [] # list of x coordinates
+        self.y = [] # list of y coordinates
+        self.z = [] # list of z coordinates
+        self.psi = [] # list of headings
+        self.v = [] # list of velocities
+        self.s = [] # list of arc length progress for aligning with other attributes
+
+        self.x_spline = None # a CubicSpline with x as the dependent val
+        self.y_spline = None # a CubicSpline with Y as the dependent val
+        self.z_spline = None # a CubicSpline with Z as the dependent val
+        self.v_spline = None # a CubicSpline with v as the dependent val
 
     def clear(self):
         self.x = []
@@ -268,14 +232,16 @@ class ReferencePath:
         self.psi = []
         self.v = []
         self.s = []
-
-    def point_in_path(self, point_num: int, other_x: float, other_y: float) -> bool:
-        # Implementation would check if point is in path
-        # This is a placeholder for the actual implementation
-        return False  # Replace with actual implementation
+        self.x_spline = None # a CubicSpline with x as the dependent val
+        self.y_spline = None # a CubicSpline with Y as the dependent val
+        self.z_spline = None # a CubicSpline with Z as the dependent val
+        self.v_spline = None # a CubicSpline with v as the dependent val
 
     def empty(self) -> bool:
         return len(self.x) == 0
+
+    def get_velocity(self):
+        return self.v
 
     def has_velocity(self) -> bool:
         return len(self.v) > 0
@@ -283,22 +249,208 @@ class ReferencePath:
     def has_distance(self) -> bool:
         return len(self.s) > 0
 
-# Type definition for Boundary
-# Boundary = ReferencePath
+    def set(self, attribute, value):
+        self.__setattr__(attribute, value)
+
+    def format_val(self, val):
+        return f"{val:.3f}" if isinstance(val, (float, int)) else "   ---"
+
+    def __str__(self):
+        if self.empty():
+            return "ReferencePath: [empty]"
+
+        header = f"{'Index':>5} | {'x':>8} | {'y':>8} | {'psi':>8} | {'v':>8} | {'s':>8}"
+        lines = [header, "-" * len(header)]
+
+        length = len(self.x)
+        for i in range(length):
+            x = self.x[i] if i < len(self.x) else None
+            y = self.y[i] if i < len(self.y) else None
+            psi = self.psi[i] if i < len(self.psi) else None
+            v = self.v[i] if i < len(self.v) else None
+            s = self.s[i] if i < len(self.s) else None
+            lines.append(
+                f"{i:5d} | {self.format_val(x):>8} | {self.format_val(y):>8} | "
+                f"{self.format_val(psi):>8} | {self.format_val(v):>8} | {self.format_val(s):>8}"
+            )
+
+        return "\n".join(lines)
+
+def generate_reference_path(start, goal, path_type="curved", num_points=11) -> ReferencePath:
+    t = np.linspace(0, 1, num_points)
+
+    if path_type == "straight":
+        x = np.linspace(start[0], goal[0], num_points)
+        y = np.linspace(start[1], goal[1], num_points)
+        z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
+
+    elif path_type == "curved":
+        mid = 0.5 * (start[:2] + goal[:2]) + np.array([0.0, goal[1]])
+        x_spline = CubicSpline([0, 0.5, 1.0], [start[0], mid[0], goal[0]])
+        y_spline = CubicSpline([0, 0.5, 1.0], [start[1], mid[1], goal[1]])
+        x = x_spline(t)
+        y = y_spline(t)
+        z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111)
+        # ax.plot(x, y, label='Curved 2D Path')
+        # ax.scatter(*start[:3], color='green', label='Start')
+        # ax.scatter(*goal[:3], color='red', label='Goal')
+        # ax.legend()
+        # plt.show()
+
+    elif path_type == "s-turn":
+        x = np.linspace(start[0], goal[0], num_points)
+        amplitude = 2.0
+        y = np.linspace(start[1], goal[1], num_points) + amplitude * np.sin(2 * np.pi * t)
+        z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(x, y, label='2D Path')
+        ax.scatter(*start[:3], color='green', label='Start')
+        ax.scatter(*goal[:3], color='red', label='Goal')
+        ax.legend()
+        plt.show()
+
+    elif path_type == "circle":
+        radius = 5.0
+        theta = np.linspace(0, np.pi, num_points)
+        x = start[0] + radius * np.cos(theta)
+        y = start[1] + radius * np.sin(theta)
+        z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.plot(x, y, label='2D Path')
+        ax.scatter(*start[:3], color='green', label='Start')
+        ax.scatter(*goal[:3], color='red', label='Goal')
+        ax.legend()
+        plt.show()
+
+    else:
+        raise ValueError(f"Unknown path type: {path_type}")
+
+    # Compute arc length
+    s = np.zeros(len(x))
+    for i in range(1, len(x)):
+        dx = x[i] - x[i - 1]
+        dy = y[i] - y[i - 1]
+        dz = z[i] - z[i - 1]
+        s[i] = s[i - 1] + np.sqrt(dx**2 + dy**2 + dz**2)
+
+    # Build splines
+    spline_x = CubicSpline(s, x)
+    spline_y = CubicSpline(s, y)
+    spline_z = CubicSpline(s, z)
+
+    # Store in ReferencePath object
+    path = ReferencePath()
+    path.x = x
+    path.y = y
+    path.z = z
+    path.s = s
+    path.x_spline = spline_x
+    path.y_spline = spline_y
+    path.z_spline = spline_z
+
+    return path
+
+def calculate_path_normals(reference_path: ReferencePath):
+    normals = []
+    for i in range(len(reference_path.x)):
+        if i == 0:
+            # For the first point, use the direction to the next point
+            dx = reference_path.x[1] - reference_path.x[0]
+            dy = reference_path.y[1] - reference_path.y[0]
+        elif i == len(reference_path.x) - 1:
+            # For the last point, use the direction from the previous point
+            dx = reference_path.x[-1] - reference_path.x[-2]
+            dy = reference_path.y[-1] - reference_path.y[-2]
+        else:
+            # For middle points, use the average of adjacent segments
+            dx1 = reference_path.x[i] - reference_path.x[i - 1]
+            dy1 = reference_path.y[i] - reference_path.y[i - 1]
+            dx2 = reference_path.x[i + 1] - reference_path.x[i]
+            dy2 = reference_path.y[i + 1] - reference_path.y[i]
+            dx = dx1 + dx2
+            dy = dy1 + dy2
+
+        # Calculate the normal vector (perpendicular to the path direction)
+        length = np.sqrt(dx ** 2 + dy ** 2)
+        if length > 0:
+            nx = -dy / length
+            ny = dx / length
+            normals.append((nx, ny))
+        else:
+            # Avoid division by zero
+            normals.append((0, 0))
+
+    return normals
+
+def compute_arc_length(reference_path: ReferencePath):
+    """Compute the arc length parameter for a path given by x,y coordinates"""
+    if len(reference_path.x) < 2:
+        return np.array([0.0])
+
+    # Compute the distance between consecutive points
+    dx = np.diff(reference_path.x)
+    dy = np.diff(reference_path.y)
+    ds = np.sqrt(dx ** 2 + dy ** 2)
+
+    # Cumulative sum to get the arc length at each point
+    s = np.zeros(len(reference_path.x))
+    s[1:] = np.cumsum(ds)
+
+    return s
+
+
+
+class Bound:
+    def __init__(self, x, y, s):
+        self.x = x
+        self.y = y
+        self.s = s
 
 class Trajectory:
     def __init__(self, dt: float = 0.0, length: int = 10):
         self.dt = dt
-        self.positions = []
+        self.states = []
+        self.control_history = []
 
-    def add(self, p_or_x, y=None):
-        if y is None:
-            # p is an ndarray
-            p = p_or_x
-            self.positions.append(p.copy())
+    def add(self, state: State):
+        if state is None:
+            return
         else:
-            # p_or_x is x, y is y
-            self.positions.append(np.array([p_or_x, y]))
+            self.states.append(state)
+
+    def add_control_input(self, control_inputs):
+        self.control_history.append(control_inputs)
+
+    def get_states(self):
+        return self.states
+
+    def get_element_history_by_name(self, name):
+        history = []
+        for state in self.states:
+            history.append(state.get(name))
+        return history
+
+    def get_control_history(self):
+        return self.control_history
+
+    def reset(self):
+        self.states = []
+        self.control_history = []
+
+    def __str__(self):
+        """Return a readable string representation of the current state."""
+        lines = [f"Trajectory object contents: ({self.states}) --> "]
+        k = 0
+        for state in self.states:
+            lines.append(f"  {state}: at {k:.3f}")
+            k += 1
+        return "\n".join(lines)
+
+
 
 class FixedSizeTrajectory:
     def __init__(self, size: int = 50):
@@ -350,4 +502,17 @@ class Data:
             super().__setattr__(key, value)
         else:
             self._store[key] = value
+
+    def __str__(self):
+        """Return a readable string representation of the current state."""
+        lines = [f"Data object contents: ({self._store}) --> "]
+        for var, value in self._store.items():
+            if isinstance(value, (float, int)):
+                lines.append(f"  {var}: {value:.3f}")
+            elif isinstance(value, np.ndarray):
+                lines.append(f"  {var}: {np.array2string(value, precision=3, separator=', ')}")
+            else:
+                lines.append(f"  {var}: {value}")
+        return "\n".join(lines)
+
 

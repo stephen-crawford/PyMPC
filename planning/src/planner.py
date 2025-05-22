@@ -14,9 +14,10 @@ class Planner:
 
     # set defaults
     self.was_reset = False
-    self.output = None
+    self.output = PlannerOutput()
     self.warmstart = None
 
+    self.model_type = model_type
     self.state = State(model_type)
 
     self.experiment_manager = ExperimentManager()
@@ -30,65 +31,62 @@ class Planner:
   def initialize(self):
     self.solver.initialize()
 
-  def solve_mpc(self, state, data: Data):
-    was_feasible = self.output.success if self.output else False
-    self.output = PlannerOutput(self.solver.timestep, self.solver.horizon)
+  def solve_mpc(self, data: Data):
 
     is_data_ready = all(module.is_data_ready(data) for module in self.solver.get_module_manager().get_modules())
+
     if not is_data_ready:
       if self.experiment_manager.timer.has_finished():
         LOG_WARN("Data is not ready")
-      self.output.success = False
-      return self.output
+      self.output.process_solver_result(False, None)
+      return
 
     if self.was_reset:
       self.experiment_manager.set_start_experiment()
       self.was_reset = False
 
-    planning_benchmarker = Benchmarker("planning")
-    self.benchmarkers.append(planning_benchmarker)
-    if planning_benchmarker.is_running():
-      planning_benchmarker.cancel()
-    planning_benchmarker.start()
+    # planning_benchmarker = Benchmarker("planning")
+    # self.benchmarkers.append(planning_benchmarker)
+    # if planning_benchmarker.is_running():
+    #   planning_benchmarker.cancel()
+    # planning_benchmarker.start()
+    #
+    # optimization_benchmarker = Benchmarker("optimization")
+    # self.benchmarkers.append(optimization_benchmarker)
+    # if optimization_benchmarker.is_running():
+    #   optimization_benchmarker.cancel()
+    # optimization_benchmarker.start()
 
-    optimization_benchmarker = Benchmarker("optimization")
-    self.benchmarkers.append(optimization_benchmarker)
-    if optimization_benchmarker.is_running():
-      optimization_benchmarker.cancel()
-    optimization_benchmarker.start()
+    # shift_forward = CONFIG["shift_previous_solution_forward"]
+    # if was_feasible:
+    #   self.solver.initialize_warmstart(self.state, shift_forward)
+    # else:
+    #   self.solver.initialize_base_rollout(self.state)
 
-    shift_forward = CONFIG["shift_previous_solution_forward"]
-    if was_feasible:
-      self.solver.initialize_warmstart(state, shift_forward)
-    else:
-      self.solver.initialize_base_rollout(state)
-
-    self.solver.set_initial_state(state)
+    self.initialize()
+    self.solver.initialize_rollout(self.state)
 
     for module in self.solver.module_manager.get_modules():
-      module.update(state, data)
+      module.update(self.state, data)
 
     for k in range(self.solver.horizon):
       for module in self.solver.module_manager.get_modules():
         module.set_parameters(self.solver.parameter_manager, data, k)
 
-    self.solver.load_warmstart()
-
     used_time = time.time() - data.planning_start_time
+
     self.solver.parameter_manager.solver_timeout = 1.0 / CONFIG["control_frequency"] - used_time - 0.006
 
     exit_flag = -1
     for module in self.solver.module_manager.get_modules():
       if hasattr(module, "optimize"):
-        exit_flag = module.optimize(state, data)
+        exit_flag = module.optimize(self.state, data)
         if exit_flag != -1:
           LOG_WARN("Exit flag: {}".format(exit_flag))
           break
 
     if exit_flag == -1:
       exit_flag = self.solver.solve()
-
-    planning_benchmarker.stop()
 
     if exit_flag != 1:
       self.output.success = False
@@ -97,8 +95,10 @@ class Planner:
 
     self.output.success = True
     for k in range(1, self.solver.horizon):
-      self.output.trajectory.add(self.solver.get_output(k, "x"),
-                                 self.solver.get_output(k, "y"))
+      state = State(self.model_type)
+      for name, value in state.get_state_dict().items():
+          state.set(name, self.solver.get_output(k, name))
+      self.output.trajectory.add(state)
 
     if self.output.success and CONFIG["debug_limits"]:
       self.solver.print_if_bound_limited()
@@ -117,19 +117,19 @@ class Planner:
     for module in self.solver.module_manager.modules:
       module.reset()
 
-    state.reset()
+    self.state.reset()
     data.reset()
     self.was_reset = True
     self.experiment_manager.start_timer()
 
-  def is_objective_reached(self, state, data):
-    return all(module.is_objective_reached(self, state, data) for module in self.solver.module_manager.modules)
+  def is_objective_reached(self, data):
+    return all(module.is_objective_reached(self.state, data) for module in self.solver.module_manager.modules)
 
   def on_data_received(self, data, data_name):
     for module in self.solver.module_manager.modules:
       module.on_data_received(data, data_name)
 
-  def visualize(self, state, data):
+  def visualize(self, data):
     LOG_DEBUG("Planner::visualize")
     for module in self.solver.module_manager.modules:
       module.visualize(data)
@@ -142,7 +142,7 @@ class Planner:
   def get_data_saver(self):
     return self.experiment_manager.get_data_saver()
 
-  def save_data(self, state, data):
+  def save_data(self, data):
     if not self.solver.module_manager.is_data_ready(data):
       return
 
@@ -156,7 +156,7 @@ class Planner:
     data_saver.add_data("status", 2. if self.output.success else 3.)
     for module in self.solver.module_manager.modules:
       module.save_data(data_saver)
-    self.experiment_manager.update(state, self.solver, data)
+    self.experiment_manager.update(self.state, self.solver, data)
 
   def get_benchmarker(self, name):
     for benchmarker in self.benchmarkers:
@@ -166,11 +166,13 @@ class Planner:
   def get_state(self):
     return self.state
 
+  def set_state(self, state):
+    self.state = state
+    self.state.initialize()
+
 class PlannerOutput:
-  def __init__(self, dt: float = None, N: int = None):
-    self.trajectory = None
-    if dt is not None and N is not None:
-      self.trajectory = Trajectory(dt, N)
-    else:
-      self.trajectory = None
+  def __init__(self):
+    self.trajectory = Trajectory()
     self.success = False
+    self.control_history = []
+    self.trajectory_history = []

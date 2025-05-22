@@ -117,6 +117,7 @@ logger.addHandler(file_handler)
 def LOG_DEBUG(msg):
     logger.debug(msg)
 
+
 def LOG_INFO(msg):
     logger.info(msg)
 

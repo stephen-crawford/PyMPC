@@ -1,4 +1,5 @@
-from utils.math_utils import CubicSpline
+from scipy.interpolate import CubicSpline
+
 from planner_modules.src.objectives.base_objective import BaseObjective
 from utils.utils import LOG_DEBUG
 
@@ -32,7 +33,7 @@ class PathReferenceVelocityObjective(BaseObjective):
 
         return params
 
-    def get_value(self, model, params, settings, stage_idx):
+    def get_value(self, model, params, stage_idx):
         # The cost is computed in the contouring cost
         return 0.0
 

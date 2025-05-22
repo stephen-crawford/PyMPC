@@ -48,15 +48,15 @@ t-mpc:
 visualization:
   draw_every: 5
 weights:
-  acceleration_x: 0.25
-  acceleration_y: 0.25
+  acceleration_x: 1
+  acceleration_y: 1
   angular_velocity: 0.5
-  contour: 0.05
-  goal_weight: 0.5
-  terminal_angle: 0.02
-  terminal_contouring: 0.02
-  lag: 0.1
+  contour: 1
+  goal_weight: 1
+  terminal_angle: 0.5
+  terminal_contouring: 0.5
+  lag: 10
   preview: 0.0
-  reference_velocity: 1.5
+  reference_velocity: 0.01
   slack: 10000.0
   velocity: 0.3
