@@ -10,7 +10,7 @@ from solver.src.casadi_solver import CasADiSolver
 from utils.utils import CONFIG, LOG_DEBUG, LOG_INFO
 
 
-def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goal=(5.0, 5.0), max_iterations=100):
+def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goal=(5.0, 5.0), max_iterations=250):
 
 	dt = dt
 	horizon = horizon
@@ -18,8 +18,8 @@ def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), go
 	casadi_solver = CasADiSolver(dt, horizon)
 
 	vehicle = model()
-
 	casadi_solver.set_dynamics_model(vehicle)
+
 
 	# Create the planner
 	planner = Planner(casadi_solver, vehicle)
@@ -41,7 +41,7 @@ def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), go
 	state = planner.get_state()
 	state.set("x", data.start[0])
 	state.set("y", data.start[1])
-	state.set("psi", 0.1)
+	state.set("psi", 1.57)
 	state.set("v", 0.5)
 
 	if "a" in vehicle.inputs:
@@ -61,8 +61,8 @@ def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), go
 	all_trajectories_y = []
 
 	for i in range(max_iterations):
-		if i % (max_iterations//10) == 0:
-			LOG_INFO(f"Starting MPC simulation loop for iteration {i} with state {planner.state}")
+		# if i % (max_iterations//10) == 0:
+		# 	LOG_INFO(f"Starting MPC simulation loop for iteration {i} with state {planner.state}")
 		data.planning_start_time = i * dt
 		
 		# Solve MPC
@@ -70,25 +70,11 @@ def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), go
 		success_flags.append(output.success)
 
 		if output.success:
-			# Store the whole predicted trajectory for visualization
-			traj_x = []
-			traj_y = []
-			for k in range(horizon + 1):
-				x_k = casadi_solver.get_output(k, "x")
-				y_k = casadi_solver.get_output(k, "y")
-				if x_k is not None and y_k is not None:
-					traj_x.append(x_k)
-					traj_y.append(y_k)
-
-			all_trajectories_x.append(traj_x)
-			all_trajectories_y.append(traj_y)
-
-			# Extract next state - use the correct state variable names
-			next_a = casadi_solver.get_output(0, "a")
-			next_w = casadi_solver.get_output(0, "w")
-
-
+			next_a = output.trajectory_history[-1].get_states()[1].get("a")
+			next_w = output.trajectory_history[-1].get_states()[1].get("w")
+			LOG_DEBUG("OUTPUT TRAJ HISTORY: " + str(output.trajectory_history[-1].get_states()[1]))
 			z_k = [next_a, next_w, state.get("x"), state.get("y"), state.get("psi"), state.get("v")]
+			LOG_DEBUG("Vec for calc next state through prop: " + str(z_k))
 			# Convert to CasADi vector
 			z_k = ca.vertcat(*z_k)
 			vehicle.load(z_k)
@@ -104,13 +90,19 @@ def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), go
 			LOG_DEBUG(f"Next state: {next_state}")
 			states_x.append(float(next_x))
 			states_y.append(float(next_y))
-
-			planner.get_state().set("a", next_a)
-			planner.get_state().set("w", next_w)
-			planner.get_state().set("x", next_x)
-			planner.get_state().set("y", next_y)
-			planner.get_state().set("psi", next_psi)
-			planner.get_state().set("v", next_v)
+			LOG_DEBUG("Going to set the next state based on integrated dynamics. x: " + str(next_x) + " y:" + str(next_y) + " psi: " + str(next_psi) + " v: " + str(next_v))
+			new_state = planner.get_state().copy()
+			new_state.set("x", next_x)
+			new_state.set("y", next_y)
+			new_state.set("psi", next_psi)
+			new_state.set("v", next_v)
+			new_state.set("w", next_w)
+			new_state.set("a", next_a)
+			LOG_DEBUG("Next state is: " + str(new_state))
+			output.control_history.append((next_a, next_w))
+			output.realized_trajectory.add_state(new_state)
+			planner.set_state(new_state)
+			state = planner.get_state()
 
 			LOG_DEBUG(f"Next state: {planner.get_state()}")
 			casadi_solver.reset()
@@ -127,13 +119,26 @@ def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), go
 			# Print more debug info when solver fails
 			casadi_solver.print_if_bound_limited()
 			LOG_DEBUG(casadi_solver.explain_exit_flag())
+			casadi_solver.reset()
 
 	# Print statistics
-	return data, states_x, states_y, all_trajectories_x, all_trajectories_y, success_flags
+	return data, planner.output.realized_trajectory, planner.output.trajectory_history, success_flags
 
 
-def plot_trajectory(data, states_x, states_y, all_trajectories_x, all_trajectories_y, success_flags):
+def plot_trajectory(data, realized_trajectory, trajectory_history, success_flags):
 	plt.figure(figsize=(12, 8))
+
+	states_x = [float(s.get("x")) for s in realized_trajectory.get_states()]
+	states_y = [float(s.get("y")) for s in realized_trajectory.get_states()]
+	LOG_DEBUG("States x: " + str(states_x))
+	all_trajectories_x = []
+	all_trajectories_y = []
+
+	for traj in trajectory_history:
+		traj_x = [float(s.get("x")) for s in traj.get_states()]
+		traj_y = [float(s.get("y")) for s in traj.get_states()]
+		all_trajectories_x.append(traj_x)
+		all_trajectories_y.append(traj_y)
 
 	# Plot the goal and start points
 	plt.plot(data.goal[0], data.goal[1], 'r*', markersize=12, label='Goal')
@@ -179,6 +184,6 @@ def test():
 	logger = logging.getLogger("root")
 	logger.setLevel(logging.DEBUG)
 
-	data, states_x, states_y, all_trajectories_x, all_trajectories_y, success_flags = run()
+	data, realized_trajectory, trajectory_history, success_flags = run()
 
-	plot_trajectory(data, states_x, states_y, all_trajectories_x, all_trajectories_y, success_flags)
+	plot_trajectory(data, realized_trajectory, trajectory_history, success_flags)

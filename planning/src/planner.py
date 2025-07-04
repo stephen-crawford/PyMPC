@@ -18,7 +18,7 @@ class Planner:
     self.warmstart = None
 
     self.model_type = model_type
-    self.state = State(model_type)
+    self.state = State(self.model_type)
 
     self.experiment_manager = ExperimentManager()
 
@@ -57,19 +57,12 @@ class Planner:
     #   optimization_benchmarker.cancel()
     # optimization_benchmarker.start()
 
-    # shift_forward = CONFIG["shift_previous_solution_forward"]
-    # if was_feasible:
-    #   self.solver.initialize_warmstart(self.state, shift_forward)
-    # else:
-    #   self.solver.initialize_base_rollout(self.state)
-
-    self.initialize()
     self.solver.initialize_rollout(self.state)
 
-    for module in self.solver.module_manager.get_modules():
+    for module in self.solver.module_manager.get_modules(): # TODO: This may need to be moved into the solver logic
       module.update(self.state, data)
 
-    for k in range(self.solver.horizon):
+    for k in range(self.solver.horizon): # TODO: This may need to be moved into the solver logic
       for module in self.solver.module_manager.get_modules():
         module.set_parameters(self.solver.parameter_manager, data, k)
 
@@ -77,7 +70,6 @@ class Planner:
 
     self.solver.parameter_manager.solver_timeout = 1.0 / CONFIG["control_frequency"] - used_time - 0.006
 
-    exit_flag = -1
     for module in self.solver.module_manager.get_modules():
       if hasattr(module, "optimize"):
         exit_flag = module.optimize(self.state, data)
@@ -85,8 +77,7 @@ class Planner:
           LOG_WARN("Exit flag: {}".format(exit_flag))
           break
 
-    if exit_flag == -1:
-      exit_flag = self.solver.solve()
+    exit_flag = self.solver.solve()
 
     if exit_flag != 1:
       self.output.success = False
@@ -94,11 +85,9 @@ class Planner:
       return self.output
 
     self.output.success = True
-    for k in range(1, self.solver.horizon):
-      state = State(self.model_type)
-      for name, value in state.get_state_dict().items():
-          state.set(name, self.solver.get_output(k, name))
-      self.output.trajectory.add(state)
+    reference_trajectory = self.solver.get_reference_trajectory()
+    LOG_WARN("Reference trajectory: {}".format(reference_trajectory))
+    self.output.trajectory_history.append(reference_trajectory)
 
     if self.output.success and CONFIG["debug_limits"]:
       self.solver.print_if_bound_limited()
@@ -106,16 +95,11 @@ class Planner:
     LOG_DEBUG("Planner.solve_mpc done")
     return self.output
 
-  def get_solution(self, mpc_step, var_name):
-    return self.solver.get_output(mpc_step, var_name)
-
   def reset(self, state, data, success):
     if CONFIG["recording"]["enable"]:
       self.experiment_manager.on_task_complete(success)
 
     self.solver.reset()
-    for module in self.solver.module_manager.modules:
-      module.reset()
 
     self.state.reset()
     data.reset()
@@ -126,8 +110,7 @@ class Planner:
     return all(module.is_objective_reached(self.state, data) for module in self.solver.module_manager.modules)
 
   def on_data_received(self, data, data_name):
-    for module in self.solver.module_manager.modules:
-      module.on_data_received(data, data_name)
+    self.solver.on_data_received(data, data_name)
 
   def visualize(self, data):
     LOG_DEBUG("Planner::visualize")
@@ -168,11 +151,11 @@ class Planner:
 
   def set_state(self, state):
     self.state = state
-    self.state.initialize()
+    LOG_DEBUG("Planner::set_state")
 
 class PlannerOutput:
   def __init__(self):
-    self.trajectory = Trajectory()
     self.success = False
-    self.control_history = []
-    self.trajectory_history = []
+    self.control_history = [] # The control history is a list of the actual control inputs used during the execution
+    self.trajectory_history = [] # This is a list of horizon length trajectories which is added to each time the solver finds a solution
+    self.realized_trajectory = Trajectory() # this is the trajectory executed by the physical robot when integrating based on the control history

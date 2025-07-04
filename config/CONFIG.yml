@@ -7,7 +7,7 @@ contouring:
 control_frequency: 20
 debug_limits: true
 debug_output: false
-deceleration_at_infeasible: 3.0
+deceleration_at_infeasible: 10.0
 timestep: 0.1
 enable_output: true
 integrator_step: 0.1
@@ -51,12 +51,15 @@ weights:
   acceleration_x: 1
   acceleration_y: 1
   angular_velocity: 0.5
-  contour: 1
-  goal_weight: 1
+  contour: 100
+  goal_weight: 10
+  angle_weight: 10
+  control_weight: 0.5
+  terminal_weight: 5
   terminal_angle: 0.5
   terminal_contouring: 0.5
-  lag: 10
+  lag: 1
   preview: 0.0
   reference_velocity: 0.01
-  slack: 10000.0
+  slack: 1.0
   velocity: 0.3

@@ -6,6 +6,7 @@ from matplotlib import pyplot as plt
 from scipy.interpolate import CubicSpline
 
 from planning.src.dynamic_models import DynamicsModel
+from utils.math_utils import Halfspace
 from utils.utils import LOG_DEBUG, LOG_WARN
 
 
@@ -33,13 +34,13 @@ class State:
         else:
             return
         self._state_dict = {}
-        state_vars = self._model_type.get_vars() + self._model_type.get_inputs()
-        self._state_vector = np.zeros(len(model_type.get_vars()) + len(model_type.get_inputs()))
+        all_vars = self._model_type.get_dependent_vars() + self._model_type.get_inputs()
+        self._state_vector = np.zeros(len(all_vars))
 
-        for i, var in enumerate(state_vars):
+        for i, var in enumerate(all_vars):
             self._state_dict[var] = 0.0
 
-        LOG_DEBUG(f"Initialized state with variables: {state_vars}")
+        LOG_DEBUG(f"Initialized state with variables: {all_vars}")
 
     def get(self, var_name):
         """Get a state variable by name."""
@@ -197,7 +198,7 @@ class StaticObstacle:
 
     def add_halfspace(self, A, b):
         """Add a halfspace constraint defined by Ax <= b"""
-        self.halfspaces.append({"A": A, "b": b})
+        self.halfspaces.append(Halfspace(A, b))
 
     def set(self, attribute, value):
         self.__setattr__(attribute, value)
@@ -411,19 +412,15 @@ class Bound:
         self.s = s
 
 class Trajectory:
-    def __init__(self, dt: float = 0.0, length: int = 10):
-        self.dt = dt
+    def __init__(self, timestep: float = 0.1, length: int = 30): # defaults match timestep and horizon for solver
+        self.timestep = timestep
         self.states = []
-        self.control_history = []
 
-    def add(self, state: State):
+    def add_state(self, state: State):
         if state is None:
             return
         else:
             self.states.append(state)
-
-    def add_control_input(self, control_inputs):
-        self.control_history.append(control_inputs)
 
     def get_states(self):
         return self.states
@@ -434,12 +431,8 @@ class Trajectory:
             history.append(state.get(name))
         return history
 
-    def get_control_history(self):
-        return self.control_history
-
     def reset(self):
         self.states = []
-        self.control_history = []
 
     def __str__(self):
         """Return a readable string representation of the current state."""
@@ -449,7 +442,6 @@ class Trajectory:
             lines.append(f"  {state}: at {k:.3f}")
             k += 1
         return "\n".join(lines)
-
 
 
 class FixedSizeTrajectory:

@@ -1,3 +1,5 @@
+import numpy as np
+import casadi as cs
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.objectives.base_objective import BaseObjective
 from planning.src.types import State
@@ -22,22 +24,42 @@ class GoalObjective(BaseObjective):
   def define_parameters(self, params):
     print("Defining parameters for Goal Objective")
     params.add("goal_weight", add_to_rqt_reconfigure=True, rqt_config_name=lambda p: f'["weights"]["goal"]')
+    params.add("control_weight", add_to_rqt_reconfigure=True, rqt_config_name=lambda p: f'["weights"]["control"]')
+
+    params.add("angle_weight", add_to_rqt_reconfigure=True, rqt_config_name=lambda p: f'["weights"]["angle"]')
     params.add("goal_x")
     params.add("goal_y")
 
-  def get_value(self, model, params, stage_idx):
-    cost = 0
 
-    # Get position at the specific stage index
+
+  def get_value(self, model, params, stage_idx):
+
     pos_x = model.get("x")
     pos_y = model.get("y")
+    psi = model.get("psi")
 
     goal_weight = params.get("goal_weight")
+    angle_weight = params.get("angle_weight")
     goal_x = params.get("goal_x")
     goal_y = params.get("goal_y")
 
-    cost += goal_weight * ((pos_x - goal_x) ** 2 + (pos_y - goal_y) ** 2) / (goal_x ** 2 + goal_y ** 2 + 0.01)
-    LOG_DEBUG("Returning goal objective cost: " + str(cost))
+    # Positional error
+    pos_cost = goal_weight * ((pos_x - goal_x) ** 2 + (pos_y - goal_y) ** 2) / (goal_x ** 2 + goal_y ** 2 + 0.01)
+
+    # Angular error to face the goal
+    theta_goal = cs.atan2(goal_y - pos_y, goal_x - pos_x)
+    angle_error = cs.fmod(psi - theta_goal + cs.pi, 2 * cs.pi) - cs.pi
+
+    angle_cost = angle_weight * angle_error ** 2
+
+    cost = pos_cost + angle_cost
+
+    # Optional control cost
+    # a = model.get("a")
+    # w = model.get("w")
+    # control_weight = params.get("control_weight")
+    # cost += control_weight * (a ** 2 + w ** 2)
+
     return cost
 
   def set_parameters(self, parameter_manager, data, k):

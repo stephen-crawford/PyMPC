@@ -17,7 +17,7 @@ from solver.src.casadi_solver import CasADiSolver
 from utils.utils import CONFIG, LOG_DEBUG, LOG_INFO, LOG_WARN
 
 
-def run(dt=0.5, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(5.0, 5.0), max_iterations=100):
+def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(5.0, 5.0), max_iterations=100):
 
 	dt = dt
 	horizon = horizon
@@ -128,16 +128,14 @@ def run(dt=0.5, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	state.set("w", 0.0)
 
 	# Print the state to verify values
-	print("INITIAL STATE:", {var: state.get(var) for var in vehicle.get_vars()})
+	print("INITIAL STATE:", {var: state.get(var) for var in vehicle.get_dependent_vars()})
 	# Run MPC loop
 	states_x = [state.get("x")]
 	states_y = [state.get("y")]
 	success_flags = []
 
 	# Add arrays to store trajectories for visualization
-	trajectories_found = []
-	all_trajectories_x = []
-	all_trajectories_y = []
+
 	states = []
 
 
@@ -154,65 +152,46 @@ def run(dt=0.5, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 		output = planner.solve_mpc(data)
 		success_flags.append(output.success)
 
-
 		if output.success:
-			# Store the whole predicted trajectory for visualization
-			traj_x = []
-			traj_y = []
-			for k in range(horizon + 1):
-				x_k = casadi_solver.get_output(k, "x")
-				y_k = casadi_solver.get_output(k, "y")
-				if x_k is not None and y_k is not None:
-					traj_x.append(float(x_k))  # Convert to float
-					traj_y.append(float(y_k))  # Convert to float
-
-			all_trajectories_x.append(traj_x)
-			all_trajectories_y.append(traj_y)
-
-			# Extract next state controls and convert to numeric values
-			next_a = float(casadi_solver.get_output(0, "a"))
-			next_w = float(casadi_solver.get_output(0, "w"))
-
-			# Get current state values as floats
-			current_x = float(state.get("x"))
-			current_y = float(state.get("y"))
-			current_psi = float(state.get("psi"))
-			current_v = float(state.get("v"))
-			current_spline = float(state.get("spline"))
-
-			# Create the z vector for integration
-			z_k = [next_a, next_w, current_x, current_y, current_psi, current_v, current_spline]
+			next_a = output.trajectory_history[-1].get_states()[1].get("a")
+			next_w = output.trajectory_history[-1].get_states()[1].get("w")
+			LOG_DEBUG("OUTPUT TRAJ HISTORY: " + str(output.trajectory_history[-1].get_states()[1]))
+			z_k = [next_a, next_w, state.get("x"), state.get("y"), state.get("psi"), state.get("v"), state.get("spline")]
+			LOG_DEBUG("Vec for calc next state through prop: " + str(z_k))
+			# Convert to CasADi vector
 			z_k = ca.vertcat(*z_k)
 			vehicle.load(z_k)
 
-			# Get the next state through integration
 			next_state_symbolic = vehicle.discrete_dynamics(z_k, casadi_solver.parameter_manager,
 															casadi_solver.timestep)
+			next_state = numeric_rk4(next_state_symbolic, vehicle, casadi_solver.parameter_manager,
+									 casadi_solver.timestep)
 
-			# Convert symbolic result to numeric values
-			if isinstance(next_state_symbolic, (ca.MX, ca.SX)):
-				next_state_numeric = numeric_rk4(next_state_symbolic, vehicle, casadi_solver.parameter_manager,
-												 casadi_solver.timestep)
-			else:
-				next_state_numeric = next_state_symbolic
+			next_x = next_state[0]
+			next_y = next_state[1]
+			next_psi = next_state[2]
+			next_v = next_state[3]
 
-			# Extract numeric values from the integrated state
-			next_x = float(next_state_numeric[0])
-			next_y = float(next_state_numeric[1])
-			next_psi = float(next_state_numeric[2])
-			next_v = float(next_state_numeric[3])
-			next_spline = float(next_state_numeric[4])
-			# Update the planner state with numeric values
-			planner.get_state().set("a", next_a)
-			planner.get_state().set("w", next_w)
-			planner.get_state().set("x", next_x)
-			planner.get_state().set("y", next_y)
-			planner.get_state().set("psi", next_psi)
-			planner.get_state().set("v", next_v)
-			planner.get_state().set("spline", next_spline)
+			LOG_DEBUG(f"Next state: {next_state}")
+			states_x.append(float(next_x))
+			states_y.append(float(next_y))
+			LOG_DEBUG("Going to set the next state based on integrated dynamics. x: " + str(next_x) + " y:" + str(
+				next_y) + " psi: " + str(next_psi) + " v: " + str(next_v))
+			new_state = planner.get_state().copy()
+			new_state.set("x", next_x)
+			new_state.set("y", next_y)
+			new_state.set("psi", next_psi)
+			new_state.set("v", next_v)
+			new_state.set("w", next_w)
+			new_state.set("a", next_a)
+			LOG_DEBUG("Next state is: " + str(new_state))
+			output.control_history.append((next_a, next_w))
+			output.realized_trajectory.add_state(new_state)
+			planner.set_state(new_state)
+			state = planner.get_state()
 
+			LOG_DEBUG(f"Next state: {planner.get_state()}")
 			casadi_solver.reset()
-
 			# Check if goal reached
 			if planner.is_objective_reached(data):
 				LOG_DEBUG("Objective reached so ending.")
@@ -226,15 +205,10 @@ def run(dt=0.5, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 			# Print more debug info when solver fails
 			casadi_solver.print_if_bound_limited()
 			LOG_DEBUG(casadi_solver.explain_exit_flag())
+			casadi_solver.reset()
 
 	# Print statistics
-
-	LOG_DEBUG(f"After running {iter} all trajectories_x are: {all_trajectories_x}")
-	xs = []
-	for state in states:
-		xs.append(state.get("x"))
-	LOG_DEBUG(f"After running all states_x are: {xs}")
-	return data, states, all_trajectories_x, all_trajectories_y, success_flags
+	return data, planner.output.realized_trajectory, planner.output.trajectory_history, success_flags
 
 
 def plot_vehicle(x, y, psi, length, width, ax, color='blue', alpha=0.7):
@@ -254,8 +228,21 @@ def plot_vehicle(x, y, psi, length, width, ax, color='blue', alpha=0.7):
 	ax.add_patch(vehicle_patch)
 
 
-def plot_trajectory(data, states, states_x, states_y, all_trajectories_x, all_trajectories_y, success_flags):
+def plot_trajectory(data, realized_trajectory, trajectory_history,  success_flags):
 	plt.figure(figsize=(12, 8))
+
+	states_x = [float(s.get("x")) for s in realized_trajectory.get_states()]
+	states_y = [float(s.get("y")) for s in realized_trajectory.get_states()]
+	states_psi = [float(s.get("psi")) for s in realized_trajectory.get_states()]
+	LOG_DEBUG("States x: " + str(states_x))
+	all_trajectories_x = []
+	all_trajectories_y = []
+
+	for traj in trajectory_history:
+		traj_x = [float(s.get("x")) for s in traj.get_states()]
+		traj_y = [float(s.get("y")) for s in traj.get_states()]
+		all_trajectories_x.append(traj_x)
+		all_trajectories_y.append(traj_y)
 
 	# Plot the goal and start points
 	plt.plot(data.goal[0], data.goal[1], 'r*', markersize=12, label='Goal')
@@ -285,7 +272,7 @@ def plot_trajectory(data, states, states_x, states_y, all_trajectories_x, all_tr
 	for i in range(0, len(states_x), 10):
 		x = states_x[i]
 		y = states_y[i]
-		psi = states[i].get("psi")
+		psi = states_psi[i]
 		plot_vehicle(x, y, psi, vehicle_length, vehicle_width, plt.gca(), color='cyan', alpha=0.6)
 
 	# Plot road constraints
@@ -316,13 +303,7 @@ def test():
 	logger.setLevel(logging.DEBUG)
 
 
-	data, states, all_trajectories_x, all_trajectories_y, success_flags = run()
-	LOG_DEBUG("Returned states: {}".format(states))
-	states_x = []
-	states_y = []
+	data, realized_trajectory, trajectory_history, success_flags = run()
 
-	for state in states:
-		states_x.append(state.get("x"))
-		states_y.append(state.get("y"))
 
-	plot_trajectory(data, states, states_x, states_y, all_trajectories_x, all_trajectories_y, success_flags)
+	plot_trajectory(data, realized_trajectory, trajectory_history, success_flags)

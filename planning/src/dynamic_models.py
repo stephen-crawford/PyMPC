@@ -78,6 +78,7 @@ def safe_casadi_discrete_dynamics(model, z, p, nx=None, integration_step=None):
 
 
 def numeric_rk4(next_state, vehicle, params, timestep):
+        LOG_DEBUG("at top of of numeric rk4")
         if isinstance(next_state, cd.MX):
             LOG_DEBUG(f"Got symbolic result from discrete_dynamics. Using RK4 integration directly.")
 
@@ -111,7 +112,7 @@ class DynamicsModel:
         self.nu = 0  # number of control variables
         self.state_dimension = 0  # number of states
 
-        self.state_vars = []
+        self.dependent_vars = []
         self.inputs = []
 
         self.lower_bound = []
@@ -121,11 +122,16 @@ class DynamicsModel:
         self.state_dimension_integrate = None
 
 
-    def get_vars(self):
-        return self.state_vars
+    def get_dependent_vars(self):
+        return self.dependent_vars
 
     def get_inputs(self):
         return self.inputs
+
+    def get_all_vars(self):
+        dep_vars = self.dependent_vars
+        inputs = self.inputs
+        return inputs + dep_vars
 
     def discrete_dynamics(self, z, p, timestep, **kwargs):
         try:
@@ -221,7 +227,7 @@ class DynamicsModel:
     def save_map(self):
         file_path = model_map_path()
         mapped = {}
-        for idx, state in enumerate(self.state_vars):
+        for idx, state in enumerate(self.dependent_vars):
             mapped[state] = ["x", idx + self.nu, self.get_bounds(state)[0], self.get_bounds(state)[1]]
 
         for idx, ins in enumerate(self.inputs):
@@ -269,7 +275,7 @@ class DynamicsModel:
 
                 # Extract states
                 states = {}
-                for i, state_name in enumerate(self.state_vars):
+                for i, state_name in enumerate(self.dependent_vars):
                     idx = self.nu + i
                     if idx < len(self._z):
                         states[state_name] = self._z[idx]
@@ -294,8 +300,8 @@ class DynamicsModel:
         self.state_dimension_integrate = self.state_dimension - n
 
     def get(self, state_or_input):
-        if state_or_input in self.state_vars:
-            i = self.state_vars.index(state_or_input)
+        if state_or_input in self.dependent_vars:
+            i = self.dependent_vars.index(state_or_input)
             return self._z[self.nu + i]
         elif state_or_input in self.inputs:
             i = self.inputs.index(state_or_input)
@@ -310,8 +316,8 @@ class DynamicsModel:
         self.upper_bound = upper_bound
 
     def get_bounds(self, state_or_input):
-        if state_or_input in self.state_vars:
-            i = self.state_vars.index(state_or_input)
+        if state_or_input in self.dependent_vars:
+            i = self.dependent_vars.index(state_or_input)
             return (
                 self.lower_bound[self.nu + i],
                 self.upper_bound[self.nu + i],
@@ -332,7 +338,7 @@ class DynamicsModel:
         return (
             f"{self.__class__.__name__}(\n"
             f"  nx={self.state_dimension}, nu={self.nu},\n"
-            f"  state_vars={self.state_vars},\n"
+            f"  dependent_vars={self.dependent_vars},\n"
             f"  inputs={self.inputs},\n"
             f"  lower_bound={self.lower_bound},\n"
             f"  upper_bound={self.upper_bound}\n"
@@ -358,7 +364,7 @@ class SecondOrderUnicycleModel(DynamicsModel):
         self.nu = 2  # number of control variables
         self.state_dimension = 4  # number of states
 
-        self.state_vars = ["x", "y", "psi", "v"]
+        self.dependent_vars = ["x", "y", "psi", "v"]
         self.inputs = ["a", "w"]
         self.lower_bound = [-2.0, -2.0, -200.0, -200.0, -np.pi * 4, -2.0]
         self.upper_bound = [2.0, 2.0, 200.0, 200.0, np.pi * 4, 3.0]
@@ -379,7 +385,7 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         self.nu = 2  # number of control variables
         self.state_dimension = 5  # number of states
 
-        self.state_vars = ["x", "y", "psi", "v", "spline"]
+        self.dependent_vars = ["x", "y", "psi", "v", "spline"]
         self.inputs = ["a", "w"]
 
         self.width = 0.5
@@ -401,7 +407,6 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         LOG_WARN(f"Setting continuous model with a = {a}, w = {w}, psi = {psi}, v = {v}")
         return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a, v)
 
-
 class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
 
     def __init__(self):
@@ -409,7 +414,7 @@ class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
         self.nu = 2  # number of control variables
         self.state_dimension = 5  # number of states
 
-        self.state_vars = ["x", "y", "psi", "v", "spline"]
+        self.dependent_vars = ["x", "y", "psi", "v", "spline"]
         self.inputs = ["a", "w"]
 
         self.do_not_use_integration_for_last_n_states(n=1)
@@ -467,7 +472,7 @@ class ContouringSecondOrderUnicycleModelWithSlack(DynamicsModel):
         self.nu = 2  # number of control variables
         self.state_dimension = 6  # number of states
 
-        self.state_vars = ["x", "y", "psi", "v", "spline", "slack"]
+        self.dependent_vars = ["x", "y", "psi", "v", "spline", "slack"]
         self.inputs = ["a", "w"]
 
         self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 4, -0.01, -1.0, 0.0]  # v -0.01
@@ -495,7 +500,7 @@ class SecondOrderBicycleModel(DynamicsModel):
         self.nu = 3
         self.state_dimension = 6
 
-        self.state_vars = ["x", "y", "psi", "v", "delta", "spline"]
+        self.dependent_vars = ["x", "y", "psi", "v", "delta", "spline"]
         self.inputs = ["a", "w", "slack"]
 
         # Prius limits: https:#github.com/oscardegroot/lmpcc/blob/prius/lmpccsolver/scripts/systems.py
@@ -658,7 +663,7 @@ class CurvatureAwareSecondOrderBicycleModel(DynamicsModel):
         self.nu = 3
         self.state_dimension = 6
 
-        self.state_vars = ["x", "y", "psi", "v", "delta", "spline"]
+        self.dependent_vars = ["x", "y", "psi", "v", "delta", "spline"]
         self.inputs = ["a", "w", "slack"]
 
         self.do_not_use_integration_for_last_n_states(n=1)

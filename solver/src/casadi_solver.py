@@ -1,7 +1,7 @@
 import casadi as cs
 import numpy as np
 
-from planning.src.dynamic_models import DynamicsModel
+from planning.src.dynamic_models import DynamicsModel, numeric_rk4
 from planning.src.types import State, Trajectory
 from solver.src.base_solver import BaseSolver
 from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO, CONFIG
@@ -35,28 +35,28 @@ class CasADiSolver(BaseSolver):
 		# Solution storage
 		self.solution = None
 		self.exit_flag = None
-		self.info = {}
+		self.info = {} # Used for delayed logging
 
 		# Ego prediction trajectory
 		self.ego_prediction = Trajectory()
+
 
 	def set_dynamics_model(self, dynamics_model: DynamicsModel):
 		"""
 		Incorporates the given dynamics model into the optimization problem.
 		"""
+
 		self.dynamics_model = dynamics_model
 
-		for var_name in self.dynamics_model.get_vars():
-			self.var_dict[var_name] = self.opti.variable(self.horizon + 1) # This makes a horizon + 1 length vector
-			self.opti.set_initial(self.var_dict[var_name], 0.0)
+		for var_name in self.dynamics_model.get_dependent_vars():
+			self.var_dict[var_name] = self.opti.variable(self.horizon + 1) # This makes a horizon + 1 length symbolic vector
 			self.warmstart_values[var_name] = np.zeros(self.horizon + 1)
-
 		for var_name in self.dynamics_model.get_inputs():
-			self.var_dict[var_name] = self.opti.variable(self.horizon)
-			self.opti.set_initial(self.var_dict[var_name], 0.0)
+			self.var_dict[var_name] = self.opti.variable(self.horizon)  # This makes a horizon length symbolic vector
 			self.warmstart_values[var_name] = np.zeros(self.horizon)
 
-		LOG_DEBUG(f"After initialization, vars are: {self.var_dict}")
+		LOG_DEBUG(f"After setting dynamics model, vars are: {self.var_dict}")
+
 		opts = {
 			'ipopt.print_level': 0,
 			'print_time': 0,
@@ -87,24 +87,155 @@ class CasADiSolver(BaseSolver):
 		# Shift previous solution if requested
 		if shift_forward:
 			LOG_DEBUG("Previous solution found so shifting forward")
-			for var_name in self.dynamics_model.get_vars():
-				if var_name in self.warmstart_values:
-					prev_values = self.warmstart_values[var_name]
-					self.warmstart_values[var_name][:-1] = prev_values[1:]
-					self.warmstart_values[var_name][-1] = prev_values[-1]
+			for var_name in self.dynamics_model.get_dependent_vars():
+				if var_name in self.warmstart_values.keys():
+					self.shift_warmstart(var_name)
 
 					for k in range(self.horizon + 1):
 						self.opti.set_initial(self.var_dict[var_name][k], self.warmstart_values[var_name][k])
 
 			for var_name in self.dynamics_model.get_inputs():
-				if var_name in self.warmstart_values:
-					if var_name in self.warmstart_values:
-						prev_values = self.warmstart_values[var_name]
-						self.warmstart_values[var_name][:-1] = prev_values[1:]
-						self.warmstart_values[var_name][-1] = prev_values[-1]
+				if var_name in self.warmstart_values.keys():
+					self.shift_warmstart(var_name)
 
-						for k in range(self.horizon + 1):
-							self.opti.set_initial(self.var_dict[var_name][k], self.warmstart_values[var_name][k])
+					for k in range(self.horizon):
+						self.opti.set_initial(self.var_dict[var_name][k], self.warmstart_values[var_name][k])
+
+	def _initialize_base_rollout(self, state: State):
+		"""Initialize with a braking trajectory using proper numerical integration"""
+
+		LOG_DEBUG("Initializing base rollout with ego prediction {}".format(self.ego_prediction))
+
+		for i in range(1, self.horizon + 1):
+			prev_state = self.ego_prediction.get_states()[i - 1]
+			LOG_DEBUG("Current state when rolling out: {}".format(prev_state))
+
+			# Get previous state variables
+			prev_v = prev_state.get("v")
+			prev_x = prev_state.get("x")
+			prev_y = prev_state.get("y")
+			prev_a = prev_state.get("a")
+			prev_w = prev_state.get("w")
+			prev_psi = prev_state.get("psi")
+
+			# FIXED: Proper velocity integration (single timestep, not cumulative)
+			v = prev_v + prev_a * self.timestep
+
+			# FIXED: Use current velocity for position integration (or use average velocity)
+			# Option 1: Use average velocity (more accurate for large timesteps)
+			v_avg = (prev_v + v) / 2.0
+			x = prev_x + v_avg * self.timestep * np.cos(prev_psi)
+			y = prev_y + v_avg * self.timestep * np.sin(prev_psi)
+
+			# FIXED: Update heading with angular velocity
+			psi = prev_psi + prev_w * self.timestep
+
+			# Normalize angle to [-pi, pi]
+			psi = np.arctan2(np.sin(psi), np.cos(psi))
+
+			# Create new state
+			state_i = State(prev_state.get_model_type())
+			state_i.set("x", x)
+			state_i.set("y", y)
+			state_i.set("v", v)
+			state_i.set("psi", psi)
+			state_i.set("a", prev_a)  # Keep same acceleration (or update if needed)
+			state_i.set("w", prev_w)  # Keep same angular velocity (or update if needed)
+
+			LOG_DEBUG("Adding state {} to ego prediction at step {}".format(state_i, i))
+			self.ego_prediction.add_state(state_i)
+
+		# Initialize warmstart values
+		for k in range(self.horizon):
+			pred_state = self.ego_prediction.get_states()[k]
+
+			for var_name in self.dynamics_model.get_all_vars():
+				if var_name in self.warmstart_values:
+					value = pred_state.get(var_name)
+					LOG_DEBUG("Loading {} from warmstart for stage {} value is {}".format(var_name, k, value))
+					if value is not None:
+						self.opti.set_initial(self.var_dict[var_name][k], value)
+
+		# Debug logging
+		LOG_DEBUG(f"Initial trajectory for horizon {self.horizon}:")
+		for i, state in enumerate(self.ego_prediction.get_states()):
+			if i <= self.horizon:
+				LOG_DEBUG("state: {} at trajectory step {}".format(state, i))
+
+	def _set_initial_state(self, state: State):
+		"""
+		Provide the initial state to the solver.
+		"""
+		# Extract initial state values using current model's variable names
+		LOG_DEBUG("Setting initial state based on given state " + str(state))
+		self.initial_state = state
+		self.ego_prediction.add_state(state)
+		for var_name in self.dynamics_model.get_dependent_vars():
+			value = state.get(var_name)
+
+			# If we have a valid value for this state variable
+			if value is not None:
+				# Constrain initial state
+				self.opti.subject_to(self.var_dict[var_name][0] == value)
+
+				# Also update the warmstart values to ensure consistency
+				if var_name in self.warmstart_values.keys():
+					self.warmstart_values[var_name][0] = value
+
+	def _apply_model_bounds(self):
+		"""Apply bounds from the dynamics model to optimization variables"""
+
+		# Apply state variable bounds
+		for var_name in self.dynamics_model.get_dependent_vars():
+			var = self.var_dict[var_name]
+			lb, ub, _ = self.dynamics_model.get_bounds(var_name)
+
+			for k in range(self.horizon + 1):
+				self.opti.subject_to(self.opti.bounded(lb, var[k], ub))
+
+
+		for var_name in self.dynamics_model.get_inputs():
+			var = self.var_dict[var_name]
+			lb, ub, _ = self.dynamics_model.get_bounds(var_name)
+
+			for k in range(self.horizon):
+				self.opti.subject_to(self.opti.bounded(lb, var[k], ub))
+
+		self._add_dynamics_constraints()
+
+	def _add_dynamics_constraints(self):
+		initial_ng = self.opti.ng
+		for k in range(self.horizon):
+			# Create input vector -- will end up being something like [a_0, a_1, a_2, ..., w_0, w_1, ...]
+			u_k = []
+			for u_name in self.dynamics_model.get_inputs():
+				u_k.append(self.var_dict[u_name][k])
+
+			# Create state vector -- ex: [x_0, x_1, ... y_0, y_1, ...]
+			x_k = []
+			for x_name in self.dynamics_model.get_dependent_vars():
+				x_k.append(self.var_dict[x_name][k])
+
+			# Combine into z_k [a_0, ... a_horizon-1, w_0, ..., w_horizon -1, x_0, ..., x_horizon-, etc.]
+			z_k = cs.vertcat(*u_k, *x_k)
+
+			# Load into dynamics model
+			self.dynamics_model.load(z_k)
+
+			# Symbolic predicted next state
+			next_state = self.dynamics_model.discrete_dynamics(z_k, self.parameter_manager, self.timestep)
+
+			# Add dynamics constraints
+			for i, var in enumerate(self.dynamics_model.get_dependent_vars()):
+				if (hasattr(self.dynamics_model, 'state_dimension_integrate') and
+						self.dynamics_model.state_dimension_integrate is not None and
+						i >= self.dynamics_model.state_dimension_integrate):
+					continue
+				self.opti.subject_to(self.var_dict[var][k + 1] == next_state[i])
+				LOG_DEBUG(f"Added constraint {var}[{k + 1}] == {next_state[i]}")
+			final_ng = self.opti.ng
+			LOG_DEBUG(f"Dynamics constraints added: {final_ng - initial_ng}")
+
 
 	def solve(self):
 		"""Solve the optimization problem
@@ -112,7 +243,7 @@ class CasADiSolver(BaseSolver):
 		Returns:
 			int: Exit flag (1 for success, -1 for failure)
 		"""
-
+		LOG_DEBUG("Attempting to solve in Casadi solver")
 		try:
 			# Get solver timeout parameter
 			timeout = self.parameter_manager.get("solver_timeout")
@@ -122,7 +253,8 @@ class CasADiSolver(BaseSolver):
 				options['ipopt.max_cpu_time'] = timeout
 
 			total_objective = 0
-			for stage_idx in range(self.horizon):
+			for stage_idx in range(self.horizon + 1):
+				LOG_DEBUG("Trying to get objective cost for stage " + str(stage_idx))
 				objective_value = self.get_objective_cost(stage_idx)
 
 				# Ensure the objective is a scalar
@@ -142,15 +274,6 @@ class CasADiSolver(BaseSolver):
 			try:
 				sol = self.opti.solve()
 			except RuntimeError as e:
-				expr = total_objective
-				LOG_WARN("Evaluating objective function at failure")
-				LOG_WARN(cs.Function('obj', [self.opti.x], [expr])(self.opti.debug.value(self.opti.x)))
-				index = 503
-				LOG_WARN(
-					f"offending x {self.opti.debug.x_describe(index)}, offending g: {self.opti.debug.g_describe(index)}")
-				for i, var_name in enumerate(self.var_dict):
-					var = self.var_dict[var_name]
-					LOG_DEBUG(f"Initial guess for {var_name} = {self.opti.debug.value(var)}")
 
 				LOG_WARN(f"[ERROR] CasADi solver failed at iteration: {self.opti.stats()['iter_count']} ")
 				LOG_WARN("[ERROR] Exception:" + str(e))
@@ -181,12 +304,20 @@ class CasADiSolver(BaseSolver):
 			# Update warmstart values for next iteration
 			LOG_DEBUG(f"Var dict is {self.var_dict}")
 			for var_name in self.var_dict:
-				if var_name in self.dynamics_model.get_vars():
+				if var_name in self.dynamics_model.get_dependent_vars():
 					self.warmstart_values[var_name] = np.array(sol.value(self.var_dict[var_name]))
 				elif var_name in self.dynamics_model.get_inputs():
 					self.warmstart_values[var_name] = np.array(sol.value(self.var_dict[var_name]))
 
 			LOG_DEBUG("Optimization solved successfully")
+			LOG_INFO("=== SOLUTION FOUND ===")
+			for var_name, var_vector in self.var_dict.items():
+				try:
+					values = self.solution.value(var_vector)
+					values = np.round(values, decimals=4)  # Round for cleaner logs
+					LOG_INFO(f"{var_name}: {values}")
+				except Exception as e:
+					LOG_WARN(f"Failed to log variable {var_name}: {e}")
 			return 1
 		except Exception as e:
 			LOG_WARN(f"Solver failed: {str(e)}")
@@ -213,7 +344,7 @@ class CasADiSolver(BaseSolver):
 			return None
 
 		# Check if k is valid for the variable
-		var_length = self.horizon + 1 if var_name in self.dynamics_model.get_vars() else self.horizon
+		var_length = self.horizon + 1 if var_name in self.dynamics_model.get_dependent_vars() else self.horizon
 		if k < 0 or k >= var_length:
 			return None
 		# Return the value from the solution
@@ -221,6 +352,40 @@ class CasADiSolver(BaseSolver):
 			return float(self.solution.value(self.var_dict[var_name][k]))
 		except:
 			return None
+
+	def get_reference_trajectory(self):
+		"""Reconstruct the trajectory from the optimization result.
+
+		Returns:
+			Trajectory: A trajectory object containing states and controls from the solver output.
+		"""
+		traj = Trajectory(timestep=self.timestep, length=self.horizon + 1)
+
+		if self.solution is None:
+			LOG_WARN("No solution found. Cannot extract reference trajectory.")
+			return traj
+
+		# Reconstruct state trajectory
+		for k in range(self.horizon + 1):
+			state_k = State(model_type=self.dynamics_model)
+			for var_name in self.dynamics_model.get_dependent_vars():
+				try:
+					value = float(self.solution.value(self.var_dict[var_name][k]))
+					state_k.set(var_name, value)
+				except Exception as e:
+					LOG_WARN(f"Failed to extract value for {var_name}[{k}]: {e}")
+					state_k.set(var_name, 0.0)
+			for var_name in self.dynamics_model.get_inputs():
+				if k in range(self.horizon):
+					try:
+						value = float(self.solution.value(self.var_dict[var_name][k]))
+						state_k.set(var_name, value)
+					except Exception as e:
+						LOG_WARN(f"Failed to extract value for {var_name}[{k}]: {e}")
+						state_k.set(var_name, 0.0)
+			traj.add_state(state_k)
+
+		return traj
 
 	def print_if_bound_limited(self):
 		"""Print which variables are at their bounds (for debugging)"""
@@ -277,7 +442,10 @@ class CasADiSolver(BaseSolver):
 		self.info = {}
 		self.ego_prediction.reset()
 		self.var_dict.clear()
+		LOG_DEBUG("After reset, var dict is: " + str(self.var_dict.items()))
 		self.set_dynamics_model(self.dynamics_model)
+		for module in self.module_manager.modules:
+			module.reset()
 		LOG_DEBUG("CasADi solver reset.")
 
 	# For compatibility with the model interface expected by modules
@@ -298,10 +466,14 @@ class CasADiSolver(BaseSolver):
 			CasADi symbolic variable
 		"""
 		if var_name in self.var_dict:
-			if stage_idx is not None and 0 <= stage_idx < self.horizon:
-				return self.var_dict[var_name][stage_idx]
+			if stage_idx is not None:
+				var_length = self.horizon + 1 if var_name in self.dynamics_model.get_dependent_vars() else self.horizon
+				if 0 <= stage_idx < var_length:
+					return self.var_dict[var_name][stage_idx]
+				else:
+					LOG_WARN(f"Access out-of-bounds: {var_name}[{stage_idx}]")
+					return None  # or throw
 			return self.var_dict[var_name]
-		return None
 
 	def get_ego_prediction(self, k, var):
 		LOG_DEBUG(f"Trying to get ego prediction for variable {var}, at {k}")
@@ -327,163 +499,7 @@ class CasADiSolver(BaseSolver):
 
 		return new_solver
 
-	def _apply_model_bounds(self):
-		"""Apply bounds from the dynamics model to optimization variables"""
-
-		# Apply state variable bounds
-		for var_name in self.dynamics_model.get_vars():
-			var = self.var_dict[var_name]
-			lb, ub, _ = self.dynamics_model.get_bounds(var_name)
-
-			for k in range(self.horizon + 1):
-				self.opti.subject_to(self.opti.bounded(lb, var[k], ub))
-
-
-		for var_name in self.dynamics_model.get_inputs():
-			var = self.var_dict[var_name]
-			lb, ub, _ = self.dynamics_model.get_bounds(var_name)
-
-			for k in range(self.horizon):
-				self.opti.subject_to(self.opti.bounded(lb, var[k], ub))
-
-			if var_name == 'a':
-				# Start with slight deceleration
-				init_val = -0.5
-			elif var_name == 'w':
-				# Start with no steering
-				init_val = 0.0
-			else:
-				init_val = (lb + ub) / 2.0
-
-			# Clamp to bounds in case initial is outside of them -- this would only happen if acceleration cannot be neg. etc.
-			init_val = max(lb, min(ub, init_val))
-			self.opti.set_initial(var, init_val)
-
-		self._add_dynamics_constraints()
-
-	def _add_dynamics_constraints(self):
-		for k in range(self.horizon):
-			# Create input vector -- will end up being something like [a_0, a_1, a_2, ..., w_0, w_1, ...]
-			u_k = []
-			for u_name in self.dynamics_model.get_inputs():
-				u_k.append(self.var_dict[u_name][k])
-
-			# Create state vector -- ex: [x_0, x_1, ... y_0, y_1, ...]
-			x_k = []
-			for x_name in self.dynamics_model.get_vars():
-				x_k.append(self.var_dict[x_name][k])
-
-			# Combine into z_k [a_0, ... a_horizon-1, w_0, ..., w_horizon -1, x_0, ..., x_horizon-, etc.]
-			z_k = cs.vertcat(*u_k, *x_k)
-
-			# Load into dynamics model
-			self.dynamics_model.load(z_k)
-
-			# Symbolic predicted next state
-			next_state = self.dynamics_model.discrete_dynamics(z_k, self.parameter_manager, self.timestep)
-
-			# Add dynamics constraints
-			for i, state_name in enumerate(self.dynamics_model.get_vars()):
-				if (hasattr(self.dynamics_model, 'state_dimension_integrate') and
-						self.dynamics_model.state_dimension_integrate is not None and
-						i >= self.dynamics_model.state_dimension_integrate):
-					continue
-				LOG_DEBUG(f"Adding dynamics constraint {state_name} at {k + 1} must equal {next_state[i]}")
-				self.opti.subject_to(self.var_dict[state_name][k + 1] == next_state[i])
-
-
-	def _set_initial_state(self, state: State):
-		"""
-		Provide the initial state to the solver.
-		"""
-		# Extract initial state values using current model's variable names
-		LOG_DEBUG("Setting initial state based on given state " + str(state))
-		self.initial_state = state
-		self.ego_prediction.add(state)
-		for var_name in self.dynamics_model.get_vars():
-			value = state.get(var_name)
-
-			# If we have a valid value for this state variable
-			if value is not None:
-				# Constrain initial state
-				self.opti.subject_to(self.var_dict[var_name][0] == value)
-
-				# Also update the warmstart values to ensure consistency
-				if var_name in self.warmstart_values:
-					self.warmstart_values[var_name][0] = value
-
-	def _initialize_base_rollout(self, state: State):
-		"""Initialize with a braking trajectory"""
-
-		LOG_DEBUG("Initializing base rollout")
-		current_state = state.copy()  # Assuming State has a copy method
-		self.ego_prediction = Trajectory()
-		self.ego_prediction.add(current_state)
-
-		psi = state.get('psi')
-
-		for i in range(1, self.horizon + 1):
-			prev_state = self.ego_prediction.get_states()[i - 1]
-			prev_v = prev_state.get("v")
-			prev_x = prev_state.get("x")
-			prev_y = prev_state.get("y")
-			prev_psi = prev_state.get("psi")
-
-			a = -CONFIG["deceleration_at_infeasible"]
-			v = self.get_ego_prediction(i, "v") + a * i * self.timestep
-			a = ((v - self.get_ego_prediction(i, "v")) / (i * self.timestep))
-			# Update velocity with deceleration
-			v = max(prev_v + a * self.timestep, 0.0)
-
-			# Update position
-			x = prev_x + prev_v * self.timestep * np.cos(prev_psi)
-			y = prev_y + prev_v * self.timestep * np.sin(prev_psi)
-
-			state_i = State()
-			state_i.x = x
-			state_i.y = y
-			state_i.psi = psi
-			state_i.v = v
-			state_i.a = a
-
-			self.ego_prediction.add(state_i)
-
-		for k in range(self.horizon + 1):
-			pred_state = self.ego_prediction.get_states()[k]
-
-			for var_name in self.dynamics_model.get_vars():
-				if var_name in self.warmstart_values:
-					value = pred_state.get(var_name)
-					if value is not None:
-						self.warmstart_values[var_name][k] = value
-						# Set initial guess in optimizer
-						self.opti.set_initial(self.var_dict[var_name][k], value)
-
-		for k in range(self.horizon):
-			for var_name in self.dynamics_model.get_inputs():
-				if var_name in self.warmstart_values:
-					if var_name in ['acceleration', 'a']:
-						# Use the acceleration from prediction
-						if k < len(self.ego_prediction.get_states()) - 1:
-							next_v = self.ego_prediction.get_states()[k + 1].get('v')
-							curr_v = self.ego_prediction.get_states()[k].get('v')
-							a_value = (next_v - curr_v) / self.timestep
-						else:
-							a_value = -CONFIG["deceleration_at_infeasible"]
-
-						self.warmstart_values[var_name][k] = a_value
-						self.opti.set_initial(self.var_dict[var_name][k], a_value)
-					else:
-						# Other controls default to 0
-						self.warmstart_values[var_name][k] = 0.0
-						self.opti.set_initial(self.var_dict[var_name][k], 0.0)
-
-		# Update ego prediction with a next state
-		state = State()
-		for var_name in self.dynamics_model.get_vars():
-			if var_name in self.warmstart_values:
-				state.set(var_name, self.warmstart_values[var_name])
-		for var_name in self.dynamics_model.get_inputs():
-			if var_name in self.warmstart_values:
-				state.set(var_name, self.warmstart_values[var_name])
-		self.ego_prediction.add(state)
+	def shift_warmstart(self, var_name):
+		prev_values = self.warmstart_values[var_name]
+		self.warmstart_values[var_name][:-1] = prev_values[1:]
+		self.warmstart_values[var_name][-1] = prev_values[-1]

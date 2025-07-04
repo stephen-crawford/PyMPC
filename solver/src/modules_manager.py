@@ -181,6 +181,10 @@ class Module:
         """Reset constraint state"""
         pass
 
+
+    def get_name(self):
+        return self.name
+
     def get_config_value(self, key, default=None):
         print("self.config " + str(self.config))
         res = self.config.get(key, self.config.get(f"{self.name}.{key}", default))

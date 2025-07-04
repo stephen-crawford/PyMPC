@@ -51,41 +51,124 @@ class ContouringObjective(BaseObjective):
 			data.reference_path.set('s', self.reference_path.s)
 
 		data.current_path_segment = self.closest_segment
+		closest_pt = np.array(
+			[self.reference_path.x[self.closest_point_idx], self.reference_path.y[self.closest_point_idx]])
+		vehicle_pos = np.array(state.get_position())
+		LOG_DEBUG(f"Distance to closest point: {np.linalg.norm(closest_pt - vehicle_pos)}")
 
 		if self.add_road_constraints:
 			self.construct_road_constraints(data)
 
-		# #Visualization for debug
-		# plot_debug = self.get_config_value("plot.debug", True)
-		# if plot_debug and self.reference_path is not None:
-		# 	path_x = self.reference_path.x
-		# 	path_y = self.reference_path.y
-		#
-		# 	fig, ax = plt.subplots()
-		# 	ax.plot(path_x, path_y, label="Reference Path", linewidth=2)
-		#
-		# 	# Current vehicle state
-		# 	pos_x, pos_y = state.get_position()
-		# 	ax.plot(pos_x, pos_y, 'ro', label="Current Position")
-		#
-		# 	# Closest point
-		# 	closest_idx = self.closest_point_idx
-		# 	ax.plot(path_x[closest_idx], path_y[closest_idx], 'gx', markersize=10, label="Closest Point")
-		#
-		# 	# Optionally add road boundaries if available
-		# 	if self.bound_left_spline is not None and self.bound_right_spline is not None:
-		# 		left_pts = self.bound_left_spline(self.reference_path.s)
-		# 		right_pts = self.bound_right_spline(self.reference_path.s)
-		# 		ax.plot(left_pts[:, 0], left_pts[:, 1], '--', color='blue', label='Left Bound')
-		# 		ax.plot(right_pts[:, 0], right_pts[:, 1], '--', color='green', label='Right Bound')
-		#
-		# 	ax.set_aspect("equal")
-		# 	ax.legend()
-		# 	ax.set_title("Contouring Update Debug Plot")
-		# 	ax.set_xlabel("X")
-		# 	ax.set_ylabel("Y")
-		# 	plt.grid(True)
-		# 	plt.show()
+		if self.get_config_value("plot.debug", True) and self.reference_path is not None:
+			path_x = self.reference_path.x
+			path_y = self.reference_path.y
+
+			fig, ax = plt.subplots()
+			ax.plot(path_x, path_y, label="Reference Path", linewidth=2)
+
+			# Current vehicle state
+			pos_x, pos_y = state.get_position()
+			ax.plot(pos_x, pos_y, 'ro', label="Current Position")
+
+			# Closest point
+			closest_idx = self.closest_point_idx
+			ax.plot(path_x[closest_idx], path_y[closest_idx], 'gx', markersize=10, label="Closest Point")
+			ax.text(path_x[closest_idx], path_y[closest_idx],
+					f"seg {self.closest_segment}", fontsize=9, color="purple")
+
+			# Optional: plot actual road bounds if they exist
+			if self.bound_left_spline is not None and self.bound_right_spline is not None:
+				s_vals = np.linspace(self.reference_path.s[0], self.reference_path.s[-1], 200)
+				left_pts = self.bound_left_spline(s_vals)
+				right_pts = self.bound_right_spline(s_vals)
+				ax.plot(left_pts[:, 0], left_pts[:, 1], '--', color='blue', label='Left Bound (Original)')
+				ax.plot(right_pts[:, 0], right_pts[:, 1], '--', color='green', label='Right Bound (Original)')
+
+		# Convert pos_x, pos_y from CasADi to float early
+		pos = np.array(state.get_position()).flatten()
+		pos_x, pos_y = float(pos[0]), float(pos[1])
+
+		# Plot forecasted bounds based on static obstacles
+		if hasattr(data, "static_obstacles"):
+			for k in range(min(len(data.static_obstacles), self.solver.horizon)):
+				obstacle = data.static_obstacles[k]
+				if obstacle is not None and hasattr(obstacle, "halfspaces"):
+					for halfspace in obstacle.halfspaces:
+						A = np.array(halfspace.A).flatten()
+						b = float(halfspace.b)
+
+						norm = np.linalg.norm(A)
+						if norm < 1e-8:
+							continue
+						A = A / norm
+						b = b / norm
+
+						# Compute a point on the line and a direction vector
+						point_on_line = A * b
+						dir_vector = np.array([-A[1], A[0]])  # Orthogonal direction
+
+						# Create two points on the line for visualization
+						t = 5.0
+						line_start = point_on_line - t * dir_vector
+						line_end = point_on_line + t * dir_vector
+
+						ax.plot([line_start[0], line_end[0]], [line_start[1], line_end[1]],
+								color='orange', alpha=0.5)
+
+						# Normal arrow pointing into the allowed halfspace
+						arrow_start = point_on_line
+						arrow_end = point_on_line - A * 1.0
+						ax.annotate('', xy=arrow_end, xytext=arrow_start,
+									arrowprops=dict(facecolor='green', edgecolor='green', width=1.5, headwidth=6))
+
+						# Vector from path to vehicle
+						dx = pos_x - float(path_x[closest_idx])
+						dy = pos_y - float(path_y[closest_idx])
+
+						# Tangent at the closest path point
+						s_val = float(self.reference_path.s[closest_idx])
+						path_dx = float(self.reference_path.x_spline.derivative()(s_val))
+						path_dy = float(self.reference_path.y_spline.derivative()(s_val))
+						tangent_norm = np.linalg.norm([path_dx, path_dy]) + 1e-6
+						path_dx /= tangent_norm
+						path_dy /= tangent_norm
+
+						# Normal vector
+						normal_x = -path_dy
+						normal_y = path_dx
+
+						# Lag and contour errors
+						lag_error = dx * path_dx + dy * path_dy
+						contour_error = dx * normal_x + dy * normal_y
+
+						# Draw lag error arrow (along path)
+						arrow_start = np.array([float(path_x[closest_idx]), float(path_y[closest_idx])])
+						arrow_end_lag = arrow_start + lag_error * np.array([path_dx, path_dy])
+						ax.annotate('Lag',
+									xy=arrow_end_lag, xytext=arrow_start,
+									arrowprops=dict(facecolor='blue', shrink=0.05, width=1.5, headwidth=6))
+
+						# Draw contour error arrow (perpendicular to path)
+						arrow_end_contour = arrow_start + contour_error * np.array([normal_x, normal_y])
+						ax.annotate('Contour',
+									xy=arrow_end_contour, xytext=arrow_start,
+									arrowprops=dict(facecolor='red', shrink=0.05, width=1.5, headwidth=6))
+
+						# Display values at vehicle position
+						ax.text(pos_x, pos_y - 0.5,
+								f"Lag: {lag_error:.2f}\nContour: {contour_error:.2f}",
+								fontsize=8, color='black', bbox=dict(facecolor='white', alpha=0.7))
+
+						LOG_DEBUG(f"Lag: {lag_error:.2f}\nContour: {contour_error:.2f}\nClosest segment: {path_x[closest_idx]} {path_y[closest_idx]}\nCurrent position: {pos_x} {pos_y}")
+
+		# # Final plot settings
+		# ax.set_aspect("equal")
+		# ax.legend()
+		# ax.set_title("Contouring Update Debug Plot (With Forecasted Bounds)")
+		# ax.set_xlabel("X")
+		# ax.set_ylabel("Y")
+		# plt.grid(True)
+		# plt.show()
 
 	def define_parameters(self, params):
 		"""Define all parameters used by this module"""
@@ -471,13 +554,13 @@ class ContouringObjective(BaseObjective):
 			Al = left_ortho
 			bl = np.dot(Al, left_point + Al * data.robot_area[0].radius)
 
-			data.static_obstacles[k].add_halfspace(-Al, -bl)
+			data.static_obstacles[k].add_halfspace(Al, bl)
 
 			# Right bound halfspace constraint
 			Ar = right_ortho
 			br = np.dot(Ar, right_point - Ar * data.robot_area[0].radius)
 			LOG_DEBUG(f"Result of constructing road constraints from bounds: {left_ortho}, {right_ortho}, {Al}, {bl}, {Ar}, {br}")
-			data.static_obstacles[k].add_halfspace(Ar, br)
+			data.static_obstacles[k].add_halfspace(-Ar, -br)
 
 	def _evaluate_spline_casadi(self, arc_progress, param_prefix, params):
 		"""
@@ -531,3 +614,5 @@ class ContouringObjective(BaseObjective):
 	def reset(self):
 		"""Reset the state of the contouring objective"""
 		self.closest_segment = 0
+
+

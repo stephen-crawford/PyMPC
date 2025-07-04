@@ -9,7 +9,7 @@ from utils.utils import LOG_DEBUG
 
 
 class BaseSolver(ABC):
-    def __init__(self, timestep=0.1, horizon=30):
+    def __init__(self, timestep=0.1, horizon=1):
         self.timestep = timestep
         self.horizon = horizon
         self.parameter_manager = ParameterManager()
@@ -28,6 +28,9 @@ class BaseSolver(ABC):
         return self.parameter_manager
 
     def get_ego_prediction(self, k, var):
+        pass
+
+    def get_reference_trajectory(self):
         pass
 
     def initialize(self):
@@ -86,6 +89,9 @@ class BaseSolver(ABC):
                 lb += module.get_lower_bound()
         return lb
 
+    def on_data_received(self, data, data_name):
+        for module in self.module_manager.modules:
+            module.on_data_received(data, data_name)
 
     @abstractmethod
     def reset(self):
