@@ -6,7 +6,7 @@ class BaseObjective(Module):
 	def __init__(self, solver, settings=None):
 		super().__init__()
 		self.solver = solver
-		self.name = self.__class__.__name__.lower()
+		self.name = "_objective".join(self.__class__.__name__.lower().split('objective'))
 		self.module_type = OBJECTIVE
 		self.controller = (self.module_type, solver, self.name)
 		if settings is None:

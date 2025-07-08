@@ -51,14 +51,14 @@ weights:
   acceleration_x: 1
   acceleration_y: 1
   angular_velocity: 0.5
-  contour: 100
-  goal_weight: 10
+  contour_weight: 50
+  goal_weight: 100
   angle_weight: 10
   control_weight: 0.5
   terminal_weight: 5
   terminal_angle: 0.5
   terminal_contouring: 0.5
-  lag: 1
+  lag_weight: 20
   preview: 0.0
   reference_velocity: 0.01
   slack: 1.0

@@ -17,7 +17,7 @@ from solver.src.casadi_solver import CasADiSolver
 from utils.utils import CONFIG, LOG_DEBUG, LOG_INFO, LOG_WARN
 
 
-def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(5.0, 5.0), max_iterations=100):
+def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(10.0, 10.0), max_iterations=100):
 
 	dt = dt
 	horizon = horizon
@@ -36,6 +36,7 @@ def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 	contouring_objective = ContouringObjective(casadi_solver)
 	casadi_solver.module_manager.add_module(contouring_objective)
 
+
 	data = Data()
 	data.start = np.array(start)
 	data.goal = np.array(goal)
@@ -43,25 +44,14 @@ def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 	data.planning_start_time = 0.0
 
 	# Add solver timeout parameter
-	casadi_solver.parameter_manager.add("solver_timeout", 10.0)
-
-	planner.initialize()
-
-	state = planner.get_state()
-	state.set("x", data.start[0])
-	state.set("y", data.start[1])
-	state.set("psi", 0.1)
-	state.set("v", 0.5)
-	state.set("spline", 0)
-
-	# Add solver timeout parameter
 	casadi_solver.parameter_manager.add("solver_timeout", 10.0)  # Increased timeout
 
 	# Define parameters for the goal objective
 	planner.initialize()
 
+	reference_path = generate_reference_path(data.start, data.goal, path_type="curved")
 	# Store path
-	data.reference_path = generate_reference_path(data.start, data.goal, path_type="curved")
+	data.reference_path = reference_path
 	# Calculate normal vectors for left and right boundaries
 
 	normals = calculate_path_normals(data.reference_path)
@@ -115,7 +105,7 @@ def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 	LOG_DEBUG(f"Robot area set to {data.robot_area[0].radius}")
 
 	# Mimics behavior of a robot receiving data
-	planner.on_data_received(data, "reference_path")
+	planner.on_data_received(data, "dummy_signal")
 
 	# Create initial state - make sure to match the model's state variables
 	state = planner.get_state()
@@ -127,23 +117,12 @@ def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 	state.set("a", 0.0)
 	state.set("w", 0.0)
 
-	# Print the state to verify values
-	print("INITIAL STATE:", {var: state.get(var) for var in vehicle.get_dependent_vars()})
-	# Run MPC loop
-	states_x = [state.get("x")]
-	states_y = [state.get("y")]
 	success_flags = []
-
-	# Add arrays to store trajectories for visualization
-
-	states = []
-
 
 	iter = 0
 	for i in range(max_iterations):
 		iter += 1
 		LOG_WARN(f"Running mpc from state_x {planner.get_state().get('x')}")
-		states.append(planner.get_state().copy())
 		if i % (max_iterations // 10) == 0:
 			LOG_INFO(f"Starting MPC simulation loop for iteration {i} with state {planner.get_state()}")
 		data.planning_start_time = i * dt
@@ -157,7 +136,6 @@ def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 			next_w = output.trajectory_history[-1].get_states()[1].get("w")
 			LOG_DEBUG("OUTPUT TRAJ HISTORY: " + str(output.trajectory_history[-1].get_states()[1]))
 			z_k = [next_a, next_w, state.get("x"), state.get("y"), state.get("psi"), state.get("v"), state.get("spline")]
-			LOG_DEBUG("Vec for calc next state through prop: " + str(z_k))
 			# Convert to CasADi vector
 			z_k = ca.vertcat(*z_k)
 			vehicle.load(z_k)
@@ -171,26 +149,24 @@ def run(dt=0.5, horizon=5, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 			next_y = next_state[1]
 			next_psi = next_state[2]
 			next_v = next_state[3]
+			next_spline = next_state[4]
 
-			LOG_DEBUG(f"Next state: {next_state}")
-			states_x.append(float(next_x))
-			states_y.append(float(next_y))
 			LOG_DEBUG("Going to set the next state based on integrated dynamics. x: " + str(next_x) + " y:" + str(
-				next_y) + " psi: " + str(next_psi) + " v: " + str(next_v))
+				next_y) + " psi: " + str(next_psi) + " v: " + str(next_v) + " spline: " + str(next_spline))
 			new_state = planner.get_state().copy()
 			new_state.set("x", next_x)
 			new_state.set("y", next_y)
 			new_state.set("psi", next_psi)
 			new_state.set("v", next_v)
+			new_state.set("spline", next_spline)
 			new_state.set("w", next_w)
 			new_state.set("a", next_a)
-			LOG_DEBUG("Next state is: " + str(new_state))
+
 			output.control_history.append((next_a, next_w))
 			output.realized_trajectory.add_state(new_state)
 			planner.set_state(new_state)
 			state = planner.get_state()
 
-			LOG_DEBUG(f"Next state: {planner.get_state()}")
 			casadi_solver.reset()
 			# Check if goal reached
 			if planner.is_objective_reached(data):

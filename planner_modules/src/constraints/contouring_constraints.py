@@ -92,7 +92,7 @@ class ContouringConstraints(BaseConstraint):
 		constraints = []
 		pos_x = model.get("x")
 		pos_y = model.get("y")
-		s = model.get("spline")
+		s = model.get("path")
 		self.precompute_parameter_values(params)
 
 		# Get path coordinates using CasADi-compatible operations

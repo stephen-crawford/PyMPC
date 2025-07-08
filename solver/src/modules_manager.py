@@ -31,13 +31,13 @@ class ModuleManager:
             if hasattr(module, "define_parameters"):
                 module.define_parameters(self, params)
 
-    def objective(self, model, param, stage_idx):
+    def objective(self, param, stage_idx):
         """Calculate objective value from all objective modules"""
-        objective_value = 0.0
+        objective_value = []
         for module in self.modules:
             if module.module_type == OBJECTIVE:
                 if hasattr(module, "get_value"):
-                    objective_value += module.get_value(model, param, stage_idx)
+                    objective_value.append(module.get_value(param, stage_idx))
         return objective_value
 
     def constraints(self, param, model, settings, stage_idx):

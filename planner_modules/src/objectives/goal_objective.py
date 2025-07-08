@@ -5,7 +5,7 @@ from planner_modules.src.objectives.base_objective import BaseObjective
 from planning.src.types import State
 from utils.const import OBJECTIVE
 from utils.math_utils import distance
-from utils.utils import LOG_DEBUG, LOG_WARN
+from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO
 
 
 class GoalObjective(BaseObjective):
@@ -14,8 +14,8 @@ class GoalObjective(BaseObjective):
     super().__init__(solver)
     self.module_type = OBJECTIVE
     self.name = "goal_objective"
-    LOG_DEBUG( "Initializing Goal Module")
-    LOG_DEBUG( "Goal Module successfully initialized")
+    LOG_INFO( "Initializing Goal Module")
+    LOG_INFO( "Goal Module successfully initialized")
     self.goal_weight = self.get_config_value("weights.goal_weight")
 
   def update(self, state, data):
@@ -31,12 +31,11 @@ class GoalObjective(BaseObjective):
     params.add("goal_y")
 
 
+  def get_value(self, params, stage_idx):
 
-  def get_value(self, model, params, stage_idx):
-
-    pos_x = model.get("x")
-    pos_y = model.get("y")
-    psi = model.get("psi")
+    pos_x = self.solver.get("x", stage_idx)
+    pos_y = self.solver.get("y", stage_idx)
+    psi = self.solver.get("psi", stage_idx)
 
     goal_weight = params.get("goal_weight")
     angle_weight = params.get("angle_weight")
@@ -53,14 +52,8 @@ class GoalObjective(BaseObjective):
     angle_cost = angle_weight * angle_error ** 2
 
     cost = pos_cost + angle_cost
+    return {"goal_pos_cost": pos_cost, "goal_angle_cost": angle_cost}
 
-    # Optional control cost
-    # a = model.get("a")
-    # w = model.get("w")
-    # control_weight = params.get("control_weight")
-    # cost += control_weight * (a ** 2 + w ** 2)
-
-    return cost
 
   def set_parameters(self, parameter_manager, data, k):
     LOG_DEBUG("Setting parameters for Goal Objective")

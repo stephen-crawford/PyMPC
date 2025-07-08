@@ -19,7 +19,7 @@ class ParameterManager:
             add_to_rqt_reconfigure=False,
             rqt_config_name=lambda p: f'["weights"]["{p}"]',
             rqt_min_value=0.0,
-            rqt_max_value=100.0):
+            rqt_max_value=100000000000.0):
         """Add a parameter with given length and optional RQT settings."""
         if parameter in self.parameter_lookup:
             return

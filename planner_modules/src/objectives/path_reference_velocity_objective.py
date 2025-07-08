@@ -33,7 +33,7 @@ class PathReferenceVelocityObjective(BaseObjective):
 
         return params
 
-    def get_value(self, model, params, stage_idx):
+    def get_value(self, params, stage_idx):
         # The cost is computed in the contouring cost
         return 0.0
 

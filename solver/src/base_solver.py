@@ -61,8 +61,7 @@ class BaseSolver(ABC):
                 module.define_parameters(self.parameter_manager)
 
     def get_objective_cost(self, stage_idx):
-        cost = self.module_manager.objective(self.dynamics_model, self.parameter_manager,  stage_idx)
-        LOG_DEBUG("Total Objective cost is" + str(cost))
+        cost = self.module_manager.objective(self.parameter_manager, stage_idx)
         return cost
 
     def get_constraint_list(self, stage_idx):

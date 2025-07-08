@@ -1,6 +1,7 @@
 import numpy as np
 import casadi as cd
 from matplotlib import pyplot as plt
+from matplotlib.animation import FuncAnimation
 from scipy.interpolate import CubicSpline
 
 from planner_modules.src.objectives.base_objective import BaseObjective
@@ -59,123 +60,15 @@ class ContouringObjective(BaseObjective):
 		if self.add_road_constraints:
 			self.construct_road_constraints(data)
 
-		if self.get_config_value("plot.debug", True) and self.reference_path is not None:
-			path_x = self.reference_path.x
-			path_y = self.reference_path.y
-
-			fig, ax = plt.subplots()
-			ax.plot(path_x, path_y, label="Reference Path", linewidth=2)
-
-			# Current vehicle state
-			pos_x, pos_y = state.get_position()
-			ax.plot(pos_x, pos_y, 'ro', label="Current Position")
-
-			# Closest point
-			closest_idx = self.closest_point_idx
-			ax.plot(path_x[closest_idx], path_y[closest_idx], 'gx', markersize=10, label="Closest Point")
-			ax.text(path_x[closest_idx], path_y[closest_idx],
-					f"seg {self.closest_segment}", fontsize=9, color="purple")
-
-			# Optional: plot actual road bounds if they exist
-			if self.bound_left_spline is not None and self.bound_right_spline is not None:
-				s_vals = np.linspace(self.reference_path.s[0], self.reference_path.s[-1], 200)
-				left_pts = self.bound_left_spline(s_vals)
-				right_pts = self.bound_right_spline(s_vals)
-				ax.plot(left_pts[:, 0], left_pts[:, 1], '--', color='blue', label='Left Bound (Original)')
-				ax.plot(right_pts[:, 0], right_pts[:, 1], '--', color='green', label='Right Bound (Original)')
-
-		# Convert pos_x, pos_y from CasADi to float early
-		pos = np.array(state.get_position()).flatten()
-		pos_x, pos_y = float(pos[0]), float(pos[1])
-
-		# Plot forecasted bounds based on static obstacles
-		if hasattr(data, "static_obstacles"):
-			for k in range(min(len(data.static_obstacles), self.solver.horizon)):
-				obstacle = data.static_obstacles[k]
-				if obstacle is not None and hasattr(obstacle, "halfspaces"):
-					for halfspace in obstacle.halfspaces:
-						A = np.array(halfspace.A).flatten()
-						b = float(halfspace.b)
-
-						norm = np.linalg.norm(A)
-						if norm < 1e-8:
-							continue
-						A = A / norm
-						b = b / norm
-
-						# Compute a point on the line and a direction vector
-						point_on_line = A * b
-						dir_vector = np.array([-A[1], A[0]])  # Orthogonal direction
-
-						# Create two points on the line for visualization
-						t = 5.0
-						line_start = point_on_line - t * dir_vector
-						line_end = point_on_line + t * dir_vector
-
-						ax.plot([line_start[0], line_end[0]], [line_start[1], line_end[1]],
-								color='orange', alpha=0.5)
-
-						# Normal arrow pointing into the allowed halfspace
-						arrow_start = point_on_line
-						arrow_end = point_on_line - A * 1.0
-						ax.annotate('', xy=arrow_end, xytext=arrow_start,
-									arrowprops=dict(facecolor='green', edgecolor='green', width=1.5, headwidth=6))
-
-						# Vector from path to vehicle
-						dx = pos_x - float(path_x[closest_idx])
-						dy = pos_y - float(path_y[closest_idx])
-
-						# Tangent at the closest path point
-						s_val = float(self.reference_path.s[closest_idx])
-						path_dx = float(self.reference_path.x_spline.derivative()(s_val))
-						path_dy = float(self.reference_path.y_spline.derivative()(s_val))
-						tangent_norm = np.linalg.norm([path_dx, path_dy]) + 1e-6
-						path_dx /= tangent_norm
-						path_dy /= tangent_norm
-
-						# Normal vector
-						normal_x = -path_dy
-						normal_y = path_dx
-
-						# Lag and contour errors
-						lag_error = dx * path_dx + dy * path_dy
-						contour_error = dx * normal_x + dy * normal_y
-
-						# Draw lag error arrow (along path)
-						arrow_start = np.array([float(path_x[closest_idx]), float(path_y[closest_idx])])
-						arrow_end_lag = arrow_start + lag_error * np.array([path_dx, path_dy])
-						ax.annotate('Lag',
-									xy=arrow_end_lag, xytext=arrow_start,
-									arrowprops=dict(facecolor='blue', shrink=0.05, width=1.5, headwidth=6))
-
-						# Draw contour error arrow (perpendicular to path)
-						arrow_end_contour = arrow_start + contour_error * np.array([normal_x, normal_y])
-						ax.annotate('Contour',
-									xy=arrow_end_contour, xytext=arrow_start,
-									arrowprops=dict(facecolor='red', shrink=0.05, width=1.5, headwidth=6))
-
-						# Display values at vehicle position
-						ax.text(pos_x, pos_y - 0.5,
-								f"Lag: {lag_error:.2f}\nContour: {contour_error:.2f}",
-								fontsize=8, color='black', bbox=dict(facecolor='white', alpha=0.7))
-
-						LOG_DEBUG(f"Lag: {lag_error:.2f}\nContour: {contour_error:.2f}\nClosest segment: {path_x[closest_idx]} {path_y[closest_idx]}\nCurrent position: {pos_x} {pos_y}")
-
-		# # Final plot settings
-		# ax.set_aspect("equal")
-		# ax.legend()
-		# ax.set_title("Contouring Update Debug Plot (With Forecasted Bounds)")
-		# ax.set_xlabel("X")
-		# ax.set_ylabel("Y")
-		# plt.grid(True)
-		# plt.show()
+		if self.get_config_value("plot.debug", True):
+			self.animate_forecasted_bounds(state, data)
 
 	def define_parameters(self, params):
 		"""Define all parameters used by this module"""
 		LOG_DEBUG("Defining contouring objective parameters")
 		# Core parameters
-		params.add("contour", add_to_rqt_reconfigure=True)
-		params.add("lag", add_to_rqt_reconfigure=True)
+		params.add("contour_weight", add_to_rqt_reconfigure=True)
+		params.add("lag_weight", add_to_rqt_reconfigure=True)
 		params.add("terminal_angle", add_to_rqt_reconfigure=True)
 		params.add("terminal_contouring", add_to_rqt_reconfigure=True)
 
@@ -204,8 +97,8 @@ class ContouringObjective(BaseObjective):
 		LOG_DEBUG(f"set_parameters called with k={k}")
 		# Retrieve weights once
 		if k == 0:
-			contouring_weight = self.get_config_value("weights.contour")
-			lag_weight = self.get_config_value("weights.lag")
+			contouring_weight = self.get_config_value("weights.contour_weight")
+			lag_weight = self.get_config_value("weights.lag_weight")
 
 			terminal_angle_weight = self.get_config_value("weights.terminal_angle")
 			terminal_contouring_weight = self.get_config_value("weights.terminal_contouring")
@@ -216,8 +109,8 @@ class ContouringObjective(BaseObjective):
 				parameter_manager.set_parameter("reference_velocity", reference_velocity_weight)
 				parameter_manager.set_parameter("velocity", velocity_weight)
 
-			parameter_manager.set_parameter("contour", contouring_weight)
-			parameter_manager.set_parameter("lag", lag_weight)
+			parameter_manager.set_parameter("contour_weight", contouring_weight)
+			parameter_manager.set_parameter("lag_weight", lag_weight)
 			parameter_manager.set_parameter("terminal_angle", terminal_angle_weight)
 			parameter_manager.set_parameter("terminal_contouring", terminal_contouring_weight)
 
@@ -228,21 +121,33 @@ class ContouringObjective(BaseObjective):
 		if self.reference_path is None:
 			return
 
+		# TODO: Will need to be updated to allow for 3D
 		path_x = self.reference_path.x
 		path_y = self.reference_path.y
 
 		if len(path_x) < self.num_segments + 1:
-			# Interpolate to get the required number of points
+			# Get lists of evenly spaced partitions over the provided interval
 			s_original = np.linspace(0, 1, len(path_x))
 			s_new = np.linspace(0, 1, self.num_segments + 1)
 
+			# Interpolates at each s_new point based on the coordinates (s_new, path_x) for each i in S_new
 			path_x_interp = np.interp(s_new, s_original, path_x)
+			# Same type of interpolation but for points (s_new, path_y)
 			path_y_interp = np.interp(s_new, s_original, path_y)
 		else:
-			# Sample at segment boundaries
-			indices = np.linspace(0, len(path_x) - 1, self.num_segments + 1).astype(int)
-			path_x_interp = path_x[indices]
-			path_y_interp = path_y[indices]
+
+			# Compute cumulative arc length
+			dx = np.diff(path_x)
+			dy = np.diff(path_y)
+			arc_lengths = np.sqrt(dx ** 2 + dy ** 2)
+			s = np.concatenate([[0], np.cumsum(arc_lengths)])
+			s /= s[-1]  # Normalize to [0, 1]
+
+			# Resample at evenly spaced points in [0, 1]
+			s_new = np.linspace(0, 1, self.num_segments + 1)
+			path_x_interp = np.interp(s_new, s, path_x)
+			path_y_interp = np.interp(s_new, s, path_y)
+
 
 		# Calculate derivatives using finite differences
 		path_dx = np.gradient(path_x_interp)
@@ -270,33 +175,23 @@ class ContouringObjective(BaseObjective):
 
 				parameter_manager.set_parameter(f"path_vel_{i}", float(vel_val))
 
-	def get_value(self, model, params, stage_idx):
+	def get_value(self, params, stage_idx):
 		"""
 		Create a symbolic objective function for trajectory optimization based on contouring error.
 
-		This function returns a Casadi symbolic expression that represents the contouring objective,
-		which will be used by the optimizer as part of the cost function.
-
-		Parameters:
-			model: The vehicle model containing symbolic state variables
-			params: Parameter manager with symbolic weights and path data
-			stage_idx: Current stage in the optimization horizon
-
-		Returns:
-			cost: Casadi symbolic expression for the objective function
+		Fixed version with correct contour and lag error calculations.
 		"""
-		LOG_DEBUG(f"Building symbolic objective for stage {stage_idx}")
 
 		# Get symbolic state variables from the model
-		pos_x = model.get("x")  # Symbolic x position
-		pos_y = model.get("y")  # Symbolic y position
-		psi = model.get("psi")  # Symbolic heading angle
-		v = model.get("v")  # Symbolic velocity
-		s = model.get("spline")  # Symbolic progress parameter (0-1)
+		pos_x = self.solver.get("x", stage_idx)
+		pos_y = self.solver.get("y", stage_idx)
+		psi = self.solver.get("psi", stage_idx)
+		v = self.solver.get("v", stage_idx)
+		s = self.solver.get("spline", stage_idx)
 
 		# Get symbolic weights from parameters
-		contour_weight = params.get("contour")
-		lag_weight = params.get("lag")
+		contour_weight = params.get("contour_weight")
+		lag_weight = params.get("lag_weight")
 
 		# Evaluate reference path at current progress (returns symbolic expressions)
 		path_x = self._evaluate_spline_casadi(s, "path_x", params)
@@ -313,44 +208,36 @@ class ContouringObjective(BaseObjective):
 		path_dx_normalized = path_dx / norm_safe
 		path_dy_normalized = path_dy / norm_safe
 
-		# Symbolic contouring error (lateral deviation - perpendicular to path)
-		contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
+		# Position error vector (FIXED: Remove absolute values)
+		dx = pos_x - path_x
+		dy = pos_y - path_y
 
-		# Symbolic lag error (longitudinal deviation - along path direction)
-		lag_error = path_dx_normalized * (pos_x - path_x) + path_dy_normalized * (pos_y - path_y)
+		# FIXED: Correct contour error (lateral deviation - perpendicular to path)
+		# Normal vector pointing left from path direction: (-path_dy_normalized, path_dx_normalized)
+		contour_error = path_dy_normalized * dx - path_dx_normalized * dy
 
-		# Build symbolic cost expression
-		cost = lag_weight * lag_error ** 2 + contour_weight * contour_error ** 2
+		# FIXED: Correct lag error (longitudinal deviation - along path direction)
+		lag_error = path_dx_normalized * dx + path_dy_normalized * dy
+		lag_cost = lag_weight * lag_error ** 2
+		contour_cost = contour_weight * contour_error ** 2
 
-		# Add velocity reference tracking to symbolic cost if enabled
+
+		velocity_cost = 0
 		if self.dynamic_velocity_reference:
 			reference_velocity = self._evaluate_spline_casadi(s, "path_vel", params)
-			velocity_weight = params.get("reference_velocity_weight")
+			velocity_weight = params.get("reference_velocity")  # Fixed parameter name
+
 			velocity_cost = velocity_weight * (v - reference_velocity) ** 2
-			cost += velocity_cost
 
-		# Add terminal costs at the end of the horizon
-		if stage_idx == self.get_config_value("horizon") - 1:
-			terminal_angle_weight = params.get("terminal_angle")
-			terminal_contouring_multiplier = params.get("terminal_contouring")
-
-			# Symbolic heading error relative to path direction
-			path_angle = cd.atan2(path_dy_normalized, path_dx_normalized)
-			angle_error = haar_difference_without_abs(psi, path_angle)
-
-			# Add terminal costs to symbolic expression
-			terminal_cost = terminal_angle_weight * angle_error ** 2
-			terminal_cost += terminal_contouring_multiplier * lag_weight * lag_error ** 2
-			terminal_cost += terminal_contouring_multiplier * contour_weight * contour_error ** 2
-
-			cost += terminal_cost
-
-		LOG_DEBUG(f"Successfully created symbolic objective function for stage {stage_idx}")
-		return cost
+		return {
+			"contouring_lag_cost": lag_cost,
+			"contouring_contour_cost": contour_cost,
+			"contouring_velocity_cost": velocity_cost
+		}
 
 	def on_data_received(self, data, data_name):
 		LOG_DEBUG("RECEIVED DATA FOR CONTOURING OBJ")
-		if data_name == "reference_path":
+		if data.has("reference_path") and data.reference_path is not None:
 			LOG_DEBUG("Received Reference Path")
 			self.process_reference_path(data)
 
@@ -360,7 +247,7 @@ class ContouringObjective(BaseObjective):
 
 		self.reference_path = data.reference_path
 
-		# Compute arc length if not provided
+		# Compute arc progress list if not provided
 		if data.reference_path.s is None:
 			self.reference_path.s = compute_arc_length(data.reference_path)
 
@@ -370,6 +257,7 @@ class ContouringObjective(BaseObjective):
 
 		# Process road bounds if available
 		if self.add_road_constraints and data.left_bound is not None and data.right_bound is not None:
+			LOG_DEBUG("Processing provided left and right bounds for Contouring Objective")
 			self.bound_left_spline = CubicSpline(self.reference_path.s,
 												 np.column_stack((data.left_bound.x, data.left_bound.y)))
 			self.bound_right_spline = CubicSpline(self.reference_path.s,
@@ -391,7 +279,7 @@ class ContouringObjective(BaseObjective):
 		# Find the index of the closest point
 		closest_idx = np.argmin(distances_squared)
 
-		# Determine the segment index based on the closest point
+		# Use the arc progress list to determine the index of the segment which stores the closest point
 		segment_idx = 0
 		if len(reference_path.s) > 1:
 			segment_length = (reference_path.s[-1] - reference_path.s[0]) / self.num_segments
@@ -439,8 +327,8 @@ class ContouringObjective(BaseObjective):
 	def construct_road_constraints_from_centerline(self, data):
 		"""Construct road constraints based on centerline and width"""
 		# If bounds are not supplied construct road constraints based on a set width
-		if data.static_obstacles is None:
-			data.static_obstacles = []
+
+		data.set("static_obstacles", [None] * self.solver.horizon)
 
 		# Get road width
 		road_width_half = self.get_config_value("road.width") / 2.0
@@ -449,7 +337,7 @@ class ContouringObjective(BaseObjective):
 			data.static_obstacles[k] = StaticObstacle()
 
 			# Get predicted spline parameter for this timestep
-			norm_s = self.solver.get_ego_prediction(k, "spline")
+			norm_s = self.solver.get_ego_prediction(k, "spline") / self.reference_path.get_length()
 
 			# Convert to actual arc length
 			if len(self.reference_path.s) >= 2:
@@ -497,6 +385,8 @@ class ContouringObjective(BaseObjective):
 
 	def construct_road_constraints_from_bounds(self, data):
 		"""Construct road constraints using actual road bounds"""
+
+		"""Construct road constraints using actual road bounds"""
 		if data.static_obstacles is None:
 			data.set("static_obstacles", [None] * self.solver.horizon)
 
@@ -506,7 +396,8 @@ class ContouringObjective(BaseObjective):
 			data.static_obstacles[k] = StaticObstacle()
 
 			# Get the current normalized position on the spline
-			norm_s = self.solver.get_ego_prediction(k, "spline")
+			norm_s = self.solver.get_ego_prediction(k, "spline") / self.reference_path.get_arc_length()
+			LOG_DEBUG("When constructing road constraints norm s is {}".format(norm_s))
 
 			# Convert to actual arc length
 			if len(self.reference_path.s) >= 2:
@@ -517,50 +408,58 @@ class ContouringObjective(BaseObjective):
 			else:
 				continue
 
-			# Left bound point and orthogonal vector
+			# Get centerline path point and its tangent (for consistent normal direction)
+			path_point_x = self.reference_path.x_spline(cur_s)
+			path_point_y = self.reference_path.y_spline(cur_s)
 
-			LOG_WARN(f"When forecasting from bounds, the left spline is {self.bound_left_spline(cur_s)} based on cur_s {cur_s}")
+			path_dx = self.reference_path.x_spline.derivative()(cur_s)
+			path_dy = self.reference_path.y_spline.derivative()(cur_s)
+
+			# Normalize path tangent
+			path_norm = safe_norm(path_dx, path_dy)
+			path_dx_norm = path_dx / path_norm
+			path_dy_norm = path_dy / path_norm
+
+			# Create consistent normal vector (pointing left from path direction)
+			path_normal = np.array([-path_dy_norm, path_dx_norm])
+
+			# Get left and right bound points
 			left_x = self.bound_left_spline(cur_s)[0]
 			left_y = self.bound_left_spline(cur_s)[1]
 			left_point = np.array([left_x, left_y])
 
-			left_dx = self.bound_left_spline.derivative()(cur_s)[0]
-			left_dy = self.bound_left_spline.derivative()(cur_s)[1]
-
-			# Normalize and create orthogonal vector
-			norm_left = safe_norm(left_dx, left_dy)
-
-			left_dx_norm = left_dx / norm_left
-			left_dy_norm = left_dy / norm_left
-
-			# Create orthogonal vector (rotate 90 degrees)
-			left_ortho = np.array([-left_dy_norm, left_dx_norm])
-
-			# Same for right bound
 			right_x = self.bound_right_spline(cur_s)[0]
 			right_y = self.bound_right_spline(cur_s)[1]
 			right_point = np.array([right_x, right_y])
 
-			right_dx = self.bound_right_spline.derivative()(cur_s)[0]
-			right_dy = self.bound_right_spline.derivative()(cur_s)[1]
+			# Determine which side is actually left/right by checking cross product
+			center_to_left = left_point - np.array([path_point_x, path_point_y])
+			center_to_right = right_point - np.array([path_point_x, path_point_y])
 
-			norm_right = safe_norm(right_dx, right_dy)
+			# Cross product to determine orientation
+			left_cross = np.cross(np.array([path_dx_norm, path_dy_norm]), center_to_left)
+			right_cross = np.cross(np.array([path_dx_norm, path_dy_norm]), center_to_right)
 
-			right_dx_norm = right_dx / norm_right
-			right_dy_norm = right_dy / norm_right
+			# Ensure correct assignment (left should have positive cross product)
+			if left_cross < 0:
+				left_point, right_point = right_point, left_point
+				LOG_DEBUG("Swapped left and right bounds based on cross product")
 
-			right_ortho = np.array([-right_dy_norm, right_dx_norm])
-			# Left bound halfspace constraint
-			Al = left_ortho
-			bl = np.dot(Al, left_point + Al * data.robot_area[0].radius)
-
+			# Create halfspace constraints
+			# Left bound: normal points inward (toward the road)
+			# Remove robot radius subtraction or handle it properly
+			Al = -path_normal  # Points right (inward from left bound)
+			bl = np.dot(Al, left_point)  # Remove the radius subtraction
 			data.static_obstacles[k].add_halfspace(Al, bl)
 
-			# Right bound halfspace constraint
-			Ar = right_ortho
-			br = np.dot(Ar, right_point - Ar * data.robot_area[0].radius)
-			LOG_DEBUG(f"Result of constructing road constraints from bounds: {left_ortho}, {right_ortho}, {Al}, {bl}, {Ar}, {br}")
-			data.static_obstacles[k].add_halfspace(-Ar, -br)
+			Ar = path_normal  # Points left (inward from right bound)
+			br = np.dot(Ar, right_point)  # Remove the radius subtraction
+			data.static_obstacles[k].add_halfspace(Ar, br)
+
+			LOG_DEBUG(f"Constructed road constraints: Left({Al}, {bl}), Right({Ar}, {br})")
+			LOG_DEBUG(f"Left point: {left_point}, Right point: {right_point}")
+			LOG_DEBUG(f"Path normal: {path_normal}, Center: ({path_point_x}, {path_point_y})")
+
 
 	def _evaluate_spline_casadi(self, arc_progress, param_prefix, params):
 		"""
@@ -614,5 +513,142 @@ class ContouringObjective(BaseObjective):
 	def reset(self):
 		"""Reset the state of the contouring objective"""
 		self.closest_segment = 0
+
+	def animate_forecasted_bounds(self, state, data):
+		if self.reference_path is None:
+			print("No reference path - cannot animate")
+			return
+
+		fig, ax = plt.subplots()
+		ax.plot(self.reference_path.x, self.reference_path.y, label="Reference Path", linewidth=2)
+
+		# Plot static bounds if available
+		if self.bound_left_spline is not None and self.bound_right_spline is not None:
+			s_vals = np.linspace(self.reference_path.s[0], self.reference_path.s[-1], 200)
+			left_pts = self.bound_left_spline(s_vals)
+			right_pts = self.bound_right_spline(s_vals)
+			ax.plot(left_pts[:, 0], left_pts[:, 1], '--', color='blue', label='Left Bound')
+			ax.plot(right_pts[:, 0], right_pts[:, 1], '--', color='green', label='Right Bound')
+
+		ax.set_aspect('equal')
+		ax.set_xlabel('X')
+		ax.set_ylabel('Y')
+		ax.grid(True)
+		ax.legend()
+
+		dynamic_artists = []
+
+		def animate(k):
+			# Clear previous dynamic artists
+			nonlocal dynamic_artists
+			for artist in dynamic_artists:
+				artist.remove()
+			dynamic_artists = []
+
+			# Vehicle position at step k
+			x = self.solver.get_ego_prediction(k, "x")
+			y = self.solver.get_ego_prediction(k, "y")
+			pos = [x, y]
+
+			pos_x, pos_y = float(pos[0]), float(pos[1])
+
+			# Plot vehicle position
+			vehicle_dot, = ax.plot(pos_x, pos_y, 'ro', label="Vehicle")
+			dynamic_artists.append(vehicle_dot)
+
+			# Closest point on path for vehicle at this frame
+			closest_idx, closest_segment = self._find_closest_point((pos_x, pos_y), self.reference_path)
+
+			path_x = self.reference_path.x
+			path_y = self.reference_path.y
+
+			# Plot closest point
+			closest_pt_plot, = ax.plot(path_x[closest_idx], path_y[closest_idx], 'bx', markersize=10,
+									   label="Closest Point")
+			dynamic_artists.append(closest_pt_plot)
+
+			segment_text = ax.text(path_x[closest_idx], path_y[closest_idx], f"seg {closest_segment}", fontsize=9,
+								   color="purple")
+			dynamic_artists.append(segment_text)
+
+			# Plot forecasted bounds from static obstacles
+			if hasattr(data, "static_obstacles") and k < len(data.static_obstacles):
+				obstacle = data.static_obstacles[k]
+				if obstacle is not None and hasattr(obstacle, "halfspaces"):
+					for halfspace in obstacle.halfspaces:
+						A = np.array(halfspace.A).flatten()
+						b = float(halfspace.b)
+
+						norm = np.linalg.norm(A)
+						if norm < 1e-8:
+							continue
+						A = A / norm
+						b = b / norm
+
+						s = self.solver.get_ego_prediction(k, "spline")  # Usually in [0, 1]
+						norm_s = s / self.reference_path.get_arc_length()
+						cur_s = self.reference_path.s[0] + norm_s * (
+									self.reference_path.s[-1] - self.reference_path.s[0])
+						path_x_halfspace = float(self.reference_path.x_spline(cur_s))
+						path_y_halfspace = float(self.reference_path.y_spline(cur_s))
+						path_point = np.array([path_x_halfspace, path_y_halfspace])
+
+						point_on_line = path_point + A * (b - np.dot(A, path_point))
+						dir_vector = np.array([-A[1], A[0]])
+						t = 5.0
+						line_start = point_on_line - t * dir_vector
+						line_end = point_on_line + t * dir_vector
+
+						# Plot halfspace line
+						line, = ax.plot([line_start[0], line_end[0]], [line_start[1], line_end[1]], color='orange',
+										alpha=0.5)
+						dynamic_artists.append(line)
+
+						# Plot normal arrow into allowed halfspace
+						arrow = ax.annotate('', xy=point_on_line + A * 1.0, xytext=point_on_line,
+											arrowprops=dict(facecolor='green', edgecolor='green', width=1.5,
+															headwidth=6))
+						dynamic_artists.append(arrow)
+
+						# Compute lag and contour errors arrows
+						dx = pos_x - float(path_x[closest_idx])
+						dy = pos_y - float(path_y[closest_idx])
+
+						s_val = float(self.reference_path.s[closest_idx])
+						path_dx = float(self.reference_path.x_spline.derivative()(s_val))
+						path_dy = float(self.reference_path.y_spline.derivative()(s_val))
+						tangent_norm = np.linalg.norm([path_dx, path_dy]) + 1e-6
+						path_dx /= tangent_norm
+						path_dy /= tangent_norm
+
+						normal_x = -path_dy
+						normal_y = path_dx
+
+						lag_error = dx * path_dx + dy * path_dy
+						contour_error = dx * normal_x + dy * normal_y
+
+						arrow_start = np.array([float(path_x[closest_idx]), float(path_y[closest_idx])])
+						arrow_end_lag = arrow_start + lag_error * np.array([path_dx, path_dy])
+						lag_arrow = ax.annotate('Lag', xy=arrow_end_lag, xytext=arrow_start,
+												arrowprops=dict(facecolor='blue', shrink=0.05, width=1.5, headwidth=6))
+						dynamic_artists.append(lag_arrow)
+
+						arrow_end_contour = arrow_start + contour_error * np.array([normal_x, normal_y])
+						contour_arrow = ax.annotate('Contour', xy=arrow_end_contour, xytext=arrow_start,
+													arrowprops=dict(facecolor='red', shrink=0.05, width=1.5,
+																	headwidth=6))
+						dynamic_artists.append(contour_arrow)
+
+						# Display lag and contour errors near vehicle
+						error_text = ax.text(pos_x + 1, pos_y - 1,
+											 f"Lag: {lag_error:.2f}\nContour: {contour_error:.2f}",
+											 fontsize=8, color='black', bbox=dict(facecolor='white', alpha=0.7))
+						dynamic_artists.append(error_text)
+
+			return dynamic_artists
+
+		ani = FuncAnimation(fig, animate, frames=range(self.solver.horizon), interval=100, blit=False)
+		plt.show()
+
 
 

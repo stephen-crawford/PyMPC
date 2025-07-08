@@ -78,7 +78,6 @@ def safe_casadi_discrete_dynamics(model, z, p, nx=None, integration_step=None):
 
 
 def numeric_rk4(next_state, vehicle, params, timestep):
-        LOG_DEBUG("at top of of numeric rk4")
         if isinstance(next_state, cd.MX):
             LOG_DEBUG(f"Got symbolic result from discrete_dynamics. Using RK4 integration directly.")
 
@@ -129,9 +128,7 @@ class DynamicsModel:
         return self.inputs
 
     def get_all_vars(self):
-        dep_vars = self.dependent_vars
-        inputs = self.inputs
-        return inputs + dep_vars
+        return self.dependent_vars + self.inputs
 
     def discrete_dynamics(self, z, p, timestep, **kwargs):
         try:
@@ -382,6 +379,7 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
 
     def __init__(self):
         super().__init__()
+        LOG_DEBUG("ContouringSecondOrderUnicycleModel initialized")
         self.nu = 2  # number of control variables
         self.state_dimension = 5  # number of states
 

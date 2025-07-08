@@ -253,6 +253,12 @@ class ReferencePath:
     def set(self, attribute, value):
         self.__setattr__(attribute, value)
 
+    def get_arc_length(self):
+        return self.s[-1] - self.s[0]
+
+    def get(self, attribute):
+        return self.__getattribute__(attribute)
+
     def format_val(self, val):
         return f"{val:.3f}" if isinstance(val, (float, int)) else "   ---"
 
@@ -352,8 +358,199 @@ def generate_reference_path(start, goal, path_type="curved", num_points=11) -> R
     path.x_spline = spline_x
     path.y_spline = spline_y
     path.z_spline = spline_z
+    path.length = float(s[-1])  # ✅ Set total path length here
 
     return path
+
+
+def calculate_path_normals_improved(reference_path):
+    """
+    Calculate improved normal vectors for the reference path.
+    This version handles curvature better and ensures consistent orientation.
+    """
+    normals = []
+
+    for i in range(len(reference_path.x)):
+        if i == 0:
+            # First point: use forward difference
+            dx = reference_path.x[i + 1] - reference_path.x[i]
+            dy = reference_path.y[i + 1] - reference_path.y[i]
+        elif i == len(reference_path.x) - 1:
+            # Last point: use backward difference
+            dx = reference_path.x[i] - reference_path.x[i - 1]
+            dy = reference_path.y[i] - reference_path.y[i - 1]
+        else:
+            # Middle points: use central difference for smoother results
+            dx = reference_path.x[i + 1] - reference_path.x[i - 1]
+            dy = reference_path.y[i + 1] - reference_path.y[i - 1]
+
+        # Normalize the tangent vector
+        norm = np.sqrt(dx ** 2 + dy ** 2)
+        if norm > 1e-6:
+            dx_norm = dx / norm
+            dy_norm = dy / norm
+        else:
+            dx_norm = 1.0
+            dy_norm = 0.0
+
+        # Normal vector (perpendicular to tangent, pointing left)
+        # Rotate tangent 90 degrees counterclockwise
+        normal_x = -dy_norm
+        normal_y = dx_norm
+
+        normals.append((normal_x, normal_y))
+
+    return normals
+
+
+def generate_road_boundaries_improved(reference_path, road_width):
+    """
+    Generate road boundaries with improved normal calculation and
+    curvature compensation.
+    """
+    # Calculate improved normals
+    normals = calculate_path_normals_improved(reference_path)
+
+    # Use a smaller offset for curved sections
+    half_width = road_width / 2.0
+
+    # Adjust width based on curvature to prevent crossing
+    adjusted_half_width = []
+
+    for i in range(len(reference_path.x)):
+        # Calculate local curvature (simplified)
+        if i > 0 and i < len(reference_path.x) - 1:
+            # Use three points to estimate curvature
+            p1 = np.array([reference_path.x[i - 1], reference_path.y[i - 1]])
+            p2 = np.array([reference_path.x[i], reference_path.y[i]])
+            p3 = np.array([reference_path.x[i + 1], reference_path.y[i + 1]])
+
+            # Vectors
+            v1 = p2 - p1
+            v2 = p3 - p2
+
+            # Estimate curvature using cross product
+            cross_prod = np.cross(v1, v2)
+            v1_norm = np.linalg.norm(v1)
+            v2_norm = np.linalg.norm(v2)
+
+            if v1_norm > 1e-6 and v2_norm > 1e-6:
+                curvature = abs(cross_prod) / (v1_norm * v2_norm)
+                # Reduce width in high curvature areas
+                width_factor = max(0.3, 1.0 - curvature * 2.0)
+                adjusted_half_width.append(half_width * width_factor)
+            else:
+                adjusted_half_width.append(half_width)
+        else:
+            adjusted_half_width.append(half_width)
+
+    # Generate boundaries
+    left_x = []
+    left_y = []
+    right_x = []
+    right_y = []
+
+    for i in range(len(reference_path.x)):
+        nx, ny = normals[i]
+        width = adjusted_half_width[i]
+
+        # Left boundary (offset in the positive normal direction)
+        left_x.append(reference_path.x[i] + nx * width)
+        left_y.append(reference_path.y[i] + ny * width)
+
+        # Right boundary (offset in the negative normal direction)
+        right_x.append(reference_path.x[i] - nx * width)
+        right_y.append(reference_path.y[i] - ny * width)
+
+    return left_x, left_y, right_x, right_y
+
+
+def smooth_boundaries(x_coords, y_coords, s_coords, smoothing_factor=0.1):
+    """
+    Apply smoothing to boundary coordinates to reduce sharp edges.
+    """
+    from scipy.ndimage import gaussian_filter1d
+
+    # Apply Gaussian smoothing
+    x_smooth = gaussian_filter1d(x_coords, sigma=smoothing_factor * len(x_coords))
+    y_smooth = gaussian_filter1d(y_coords, sigma=smoothing_factor * len(y_coords))
+
+    return x_smooth, y_smooth
+
+
+# Modified test code section
+def create_improved_boundaries(data, reference_path):
+    """
+    Replace the boundary generation section in your test code with this.
+    """
+    # Road width
+    road_width = data.road_width if hasattr(data, 'road_width') and data.road_width is not None else 4.0
+
+    # Generate improved boundaries
+    left_x, left_y, right_x, right_y = generate_road_boundaries_improved(reference_path, road_width)
+
+    # Optional: Apply smoothing
+    left_x, left_y = smooth_boundaries(left_x, left_y, reference_path.s)
+    right_x, right_y = smooth_boundaries(right_x, right_y, reference_path.s)
+
+    # Create splines for the boundaries
+    left_boundary_spline_x = CubicSpline(reference_path.s, np.array(left_x))
+    left_boundary_spline_y = CubicSpline(reference_path.s, np.array(left_y))
+    right_boundary_spline_x = CubicSpline(reference_path.s, np.array(right_x))
+    right_boundary_spline_y = CubicSpline(reference_path.s, np.array(right_y))
+
+    # Store boundary data
+    data.left_boundary_x = left_x
+    data.left_boundary_y = left_y
+    data.right_boundary_x = right_x
+    data.right_boundary_y = right_y
+
+    # Store the spline functions
+    data.left_spline_x = left_boundary_spline_x
+    data.left_spline_y = left_boundary_spline_y
+    data.right_spline_x = right_boundary_spline_x
+    data.right_spline_y = right_boundary_spline_y
+
+    # Create Bound objects
+    data.left_bound = Bound(left_x, left_y, reference_path.s)
+    data.right_bound = Bound(right_x, right_y, reference_path.s)
+
+    return data
+
+
+# Alternative: Use spline-based normal calculation
+def calculate_spline_normals(reference_path):
+    """
+    Calculate normals using spline derivatives for smoother results.
+    """
+    if not hasattr(reference_path, 'x_spline') or not hasattr(reference_path, 'y_spline'):
+        # Create splines if they don't exist
+        reference_path.x_spline = CubicSpline(reference_path.s, reference_path.x)
+        reference_path.y_spline = CubicSpline(reference_path.s, reference_path.y)
+
+    normals = []
+
+    for i, s_val in enumerate(reference_path.s):
+        # Get derivatives from splines
+        dx = reference_path.x_spline.derivative()(s_val)
+        dy = reference_path.y_spline.derivative()(s_val)
+
+        # Normalize
+        norm = np.sqrt(dx ** 2 + dy ** 2)
+        if norm > 1e-6:
+            dx_norm = dx / norm
+            dy_norm = dy / norm
+        else:
+            dx_norm = 1.0
+            dy_norm = 0.0
+
+        # Normal vector (perpendicular to tangent, pointing left)
+        normal_x = -dy_norm
+        normal_y = dx_norm
+
+        normals.append((normal_x, normal_y))
+
+    return normals
 
 def calculate_path_normals(reference_path: ReferencePath):
     normals = []

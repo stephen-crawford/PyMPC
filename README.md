@@ -27,6 +27,10 @@ pip install -e .
 Requires Python 3.8+, NumPy, and optionally CasADi or OSQP depending on your backend.
 ```
 
+To run tests you may need to add the following run configuration: ```LD_LIBRARY_PATH=/opt/ros/humble/lib:/opt/ros/humble/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH```
+
+
+
 Related Work
 This library is a Python port of the excellent tud-amr/mpc_planner, originally written in C++. Our goal is to preserve its structure and intent while providing a more flexible, Pythonic interface for rapid development and experimentation.
 

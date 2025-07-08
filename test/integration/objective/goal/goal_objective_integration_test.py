@@ -10,7 +10,7 @@ from solver.src.casadi_solver import CasADiSolver
 from utils.utils import CONFIG, LOG_DEBUG, LOG_INFO
 
 
-def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goal=(5.0, 5.0), max_iterations=250):
+def run(dt=0.1, horizon=3, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goal=(10.0, 10.0), max_iterations=250):
 
 	dt = dt
 	horizon = horizon
@@ -19,7 +19,6 @@ def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), go
 
 	vehicle = model()
 	casadi_solver.set_dynamics_model(vehicle)
-
 
 	# Create the planner
 	planner = Planner(casadi_solver, vehicle)
@@ -45,7 +44,7 @@ def run(dt=0.1, horizon=10, model=SecondOrderUnicycleModel, start=(0.0, 0.0), go
 	state.set("v", 0.5)
 
 	if "a" in vehicle.inputs:
-		state.set("a", 0.0)
+		state.set("a", 1.0)
 	if "w" in vehicle.inputs:
 		state.set("w", 0.0)
 

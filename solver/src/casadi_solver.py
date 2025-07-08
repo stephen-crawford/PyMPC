@@ -1,7 +1,7 @@
 import casadi as cs
 import numpy as np
 
-from planning.src.dynamic_models import DynamicsModel, numeric_rk4
+from planning.src.dynamic_models import DynamicsModel
 from planning.src.types import State, Trajectory
 from solver.src.base_solver import BaseSolver
 from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO, CONFIG
@@ -23,6 +23,7 @@ Usage follows:
 class CasADiSolver(BaseSolver):
 	def __init__(self, timestep=0.1, horizon=30):
 		super().__init__(timestep, horizon)
+		LOG_INFO("CasADiSolver: Initializing solver")
 
 		# CasADi specific attributes
 		self.opti = cs.Opti()  # CasADi Opti stack
@@ -49,10 +50,10 @@ class CasADiSolver(BaseSolver):
 		self.dynamics_model = dynamics_model
 
 		for var_name in self.dynamics_model.get_dependent_vars():
-			self.var_dict[var_name] = self.opti.variable(self.horizon + 1) # This makes a horizon + 1 length symbolic vector
+			self.var_dict[var_name] = self.opti.variable(self.horizon + 1) # This makes a horizon + 1 length symbolic vector for dependent variables
 			self.warmstart_values[var_name] = np.zeros(self.horizon + 1)
 		for var_name in self.dynamics_model.get_inputs():
-			self.var_dict[var_name] = self.opti.variable(self.horizon)  # This makes a horizon length symbolic vector
+			self.var_dict[var_name] = self.opti.variable(self.horizon)  # This makes a horizon length symbolic vector for inputs
 			self.warmstart_values[var_name] = np.zeros(self.horizon)
 
 		LOG_DEBUG(f"After setting dynamics model, vars are: {self.var_dict}")
@@ -106,6 +107,7 @@ class CasADiSolver(BaseSolver):
 
 		LOG_DEBUG("Initializing base rollout with ego prediction {}".format(self.ego_prediction))
 
+		# TODO: This could also use RK4 or the discrete dynamics formula of the given model
 		for i in range(1, self.horizon + 1):
 			prev_state = self.ego_prediction.get_states()[i - 1]
 			LOG_DEBUG("Current state when rolling out: {}".format(prev_state))
@@ -117,20 +119,17 @@ class CasADiSolver(BaseSolver):
 			prev_a = prev_state.get("a")
 			prev_w = prev_state.get("w")
 			prev_psi = prev_state.get("psi")
+			prev_spline = prev_state.get("spline")
 
-			# FIXED: Proper velocity integration (single timestep, not cumulative)
 			v = prev_v + prev_a * self.timestep
 
-			# FIXED: Use current velocity for position integration (or use average velocity)
-			# Option 1: Use average velocity (more accurate for large timesteps)
 			v_avg = (prev_v + v) / 2.0
 			x = prev_x + v_avg * self.timestep * np.cos(prev_psi)
 			y = prev_y + v_avg * self.timestep * np.sin(prev_psi)
+			spline = prev_spline + prev_v * self.timestep
 
-			# FIXED: Update heading with angular velocity
 			psi = prev_psi + prev_w * self.timestep
 
-			# Normalize angle to [-pi, pi]
 			psi = np.arctan2(np.sin(psi), np.cos(psi))
 
 			# Create new state
@@ -139,22 +138,12 @@ class CasADiSolver(BaseSolver):
 			state_i.set("y", y)
 			state_i.set("v", v)
 			state_i.set("psi", psi)
-			state_i.set("a", prev_a)  # Keep same acceleration (or update if needed)
-			state_i.set("w", prev_w)  # Keep same angular velocity (or update if needed)
+			state_i.set("a", prev_a)
+			state_i.set("w", prev_w)
+			state_i.set("spline", spline)
 
 			LOG_DEBUG("Adding state {} to ego prediction at step {}".format(state_i, i))
 			self.ego_prediction.add_state(state_i)
-
-		# Initialize warmstart values
-		for k in range(self.horizon):
-			pred_state = self.ego_prediction.get_states()[k]
-
-			for var_name in self.dynamics_model.get_all_vars():
-				if var_name in self.warmstart_values:
-					value = pred_state.get(var_name)
-					LOG_DEBUG("Loading {} from warmstart for stage {} value is {}".format(var_name, k, value))
-					if value is not None:
-						self.opti.set_initial(self.var_dict[var_name][k], value)
 
 		# Debug logging
 		LOG_DEBUG(f"Initial trajectory for horizon {self.horizon}:")
@@ -175,17 +164,21 @@ class CasADiSolver(BaseSolver):
 
 			# If we have a valid value for this state variable
 			if value is not None:
-				# Constrain initial state
+				# Places constraints ion the the initial state symbolic variables to be equal to the true initial state
 				self.opti.subject_to(self.var_dict[var_name][0] == value)
 
-				# Also update the warmstart values to ensure consistency
+				# Updates the warmstart values for the initial state to ensure consistency
 				if var_name in self.warmstart_values.keys():
 					self.warmstart_values[var_name][0] = value
 
 	def _apply_model_bounds(self):
-		"""Apply bounds from the dynamics model to optimization variables"""
+		"""
+		Makes a horizon size set of upper and lower bounds for each dependent variable
+		Makes a horizon-1 size set of upper and lower bounds for each input
+		"""
 
 		# Apply state variable bounds
+		LOG_DEBUG("CasADi solver applying model lower and upper bounds")
 		for var_name in self.dynamics_model.get_dependent_vars():
 			var = self.var_dict[var_name]
 			lb, ub, _ = self.dynamics_model.get_bounds(var_name)
@@ -204,16 +197,17 @@ class CasADiSolver(BaseSolver):
 		self._add_dynamics_constraints()
 
 	def _add_dynamics_constraints(self):
+		LOG_DEBUG("CasADi solver adding dynamics constraints")
 		initial_ng = self.opti.ng
-		for k in range(self.horizon):
-			# Create input vector -- will end up being something like [a_0, a_1, a_2, ..., w_0, w_1, ...]
+		final_ng = 0
+		for k in range(self.horizon): # Creates an array of symbolic variables representing the inputs at the kth timestep
 			u_k = []
 			for u_name in self.dynamics_model.get_inputs():
 				u_k.append(self.var_dict[u_name][k])
 
-			# Create state vector -- ex: [x_0, x_1, ... y_0, y_1, ...]
+
 			x_k = []
-			for x_name in self.dynamics_model.get_dependent_vars():
+			for x_name in self.dynamics_model.get_dependent_vars(): # Creates an array of symbolic variables matching the dependent variables at the kth timestep
 				x_k.append(self.var_dict[x_name][k])
 
 			# Combine into z_k [a_0, ... a_horizon-1, w_0, ..., w_horizon -1, x_0, ..., x_horizon-, etc.]
@@ -225,16 +219,17 @@ class CasADiSolver(BaseSolver):
 			# Symbolic predicted next state
 			next_state = self.dynamics_model.discrete_dynamics(z_k, self.parameter_manager, self.timestep)
 
-			# Add dynamics constraints
+			# For each dependent variables make the associated symbolic var. forced to equal the integrated next state value for that variable
 			for i, var in enumerate(self.dynamics_model.get_dependent_vars()):
 				if (hasattr(self.dynamics_model, 'state_dimension_integrate') and
 						self.dynamics_model.state_dimension_integrate is not None and
 						i >= self.dynamics_model.state_dimension_integrate):
 					continue
 				self.opti.subject_to(self.var_dict[var][k + 1] == next_state[i])
-				LOG_DEBUG(f"Added constraint {var}[{k + 1}] == {next_state[i]}")
 			final_ng = self.opti.ng
-			LOG_DEBUG(f"Dynamics constraints added: {final_ng - initial_ng}")
+
+		LOG_DEBUG(f"Number of dynamic constraints added for each timestep: {final_ng - initial_ng}")
+
 
 
 	def solve(self):
@@ -244,6 +239,8 @@ class CasADiSolver(BaseSolver):
 			int: Exit flag (1 for success, -1 for failure)
 		"""
 		LOG_DEBUG("Attempting to solve in Casadi solver")
+		cost_comps_by_stage = []
+
 		try:
 			# Get solver timeout parameter
 			timeout = self.parameter_manager.get("solver_timeout")
@@ -255,8 +252,13 @@ class CasADiSolver(BaseSolver):
 			total_objective = 0
 			for stage_idx in range(self.horizon + 1):
 				LOG_DEBUG("Trying to get objective cost for stage " + str(stage_idx))
-				objective_value = self.get_objective_cost(stage_idx)
-
+				objective_costs = self.get_objective_cost(stage_idx)
+				LOG_DEBUG("Objective cost: " + str(objective_costs))
+				cost_comps_by_stage.append(objective_costs)
+				objective_value = 0
+				for dic in objective_costs:
+					for item in dic.items():
+						objective_value += item[1]
 				# Ensure the objective is a scalar
 				if isinstance(objective_value, cs.MX) and objective_value.shape[0] > 1:
 					# Sum all elements if it's a vector
@@ -265,9 +267,9 @@ class CasADiSolver(BaseSolver):
 				total_objective += objective_value
 
 			# Set the problem objective
-			LOG_DEBUG("Total objective is" + str(total_objective))
 			LOG_WARN(f"Total number of constraints is {self.opti.g.numel()}")
-			self.opti.minimize(total_objective)
+			LOG_DEBUG("Total objective is " + str(total_objective))
+			self.opti.minimize(total_objective) #minimizes the accumulated cost over all stages
 
 			# Solve the optimization problem
 			LOG_DEBUG("Attempting to solve, " + str(self.opti))
@@ -282,7 +284,7 @@ class CasADiSolver(BaseSolver):
 				for i in range(self.opti.nx):
 					LOG_WARN(f"x[{i}] = {self.opti.debug.value(self.opti.x[i])}")
 
-				# You can also log constraint values here
+				# print constraints at failure
 				for i in range(self.opti.ng):
 					LOG_WARN(f"g[{i}] = {self.opti.debug.value(self.opti.g[i])}")
 
@@ -292,7 +294,7 @@ class CasADiSolver(BaseSolver):
 						val = self.opti.debug.value(self.var_dict[name])
 						LOG_WARN(f"{name}: {val}")
 					except RuntimeError:
-						LOG_WARN(f"Could not extract value for {name}")
+						LOG_DEBUG(f"Could not extract value for {name}")
 
 				raise
 
@@ -300,6 +302,34 @@ class CasADiSolver(BaseSolver):
 			self.solution = sol
 			self.exit_flag = 1
 			self.info["status"] = "success"
+			LOG_DEBUG("CasADi solver solved successfully")
+			LOG_DEBUG("TOTAL OBJ COST: "+ str(self.opti.value(total_objective)))
+			LOG_DEBUG("COST COMPS LIST: "+ str(cost_comps_by_stage))
+			LOG_DEBUG("modules: " + str(self.module_manager.get_modules()))
+			for k in range(self.horizon + 1):
+				for i in range(len(self.module_manager.get_modules())):
+					mod_name = self.module_manager.get_modules()[i].get_name()
+					LOG_INFO(f"=== Stage {k} Costs for Module {mod_name} ===")
+					dic = cost_comps_by_stage[k][i]
+					for name, expr in dic.items():
+						LOG_INFO(f"{name}: {expr}")
+						# Substitute optimized variable values into exprf
+						try:
+							# Create CasADi function for evaluation
+							f = cs.Function(f"eval_{name}_{k}", [self.opti.x], [expr])
+							val = f(sol.value(self.opti.x))
+
+							if isinstance(val, cs.DM):
+								val_np = np.array(val)
+								if val_np.size == 1:
+									LOG_INFO(f"{name} = {float(val)}")
+								else:
+									LOG_WARN(f"{name} evaluated to non-scalar: {val_np}")
+							else:
+								LOG_WARN(f"{name} is not a DM: {type(val)}")
+							LOG_INFO(f"{name} = {float(val)}")  # convert CasADi DM to float
+						except Exception as e:
+							LOG_DEBUG(f"Could not evaluate {name} at stage {k}: {e}")
 
 			# Update warmstart values for next iteration
 			LOG_DEBUG(f"Var dict is {self.var_dict}")
@@ -325,6 +355,7 @@ class CasADiSolver(BaseSolver):
 			self.info["status"] = "failed"
 			self.info["error"] = str(e)
 			return -1
+
 
 	def get_output(self, k, var_name):
 		"""Get the output value for a specific variable at time step k
@@ -469,11 +500,10 @@ class CasADiSolver(BaseSolver):
 			if stage_idx is not None:
 				var_length = self.horizon + 1 if var_name in self.dynamics_model.get_dependent_vars() else self.horizon
 				if 0 <= stage_idx < var_length:
-					return self.var_dict[var_name][stage_idx]
+					return self.ego_prediction.get_states()[stage_idx].get(var_name)
 				else:
 					LOG_WARN(f"Access out-of-bounds: {var_name}[{stage_idx}]")
 					return None  # or throw
-			return self.var_dict[var_name]
 
 	def get_ego_prediction(self, k, var):
 		LOG_DEBUG(f"Trying to get ego prediction for variable {var}, at {k}")
