@@ -33,11 +33,11 @@ class PathReferenceVelocityObjective(BaseObjective):
 
         return params
 
-    def get_value(self, params, stage_idx):
+    def get_value(self, state, params, stage_idx):
         # The cost is computed in the contouring cost
         return 0.0
 
-    def set_parameters(self, parameter_manager, data, module_data, k):
+    def set_parameters(self, parameter_manager, data, k):
         print("Trying to set parameters")
         reference_velocity = 0.0
         if k == 0:
@@ -46,7 +46,7 @@ class PathReferenceVelocityObjective(BaseObjective):
         if data.reference_path.has_velocity():  # Use a spline-based velocity reference
             LOG_DEBUG("Using spline-based reference velocity")
             for i in range(self.num_segments):
-                index = module_data.current_path_segment + i
+                index = data.current_path_segment + i
 
                 if index < self.velocity_spline.m_x_.size() - 1:
                     a, b, c, d = self.velocity_spline.get_parameters(index)

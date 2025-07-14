@@ -1,3 +1,5 @@
+from abc import abstractmethod
+
 from solver.src.modules_manager import Module
 from utils.const import OBJECTIVE
 from utils.utils import read_config_file, LOG_DEBUG
@@ -15,3 +17,6 @@ class BaseObjective(Module):
 			self.config = settings
 		LOG_DEBUG(f"Initializing {self.name.title()} Objective")
 
+	@abstractmethod
+	def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
+		pass

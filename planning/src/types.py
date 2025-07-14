@@ -34,7 +34,7 @@ class State:
         else:
             return
         self._state_dict = {}
-        all_vars = self._model_type.get_dependent_vars() + self._model_type.get_inputs()
+        all_vars = self._model_type.get_all_vars()
         self._state_vector = np.zeros(len(all_vars))
 
         for i, var in enumerate(all_vars):
@@ -52,17 +52,13 @@ class State:
         return 0.0
 
     def set(self, var_name, value):
-        """Set a state variable by name."""
-        # Always update the dictionary
         self._state_dict[var_name] = value
 
-        # If it's a recognized state variable, update the vector too
-        var_idx = self._get_index(var_name)
-        if var_idx is not None:
-            if 0 <= var_idx < len(self._state_vector):
+        # Only try to update the vector if value is numeric
+        if isinstance(value, (float, int)):
+            var_idx = self._get_index(var_name)
+            if var_idx is not None and 0 <= var_idx < len(self._state_vector):
                 self._state_vector[var_idx] = value
-            else:
-                LOG_DEBUG(f"State index {var_idx} for {var_name} out of bounds")
 
     def _get_index(self, var_name):
         """Get the index of a variable in the state vector."""
@@ -583,23 +579,6 @@ def calculate_path_normals(reference_path: ReferencePath):
             normals.append((0, 0))
 
     return normals
-
-def compute_arc_length(reference_path: ReferencePath):
-    """Compute the arc length parameter for a path given by x,y coordinates"""
-    if len(reference_path.x) < 2:
-        return np.array([0.0])
-
-    # Compute the distance between consecutive points
-    dx = np.diff(reference_path.x)
-    dy = np.diff(reference_path.y)
-    ds = np.sqrt(dx ** 2 + dy ** 2)
-
-    # Cumulative sum to get the arc length at each point
-    s = np.zeros(len(reference_path.x))
-    s[1:] = np.cumsum(ds)
-
-    return s
-
 
 
 class Bound:

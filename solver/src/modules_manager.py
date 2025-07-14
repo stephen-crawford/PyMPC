@@ -31,13 +31,13 @@ class ModuleManager:
             if hasattr(module, "define_parameters"):
                 module.define_parameters(self, params)
 
-    def objective(self, param, stage_idx):
+    def objective(self, state, param, stage_idx):
         """Calculate objective value from all objective modules"""
         objective_value = []
         for module in self.modules:
             if module.module_type == OBJECTIVE:
                 if hasattr(module, "get_value"):
-                    objective_value.append(module.get_value(param, stage_idx))
+                    objective_value.append(module.get_value(state, param, stage_idx))
         return objective_value
 
     def constraints(self, param, model, settings, stage_idx):
@@ -83,13 +83,13 @@ class ModuleManager:
             if module.is_data_ready(data, missing_data):
                 module.update(state, data)
 
-    def set_parameters_all(self, data, horizon):
+    def set_parameters_all(self, params, data, horizon):
         """Set parameters for all modules across all stages"""
         for k in range(horizon):
             for module in self.modules:
                 if module.is_data_ready(data):
                     print("Setting parameters for module: {}".format(module.module_type))
-                    module.set_parameters(data, k)
+                    module.set_parameters(params, data, k)
 
     def visualize_all(self, data):
         """Trigger visualization for all modules"""

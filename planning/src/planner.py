@@ -1,4 +1,6 @@
 import time
+
+from utils.const import OBJECTIVE
 from utils.utils import CONFIG, Benchmarker, ExperimentManager, LOG_WARN
 from planning.src.types import *
 
@@ -26,10 +28,8 @@ class Planner:
     self.experiment_manager.set_timer(1)
     self.experiment_manager.start_timer()
 
-    self.initialize()
-
-  def initialize(self):
-    self.solver.initialize()
+  def initialize(self, data):
+    self.solver.initialize(data)
 
   def solve_mpc(self, data: Data):
 
@@ -107,7 +107,7 @@ class Planner:
     self.experiment_manager.start_timer()
 
   def is_objective_reached(self, data):
-    return all(module.is_objective_reached(self.state, data) for module in self.solver.module_manager.modules)
+    return all(module.is_objective_reached(self.state, data) for module in self.solver.module_manager.modules if module.module_type == OBJECTIVE)
 
   def on_data_received(self, data, data_name):
     self.solver.on_data_received(data, data_name)
@@ -159,3 +159,6 @@ class PlannerOutput:
     self.control_history = [] # The control history is a list of the actual control inputs used during the execution
     self.trajectory_history = [] # This is a list of horizon length trajectories which is added to each time the solver finds a solution
     self.realized_trajectory = Trajectory() # this is the trajectory executed by the physical robot when integrating based on the control history
+
+  def process_solver_result(self, param, param1):
+    pass

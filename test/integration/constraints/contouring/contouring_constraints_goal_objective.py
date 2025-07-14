@@ -7,6 +7,7 @@ from matplotlib.transforms import Affine2D
 from scipy.interpolate import CubicSpline
 import casadi as ca
 
+from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
 from planner_modules.src.objectives.goal_objective import GoalObjective
 from planning.src.data_prep import define_robot_area
@@ -16,7 +17,7 @@ from planning.src.types import Data, Bound, ReferencePath, generate_reference_pa
 from solver.src.casadi_solver import CasADiSolver
 from utils.utils import CONFIG, LOG_DEBUG, LOG_INFO, LOG_WARN
 
-def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=200):
+def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(5.0, 5.0), max_iterations=200):
 
 	dt = dt
 	horizon = horizon
@@ -30,8 +31,10 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	# Create the planner
 	planner = Planner(casadi_solver, vehicle)
 
-	contouring_objective = ContouringObjective(casadi_solver)
-	casadi_solver.module_manager.add_module(contouring_objective)
+	goal_objective = GoalObjective(casadi_solver)
+	casadi_solver.module_manager.add_module(goal_objective)
+	contouring_constraints = ContouringConstraints(casadi_solver)
+	casadi_solver.module_manager.add_module(contouring_constraints)
 
 	data = Data()
 	data.start = np.array(start)
@@ -39,7 +42,7 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	data.goal_received = True
 	data.planning_start_time = 0.0
 
-	reference_path = generate_reference_path(data.start, data.goal, path_type="curved")
+	reference_path = generate_reference_path(data.start, data.goal, path_type="straight")
 	# Store path
 	data.reference_path = reference_path
 

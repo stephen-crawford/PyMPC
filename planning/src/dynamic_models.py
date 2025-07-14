@@ -128,7 +128,7 @@ class DynamicsModel:
         return self.inputs
 
     def get_all_vars(self):
-        return self.dependent_vars + self.inputs
+        return self.inputs + self.dependent_vars
 
     def discrete_dynamics(self, z, p, timestep, **kwargs):
         try:
@@ -296,13 +296,17 @@ class DynamicsModel:
     def do_not_use_integration_for_last_n_states(self, n):
         self.state_dimension_integrate = self.state_dimension - n
 
-    def get(self, state_or_input):
+    def get(self, state_or_input, default=None):
         if state_or_input in self.dependent_vars:
             i = self.dependent_vars.index(state_or_input)
             return self._z[self.nu + i]
         elif state_or_input in self.inputs:
             i = self.inputs.index(state_or_input)
             return self._z[i]
+        elif hasattr(self, state_or_input):
+            return getattr(self, state_or_input)
+        elif default is not None:
+            return default
         else:
             raise IOError(
                 f"Requested a state or input `{state_or_input}' that was neither a state nor an input for the selected model")
@@ -361,6 +365,9 @@ class SecondOrderUnicycleModel(DynamicsModel):
         self.nu = 2  # number of control variables
         self.state_dimension = 4  # number of states
 
+        self.width = 0.5
+        self.length = 0.5
+
         self.dependent_vars = ["x", "y", "psi", "v"]
         self.inputs = ["a", "w"]
         self.lower_bound = [-2.0, -2.0, -200.0, -200.0, -np.pi * 4, -2.0]
@@ -379,7 +386,6 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
 
     def __init__(self):
         super().__init__()
-        LOG_DEBUG("ContouringSecondOrderUnicycleModel initialized")
         self.nu = 2  # number of control variables
         self.state_dimension = 5  # number of states
 
@@ -393,8 +399,8 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         self.lf = .5
 
         # w = 0.8
-        self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 4, -0.01, -1.0]
-        self.upper_bound = [2.0, 0.8, 2000.0, 2000.0, np.pi * 4, 3.0, 10000.0]
+        self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 6, -0.01, -1.0]
+        self.upper_bound = [2.0, 0.8, 2000.0, 2000.0, np.pi * 6, 3.0, 10000.0]
 
     def continuous_model(self, x, u, p):
         self.params = p
@@ -402,7 +408,7 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         w = u[1]
         psi = x[2]
         v = x[3]
-        LOG_WARN(f"Setting continuous model with a = {a}, w = {w}, psi = {psi}, v = {v}")
+
         return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a, v)
 
 class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):

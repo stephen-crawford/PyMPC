@@ -3,14 +3,14 @@ import numpy as np
 import casadi as ca
 
 from planner_modules.src.objectives.goal_objective import GoalObjective
-from planning.src.dynamic_models import SecondOrderUnicycleModel, numeric_rk4
+from planning.src.dynamic_models import SecondOrderUnicycleModel, numeric_rk4, ContouringSecondOrderUnicycleModel
 from planning.src.planner import Planner
-from planning.src.types import Data, generate_reference_path
+from planning.src.types import Data, generate_reference_path, State
 from solver.src.casadi_solver import CasADiSolver
 from utils.utils import CONFIG, LOG_DEBUG, LOG_INFO
 
 
-def run(dt=0.1, horizon=3, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goal=(10.0, 10.0), max_iterations=250):
+def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(12.0, 12.0), max_iterations=100):
 
 	dt = dt
 	horizon = horizon
@@ -35,29 +35,22 @@ def run(dt=0.1, horizon=3, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goa
 	# Add solver timeout parameter
 	casadi_solver.parameter_manager.add("solver_timeout", 10.0)
 
-	planner.initialize()
+	planner.initialize(data)
 
-	state = planner.get_state()
-	state.set("x", data.start[0])
-	state.set("y", data.start[1])
-	state.set("psi", 1.57)
+	# Create initial state - make sure to match the model's state variables
+	state = State(ContouringSecondOrderUnicycleModel())
+	state.set("x", 0.0)
+	state.set("y", 0.0)
+	state.set("psi", 0.1)
 	state.set("v", 0.5)
+	state.set("spline", 0.0)
+	state.set("a", 0.0)
+	state.set("w", 0.0)
+	planner.set_state(state)
 
-	if "a" in vehicle.inputs:
-		state.set("a", 1.0)
-	if "w" in vehicle.inputs:
-		state.set("w", 0.0)
-
-
-	states_x = [state.get("x")]
-	states_y = [state.get("y")]
 	success_flags = []
 
 	LOG_INFO("Starting MPC simulation loop...")
-
-	# Add arrays to store trajectories for visualization
-	all_trajectories_x = []
-	all_trajectories_y = []
 
 	for i in range(max_iterations):
 		# if i % (max_iterations//10) == 0:
@@ -71,9 +64,9 @@ def run(dt=0.1, horizon=3, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goa
 		if output.success:
 			next_a = output.trajectory_history[-1].get_states()[1].get("a")
 			next_w = output.trajectory_history[-1].get_states()[1].get("w")
-			LOG_DEBUG("OUTPUT TRAJ HISTORY: " + str(output.trajectory_history[-1].get_states()[1]))
-			z_k = [next_a, next_w, state.get("x"), state.get("y"), state.get("psi"), state.get("v")]
-			LOG_DEBUG("Vec for calc next state through prop: " + str(z_k))
+
+			z_k = [next_a, next_w, planner.get_state().get("x"), planner.get_state().get("y"), planner.get_state().get("psi"), planner.get_state().get("v"), planner.get_state().get("spline")]
+
 			# Convert to CasADi vector
 			z_k = ca.vertcat(*z_k)
 			vehicle.load(z_k)
@@ -85,11 +78,8 @@ def run(dt=0.1, horizon=3, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goa
 			next_y = next_state[1]
 			next_psi = next_state[2]
 			next_v = next_state[3]
+			next_spline = next_state[4]
 
-			LOG_DEBUG(f"Next state: {next_state}")
-			states_x.append(float(next_x))
-			states_y.append(float(next_y))
-			LOG_DEBUG("Going to set the next state based on integrated dynamics. x: " + str(next_x) + " y:" + str(next_y) + " psi: " + str(next_psi) + " v: " + str(next_v))
 			new_state = planner.get_state().copy()
 			new_state.set("x", next_x)
 			new_state.set("y", next_y)
@@ -97,18 +87,18 @@ def run(dt=0.1, horizon=3, model=SecondOrderUnicycleModel, start=(0.0, 0.0), goa
 			new_state.set("v", next_v)
 			new_state.set("w", next_w)
 			new_state.set("a", next_a)
-			LOG_DEBUG("Next state is: " + str(new_state))
+			new_state.set("spline", next_spline)
+
 			output.control_history.append((next_a, next_w))
 			output.realized_trajectory.add_state(new_state)
 			planner.set_state(new_state)
-			state = planner.get_state()
 
 			LOG_DEBUG(f"Next state: {planner.get_state()}")
+
 			casadi_solver.reset()
-			# Check if goal reached
+
 			if planner.is_objective_reached(data):
 				LOG_DEBUG("Objective reached so ending.")
-				success_flags.append(output.success)
 				break
 
 		else:

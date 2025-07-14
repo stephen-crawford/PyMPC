@@ -2,8 +2,12 @@ horizon: 30
 contouring:
   add_road_constraints: true
   dynamic_velocity_reference: false
-  num_segments: 3
+  num_segments: 20
   preview: 0.0
+  adaptive_contour_weight: true
+  goal_reaching_contouring: true
+  three_dimensional_contouring: false
+  slack: 0
 control_frequency: 20
 debug_limits: true
 debug_output: false
@@ -51,15 +55,20 @@ weights:
   acceleration_x: 1
   acceleration_y: 1
   angular_velocity: 0.5
-  contour_weight: 50
   goal_weight: 100
-  angle_weight: 10
-  control_weight: 0.5
-  terminal_weight: 5
-  terminal_angle: 0.5
-  terminal_contouring: 0.5
-  lag_weight: 20
+  goal_angle_weight: 10
+  goal_control_weight: 1
+  goal_terminal_weight: 10
+  goal_terminal_angle: 1
+  contouring_terminal_angle: 1
+  terminal_contouring: 1
   preview: 0.0
   reference_velocity: 0.01
   slack: 1.0
   velocity: 0.3
+  contour_weight: 200.0
+  contouring_lag_weight: 50
+  contouring_goal_weight: 100
+  spline_progression_weight: 0.0
+  spline_velocity_weight: 0.0
+  terminal_spline_weight: 00.0

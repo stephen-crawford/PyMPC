@@ -23,7 +23,7 @@ class DummyModule:
     def initialize(self, solver): pass
     def is_data_ready(self, data): return True
     def update(self, state, data, module_data): pass
-    def set_parameters(self, data, module_data, k): pass
+    def set_parameters(self, params, data, module_data, k): pass
     def optimize(self, state, data, module_data): return -1
     def visualize(self, data): pass
     def save_data(self, saver): pass

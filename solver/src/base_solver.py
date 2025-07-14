@@ -33,9 +33,9 @@ class BaseSolver(ABC):
     def get_reference_trajectory(self):
         pass
 
-    def initialize(self):
+    def initialize(self, data):
         self.define_parameters()
-        self.module_manager.set_parameters_all(Data(), self.horizon)
+        self.module_manager.set_parameters_all(self.parameter_manager, data, self.horizon)
 
     def initialize_rollout(self, state, shift_forward=True):
         pass
@@ -60,8 +60,8 @@ class BaseSolver(ABC):
             if module.module_type == CONSTRAINT:
                 module.define_parameters(self.parameter_manager)
 
-    def get_objective_cost(self, stage_idx):
-        cost = self.module_manager.objective(self.parameter_manager, stage_idx)
+    def get_objective_cost(self, state, stage_idx):
+        cost = self.module_manager.objective(state, self.parameter_manager, stage_idx)
         return cost
 
     def get_constraint_list(self, stage_idx):
