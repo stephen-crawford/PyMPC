@@ -3,78 +3,253 @@ import casadi as cd
 from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
-from planning.src.types import Data
+from planning.src.types import Data, ReferencePath
 from utils.math_utils import haar_difference_without_abs
-from utils.utils import LOG_DEBUG, LOG_INFO
+from utils.utils import LOG_DEBUG, LOG_INFO, LOG_WARN
+
+
 
 
 class ContouringConstraints(BaseConstraint):
 	def __init__(self, solver):
 		super().__init__(solver)
-		self.width_left_spline = None
-		self.width_right_spline = None
-		self.nh = 2
+
 		self.name = "contouring_constraints"
 		self.num_segments = self.get_config_value("contouring.num_segments")
-		# Store reference path data for future use
+		self.dynamic_velocity_reference = self.get_config_value("contouring.dynamic_velocity_reference")
+		self.three_dimensional_contouring = self.get_config_value("contouring.three_dimensional_contouring")
+
+		self.num_constraints = 2
+		if self.three_dimensional_contouring:
+			self.num_constraints += 2
+		if self.dynamic_velocity_reference:
+			self.num_constraints += 1
+
+		# Road bounds
 		self.reference_path = None
-		LOG_DEBUG(f"{self.name.title()} Constraints successfully initialized")
+		self.bound_left_spline = None
+		self.bound_right_spline = None
+		self.bound_upper_spline = None
+		self.bound_lower_spline = None
+		self.bound_velocity_spline = None
+
+		LOG_DEBUG(f"{self.name.title()} successfully initialized")
 
 	def update(self, state, data: Data):
-		LOG_DEBUG(f"{self.name.title()} Update")
-		# Use existing splines if they're available in data
-		if data.get("path_width_left") is None and self.width_left_spline is not None:
-			data.set("path_width_left", self.width_left_spline)
+		LOG_DEBUG(f"{self.name.title()}::update")
 
-		if data.get("path_width_right") is None and self.width_right_spline is not None:
-			data.set("path_width_right", self.width_right_spline)
+		if self.reference_path is None:
+			LOG_WARN("No reference path available")
+			return
+
+		# Pass path data to data object
+		if self.reference_path is not None:
+			data.reference_path = ReferencePath()
+			data.reference_path.set('x', self.reference_path.x)
+			data.reference_path.set('y', self.reference_path.y)
+			data.reference_path.set('x_spline', self.reference_path.x_spline)
+			data.reference_path.set('y_spline', self.reference_path.y_spline)
+			data.reference_path.set('s', self.reference_path.s)
 
 	def on_data_received(self, data, data_name):
-		LOG_DEBUG(f"{self.name.title()} Data received: {data_name}")
-		if data_name == "reference_path":
+		LOG_DEBUG(f"{self.name.title()} on data received: {data_name}")
+		if data.has("reference_path") and data.reference_path is not None:
+			LOG_DEBUG("Received Reference Path")
 			self.process_reference_path(data)
 
 	def process_reference_path(self, data):
-		if not data.left_bound is None and not data.right_bound is None:
-			self.calculate_road_widths(data)
-			# Store reference path data for spline creation
-			self.reference_path = data.reference_path
 
-	def calculate_road_widths(self, data: Data):
-		widths_left = np.zeros(len(data.left_bound.x))
-		widths_right = np.zeros(len(data.right_bound.x))
-		LOG_DEBUG("DATA WHEN CALCULATING ROAD WIDTHS" + str(data))
-		for i in range(len(widths_left)):
-			center = np.array([data.reference_path.x[i], data.reference_path.y[i]])
-			left = np.array([data.left_bound.x[i], data.left_bound.y[i]])
-			right = np.array([data.right_bound.x[i], data.right_bound.y[i]])
+		self.reference_path = data.reference_path
+		# Create velocity reference spline if available
+		if self.dynamic_velocity_reference and len(data.reference_path.v) > 0:
+			self.reference_path.v_spline = CubicSpline(self.reference_path.s, data.reference_path.v)
 
-			widths_left[i] = np.linalg.norm(center - left)
-			widths_right[i] = np.linalg.norm(center - right)
-
-		# Initialize splines using SciPy's CubicSpline
-		self.width_left_spline = CubicSpline(data.reference_path.s, widths_left)
-		self.width_right_spline = CubicSpline(data.reference_path.s, widths_right)
-
-	def set_parameters(self, parameter_manager, data, k):
-		if k == 0:
-			self.reference_path = data.reference_path
-			if not data.left_bound is None and not data.right_bound is None:
-				self.calculate_road_widths(data)
-			LOG_DEBUG(f"{self.name}::set_parameters")
-			# Precompute parameter values once when splines are ready
-			self.precompute_parameter_values(parameter_manager)
+		# Process road bounds if available
+		if data.left_bound is not None and data.right_bound is not None:
+			LOG_DEBUG("Processing provided left and right bounds for Contouring Constraints")
+			self.bound_left_spline = CubicSpline(self.reference_path.s,
+												 np.column_stack((data.left_bound.x, data.left_bound.y)))
+			self.bound_right_spline = CubicSpline(self.reference_path.s,
+												  np.column_stack((data.right_bound.x, data.right_bound.y)))
+		if self.three_dimensional_contouring:
+			if data.upper_bound is not None and data.lower_bound is not None:
+				LOG_DEBUG("Processing provided lower and upper bounds for Contouring Constraints")
+				self.bound_lower_spline = CubicSpline(self.reference_path.s,
+													 np.column_stack((data.lower_bound.x, data.lower_bound.y)))
+				self.bound_upper_spline = CubicSpline(self.reference_path.s,
+													  np.column_stack((data.upper_bound.x, data.upper_bound.y)))
 
 	def define_parameters(self, params):
-		LOG_DEBUG("Defining contouring constraint parameters")
-		# Define parameters for pre-computed spline values at segment boundaries
-		for segment_index in range(self.num_segments + 1):
-			params.add(f"reference_path_x_{segment_index}")
-			params.add(f"reference_path_y_{segment_index}")
-			params.add(f"reference_path_dx_{segment_index}")
-			params.add(f"reference_path_dy_{segment_index}")
-			params.add(f"width_left_{segment_index}")
-			params.add(f"width_right_{segment_index}")
+		LOG_DEBUG(f"{self.name.title()}::define_parameters")
+		for i in range(self.num_segments + 1):
+			# Path coordinates at segment boundaries
+			params.add(f"path_x_{i}")
+			params.add(f"path_y_{i}")
+
+			if self.three_dimensional_contouring:
+				params.add(f"path_z_{i}")
+				params.add(f"path_dz_{i}")
+
+			# Derivatives at segment boundaries (needed for normal vectors)
+			params.add(f"path_dx_{i}")
+			params.add(f"path_dy_{i}")
+
+			# Width parameters for safety margins
+			params.add(f"width_left_{i}")
+			params.add(f"width_right_{i}")
+
+			# Velocity reference if needed
+			if self.dynamic_velocity_reference:
+				params.add(f"path_vel_{i}")
+
+	def set_parameters(self, parameter_manager, data, k):
+		LOG_DEBUG(f"{self.name.title()}::set_parameters with k: {k}")
+
+		if k == 0:
+			self.process_reference_path(data)
+			self.set_path_parameters(parameter_manager)
+
+	def _compute_width_from_bounds(self, data):
+		"""
+		Compute the available width (safety margin) from the reference path to the bounds.
+		Returns arrays of left and right widths at each reference path point.
+		"""
+		if self.reference_path is None or self.bound_left_spline is None or self.bound_right_spline is None:
+			return None, None
+
+		# Get reference path points
+		path_x = self.reference_path.x
+		path_y = self.reference_path.y
+
+		# Evaluate bound splines at reference path s values
+		left_bound_points = self.bound_left_spline(self.reference_path.s)
+		right_bound_points = self.bound_right_spline(self.reference_path.s)
+
+		# Calculate widths (distances from path to bounds)
+		width_left = []
+		width_right = []
+
+		for i in range(len(path_x)):
+			# Calculate distance from path point to left bound
+			left_dist = np.sqrt((path_x[i] - left_bound_points[i, 0]) ** 2 +
+								(path_y[i] - left_bound_points[i, 1]) ** 2)
+			width_left.append(left_dist)
+
+			# Calculate distance from path point to right bound
+			right_dist = np.sqrt((path_x[i] - right_bound_points[i, 0]) ** 2 +
+								 (path_y[i] - right_bound_points[i, 1]) ** 2)
+			width_right.append(right_dist)
+
+		return np.array(width_left), np.array(width_right)
+
+	def set_path_parameters(self, parameter_manager):
+		LOG_DEBUG(f"{self.name.title()}::set_path_parameters")
+		if self.reference_path is None:
+			LOG_WARN("No reference path available when trying to set path params so returning ")
+			return
+
+		path_x = self.reference_path.x
+		path_y = self.reference_path.y
+
+		# Optional variables for three-dimensional contouring
+		path_z = None
+		path_z_interp = None
+		path_dz = None
+
+		if self.three_dimensional_contouring:
+			path_z = self.reference_path.z
+
+		# Compute width parameters from bounds
+		width_left_orig, width_right_orig = self._compute_width_from_bounds(None)
+
+		if len(path_x) < self.num_segments + 1:
+			# Get lists of evenly spaced partitions over the provided interval
+			s_original = np.linspace(0, 1, len(path_x))
+			s_new = np.linspace(0, 1, self.num_segments + 1)
+
+			# Interpolates at each s_new point based on the coordinates (s_new, path_x) for each i in S_new
+			path_x_interp = np.interp(s_new, s_original, path_x)
+			# Same type of interpolation but for points (s_new, path_y)
+			path_y_interp = np.interp(s_new, s_original, path_y)
+
+			# Interpolate width parameters
+			if width_left_orig is not None and width_right_orig is not None:
+				width_left_interp = np.interp(s_new, s_original, width_left_orig)
+				width_right_interp = np.interp(s_new, s_original, width_right_orig)
+			else:
+				# Default widths if bounds not available
+				width_left_interp = np.full(len(s_new), 3.0)  # Default 3m width
+				width_right_interp = np.full(len(s_new), 3.0)
+
+			if self.three_dimensional_contouring:
+				path_z_interp = np.interp(s_new, s_original, path_z)
+		else:
+			# Compute cumulative arc length
+			dx = np.diff(path_x)
+			dy = np.diff(path_y)
+
+			arc_lengths = np.sqrt(dx ** 2 + dy ** 2)
+			if self.three_dimensional_contouring:
+				dz = np.diff(path_z)
+				arc_lengths = np.sqrt(dx ** 2 + dy ** 2 + dz ** 2)
+
+			s = np.concatenate([[0], np.cumsum(arc_lengths)])
+			s /= s[-1]  # Normalize to [0, 1]
+
+			# Resample at evenly spaced points in [0, 1]
+			s_new = np.linspace(0, 1, self.num_segments + 1)
+
+			path_x_interp = np.interp(s_new, s, path_x)
+			path_y_interp = np.interp(s_new, s, path_y)
+
+			# Interpolate width parameters
+			if width_left_orig is not None and width_right_orig is not None:
+				width_left_interp = np.interp(s_new, s, width_left_orig)
+				width_right_interp = np.interp(s_new, s, width_right_orig)
+			else:
+				# Default widths if bounds not available
+				width_left_interp = np.full(len(s_new), 3.0)  # Default 3m width
+				width_right_interp = np.full(len(s_new), 3.0)
+
+			if self.three_dimensional_contouring:
+				path_z_interp = np.interp(s_new, s, path_z)
+
+		# Calculate derivatives using finite differences
+		path_dx = np.gradient(path_x_interp)
+		path_dy = np.gradient(path_y_interp)
+
+		if self.three_dimensional_contouring:
+			path_dz = np.gradient(path_z_interp)
+
+		# Set parameters
+		for i in range(self.num_segments + 1):
+			parameter_manager.set_parameter(f"path_x_{i}", float(path_x_interp[i]))
+			parameter_manager.set_parameter(f"path_y_{i}", float(path_y_interp[i]))
+			parameter_manager.set_parameter(f"path_dx_{i}", float(path_dx[i]))
+			parameter_manager.set_parameter(f"path_dy_{i}", float(path_dy[i]))
+
+			# Set width parameters
+			parameter_manager.set_parameter(f"width_left_{i}", float(width_left_interp[i]))
+			parameter_manager.set_parameter(f"width_right_{i}", float(width_right_interp[i]))
+
+			if self.three_dimensional_contouring:
+				parameter_manager.set_parameter(f"path_z_{i}", float(path_z_interp[i]))
+				parameter_manager.set_parameter(f"path_dz_{i}", float(path_dz[i]))
+
+			# Set velocity reference if using dynamic velocity
+			if self.dynamic_velocity_reference and hasattr(self.reference_path,
+														   'v') and self.reference_path.v is not None:
+				if hasattr(self.reference_path.v, '__call__'):  # It's a function/spline
+					s_val = i / self.num_segments if self.num_segments > 0 else 0
+					if hasattr(self.reference_path, 's') and self.reference_path.s is not None:
+						actual_s = np.interp(s_val, [0, 1], [self.reference_path.s[0], self.reference_path.s[-1]])
+						vel_val = self.reference_path.v(actual_s)
+					else:
+						vel_val = self.reference_path.v[min(i, len(self.reference_path.v) - 1)]
+				else:  # It's an array
+					vel_val = self.reference_path.v[min(i, len(self.reference_path.v) - 1)]
+
+				parameter_manager.set_parameter(f"path_vel_{i}", float(vel_val))
 
 	def get_lower_bound(self):
 		lower_bound = [-np.inf, -np.inf]
@@ -86,7 +261,6 @@ class ContouringConstraints(BaseConstraint):
 
 	def get_constraints(self, symbolic_state, params, stage_idx):
 		LOG_INFO(f"{self.name}::get_constraints")
-		constraints = []
 
 		pos_x = symbolic_state.get("x")
 		pos_y = symbolic_state.get("y")
@@ -94,12 +268,12 @@ class ContouringConstraints(BaseConstraint):
 		s = symbolic_state.get("spline") / self.reference_path.s[-1]
 
 		# Get path coordinates using the same method as ContouringObjective
-		path_x = self._evaluate_spline_casadi(s, "reference_path_x", params)
-		path_y = self._evaluate_spline_casadi(s, "reference_path_y", params)
+		path_x = self._evaluate_spline_casadi(s, "path_x", params)
+		path_y = self._evaluate_spline_casadi(s, "path_y", params)
 
 		# Get path derivatives using the same method as ContouringObjective
-		path_dx = self._evaluate_spline_casadi(s, "reference_path_dx", params)
-		path_dy = self._evaluate_spline_casadi(s, "reference_path_dy", params)
+		path_dx = self._evaluate_spline_casadi(s, "path_dx", params)
+		path_dy = self._evaluate_spline_casadi(s, "path_dy", params)
 
 		# Normalize the derivatives to get direction vector (same as ContouringObjective)
 		norm = cd.sqrt(path_dx ** 2 + path_dy ** 2)
@@ -115,7 +289,7 @@ class ContouringConstraints(BaseConstraint):
 		# Normal vector pointing left from path direction: (-path_dy_normalized, path_dx_normalized)
 		contour_error = path_dy_normalized * dx - path_dx_normalized * dy
 
-		# Evaluate width splines at current position
+		# Evaluate width splines at current position - NOW THESE WILL WORK!
 		width_right = self._evaluate_spline_casadi(s, "width_right", params)
 		width_left = self._evaluate_spline_casadi(s, "width_left", params)
 
@@ -141,25 +315,39 @@ class ContouringConstraints(BaseConstraint):
 		# Add constraints that ensure the vehicle stays within road boundaries
 		# Constraint 1: Right boundary (contour_error + w_cur <= width_right + slack)
 		# Rearranged: contour_error + w_cur - width_right - slack <= 0
-		constraints.append(contour_error + w_cur - width_right - slack)
+		c1 = contour_error + w_cur - width_right - slack
 
 		# Constraint 2: Left boundary (-contour_error + w_cur <= width_left + slack)
 		# Rearranged: -contour_error + w_cur - width_left - slack <= 0
-		constraints.append(-contour_error + w_cur - width_left - slack)
+		c2 = -contour_error + w_cur - width_left - slack
+
 
 		LOG_DEBUG(f"Contouring constraints - contour_error: {contour_error}, w_cur: {w_cur}")
 		LOG_DEBUG(f"Width constraints - left: {width_left}, right: {width_right}")
-		LOG_DEBUG(f"returning constraints: {constraints}")
-		return constraints
+		LOG_DEBUG(f"returning constraints: {[c1, c2]}")
+		return [c1, c2]
 
 	def _evaluate_spline_casadi(self, arc_progress, param_prefix, params):
 		"""
 		Evaluates a spline at the current arc length progress using CasADi.
-		Uses the same method as ContouringObjective for consistency.
+
+		Parameters:
+		-----------
+		arc_progress : CasADi symbolic expression
+			The normalized arc length parameter (0 to 1)
+		param_prefix : str
+			The prefix of the parameter name (e.g., "path_x", "path_y", "path_dx", "path_dy", "path_vel")
+		params : ParameterManager
+			The parameter manager containing the parameter values
+
+		Returns:
+		--------
+		CasADi symbolic expression
+			The interpolated value at the given arc length
 		"""
 		result = 0
 
-		# Construct linear interpolation between segment points in CasADi
+		# Construct cubic spline interpolation in CasADi
 		for i in range(self.num_segments):
 			# Get segment boundaries
 			t0 = i / self.num_segments
@@ -169,7 +357,9 @@ class ContouringConstraints(BaseConstraint):
 			p0 = params.get(f"{param_prefix}_{i}")
 			p1 = params.get(f"{param_prefix}_{i + 1}")
 
-			# Check if arc_progress is in this segment
+			# Linear interpolation within segment
+			# Use conditional expression to check if arc_progress is in this segment
+
 			if i == self.num_segments - 1:
 				in_segment = cd.logic_and(arc_progress >= t0, arc_progress <= t1)
 			else:
@@ -183,7 +373,7 @@ class ContouringConstraints(BaseConstraint):
 
 			# Add contribution only if in this segment
 			result = result + in_segment * segment_value
-
+		LOG_DEBUG(f"For arc progress {arc_progress}, param_prefix {param_prefix}, result is {result}")
 		return result
 
 	def is_data_ready(self, data):
@@ -197,53 +387,3 @@ class ContouringConstraints(BaseConstraint):
 	def visualize(self, data):
 		# Use the parent class method to check debug_visuals setting
 		super().visualize(data)
-
-		# Additional check for required data
-		if self.width_right_spline is None or self.width_left_spline is None or data.reference_path is None:
-			return
-
-	def precompute_parameter_values(self, parameter_manager):
-		"""
-		Precompute all parameters needed for the optimization
-		This should be called after splines are created but before optimization
-		"""
-		LOG_DEBUG("Precomputing parameter values")
-		if (self.reference_path is None or
-				self.reference_path.s is None or
-				self.reference_path.x is None or
-				self.reference_path.y is None):
-			LOG_DEBUG("No reference path given")
-			return
-		if (self.width_left_spline is None or
-				self.width_right_spline is None):
-			LOG_DEBUG("Cannot precompute parameters: missing width data")
-			return
-
-		# Calculate normalized arc length points for the segments
-		s_values = np.linspace(0, 1, self.num_segments + 1)
-
-		# Map normalized values to actual arc length values
-		actual_s = self.reference_path.s[0] + s_values * (self.reference_path.s[-1] - self.reference_path.s[0])
-
-		# Evaluate reference path at segment points
-		reference_path_x_spline = CubicSpline(self.reference_path.s, self.reference_path.x)
-		reference_path_y_spline = CubicSpline(self.reference_path.s, self.reference_path.y)
-
-		ref_x_values = reference_path_x_spline(actual_s)
-		ref_y_values = reference_path_y_spline(actual_s)
-
-		# Calculate derivatives using finite differences (same as ContouringObjective)
-		ref_dx_values = np.gradient(ref_x_values)
-		ref_dy_values = np.gradient(ref_y_values)
-
-		width_left_values = self.width_left_spline(actual_s)
-		width_right_values = self.width_right_spline(actual_s)
-
-		# Set all parameters
-		for i, s_val in enumerate(s_values):
-			parameter_manager.set_parameter(f"reference_path_x_{i}", float(ref_x_values[i]))
-			parameter_manager.set_parameter(f"reference_path_y_{i}", float(ref_y_values[i]))
-			parameter_manager.set_parameter(f"reference_path_dx_{i}", float(ref_dx_values[i]))
-			parameter_manager.set_parameter(f"reference_path_dy_{i}", float(ref_dy_values[i]))
-			parameter_manager.set_parameter(f"width_left_{i}", float(width_left_values[i]))
-			parameter_manager.set_parameter(f"width_right_{i}", float(width_right_values[i]))

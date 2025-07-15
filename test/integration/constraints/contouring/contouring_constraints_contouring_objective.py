@@ -1,11 +1,9 @@
-from venv import logger
-
+import casadi as ca
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import Affine2D
 from scipy.interpolate import CubicSpline
-import casadi as ca
 
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
@@ -13,12 +11,13 @@ from planner_modules.src.objectives.goal_objective import GoalObjective
 from planning.src.data_prep import define_robot_area
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel, numeric_rk4
 from planning.src.planner import Planner
-from planning.src.types import Data, Bound, ReferencePath, generate_reference_path, calculate_path_normals, State
+from planning.src.types import Data, Bound, generate_reference_path, calculate_path_normals, State
 from solver.src.casadi_solver import CasADiSolver
-from utils.utils import CONFIG, LOG_DEBUG, LOG_INFO, LOG_WARN
+from utils.utils import LOG_DEBUG
 
-def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(5.0, 5.0), max_iterations=200):
 
+def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(20.0, 20.0),
+		max_iterations=200):
 	dt = dt
 	horizon = horizon
 
@@ -31,8 +30,8 @@ def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 	# Create the planner
 	planner = Planner(casadi_solver, vehicle)
 
-	goal_objective = GoalObjective(casadi_solver)
-	casadi_solver.module_manager.add_module(goal_objective)
+	contouring_objective = ContouringObjective(casadi_solver)
+	casadi_solver.module_manager.add_module(contouring_objective)
 	contouring_constraints = ContouringConstraints(casadi_solver)
 	casadi_solver.module_manager.add_module(contouring_constraints)
 
@@ -42,14 +41,14 @@ def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 	data.goal_received = True
 	data.planning_start_time = 0.0
 
-	reference_path = generate_reference_path(data.start, data.goal, path_type="straight")
+	reference_path = generate_reference_path(data.start, data.goal, path_type="curved")
 	# Store path
 	data.reference_path = reference_path
 
 	normals = calculate_path_normals(data.reference_path)
 
 	# Road width (adjust based on your actual data structure)
-	road_width = data.road_width if data.road_width is not None else 4.0
+	road_width = data.road_width if hasattr(data, 'road_width') and data.road_width is not None else 8.0
 	half_width = road_width / 2
 	quarter_width = half_width / 2
 
@@ -89,23 +88,20 @@ def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 	data.right_spline_y = right_boundary_spline_y
 
 	# Add boundaries to data
-	# Create Bound objects from earlier calculated values
-
 	data.left_bound = Bound(left_x, left_y, data.reference_path.s)
 	data.right_bound = Bound(right_x, right_y, data.reference_path.s)
 
 	data.robot_area = define_robot_area(vehicle.length, vehicle.width, 1)
-	# LOG_DEBUG(f"Robot area set to {data.robot_area[0].radius}")
 
 	# Add solver timeout parameter
-	casadi_solver.parameter_manager.add("solver_timeout", 10.0)  # Increased timeout
+	casadi_solver.parameter_manager.add("solver_timeout", 10.0)
 
 	# Create initial state - make sure to match the model's state variables
 	state = State(model())
-	state.set("x", 0.0)
-	state.set("y", 0.0)
+	state.set("x", start[0])
+	state.set("y", start[1])
 	state.set("psi", 0.1)
-	state.set("v", 0.1)
+	state.set("v", 0.0)
 	state.set("spline", 0.0)
 	state.set("a", 0.0)
 	state.set("w", 0.0)
@@ -115,11 +111,11 @@ def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 	planner.initialize(data)
 
 	success_flags = []
-
 	control_inputs = []
+	states_x, states_y = [start[0]], [start[1]]  # Initialize with start position
 
 	iter = 0
-	for i in range(max_iterations + 1):
+	for i in range(max_iterations):
 		iter += 1
 		data.planning_start_time = i * dt
 
@@ -128,27 +124,33 @@ def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 		success_flags.append(output.success)
 
 		if output.success:
+			# Get control inputs
 			next_a = output.trajectory_history[-1].get_states()[1].get("a")
 			next_w = output.trajectory_history[-1].get_states()[1].get("w")
 
-			z_k = [next_a, next_w, planner.get_state().get("x"), planner.get_state().get("y"),
-				   planner.get_state().get("psi"), planner.get_state().get("v"), planner.get_state().get("spline")]
+			# Current state vector
+			current_state = planner.get_state()
+			z_k = [next_a, next_w, current_state.get("x"), current_state.get("y"),
+				   current_state.get("psi"), current_state.get("v"), current_state.get("spline")]
 
 			# Convert to CasADi vector
 			z_k = ca.vertcat(*z_k)
 			vehicle.load(z_k)
 
+			# Compute next state
 			next_state_symbolic = vehicle.discrete_dynamics(z_k, casadi_solver.parameter_manager,
 															casadi_solver.timestep)
 			next_state = numeric_rk4(next_state_symbolic, vehicle, casadi_solver.parameter_manager,
 									 casadi_solver.timestep)
 
-			next_x = next_state[0]
-			next_y = next_state[1]
-			next_psi = next_state[2]
-			next_v = next_state[3]
-			next_spline = next_state[4]
+			# Extract next state values
+			next_x = float(next_state[0])
+			next_y = float(next_state[1])
+			next_psi = float(next_state[2])
+			next_v = float(next_state[3])
+			next_spline = float(next_state[4])
 
+			# Update planner state
 			new_state = planner.get_state().copy()
 			new_state.set("x", next_x)
 			new_state.set("y", next_y)
@@ -162,27 +164,29 @@ def run(dt=0.1, horizon=3, model=ContouringSecondOrderUnicycleModel, start=(0.0,
 			output.realized_trajectory.add_state(new_state)
 			planner.set_state(new_state)
 
-			LOG_DEBUG(f"Next state: {planner.get_state()}")
+			LOG_DEBUG(f"Iteration {i}: Position ({next_x:.2f}, {next_y:.2f}), Heading: {next_psi:.2f}")
 			control_inputs.append((next_a, next_w))
-			casadi_solver.reset()
 
+			# Check if objective is reached
 			if planner.is_objective_reached(data):
-				LOG_DEBUG("Objective reached so ending.")
+				print(f"Objective reached at iteration {i}!")
 				break
 
-	else:
+		else:
 			LOG_DEBUG(f"Iteration {i}: MPC failed!")
 			if hasattr(casadi_solver, 'info') and 'error' in casadi_solver.info:
 				LOG_DEBUG(f"Error: {casadi_solver.info['error']}")
-			# Print more debug info when solver fails
 			casadi_solver.print_if_bound_limited()
 			LOG_DEBUG(casadi_solver.explain_exit_flag())
-			casadi_solver.reset()
+
+		# Reset solver for next iteration
+		casadi_solver.reset()
 
 	LOG_DEBUG("Control input history: " + str(control_inputs))
 	LOG_DEBUG("Forecasts: " + str(planner.solver.get_forecasts()))
-	# Print statistics
+
 	return data, planner.output.realized_trajectory, planner.solver.get_forecasts(), success_flags
+
 
 def plot_vehicle(x, y, psi, length, width, ax, color='blue', alpha=0.7):
 	# Center vehicle on (x, y)
@@ -201,7 +205,7 @@ def plot_vehicle(x, y, psi, length, width, ax, color='blue', alpha=0.7):
 	ax.add_patch(vehicle_patch)
 
 
-def plot_trajectory(data, realized_trajectory, trajectory_history,  success_flags):
+def plot_trajectory(data, realized_trajectory, trajectory_history, success_flags):
 	plt.figure(figsize=(12, 8))
 
 	states_x = [float(s.get("x")) for s in realized_trajectory.get_states()]
@@ -217,28 +221,30 @@ def plot_trajectory(data, realized_trajectory, trajectory_history,  success_flag
 		all_trajectories_y.append(traj_y)
 
 	LOG_DEBUG("Trajectories x: " + str(all_trajectories_x))
+
 	# Plot the goal and start points
 	plt.plot(data.goal[0], data.goal[1], 'r*', markersize=12, label='Goal')
-	plt.plot(0, 0, 'go', markersize=8, label='Start')
+	plt.plot(data.start[0], data.start[1], 'go', markersize=8, label='Start')
 	goal_circle = plt.Circle(data.goal, 1, color='r', fill=False, linestyle='--', label='Goal region')
 	plt.gca().add_patch(goal_circle)
 
+	# Plot direction arrows
 	for i in range(1, len(states_x), 5):
 		dx = states_x[i] - states_x[i - 1]
 		dy = states_y[i] - states_y[i - 1]
 		plt.arrow(states_x[i - 1], states_y[i - 1], dx, dy, head_width=0.1, color='blue', alpha=0.5)
-	# Plot the actual vehicle
-	plt.plot(states_x, states_y, 'b-', linewidth=2, markersize=data.robot_area[0].radius,label ='Vehicle trajectory')
+
+	# Plot the actual vehicle trajectory
+	plt.plot(states_x, states_y, 'b-', linewidth=2, label='Vehicle trajectory')
 
 	# Plot all predicted trajectories (MPC horizon predictions at each step)
 	for i, (traj_x, traj_y) in enumerate(zip(all_trajectories_x, all_trajectories_y)):
 		if i % 5 == 0:  # Plot every 5th trajectory to avoid cluttering
-			# Use a very faint line for earlier trajectories
-			alpha = 0.5
-			plt.plot(traj_x, traj_y, 'g--', alpha=alpha, linewidth=2)
+			alpha = 0.3
+			plt.plot(traj_x, traj_y, 'g--', alpha=alpha, linewidth=1)
 
 	# Show vehicle shapes at intervals
-	vehicle_length = data.robot_area[0].radius * 2  # Substitute with vehicle.length if available
+	vehicle_length = data.robot_area[0].radius * 2
 	vehicle_width = data.robot_area[0].radius * 2
 
 	for i in range(0, len(states_x), 10):
@@ -253,30 +259,29 @@ def plot_trajectory(data, realized_trajectory, trajectory_history,  success_flag
 
 	plt.xlabel('X position [m]')
 	plt.ylabel('Y position [m]')
-	plt.title('MPC Contouring Objective Test with Trajectory Predictions')
+	plt.title('MPC Contouring Objective Test with Contouring Constraints')
 	plt.legend()
 	plt.grid(True)
 	plt.axis('equal')
 
 	# Add info text
 	iterations = len(states_x) - 1
-	success_rate = sum(success_flags) / len(success_flags) * 100
-	info_text = f"Iterations: {iterations}\nSuccess rate: {success_rate:.1f}%\nFinal pos: ({states_x[-1]:.2f}, {states_y[-1]:.2f})"
+	success_rate = sum(success_flags) / len(success_flags) * 100 if success_flags else 0
+	final_x = states_x[-1] if states_x else 0
+	final_y = states_y[-1] if states_y else 0
+	info_text = f"Iterations: {iterations}\nSuccess rate: {success_rate:.1f}%\nFinal pos: ({final_x:.2f}, {final_y:.2f})"
 	plt.figtext(0.02, 0.02, info_text, fontsize=10, bbox=dict(facecolor='white', alpha=0.5))
 
 	plt.tight_layout()
-	plt.show()
+	plt.show(block=False)
+
 
 def test():
-
 	import logging
 
 	# Configuring the logger
 	logger = logging.getLogger("root")
 	logger.setLevel(logging.DEBUG)
 
-
 	data, realized_trajectory, trajectory_history, success_flags = run()
-
-
 	plot_trajectory(data, realized_trajectory, trajectory_history, success_flags)

@@ -321,13 +321,20 @@ class ContouringObjective(BaseObjective):
 			self.reference_path.v_spline = CubicSpline(self.reference_path.s, data.reference_path.v)
 
 		# Process road bounds if available
-		# TODO: This will need to be expanded to allow for 3D if a 3D path is defined (reqs two more splines for upper and lower bounds)
-		if self.add_road_constraints and data.left_bound is not None and data.right_bound is not None:
+		if data.left_bound is not None and data.right_bound is not None:
 			LOG_DEBUG("Processing provided left and right bounds for Contouring Objective")
 			self.bound_left_spline = CubicSpline(self.reference_path.s,
 												 np.column_stack((data.left_bound.x, data.left_bound.y)))
 			self.bound_right_spline = CubicSpline(self.reference_path.s,
 												  np.column_stack((data.right_bound.x, data.right_bound.y)))
+		if self.three_dimensional_contouring:
+			if data.upper_bound is not None and data.lower_bound is not None:
+				LOG_DEBUG("Processing provided lower and upper bounds for Contouring Objective")
+				self.bound_lower_spline = CubicSpline(self.reference_path.s,
+													  np.column_stack((data.lower_bound.x, data.lower_bound.y)))
+				self.bound_upper_spline = CubicSpline(self.reference_path.s,
+													  np.column_stack((data.upper_bound.x, data.upper_bound.y)))
+
 
 	def _find_closest_point(self, position, reference_path: ReferencePath):
 		"""Find the closest point on the path to the given position"""

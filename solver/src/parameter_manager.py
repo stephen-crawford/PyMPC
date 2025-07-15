@@ -1,6 +1,6 @@
 import numpy as np
 import casadi as cd
-from utils.utils import print_header, print_value, parameter_map_path, write_to_yaml, LOG_INFO
+from utils.utils import print_header, print_value, parameter_map_path, write_to_yaml, LOG_INFO, LOG_DEBUG
 
 
 class ParameterManager:
@@ -33,12 +33,10 @@ class ParameterManager:
             self.rqt_parameter_config_names.append(rqt_config_name)
             self.rqt_parameter_min_values.append(rqt_min_value)
             self.rqt_parameter_max_values.append(rqt_max_value)
-        print("adding parameter", parameter)
 
     def load(self, p):
         """Load a flat vector of parameter values."""
         p = np.array(p, dtype=float).flatten()
-        print("Parameters are " + str(p))
         if p.shape[0] != self.parameter_count:
             raise ValueError(f"Expected {self.parameter_count} parameters, got {p.shape[0]}")
         self.parameter_values = p
@@ -48,7 +46,7 @@ class ParameterManager:
         if self.parameter_values is None:
             self.parameter_values = []
         if key not in self.parameter_lookup:
-            print("Parameter manager set parameter failing because key missing")
+            LOG_DEBUG("Parameter manager set parameter failing because key missing")
             raise KeyError(f"Parameter '{key}' not found.")
 
         start, length = self.parameter_lookup[key]
@@ -67,16 +65,14 @@ class ParameterManager:
 
     def get(self, key):
         """Retrieve a parameter value (scalar or vector)."""
-        LOG_INFO(f"Trying to get parameter '{key}'")
         if self.parameter_values is None:
             raise RuntimeError("Parameters not loaded.")
         if key not in self.parameter_lookup:
-            print("Parameter manager get key failing because key missing")
+            LOG_DEBUG("Parameter manager get key failing because key missing")
             raise KeyError(f"Parameter '{key}' not found.")
         start, length = self.parameter_lookup[key]
-        LOG_INFO(f"For parameter {key}, start is {start}, length is {length}")
         val = self.parameter_values[start:start + length]
-        LOG_INFO(f"For parameter {key}, val is {val}")
+
         return val[0] if length == 1 else val
 
     def get_all(self):
@@ -95,7 +91,7 @@ class ParameterManager:
             if self.has_parameter(key):
                 self.set_parameter(key, value)
             else:
-                print(f"Warning: Parameter '{key}' not found, skipping.")
+                LOG_DEBUG(f"Parameter '{key}' not found, skipping update.")
 
     def has_parameter(self, key):
         return key in self.parameter_lookup

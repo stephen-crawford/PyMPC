@@ -132,7 +132,7 @@ class DynamicsModel:
 
     def discrete_dynamics(self, z, p, timestep, **kwargs):
         try:
-            LOG_INFO(f"Getting discrete dynamics for {z}, {p}")
+            # LOG_INFO(f"Getting discrete dynamics for {z}, {p}")
             # Load the z vector
             self.load(z)
 
