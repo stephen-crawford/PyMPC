@@ -70,7 +70,10 @@ class CasADiSolver(BaseSolver):
             'ipopt.tol': 1e-4,
             'ipopt.mu_strategy': 'adaptive',
             'ipopt.hessian_approximation': 'limited-memory',
-            'ipopt.warm_start_init_point': 'yes'
+            'ipopt.warm_start_init_point': 'yes',
+            'ipopt.mu_init': 1e-1,  # Barrier parameter
+            'ipopt.bound_push': 1e-8,  # Keep variables away from bounds
+            'ipopt.bound_frac': 1e-8,  # Fraction of bound violation allowed
         }
         self.opti.solver('ipopt', opts)
 
@@ -110,10 +113,8 @@ class CasADiSolver(BaseSolver):
 
             if var_name == 'v':
                 for k in range(self.horizon + 1):
-                    # Integrate velocity: v_k = v_0 + a * k * dt
-                    v_k = current_value
-                    #v_k = max(0.0, current_value + DEFAULT_BRAKING * k * self.timestep)
-                    #v_k = max(0.0, current_value + state.get('a') * k * self.timestep)
+
+                    v_k = max(0.0, current_value + DEFAULT_BRAKING * k * self.timestep)
                     self.warmstart_values[var_name][k] = v_k
             elif var_name == 'psi':
                 for k in range(self.horizon + 1):
@@ -332,16 +333,33 @@ class CasADiSolver(BaseSolver):
                     for (c, lb, ub) in constraints:
                         self.opti.subject_to(self.opti.bounded(lb, c, ub))
             # Set the problem objective
-            LOG_WARN(f"Total number of objectives is {self.opti.g.numel()}")
+
+                penalty_terms = self.get_penalty_terms(stage_idx)
+                for penalty in penalty_terms:
+                    total_objective += penalty
+
             self.opti.minimize(total_objective) #minimizes the accumulated cost over all stages
 
             try:
                 sol = self.opti.solve()
 
             except RuntimeError as e:
+                stats = self.opti.stats()
+                LOG_WARN(f"Solver status: {stats.get('return_status', 'unknown')}")
+                LOG_WARN(f"Solver message: {stats.get('iterations', {})}")
+                LOG_WARN(f"Number of iterations: {stats.get('iter_count', 'N/A')}")
+                LOG_WARN(f"Infeasibilities: {stats.get('infeasibilities', 'N/A')}")
+                LOG_WARN(f"CPU time: {stats.get('t_proc_total', 'N/A')}")
 
                 LOG_WARN(f"[ERROR] CasADi solver failed at iteration: {self.opti.stats()['iter_count']} ")
                 LOG_WARN("[ERROR] Exception:" + str(e))
+                g_vals = self.opti.debug.value(self.opti.g)
+                lbg_vals = self.opti.debug.value(self.opti.lbg)
+                ubg_vals = self.opti.debug.value(self.opti.ubg)
+
+                for i, (g, l, u) in enumerate(zip(g_vals, lbg_vals, ubg_vals)):
+                    if g < l - 1e-6 or g > u + 1e-6:
+                        print(f"[VIOLATION] Constraint[{i}] = {g:.6f}, bounds: [{l}, {u}]")
 
                 # LOG_DEBUG all decision variable values at failure
                 for i in range(self.opti.nx):
@@ -363,6 +381,16 @@ class CasADiSolver(BaseSolver):
 
             # Store solution
             self.solution = sol
+            if self.solution:
+                for var_name, var in self.var_dict.items():
+                    values = self.solution.value(var)
+                    lb, ub, _ = self.dynamics_model.get_bounds(var_name)
+
+                    for i, val in enumerate(values):
+                        if abs(val - lb) < 1e-4:
+                            LOG_WARN(f"{var_name}[{i}] at lower bound: {val}")
+                        elif abs(val - ub) < 1e-4:
+                            LOG_WARN(f"{var_name}[{i}] at upper bound: {val}")
             self.exit_flag = 1
             self.info["status"] = "success"
             LOG_DEBUG("CasADi solver solved successfully")
@@ -376,7 +404,6 @@ class CasADiSolver(BaseSolver):
                         LOG_INFO(f"=== Stage {k} Costs for Module {mod_name} ===")
                         dic = cost_comps_by_stage[k][i]
                         for name, expr in dic.items():
-                            #LOG_INFO(f"{name}: {expr}")
                             # Substitute optimized variable values into exprf
                             try:
                                 # Create CasADi function for evaluation

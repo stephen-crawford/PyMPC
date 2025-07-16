@@ -7,7 +7,8 @@ contouring:
   adaptive_contour_weight: true
   goal_reaching_contouring: true
   three_dimensional_contouring: false
-  slack: 0
+  slack: 1
+  penalty_weight: 0
 control_frequency: 20
 debug_limits: true
 debug_output: false
@@ -55,7 +56,7 @@ weights:
   acceleration_x: 1
   acceleration_y: 1
   angular_velocity: 0.5
-  goal_weight: 100
+  goal_weight: 10
   goal_angle_weight: 10
   goal_control_weight: 1
   goal_terminal_weight: 10
@@ -67,7 +68,7 @@ weights:
   slack: 1.0
   velocity: 0.3
   contour_weight: 20.0
-  contouring_lag_weight: 20
+  contouring_lag_weight: 0
   contouring_goal_weight: 100
   spline_progression_weight: 0.0
   spline_velocity_weight: 0.0

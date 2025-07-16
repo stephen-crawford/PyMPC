@@ -297,11 +297,16 @@ class ContouringObjective(BaseObjective):
 
 			velocity_cost = velocity_weight * (v - reference_velocity) ** 2
 
+		terminal_cost = 0
+		if self.goal_reaching_contouring and stage_idx == self.solver.horizon - 1:
+			terminal_cost = 1000 * (contour_error + lag_error) ** 2
+
 		return {
 			"contouring_lag_cost": lag_cost,
 			"contouring_contour_cost": contour_cost,
 			"contouring_velocity_cost": velocity_cost,
-			"contouring_goal_cost": goal_cost
+			"contouring_goal_cost": goal_cost,
+			"contouring_terminal_cost": terminal_cost
 		}
 
 	def on_data_received(self, data, data_name):
@@ -405,12 +410,12 @@ class ContouringObjective(BaseObjective):
 		"""Construct road constraints based on centerline and width"""
 		# If bounds are not supplied construct road constraints based on a set width
 
-		data.set("static_obstacles", [None] * self.solver.horizon)
+		data.set("static_obstacles", [None] * self.solver.horizon + 1)
 
 		# Get road width
 		road_width_half = self.get_config_value("road.width") / 2.0
 
-		for k in range(self.solver.horizon):
+		for k in range(self.solver.horizon + 1):
 			data.static_obstacles[k] = StaticObstacle()
 
 			# Get predicted spline parameter for this timestep
@@ -463,7 +468,7 @@ class ContouringObjective(BaseObjective):
 	def construct_road_constraints_from_bounds(self, data):
 		"""Construct road constraints using actual road bounds"""
 		if data.static_obstacles is None:
-			data.set("static_obstacles", [None] * self.solver.horizon)
+			data.set("static_obstacles", [None] * (self.solver.horizon + 1))
 
 		LOG_DEBUG("Forecasting road from bounds")
 
@@ -474,7 +479,7 @@ class ContouringObjective(BaseObjective):
 		vehicle_velocity = self.solver.get_initial_state().get("v")  # Default to 1.0 if not available
 		dt = self.solver.dt if hasattr(self.solver, 'dt') else 0.1  # Time step
 
-		for k in range(self.solver.horizon):
+		for k in range(self.solver.horizon + 1):
 			# Create a static obstacle for this time step
 			data.static_obstacles[k] = StaticObstacle()
 

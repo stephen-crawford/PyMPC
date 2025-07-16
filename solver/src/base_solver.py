@@ -77,6 +77,14 @@ class BaseSolver(ABC):
                     constraints.append((c, l_bound[i], u_bound[i]))  # tuple of (constraint, lb, ub)
         return constraints
 
+    def get_penalty_terms(self, stage_idx):
+        penalties = []
+        for module in self.module_manager.modules:
+            if module.module_type == CONSTRAINT:
+                penalty = module.get_penalty(self.dynamics_model, self.parameter_manager, stage_idx)
+
+                penalties.append(penalty)  # tuple of (constraint, lb, ub)
+        return penalties
 
     def get_constraint_upper_bounds_list(self):
         ub = []

@@ -16,3 +16,8 @@ class BaseConstraint(Module):
 			self.config = settings
 		LOG_DEBUG(f"Initializing {self.name.title()} Constraints")
 
+	def define_parameters(self, params):
+		pass
+
+	def get_penalty(self, symbolic_state, params, stage_idx):
+		return []
