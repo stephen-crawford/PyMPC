@@ -1,11 +1,14 @@
 import os
+import random
 from enum import Enum
 
 import numpy as np
 from matplotlib import pyplot as plt
 from scipy.interpolate import CubicSpline
+from typing import List, Optional
 
 from planning.src.dynamic_models import DynamicsModel
+from utils.const import DETERMINISTIC, GAUSSIAN
 from utils.math_utils import Halfspace
 from utils.utils import LOG_DEBUG, LOG_WARN
 
@@ -207,7 +210,102 @@ class DynamicObstacle:
         self.angle = angle
         self.radius = radius
         self.type = _type
+        self.s = 0.0
         self.prediction = Prediction()
+
+
+def generate_dynamic_obstacles(
+    number: int,
+    prediction_type: str,
+    size: float,
+    distribution: str = "random_paths",
+    area: tuple = ((0, 20), (0, 20), (0, 0)),  # x, y, z ranges
+    path_types=("straight", "curved", "s-turn", "circle"),
+    num_points=11,
+    dim: int = 2
+) -> List[DynamicObstacle]:
+    """
+    Generate multiple dynamic obstacles, optionally in 3D, each with its own independent path.
+
+    Args:
+        number: Number of obstacles.
+        prediction_type: Behavior of prediction, DETERMINISTIC, GAUSSIAN, NONGAUSSIAN
+        size: Radius of each obstacle.
+        distribution: 'random_paths' or 'grid'.
+        area: ((xmin,xmax), (ymin,ymax), (zmin,zmax)) for randomization.
+        path_types: Allowed path types (randomly chosen per obstacle).
+        num_points: Points per reference path.
+        dim: 2 or 3 (controls whether paths and positions include z).
+
+    Returns:
+        List[DynamicObstacle]
+    """
+    obstacles = []
+
+    for i in range(number):
+        # Generate start and goal positions
+        if distribution == "random_paths":
+            start = [
+                np.random.uniform(area[0][0], area[0][1]),
+                np.random.uniform(area[1][0], area[1][1]),
+            ]
+            goal = [
+                np.random.uniform(area[0][0], area[0][1]),
+                np.random.uniform(area[1][0], area[1][1]),
+            ]
+            if dim == 3:
+                start.append(np.random.uniform(area[2][0], area[2][1]))
+                goal.append(np.random.uniform(area[2][0], area[2][1]))
+            else:
+                start.append(0.0)
+                goal.append(0.0)
+
+        elif distribution == "grid":
+            # Simple grid for 2D or 3D
+            grid_size = int(np.ceil(np.sqrt(number)))
+            row, col = divmod(i, grid_size)
+            step_x = (area[0][1] - area[0][0]) / grid_size
+            step_y = (area[1][1] - area[1][0]) / grid_size
+            start = [area[0][0] + col * step_x, area[1][0] + row * step_y]
+            goal = [
+                np.random.uniform(area[0][0], area[0][1]),
+                np.random.uniform(area[1][0], area[1][1]),
+            ]
+            if dim == 3:
+                start.append(np.random.uniform(area[2][0], area[2][1]))
+                goal.append(np.random.uniform(area[2][0], area[2][1]))
+            else:
+                start.append(0.0)
+                goal.append(0.0)
+        else:
+            raise ValueError(f"Unknown distribution: {distribution}")
+
+        # Generate unique path for this obstacle
+        path_type = np.random.choice(path_types)
+        ref_path = generate_reference_path(start, goal, path_type, num_points=num_points)
+
+        # Initial position (3D if dim == 3)
+        pos = np.array([ref_path.x[0], ref_path.y[0], ref_path.z[0]]) if dim == 3 else np.array([ref_path.x[0], ref_path.y[0]])
+        # Compute heading angle in XY plane
+        angle = np.arctan2(ref_path.y[1] - ref_path.y[0], ref_path.x[1] - ref_path.x[0])
+
+        # Create obstacle
+        obst = DynamicObstacle(index=i, position=pos, angle=angle, radius=size)
+
+        # Prediction behavior
+        if prediction_type == DETERMINISTIC:
+            obst.prediction.path = ref_path
+            obst.prediction.type = PredictionType.DETERMINISTIC
+            obst.prediction.modes = [PredictionType.DETERMINISTIC]
+        elif prediction_type == GAUSSIAN:
+            obst.prediction.path = ref_path
+            obst.prediction.type = PredictionType.GAUSSIAN
+            obst.prediction.modes = [PredictionType.GAUSSIAN]
+
+        obstacles.append(obst)
+
+    return obstacles
+
 
 class ReferencePath:
     def __init__(self):
@@ -288,32 +386,22 @@ def generate_reference_path(start, goal, path_type="curved", num_points=11) -> R
         z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
 
     elif path_type == "curved":
-        mid = 0.5 * (start[:2] + goal[:2]) + np.array([0.0, goal[1]])
-        x_spline = CubicSpline([0, 0.5, 1.0], [start[0], mid[0], goal[0]])
-        y_spline = CubicSpline([0, 0.5, 1.0], [start[1], mid[1], goal[1]])
+        start_np = np.array(start[:2])
+        goal_np = np.array(goal[:2])
+        mid = 0.5 * (start_np + goal_np) + np.array([0.0, goal_np[1]])
+        x_spline = CubicSpline([0, 0.5, 1.0], [start_np[0], mid[0], goal_np[0]])
+        y_spline = CubicSpline([0, 0.5, 1.0], [start_np[1], mid[1], goal_np[1]])
         x = x_spline(t)
         y = y_spline(t)
         z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111)
-        # ax.plot(x, y, label='Curved 2D Path')
-        # ax.scatter(*start[:3], color='green', label='Start')
-        # ax.scatter(*goal[:3], color='red', label='Goal')
-        # ax.legend()
-        # plt.show()
+
 
     elif path_type == "s-turn":
         x = np.linspace(start[0], goal[0], num_points)
         amplitude = 2.0
         y = np.linspace(start[1], goal[1], num_points) + amplitude * np.sin(2 * np.pi * t)
         z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(x, y, label='2D Path')
-        ax.scatter(*start[:3], color='green', label='Start')
-        ax.scatter(*goal[:3], color='red', label='Goal')
-        ax.legend()
-        plt.show()
+
 
     elif path_type == "circle":
         radius = 5.0
@@ -321,13 +409,6 @@ def generate_reference_path(start, goal, path_type="curved", num_points=11) -> R
         x = start[0] + radius * np.cos(theta)
         y = start[1] + radius * np.sin(theta)
         z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        ax.plot(x, y, label='2D Path')
-        ax.scatter(*start[:3], color='green', label='Start')
-        ax.scatter(*goal[:3], color='red', label='Goal')
-        ax.legend()
-        plt.show()
 
     else:
         raise ValueError(f"Unknown path type: {path_type}")
@@ -586,6 +667,68 @@ class Bound:
         self.x = x
         self.y = y
         self.s = s
+
+
+def generate_static_obstacles(
+    number: int,
+    size: float,
+    reference_path: Optional[ReferencePath] = None,
+    area: tuple = ((0, 20), (0, 20), (0, 0)),  # (x_range, y_range, z_range)
+    lateral_offset_range=(-2.0, 2.0),
+    along_path_ratio=1.0
+) -> List[StaticObstacle]:
+    """
+    Generate static obstacles either randomly or along a provided reference path.
+
+    Args:
+        number: Number of obstacles to generate.
+        size: Radius of each obstacle.
+        reference_path: If provided, obstacles will be placed near this path.
+        area: ((xmin,xmax), (ymin,ymax), (zmin,zmax)) for randomization.
+        lateral_offset_range: Range for lateral deviation from the path.
+        along_path_ratio: Fraction of obstacles to place along the path (0.0 - 1.0).
+
+    Returns:
+        List[StaticObstacle]
+    """
+    obstacles = []
+
+    for i in range(number):
+        if reference_path and np.random.rand() < along_path_ratio:
+            # Place obstacle near reference path
+            s_offset = np.random.uniform(0, reference_path.s[-1])  # choose random point along path
+            x_center = reference_path.x_spline(s_offset)
+            y_center = reference_path.y_spline(s_offset)
+
+            # Compute tangent and normal for lateral offset
+            ds = 0.1
+            s_next = min(s_offset + ds, reference_path.s[-1])
+            dx = reference_path.x_spline(s_next) - x_center
+            dy = reference_path.y_spline(s_next) - y_center
+            tangent = np.array([dx, dy]) / (np.linalg.norm([dx, dy]) + 1e-6)
+            normal = np.array([-tangent[1], tangent[0]])
+
+            lateral_offset = np.random.uniform(*lateral_offset_range)
+            position = np.array([
+                x_center + lateral_offset * normal[0],
+                y_center + lateral_offset * normal[1],
+                0.0  # z fixed to 0 for 2D case
+            ])
+        else:
+            # Place randomly in the given area
+            x = np.random.uniform(area[0][0], area[0][1])
+            y = np.random.uniform(area[1][0], area[1][1])
+            z = np.random.uniform(area[2][0], area[2][1])
+            position = np.array([x, y, z])
+
+        # Orientation for static obstacles can be random or zero
+        angle = np.random.uniform(-np.pi, np.pi)
+
+        # Create the obstacle
+        obst = StaticObstacle(position=position, angle=angle, radius=size)
+        obstacles.append(obst)
+
+    return obstacles
 
 class Trajectory:
     def __init__(self, timestep: float = 0.1, length: int = 30): # defaults match timestep and horizon for solver

@@ -80,11 +80,9 @@ class ContouringConstraints(BaseConstraint):
 	def define_parameters(self, params):
 		LOG_DEBUG(f"{self.name.title()}::define_parameters")
 
-		# Add segment start parameters
-		for i in range(self.num_segments):
-			params.add(f"path_{i}_start")
 
 		for i in range(self.num_segments):
+			params.add(f"path_{i}_start")
 			# Path coordinates polynomial coefficients
 			params.add(f"path_x_{i}_a")
 			params.add(f"path_x_{i}_b")

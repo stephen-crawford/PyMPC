@@ -1,6 +1,7 @@
 from solver.src.modules_manager import Module
 from utils.const import CONSTRAINT
 from utils.utils import read_config_file, LOG_DEBUG
+import casadi as cd
 
 
 class BaseConstraint(Module):
@@ -20,4 +21,4 @@ class BaseConstraint(Module):
 		pass
 
 	def get_penalty(self, symbolic_state, params, stage_idx):
-		return []
+		return cd.MX(0)

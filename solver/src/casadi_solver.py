@@ -316,7 +316,7 @@ class CasADiSolver(BaseSolver):
                 LOG_DEBUG("Objective cost: " + str(objective_costs))
                 cost_comps_by_stage.append(objective_costs)
 
-                objective_value = 0
+                objective_value = cs.MX(0)
                 for dic in objective_costs:
                     for item in dic.items():
                         objective_value += item[1]
@@ -331,8 +331,8 @@ class CasADiSolver(BaseSolver):
                 constraints = self.get_constraints(stage_idx)
                 if constraints is not None:
                     for (c, lb, ub) in constraints:
+                        LOG_DEBUG("Adding constraint: " + str(c))
                         self.opti.subject_to(self.opti.bounded(lb, c, ub))
-            # Set the problem objective
 
                 penalty_terms = self.get_penalty_terms(stage_idx)
                 for penalty in penalty_terms:
@@ -486,7 +486,8 @@ class CasADiSolver(BaseSolver):
         LOG_DEBUG("Extracting trajectory from solution")
 
         if self.solution is None:
-            LOG_WARN("No solution found. Cannot extract reference trajectory.")
+            LOG_WARN("No solution found. Cannot extract reference trajectory so generating one from warmstart.")
+            traj = self._create_trajectory_from_warmstart()
             return traj
 
         for k in range(self.horizon + 1):

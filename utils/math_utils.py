@@ -4,6 +4,7 @@ from typing import List
 
 import casadi as cd
 import numpy as np
+from scipy.stats import chi2
 
 
 ###### General math utilities ######
@@ -110,6 +111,11 @@ def sgn(val):
 Return the sign of a value.
 """
     return 1 if val > 0 else -1 if val < 0 else 0
+
+
+def chi_square_quantile(dof: int, alpha: float) -> float:
+    """Compute chi-square quantile for given degrees of freedom and confidence level."""
+    return chi2.ppf(alpha, dof)
 
 
 def haar_difference_without_abs(a, b):

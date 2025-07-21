@@ -152,7 +152,7 @@ def propagate_prediction_uncertainty(prediction: Prediction) -> None:
     major = 0.
     minor = 0.
 
-    for k in range(CONFIG["N"]):
+    for k in range(10):
         major = np.sqrt(major ** 2 + (prediction.modes[0][k].major_radius * dt) ** 2)
         minor = np.sqrt(minor ** 2 + (prediction.modes[0][k].minor_radius * dt) ** 2)
         prediction.modes[0][k].major_radius += major # This was originally straight assignment not addition
