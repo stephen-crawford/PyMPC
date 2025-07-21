@@ -1,22 +1,20 @@
 import casadi as ca
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import matplotlib
-from matplotlib.patches import Rectangle, Ellipse
-from matplotlib.transforms import Affine2D
+from matplotlib.patches import Ellipse
 from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
 from planner_modules.src.constraints.linearized_constraints import LinearizedConstraints
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
-from planner_modules.src.objectives.goal_objective import GoalObjective
 from planning.src.data_prep import define_robot_area
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel, numeric_rk4
 from planning.src.planner import Planner
 from planning.src.types import Data, Bound, generate_reference_path, calculate_path_normals, State, \
 	generate_dynamic_obstacles, PredictionType, generate_static_obstacles
 from solver.src.casadi_solver import CasADiSolver
-from utils.const import DETERMINISTIC, GAUSSIAN
+from utils.const import GAUSSIAN
 from utils.utils import LOG_DEBUG
 
 
@@ -281,9 +279,10 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 			for idx, obs in enumerate(data.dynamic_obstacles):
 				pred = obs.prediction
 
-				if pred and pred.modes and len(pred.modes[0]) > 0:
+				if pred and pred.steps and len(pred.steps) > 0:
+					LOG_DEBUG("pred.steps: " + str(pred.steps))
 					# Extract positions from PredictionSteps
-					steps = pred.modes[0]  # First mode
+					steps = pred.steps  # First mode
 					pred_positions = np.array([step.position for step in steps])
 					pred_x, pred_y = pred_positions[:, 0], pred_positions[:, 1]
 

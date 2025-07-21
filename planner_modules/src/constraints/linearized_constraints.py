@@ -279,9 +279,7 @@ class LinearizedConstraints(BaseConstraint):
 			for i in range(len(data.dynamic_obstacles)):
 				LOG_DEBUG("Obstacle prediction type is {}".format(data.dynamic_obstacles[i].prediction.type))
 				if (not hasattr(data.dynamic_obstacles[i], 'prediction') or
-						data.dynamic_obstacles[i].prediction is None or
-						not hasattr(data.dynamic_obstacles[i].prediction, 'modes') or
-						len(data.dynamic_obstacles[i].prediction.modes) == 0):
+						data.dynamic_obstacles[i].prediction is None):
 					missing_data += "Obstacle Prediction "
 
 

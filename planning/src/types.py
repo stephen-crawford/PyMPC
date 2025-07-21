@@ -175,11 +175,11 @@ class PredictionStep:
 class Prediction:
     def __init__(self, type_=None):
         self.type = type_
-        self.modes = []
+        self.steps = []
         self.probabilities = []
 
     def empty(self) -> bool:
-        return len(self.modes) == 0
+        return len(self.steps) == 0
 
 class ObstacleType(Enum):
     STATIC = 0
@@ -296,11 +296,11 @@ def generate_dynamic_obstacles(
         if prediction_type == DETERMINISTIC:
             obst.prediction.path = ref_path
             obst.prediction.type = PredictionType.DETERMINISTIC
-            obst.prediction.modes = [PredictionType.DETERMINISTIC]
+            obst.prediction.steps = []
         elif prediction_type == GAUSSIAN:
             obst.prediction.path = ref_path
             obst.prediction.type = PredictionType.GAUSSIAN
-            obst.prediction.modes = [PredictionType.GAUSSIAN]
+            obst.prediction.steps = []
 
         obstacles.append(obst)
 

@@ -81,16 +81,14 @@ class EllipsoidConstraints(BaseConstraint):
 			pred = obstacle.prediction
 
 			# Sanity check: ensure we have prediction data
-			if pred.empty() or not pred.modes[0]:
+			if pred is None:
 				LOG_DEBUG(f"No prediction data for obstacle {i}, skipping")
 				continue
 
-			mode = pred.modes[0]  # Use first mode (assuming single-mode for now)
-			if k - 1 >= len(mode):
-				LOG_DEBUG(f"Prediction too short for obstacle {i} at step {k - 1}, skipping")
-				continue
+			prediction_steps = []
 
-			step = mode[k - 1]  # PredictionStep object
+
+			step = pred.steps[k - 1]  # PredictionStep object
 
 			# Position and heading
 			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_x", step.position[0])

@@ -18,6 +18,28 @@ A modular and extensible Python port of the [TUD-AMR MPC Planner](https://github
 
 ---
 
+## Constraints 
+
+| Constraint Type            | Main Idea                                                       | Obstacle Handling                                   | Uncertainty Handling | Computational Cost | Compatible Solvers |
+|---------------------------|-----------------------------------------------------------------|------------------------------------------------------|----------------------|--------------------|---------------------|
+| **LinearizedConstraints** | Linearize nonlinear constraints near current trajectory       | Deterministic positions                              | ❌ No               | **Low**           | QP, SQP            |
+| **EllipsoidConstraints**  | Approximate obstacles as ellipsoids for smooth convex regions | Static or dynamic obstacles                          | ❌ No               | **Medium**        | SQP, NLP           |
+| **GaussianConstraints**   | Probabilistic modeling using Gaussian mean & covariance       | Dynamic obstacles with Gaussian uncertainty          | ✅ Yes              | **Medium-High**   | NLP                |
+| **DecompositionConstraints**| Divide road into convex safe regions                        | Road boundaries, static obstacles                    | ❌ No               | **Medium**        | QP, SQP            |
+| **GuidanceConstraints**   | Multi-homotopy guided optimization (parallel planners)        | All obstacle types via global guidance               | ✅ Partial (via global plan diversity) | **High**          | NLP (or multiple QPs in parallel) |
+| **ScenarioConstraints**    | Robust MPC via sampled uncertainty scenarios                 | Requires probabilistic predictions (non-deterministic)| ✅ Yes             | **Very High**     | NLP                |
+
+
+| Method                   | How It Handles Uncertainty                          | Key Parameters                       | Pros                                         | Cons                                           |
+|-------------------------|-----------------------------------------------------|--------------------------------------|---------------------------------------------|-----------------------------------------------|
+| **GaussianConstraints**| Chance constraints using Gaussian distributions     | Risk level (α), covariance of obstacle| Smooth, risk-adjustable, mathematically elegant | Requires accurate uncertainty model; heavier solve |
+| **ScenarioConstraints**| Monte Carlo sampling of obstacle trajectories       | Number of scenarios, safe horizon    | Robust to arbitrary distributions           | Very expensive, needs many solvers in parallel   |
+| **GuidanceConstraints**| Uses multiple global guidance paths to hedge risk   | Number of homotopy classes (paths)   | Finds safe topologies, avoids local minima | Indirect uncertainty handling, depends on guidance planner |
+
+![img.png](decision_tree.png)
+
+---
+
 ## 🛠 Installation
 
 ```bash
