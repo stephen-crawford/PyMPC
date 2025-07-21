@@ -158,109 +158,107 @@ class Planner:
     self.state = state
     LOG_DEBUG("Planner::set_state")
 
-
   def propagate_obstacles(self, data, dt=0.1, horizon=10, speed=10, sigma_pos=0.2):
-    if not data.dynamic_obstacles:
-        return
+      if not data.dynamic_obstacles:
+          return
 
-    for obstacle in data.dynamic_obstacles:
-        pred = obstacle.prediction
-        path = getattr(pred, "path", None)
+      for obstacle in data.dynamic_obstacles:
+          pred = obstacle.prediction
+          path = getattr(pred, "path", None)
 
-        # Fallback: constant velocity if no path
-        if path is None:
-            velocity = np.array([np.cos(obstacle.angle), np.sin(obstacle.angle)]) * speed
-            obstacle.prediction = get_constant_velocity_prediction(obstacle.position, velocity, dt, horizon)
-            continue
+          # Fallback: constant velocity if no path
+          if path is None:
+              velocity = np.array([np.cos(obstacle.angle), np.sin(obstacle.angle)]) * speed
+              obstacle.prediction = get_constant_velocity_prediction(obstacle.position, velocity, dt, horizon)
+              continue
 
-        total_length = path.s[-1]
+          total_length = path.s[-1]
 
-        # Initialize progress in arc length
-        if not hasattr(obstacle, "s"):
-            obstacle.s = 0.0
-        obstacle.s += speed * dt
+          # Initialize progress in arc length
+          if not hasattr(obstacle, "s"):
+              obstacle.s = 0.0
+          obstacle.s += speed * dt
 
-        # If reached end of current path → generate new path
-        if obstacle.s >= total_length:
-            start = [path.x[-1], path.y[-1], path.z[-1] if hasattr(path, "z") else 0.0]
+          # If reached end of current path → generate new path
+          if obstacle.s >= total_length:
+              start = [path.x[-1], path.y[-1], path.z[-1] if hasattr(path, "z") else 0.0]
 
-            # Choose new goal
-            if hasattr(obstacle, "road_to_follow"):
-                road = obstacle.road_to_follow
-                s_offset = np.random.uniform(0, road.length)
-                x_center = road.x_spline(s_offset)
-                y_center = road.y_spline(s_offset)
+              # Choose new goal
+              if hasattr(obstacle, "road_to_follow"):
+                  road = obstacle.road_to_follow
+                  s_offset = np.random.uniform(0, road.length)
+                  x_center = road.x_spline(s_offset)
+                  y_center = road.y_spline(s_offset)
 
-                # Tangent & lateral offset to simulate lane variation
-                dx = road.x_spline(min(s_offset + 0.1, road.length)) - x_center
-                dy = road.y_spline(min(s_offset + 0.1, road.length)) - y_center
-                tangent = np.array([dx, dy]) / np.linalg.norm([dx, dy])
-                normal = np.array([-tangent[1], tangent[0]])
-                lateral_offset = np.random.uniform(-3.0, 3.0)
-                goal = [x_center + lateral_offset * normal[0], y_center + lateral_offset * normal[1], 0.0]
-            else:
-                goal = [
-                    np.random.uniform(start[0] - 20, start[0] + 20),
-                    np.random.uniform(start[1] - 20, start[1] + 20),
-                    0.0
-                ]
+                  # Tangent & lateral offset to simulate lane variation
+                  dx = road.x_spline(min(s_offset + 0.1, road.length)) - x_center
+                  dy = road.y_spline(min(s_offset + 0.1, road.length)) - y_center
+                  tangent = np.array([dx, dy]) / np.linalg.norm([dx, dy])
+                  normal = np.array([-tangent[1], tangent[0]])
+                  lateral_offset = np.random.uniform(-3.0, 3.0)
+                  goal = [x_center + lateral_offset * normal[0], y_center + lateral_offset * normal[1], 0.0]
+              else:
+                  goal = [
+                      np.random.uniform(start[0] - 20, start[0] + 20),
+                      np.random.uniform(start[1] - 20, start[1] + 20),
+                      0.0
+                  ]
 
-            # Generate new reference path
-            new_path = generate_reference_path(
-                start, goal, path_type=np.random.choice(["straight", "curved", "s-turn", "circle"]),
-                num_points=10
-            )
+              # Generate new reference path
+              new_path = generate_reference_path(
+                  start, goal, path_type=np.random.choice(["straight", "curved", "s-turn", "circle"]),
+                  num_points=10
+              )
 
-            obstacle.prediction.path = new_path
-            obstacle.s = 0.0
-            path = new_path
-            total_length = path.s[-1]
+              obstacle.prediction.path = new_path
+              obstacle.s = 0.0
+              path = new_path
+              total_length = path.s[-1]
 
-        # ✅ Compute position using arc-length splines
-        s_now = min(obstacle.s, total_length)
-        x = path.x_spline(s_now)
-        y = path.y_spline(s_now)
-        z = path.z_spline(s_now) if path.z_spline else 0.0
-        obstacle.position = np.array([x, y, z])
+          # ✅ Compute position using arc-length splines
+          s_now = min(obstacle.s, total_length)
+          x = path.x_spline(s_now)
+          y = path.y_spline(s_now)
+          z = path.z_spline(s_now) if path.z_spline else 0.0
+          obstacle.position = np.array([x, y, z])
 
-        # ✅ Compute heading
-        ds = 0.1
-        s_next = min(s_now + ds, total_length)
-        dx = path.x_spline(s_next) - x
-        dy = path.y_spline(s_next) - y
-        obstacle.angle = np.arctan2(dy, dx)
+          # ✅ Compute heading
+          ds = 0.1
+          s_next = min(s_now + ds, total_length)
+          dx = path.x_spline(s_next) - x
+          dy = path.y_spline(s_next) - y
+          obstacle.angle = np.arctan2(dy, dx)
 
-        # ✅ Build prediction horizon
-        pred_steps = []
-        s_future = s_now
-        for _ in range(horizon):
-            s_future = min(s_future + speed * dt, total_length)
-            px = path.x_spline(s_future)
-            py = path.y_spline(s_future)
-            pz = path.z_spline(s_future) if path.z_spline else 0.0
+          # ✅ Build prediction horizon
+          pred_steps = []
+          s_future = s_now
+          for _ in range(horizon):
+              s_future = min(s_future + speed * dt, total_length)
+              px = path.x_spline(s_future)
+              py = path.y_spline(s_future)
+              pz = path.z_spline(s_future) if path.z_spline else 0.0
 
-            s_next = min(s_future + ds, total_length)
-            dx_f = path.x_spline(s_next) - px
-            dy_f = path.y_spline(s_next) - py
-            angle = np.arctan2(dy_f, dx_f)
+              s_next = min(s_future + ds, total_length)
+              dx_f = path.x_spline(s_next) - px
+              dy_f = path.y_spline(s_next) - py
+              angle = np.arctan2(dy_f, dx_f)
 
-            pos = np.array([px, py, pz])
+              pos = np.array([px, py, pz])
 
-            # Add noise & uncertainty
-            if pred.type == PredictionType.GAUSSIAN:
-                pos += np.random.normal(0, sigma_pos, size=pos.shape)
-                major_r, minor_r = sigma_pos * 2, sigma_pos
-            elif pred.type == PredictionType.NONGAUSSIAN:
-                pos += np.random.standard_t(df=3, size=pos.shape) * sigma_pos
-                major_r, minor_r = sigma_pos * 3, sigma_pos * 1.5
-            else:
-                major_r, minor_r = 0.1, 0.1
+              # Add noise & uncertainty
+              if pred.type == PredictionType.GAUSSIAN:
+                  pos += np.random.normal(0, sigma_pos, size=pos.shape)
+                  major_r, minor_r = sigma_pos * 2, sigma_pos
+              elif pred.type == PredictionType.NONGAUSSIAN:
+                  pos += np.random.standard_t(df=3, size=pos.shape) * sigma_pos
+                  major_r, minor_r = sigma_pos * 3, sigma_pos * 1.5
+              else:
+                  major_r, minor_r = 0.1, 0.1
 
-            pred_steps.append(PredictionStep(pos, angle, major_r, minor_r))
+              pred_steps.append(PredictionStep(pos, angle, major_r, minor_r))
 
-        pred.modes = [pred_steps]
-        pred.probabilities = [1.0]
-
+          pred.modes = [pred_steps]
+          pred.probabilities = [1.0]
 
 
 class PlannerOutput:
