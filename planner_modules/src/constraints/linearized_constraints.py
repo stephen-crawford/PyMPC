@@ -53,7 +53,7 @@ class LinearizedConstraints(BaseConstraint):
 	def update(self, state: State, data: Data):
 		LOG_DEBUG("LinearizedConstraints.update")
 
-		self._dummy_b = state.get("x") + 100.0
+		self._dummy_b = state.get("x") + -1000.0
 
 		# Thread safe copy of obstacles
 		if not data.has("dynamic_obstacles") or data.dynamic_obstacles is None:
@@ -97,8 +97,8 @@ class LinearizedConstraints(BaseConstraint):
 					# Check if prediction exists and has enough timesteps
 					if (not hasattr(copied_obstacle, 'prediction') or
 							copied_obstacle.prediction is None or
-							not hasattr(copied_obstacle.prediction, 'modes') or
-							len(copied_obstacle.prediction.modes) == 0):
+							not hasattr(copied_obstacle.prediction, 'steps') or
+							len(copied_obstacle.prediction.steps) == 0):
 						LOG_WARN(f"Obstacle {obs_id} prediction not available for timestep {k}")
 						continue
 
@@ -124,7 +124,7 @@ class LinearizedConstraints(BaseConstraint):
 					disc_radius = self.get_config_value("disc_radius", 1.0)
 					self._b[d][k][obs_id] = (self._a1[d][k][obs_id] * obstacle_pos[0] +
 											 self._a2[d][k][obs_id] * obstacle_pos[1] -
-											 (radius + disc_radius))
+											 (radius)) # also subtract disc_radius for additional clearance req
 					LOG_DEBUG(f"b for {obs_id} set to {self._b[d][k][obs_id]}")
 				# Handle static obstacles
 				if data.has("static_obstacles") and data.static_obstacles is not None:
@@ -151,8 +151,8 @@ class LinearizedConstraints(BaseConstraint):
 			for obstacle in copied_obstacles:
 				if (not hasattr(obstacle, 'prediction') or
 						obstacle.prediction is None or
-						not hasattr(obstacle.prediction, 'modes') or
-						len(obstacle.prediction.modes) == 0):
+						not hasattr(obstacle.prediction, 'steps') or
+						len(obstacle.prediction.steps) == 0):
 					continue
 
 				radius = 1e-3 if self.use_guidance else obstacle.radius

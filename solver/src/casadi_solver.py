@@ -67,13 +67,12 @@ class CasADiSolver(BaseSolver):
             'print_time': 0,
             'ipopt.sb': 'yes',
             'ipopt.max_iter': 1000,
-            'ipopt.tol': 1e-4,
+            'ipopt.tol': 1e-8, #-4 for some slack, -8 for less slack
             'ipopt.mu_strategy': 'adaptive',
             'ipopt.hessian_approximation': 'limited-memory',
             'ipopt.warm_start_init_point': 'yes',
             'ipopt.mu_init': 1e-1,  # Barrier parameter
-            'ipopt.bound_push': 1e-8,  # Keep variables away from bounds
-            'ipopt.bound_frac': 1e-8,  # Fraction of bound violation allowed
+            'ipopt.bound_push': 1e-4,  # Keep variables away from bounds
         }
         self.opti.solver('ipopt', opts)
 

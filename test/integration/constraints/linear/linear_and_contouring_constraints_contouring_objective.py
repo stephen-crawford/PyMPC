@@ -2,6 +2,7 @@ import casadi as ca
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib import patches
 from matplotlib.patches import Ellipse
 from scipy.interpolate import CubicSpline
 
@@ -52,7 +53,7 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	# Store path
 	data.reference_path = reference_path
 
-	dynamic_obstacles = generate_dynamic_obstacles(2, GAUSSIAN, 1)
+	dynamic_obstacles = generate_dynamic_obstacles(10, GAUSSIAN, 1)
 
 	data.dynamic_obstacles = dynamic_obstacles
 
@@ -169,27 +170,11 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	if hasattr(data, "dynamic_obstacles") and data.dynamic_obstacles:
 		for obs in data.dynamic_obstacles:
 			circle = plt.Circle((float(obs.position[0]), float(obs.position[1])),
-								getattr(obs, "radius", 0.5), color='red', alpha=0.6)
+								getattr(obs, "radius", 0.5), color='black', alpha=0.6)
 			ax.add_patch(circle)
 			obstacle_patches.append(circle)
 
 	ax.legend(loc='upper right')
-
-	prediction_lines = []
-	prediction_markers = []
-	uncertainty_ellipses = []
-
-	for _ in data.dynamic_obstacles:
-		# Dashed red line for predicted path
-		line, = ax.plot([], [], 'r--', linewidth=1.2, alpha=0.6)
-		marker, = ax.plot([], [], 'ro', markersize=3, alpha=0.5)
-		prediction_lines.append(line)
-		prediction_markers.append(marker)
-
-		# Ellipse for uncertainty (will only show for GAUSSIAN type)
-		ell = Ellipse((0, 0), 0, 0, edgecolor='blue', facecolor='none', alpha=0.3)
-		ax.add_patch(ell)
-		uncertainty_ellipses.append(ell)
 
 	# ✅ Initial draw
 	plt.draw()
@@ -242,7 +227,8 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 			vehicle_dot.set_data([next_x], [next_y])
 			trajectory_line.set_data(states_x, states_y)
 			LOG_DEBUG("Vehicle now set to : " + str([next_x, next_y]))
-			# ✅ Update obstacles if they move (only if they actually have dynamic positions)
+
+			# ✅ Update obstacles if they move
 			if hasattr(data, "dynamic_obstacles") and data.dynamic_obstacles:
 				for idx, obs in enumerate(data.dynamic_obstacles):
 					if idx < len(obstacle_patches):
@@ -251,91 +237,29 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 							obs.update_position(data.planning_start_time)
 						obstacle_patches[idx].center = (float(obs.position[0]), float(obs.position[1]))
 
-			# ✅ Force plot update
-
-			for artist in getattr(ax, "_constraint_lines", []):
-				try:
-					artist.remove()
-				except:
-					pass
-			ax._constraint_lines = []
-
-			# ✅ Plot linearized constraints
-			current_k = 0  # Using first prediction step
+			# ✅ ENHANCED CONSTRAINT VISUALIZATION
+			current_k = 1  # Use k=1 instead of k=0 for more interesting constraints
 			disc_id = 0
-			LOG_DEBUG(f"Num linear constraints: {len(linear_constraints._a1[disc_id][current_k])}")
-			num_constraints = len(linear_constraints._a1[disc_id][current_k])
 
-			for idx, obs in enumerate(data.dynamic_obstacles):
-				pred = obs.prediction
+			print(f"\n{'=' * 50}")
+			print(f"ITERATION {i}: Enhanced Constraint Visualization")
+			print(f"{'=' * 50}")
 
-				if pred and pred.modes and len(pred.modes[0]) > 0:
-					# Extract positions from PredictionSteps
-					steps = pred.modes[0]  # First mode
-					pred_positions = np.array([step.position for step in steps])
-					pred_x, pred_y = pred_positions[:, 0], pred_positions[:, 1]
+			# Add debugging info
+			add_constraint_debugging_info(ax, linear_constraints, data, new_state, disc_id, current_k)
 
-					# Update line and markers
-					prediction_lines[idx].set_data(pred_x, pred_y)
-					prediction_markers[idx].set_data(pred_x, pred_y)
-					LOG_DEBUG(f"Prediction line: {pred_x}, {pred_y}")
-					# If GAUSSIAN → update uncertainty ellipse for last step
-					if pred.type == PredictionType.GAUSSIAN:
-						last_step = steps[-1]
-						uncertainty_ellipses[idx].set_center((last_step.position[0], last_step.position[1]))
-						uncertainty_ellipses[idx].width = last_step.major_radius * 2
-						uncertainty_ellipses[idx].height = last_step.minor_radius * 2
-						uncertainty_ellipses[idx].angle = np.degrees(last_step.angle)
-					else:
-						uncertainty_ellipses[idx].set_visible(False)
-				else:
-					LOG_DEBUG("No predictions so not plotting lines")
-					# No prediction → clear
-					prediction_lines[idx].set_data([], [])
-					prediction_markers[idx].set_data([], [])
-					uncertainty_ellipses[idx].set_visible(False)
+			# Enhanced visualization with feasible region highlighting
+			active_constraints, is_feasible = visualize_halfspaces_enhanced(
+				ax, linear_constraints, data, new_state, disc_id, current_k)
 
-			for obs_id in range(num_constraints):
-				a1 = linear_constraints._a1[disc_id][current_k][obs_id]
-				a2 = linear_constraints._a2[disc_id][current_k][obs_id]
-				b = linear_constraints._b[disc_id][current_k][obs_id]
-				LOG_DEBUG(f"For obstacle {obs_id}, a1: {a1}, a2: {a2}, b: {b}")
-
-				if abs(a1) < 1e-6 and abs(a2) < 1e-6:
-					continue
-
-				# ✅ Constraint line
-				xx = np.linspace(x_min, x_max, 200)
-				if abs(a2) > 1e-6:
-					yy = (b - a1 * xx) / a2
-				else:
-					xx = np.full(200, b / a1)
-					yy = np.linspace(y_min, y_max, 200)
-
-				line, = ax.plot(xx, yy, 'g--', linewidth=1.5, alpha=0.8, zorder=4)
-				ax._constraint_lines.append(line)
-
-				# ✅ Shading for half-space
-				X, Y = np.meshgrid(np.linspace(x_min, x_max, 300),
-								   np.linspace(y_min, y_max, 300))
-				infeasible = (a1 * X + a2 * Y - b) > 0
-				shade = ax.contourf(X, Y, infeasible, levels=[0.5, 1], colors=['#FFCCCC'], alpha=0.25, zorder=1)
-				ax._constraint_lines.extend(shade.collections)
-
-				# ✅ Draw normal vector
-				if obs_id < len(data.dynamic_obstacles):
-					obs = data.dynamic_obstacles[obs_id]
-					obs_center = (float(obs.position[0]), float(obs.position[1]))
-					normal_vec = np.array([a1, a2])
-					normal_vec = normal_vec / np.linalg.norm(normal_vec) * 1.0
-					arrow = ax.arrow(obs_center[0], obs_center[1], normal_vec[0], normal_vec[1],
-									 head_width=0.2, color='orange', alpha=0.8, zorder=5)
-					ax._constraint_lines.append(arrow)
+			# Add title with constraint status
+			constraint_status = f"Feasible: {is_feasible}, Active: {len(active_constraints)}"
+			ax.set_title(f"MPC with Contouring Objective & Obstacles\nIteration {i}: {constraint_status}")
 
 			# ✅ Force refresh
 			fig.canvas.draw()
 			fig.canvas.flush_events()
-			plt.pause(0.05)
+			plt.pause(0.1)  # Slightly longer pause to see the visualization better
 
 			if planner.is_objective_reached(data):
 				print(f"Objective reached at iteration {i}!")
@@ -353,6 +277,245 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	LOG_DEBUG("Forecasts: " + str(planner.solver.get_forecasts()))
 
 	return data, planner.output.realized_trajectory, planner.solver.get_forecasts(), success_flags
+
+
+def visualize_halfspaces_enhanced(ax, linear_constraints, data, current_state, disc_id=0, current_k=1):
+	"""
+	Enhanced visualization of linearized constraints and feasible regions
+
+	Args:
+		ax: matplotlib axis
+		linear_constraints: LinearizedConstraints object
+		data: Data object with obstacles
+		current_state: current vehicle state
+		disc_id: disc index to visualize
+		current_k: time step to visualize
+	"""
+
+	# Clear previous constraint visualizations
+	for artist in getattr(ax, "_constraint_lines", []):
+		try:
+			artist.remove()
+		except:
+			pass
+	ax._constraint_lines = []
+
+	# Get axis limits for plotting
+	x_min, x_max = ax.get_xlim()
+	y_min, y_max = ax.get_ylim()
+
+	# Vehicle position
+	vehicle_pos = np.array([current_state.get("x"), current_state.get("y")])
+
+	print(f"=== Visualizing Halfspaces at k={current_k}, disc={disc_id} ===")
+	print(f"Vehicle position: {vehicle_pos}")
+
+	# Get number of constraints
+	num_constraints = len(linear_constraints._a1[disc_id][current_k])
+	print(f"Number of constraints: {num_constraints}")
+
+	# Collect all active constraints
+	active_constraints = []
+	constraint_lines = []
+
+	for obs_id in range(num_constraints):
+		a1 = linear_constraints._a1[disc_id][current_k][obs_id]
+		a2 = linear_constraints._a2[disc_id][current_k][obs_id]
+		b = linear_constraints._b[disc_id][current_k][obs_id]
+
+		print(f"Constraint {obs_id}: a1={a1:.3f}, a2={a2:.3f}, b={b:.3f}")
+
+		# Skip inactive constraints (dummy values)
+		if abs(a1) < 1e-6 and abs(a2) < 1e-6:
+			print(f"  -> Skipping inactive constraint {obs_id}")
+			continue
+
+		# Skip constraints with dummy b values
+		if abs(b - (-1000.0 + vehicle_pos[0])) < 1e-3:
+			print(f"  -> Skipping dummy constraint {obs_id}")
+			continue
+
+		active_constraints.append((a1, a2, b, obs_id))
+
+		# Plot constraint line: a1*x + a2*y = b
+		if abs(a2) > 1e-6:
+			# Solve for y: y = (b - a1*x) / a2
+			xx = np.linspace(x_min, x_max, 200)
+			yy = (b - a1 * xx) / a2
+			# Filter to stay within y bounds
+			valid_mask = (yy >= y_min) & (yy <= y_max)
+			xx_valid = xx[valid_mask]
+			yy_valid = yy[valid_mask]
+		elif abs(a1) > 1e-6:
+			# Vertical line: x = b / a1
+			x_line = b / a1
+			if x_min <= x_line <= x_max:
+				xx_valid = np.full(200, x_line)
+				yy_valid = np.linspace(y_min, y_max, 200)
+			else:
+				xx_valid, yy_valid = [], []
+		else:
+			xx_valid, yy_valid = [], []
+
+		if len(xx_valid) > 0:
+			# Color constraints differently for obstacles vs boundaries
+			if obs_id < len(data.dynamic_obstacles):
+				color = 'red'
+				alpha = 0.8
+				label = f'Obstacle {obs_id}'
+			else:
+				color = 'blue'
+				alpha = 0.6
+				label = f'Boundary {obs_id}'
+
+			line, = ax.plot(xx_valid, yy_valid, '--', color=color, linewidth=2,
+							alpha=alpha, label=label, zorder=4)
+			ax._constraint_lines.append(line)
+			constraint_lines.append((xx_valid, yy_valid, color))
+
+	print(f"Active constraints: {len(active_constraints)}")
+
+	# Visualize infeasible regions (one constraint at a time)
+	X, Y = np.meshgrid(np.linspace(x_min, x_max, 100),
+					   np.linspace(y_min, y_max, 100))
+
+	for i, (a1, a2, b, obs_id) in enumerate(active_constraints):
+		# Infeasible region: a1*x + a2*y > b (constraint violation)
+		infeasible = (a1 * X + a2 * Y - b) > 0
+
+		# Color based on constraint type
+		if obs_id < len(data.dynamic_obstacles):
+			color = '#FFCCCC'
+		else:
+			color = '#CCCCFF'  # Light blue for boundaries
+
+		contour = ax.contourf(X, Y, infeasible, levels=[0.5, 1],
+							  colors=[color], alpha=0.3, zorder=1)
+		ax._constraint_lines.extend(contour.collections)
+
+	# Visualize FEASIBLE region (intersection of all halfspaces)
+	if len(active_constraints) > 0:
+		feasible_region = np.ones_like(X, dtype=bool)
+
+		for a1, a2, b, obs_id in active_constraints:
+			# Feasible region: a1*x + a2*y <= b
+			constraint_satisfied = (a1 * X + a2 * Y - b) <= 0
+			feasible_region = feasible_region & constraint_satisfied
+
+		# Highlight feasible region
+		feasible_contour = ax.contourf(X, Y, feasible_region.astype(int),
+									   levels=[0.5, 1], colors=['#CCFFCC'],
+									   alpha=0.4, zorder=2)
+		ax._constraint_lines.extend(feasible_contour.collections)
+
+		# Add feasible region to legend
+		feasible_patch = patches.Patch(color='#CCFFCC', alpha=0.4, label='Feasible Region')
+		ax.legend(handles=ax.get_legend_handles_labels()[0] + [feasible_patch],
+				  loc='upper right')
+
+	# Highlight vehicle position and check if it's feasible
+	vehicle_circle = plt.Circle(vehicle_pos, 0.3, color='blue', alpha=0.8, zorder=7)
+	ax.add_patch(vehicle_circle)
+	ax._constraint_lines.append(vehicle_circle)
+
+	# Check feasibility at vehicle position
+	is_feasible = True
+	violated_constraints = []
+
+	for a1, a2, b, obs_id in active_constraints:
+		constraint_value = a1 * vehicle_pos[0] + a2 * vehicle_pos[1] - b
+		if constraint_value > 1e-6:  # Constraint violated
+			is_feasible = False
+			violated_constraints.append(obs_id)
+
+	# Add feasibility text
+	feasibility_text = "FEASIBLE" if is_feasible else f"INFEASIBLE (violates: {violated_constraints})"
+	feasibility_color = 'green' if is_feasible else 'red'
+
+	ax.text(0.02, 0.98, f"Vehicle: {feasibility_text}",
+			transform=ax.transAxes, fontsize=12, weight='bold',
+			color=feasibility_color, va='top',
+			bbox=dict(boxstyle="round,pad=0.5", facecolor='white', alpha=0.8))
+
+	# Add constraint summary
+	summary_text = f"Active Constraints: {len(active_constraints)}\n"
+	summary_text += f"Obstacles: {sum(1 for _, _, _, obs_id in active_constraints if obs_id < len(data.dynamic_obstacles))}\n"
+	summary_text += f"Boundaries: {sum(1 for _, _, _, obs_id in active_constraints if obs_id >= len(data.dynamic_obstacles))}"
+
+	ax.text(0.02, 0.02, summary_text, transform=ax.transAxes, fontsize=10,
+			va='bottom', ha='left',
+			bbox=dict(boxstyle="round,pad=0.5", facecolor='lightgray', alpha=0.8))
+
+	print(f"Vehicle feasibility: {feasibility_text}")
+	return active_constraints, is_feasible
+
+
+def add_constraint_debugging_info(ax, linear_constraints, data, current_state, disc_id=0, current_k=1):
+	"""
+	Add detailed debugging information about constraints
+	"""
+	print(f"\n=== CONSTRAINT DEBUGGING INFO ===")
+	print(f"Time step k={current_k}, Disc={disc_id}")
+
+	vehicle_pos = np.array([current_state.get("x"), current_state.get("y")])
+	print(f"Vehicle position: ({vehicle_pos[0]:.3f}, {vehicle_pos[1]:.3f})")
+
+	if hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles:
+		print(f"Number of dynamic obstacles: {len(data.dynamic_obstacles)}")
+
+		for i, obs in enumerate(data.dynamic_obstacles):
+			obs_pos = np.array([float(obs.position[0]), float(obs.position[1])])
+			distance = np.linalg.norm(obs_pos - vehicle_pos)
+			print(f"  Obstacle {i}: pos=({obs_pos[0]:.3f}, {obs_pos[1]:.3f}), "
+				  f"radius={getattr(obs, 'radius', 'N/A')}, distance={distance:.3f}")
+
+	# Check constraint arrays
+	if (disc_id < len(linear_constraints._a1) and
+			current_k < len(linear_constraints._a1[disc_id])):
+
+		constraint_array = linear_constraints._a1[disc_id][current_k]
+		print(f"Constraint array length: {len(constraint_array)}")
+
+		for i in range(len(constraint_array)):
+			a1 = linear_constraints._a1[disc_id][current_k][i]
+			a2 = linear_constraints._a2[disc_id][current_k][i]
+			b = linear_constraints._b[disc_id][current_k][i]
+
+			print(f"  Constraint {i}: a1={a1:.6f}, a2={a2:.6f}, b={b:.6f}")
+
+			# Check if it's a dummy constraint
+			is_dummy = (abs(a1) < 1e-6 and abs(a2) < 1e-6) or abs(b - (-1000.0 + vehicle_pos[0])) < 1e-3
+
+			if not is_dummy:
+				# Evaluate constraint at vehicle position
+				constraint_value = a1 * vehicle_pos[0] + a2 * vehicle_pos[1] - b
+				status = "VIOLATED" if constraint_value > 1e-6 else "SATISFIED"
+				print(f"    -> ACTIVE: value at vehicle = {constraint_value:.6f} ({status})")
+			else:
+				print(f"    -> DUMMY/INACTIVE")
+	else:
+		print(f"ERROR: Invalid indices disc_id={disc_id}, k={current_k}")
+
+
+# Integrate this into your main loop by replacing the constraint visualization section:
+"""
+# Replace this section in your main loop:
+# ✅ Plot linearized constraints
+current_k = 0  # Using first prediction step
+disc_id = 0
+# ... existing constraint plotting code ...
+
+# With this enhanced version:
+current_k = 1  # Use k=1 instead of k=0 for more interesting constraints
+disc_id = 0
+
+# Add debugging info
+add_constraint_debugging_info(ax, linear_constraints, data, new_state, disc_id, current_k)
+
+# Enhanced visualization
+active_constraints, is_feasible = visualize_halfspaces_enhanced(
+    ax, linear_constraints, data, new_state, disc_id, current_k)
+"""
 
 def test():
 	import logging

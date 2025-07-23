@@ -10,7 +10,7 @@ from typing import List, Optional
 from planning.src.dynamic_models import DynamicsModel
 from utils.const import DETERMINISTIC, GAUSSIAN
 from utils.math_utils import Halfspace
-from utils.utils import LOG_DEBUG, LOG_WARN
+from utils.utils import LOG_DEBUG, LOG_WARN, CONFIG
 
 
 class State:
@@ -825,5 +825,52 @@ class Data:
             else:
                 lines.append(f"  {var}: {value}")
         return "\n".join(lines)
+
+class Costmap:
+    def __init__(self, width, height, resolution, origin, obstacle_threshold=100):
+        self.width = width
+        self.height = height
+        self.resolution = resolution
+        self.origin = np.array(origin)
+        self.obstacle_threshold = obstacle_threshold
+        self.data = np.zeros((height, width), dtype=np.uint8)
+
+    def set_obstacles(self, obstacle_coords):
+        for x, y in obstacle_coords:
+            i, j = self.world_to_map(x, y)
+            if 0 <= i < self.width and 0 <= j < self.height:
+                self.data[j, i] = 255  # Mark as obstacle
+
+    def inflate_obstacles(self, inflation_radius):
+        inflation_cells = int(inflation_radius / self.resolution)
+        inflated = self.data.copy()
+        obstacle_indices = np.argwhere(self.data >= self.obstacle_threshold)
+        for j, i in obstacle_indices:
+            min_i = max(0, i - inflation_cells)
+            max_i = min(self.width, i + inflation_cells)
+            min_j = max(0, j - inflation_cells)
+            max_j = min(self.height, j + inflation_cells)
+            inflated[min_j:max_j, min_i:max_i] = 255
+        self.data = inflated
+
+    def get_size_in_cells_x(self):
+        return self.width
+
+    def get_size_in_cells_y(self):
+        return self.height
+
+    def getCost(self, i, j):
+        return self.data[j, i]
+
+    def map_to_world(self, i, j):
+        x = self.origin[0] + i * self.resolution
+        y = self.origin[1] + j * self.resolution
+        return x, y
+
+    def world_to_map(self, x, y):
+        i = int((x - self.origin[0]) / self.resolution)
+        j = int((y - self.origin[1]) / self.resolution)
+        return i, j
+
 
 

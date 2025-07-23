@@ -2,7 +2,7 @@ import casadi as cd
 import numpy as np
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
-from planning.src.types import PredictionType
+from planning.src.types import PredictionType, PredictionStep
 from solver.src.parameter_manager import ParameterManager
 from utils.const import DETERMINISTIC, GAUSSIAN
 from utils.math_utils import exponential_quantile, rotation_matrix, chi_square_quantile
@@ -33,10 +33,11 @@ class EllipsoidConstraints(BaseConstraint):
 		self._dummy_y = state.get("y") + 50.0
 
 	def define_parameters(self, params):
+		params.add(f"ego_disc_radius")
 
 		for disc_id in range(self.num_discs):
 			params.add(f"ego_disc_{disc_id}_offset")
-			params.add(f"ego_disc_{disc_id}_radius")
+
 
 		for obs_id in range(self.max_obstacles):
 			params.add(f"ellipsoid_obst_{obs_id}_x")
@@ -48,75 +49,59 @@ class EllipsoidConstraints(BaseConstraint):
 			params.add(f"ellipsoid_obst_{obs_id}_r")
 
 	def set_parameters(self, parameter_manager, data, k):
-		print("num discs is", self.num_discs)
+		parameter_manager.set_parameter("ego_disc_radius", self.robot_radius)
+
 		for d in range(self.num_discs):
-
-			# Set solver parameter for ego disc radius
-			parameter_manager.set_parameter(f"ego_disc_{d}_radius", self.robot_radius)
-
-			# Set solver parameter for ego disc offset
 			if hasattr(data, 'robot_area') and len(data.robot_area) > d:
 				parameter_manager.set_parameter(f"ego_disc_{d}_offset", data.robot_area[d].offset)
 
-		if k == 0:  # Dummies
-			# Set dummy values for obstacles at k=0
-			for i in range(len(data.dynamic_obstacles)):
-				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_x", self._dummy_x)
-				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_y", self._dummy_y)
-				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_psi", 0.0)
-				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_r", 0.1)
-				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_major", 0.0)
-				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_minor", 0.0)
-				parameter_manager.set_parameter(f"ellipsoid_obst_{i}_chi", 1.0)
+		if k == 0:  # Dummy values
+			for i in range(self.max_obstacles):
+				for name, value in [
+					("x", self._dummy_x), ("y", self._dummy_y),
+					("psi", 0.0), ("r", 0.1),
+					("major", 0.0), ("minor", 0.0), ("chi", 1.0)
+				]:
+					parameter_manager.set_parameter(f"ellipsoid_obst_{i}_{name}", value)
 			return
 
-		if k == 1:
-			LOG_DEBUG("EllipsoidConstraints::set_parameters")
-
-		# Set parameters for each dynamic obstacle
-		LOG_DEBUG("EllipsoidConstraints::set_parameters")
-
-		# For each dynamic obstacle
 		for i, obstacle in enumerate(data.dynamic_obstacles):
 			pred = obstacle.prediction
-
-			# Sanity check: ensure we have prediction data
-			if pred is None:
-				LOG_DEBUG(f"No prediction data for obstacle {i}, skipping")
+			if pred is None or len(pred.steps) == 0:
 				continue
 
-			prediction_steps = []
+			step = pred.steps[0]
 
-
-			step = pred.steps[k - 1]  # PredictionStep object
-
-			# Position and heading
+			# Set obstacle base position & orientation
 			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_x", step.position[0])
 			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_y", step.position[1])
 			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_psi", step.angle)
-
-			# Base radius of the obstacle (robot size or safety buffer)
 			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_r", obstacle.radius)
 
-			# Default values
-			major, minor, chi = 0.0, 0.0, 1.0
+			# Compute uncertainty scaling
+			chi = chi_square_quantile(dof=2, alpha=1.0 - self.risk)
 
 			if pred.type == PredictionType.DETERMINISTIC:
-				# No uncertainty
-				major, minor, chi = 0.0, 0.0, 1.0
+				major, minor = 0.0, 0.0
 
 			elif pred.type == PredictionType.GAUSSIAN:
-				chi = chi_square_quantile(dof=2, alpha=1.0 - self.risk)
-				major, minor = step.major_radius, step.minor_radius
+				# Apply chi scaling for confidence region
+				major = step.major_radius * np.sqrt(chi)
+				minor = step.minor_radius * np.sqrt(chi)
 
 			elif pred.type == PredictionType.NONGAUSSIAN:
-				chi = chi_square_quantile(dof=2, alpha=1.0 - self.risk) * 1.5
-				major, minor = step.major_radius * 1.5, step.minor_radius * 1.5
+				major = step.major_radius * np.sqrt(chi) * 1.5
+				minor = step.minor_radius * np.sqrt(chi) * 1.5
+			else:
+				major, minor = 0.0, 0.0
 
-			# Update solver parameters
+			# Store parameters
 			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_major", major)
 			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_minor", minor)
 			parameter_manager.set_parameter(f"ellipsoid_obst_{i}_chi", chi)
+
+			# Debug
+			print(f"[Ellipsoid] Obstacle {i}: major={major:.3f}, minor={minor:.3f}, chi={chi:.3f}")
 
 	def get_lower_bound(self):
 		lower_bound = []
@@ -136,14 +121,21 @@ class EllipsoidConstraints(BaseConstraint):
 		constraints = []
 		pos_x = model.get("x")
 		pos_y = model.get("y")
-		pos = np.array([pos_x, pos_y])
+		# Use CasADi vertcat instead of np.array for symbolic variables
+		pos = cd.vertcat(pos_x, pos_y)
 
 		try:
 			psi = model.get("psi")
 		except:
 			psi = 0.0
 
-		rotation_car = rotation_matrix(psi)
+		# Build rotation matrix directly with CasADi operations
+		cos_psi = cd.cos(psi)
+		sin_psi = cd.sin(psi)
+		rotation_car = cd.vertcat(
+			cd.horzcat(cos_psi, -sin_psi),
+			cd.horzcat(sin_psi, cos_psi)
+		)
 
 		r_disc = parameter_manager.get("ego_disc_radius")
 
@@ -151,7 +143,8 @@ class EllipsoidConstraints(BaseConstraint):
 		for obs_id in range(self.max_obstacles):
 			obst_x = parameter_manager.get(f"ellipsoid_obst_{obs_id}_x")
 			obst_y = parameter_manager.get(f"ellipsoid_obst_{obs_id}_y")
-			obstacle_cog = np.array([obst_x, obst_y])
+			# Use CasADi vertcat instead of np.array for parameters that might be symbolic
+			obstacle_cog = cd.vertcat(obst_x, obst_y)
 
 			obst_psi = parameter_manager.get(f"ellipsoid_obst_{obs_id}_psi")
 			obst_major = parameter_manager.get(f"ellipsoid_obst_{obs_id}_major")
@@ -166,25 +159,35 @@ class EllipsoidConstraints(BaseConstraint):
 			# Compute ellipse matrix
 			obst_major *= cd.sqrt(chi)
 			obst_minor *= cd.sqrt(chi)
-			ab = cd.SX(2, 2)
+			ab = cd.MX(2, 2)
 			ab[0, 0] = 1.0 / ((obst_major + r_disc + obst_r) * (obst_major + r_disc + obst_r))
 			ab[0, 1] = 0.0
 			ab[1, 0] = 0.0
 			ab[1, 1] = 1.0 / ((obst_minor + r_disc + obst_r) * (obst_minor + r_disc + obst_r))
 
-			obstacle_rotation = cd.SX(rotation_matrix(obst_psi))
+			# Build obstacle rotation matrix directly with CasADi operations
+			cos_obst_psi = cd.cos(obst_psi)
+			sin_obst_psi = cd.sin(obst_psi)
+			obstacle_rotation = cd.vertcat(
+				cd.horzcat(cos_obst_psi, -sin_obst_psi),
+				cd.horzcat(sin_obst_psi, cos_obst_psi)
+			)
 			obstacle_ellipse_matrix = obstacle_rotation.T @ ab @ obstacle_rotation
 
 			for disc_id in range(self.num_discs):
 				# Get and compute the disc position
 				disc_x = parameter_manager.get(f"ego_disc_{disc_id}_offset")
-				disc_relative_pos = np.array([disc_x, 0])
+				# Use CasADi vertcat instead of np.array for the relative position
+				disc_relative_pos = cd.vertcat(disc_x, 0)
+
+				# Simple matrix multiplication - CasADi should handle this correctly now
 				disc_pos = pos + rotation_car @ disc_relative_pos
 
 				# construct the constraint and append it
-				disc_to_obstacle = cd.SX(disc_pos - obstacle_cog)
+				disc_to_obstacle = disc_pos - obstacle_cog
+				# Chain matrix multiplication
 				c_disc_obstacle = disc_to_obstacle.T @ obstacle_ellipse_matrix @ disc_to_obstacle
-				constraints.append(c_disc_obstacle)  # + slack)
+				constraints.append(c_disc_obstacle)
 
 		return constraints
 
@@ -192,9 +195,6 @@ class EllipsoidConstraints(BaseConstraint):
 		missing_data = ""
 		if not data.has("dynamic_obstacles"):
 			missing_data += "Obstacles "
-		max_obst = self.get_config_value("max_obstacles")
-		if len(data.dynamic_obstacles) != max_obst:
-			missing_data += f"Obstacle list does not match max obstacle number. {len(data.dynamic_obstacles)} != {max_obst} "
 
 		for i in range(len(data.dynamic_obstacles)):
 			if data.dynamic_obstacles[i].prediction.empty():

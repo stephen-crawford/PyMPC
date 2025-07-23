@@ -45,7 +45,8 @@ def get_dummy_obstacle(state: State) -> DynamicObstacle:
         0.
     )
 
-def propagate_obstacles(data, dt=0.1, horizon=10, speed=10, sigma_pos=0.2):
+
+def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
   if not data.dynamic_obstacles:
       return
 
@@ -156,11 +157,11 @@ def get_constant_velocity_prediction(position: np.ndarray, velocity: np.ndarray,
         noise = 0.
 
     # Initialize the modes list if it doesn't exist
-    if not prediction.modes:
-        prediction.modes.append([])
+    if not prediction.steps:
+        prediction.steps = []
 
     for i in range(steps):
-        prediction.modes[0].append(PredictionStep(
+        prediction.steps.append(PredictionStep(
             position + velocity * dt * i,
             0.,
             noise,
@@ -203,7 +204,7 @@ def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> No
             for k in range(CONFIG["N"]):
                 # Linearly scaled
                 dist = (k + 1) * 0.6 * distance(
-                    obstacle.prediction.modes[0][k].position,
+                    obstacle.prediction.steps[k].position,
                     state.get_position() + state.get("v") * k * direction
                 )
 
@@ -254,10 +255,10 @@ def propagate_prediction_uncertainty(prediction: Prediction) -> None:
     minor = 0.
 
     for k in range(10):
-        major = np.sqrt(major ** 2 + (prediction.modes[0][k].major_radius * dt) ** 2)
-        minor = np.sqrt(minor ** 2 + (prediction.modes[0][k].minor_radius * dt) ** 2)
-        prediction.modes[0][k].major_radius += major # This was originally straight assignment not addition
-        prediction.modes[0][k].minor_radius += minor
+        major = np.sqrt(major ** 2 + (prediction.steps[k].major_radius * dt) ** 2)
+        minor = np.sqrt(minor ** 2 + (prediction.steps[k].minor_radius * dt) ** 2)
+        prediction.steps[k].major_radius += major # This was originally straight assignment not addition
+        prediction.steps[k].minor_radius += minor
 
 def propagate_prediction_uncertainty_for_obstacles(obstacles: list[DynamicObstacle]) -> None:
     """Propagate uncertainty for all obstacles."""

@@ -12,10 +12,9 @@ from planning.src.data_prep import define_robot_area
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel, numeric_rk4
 from planning.src.planner import Planner
 from planning.src.types import Data, Bound, generate_reference_path, calculate_path_normals, State, \
-	generate_dynamic_obstacles, generate_static_obstacles, PredictionType
+	generate_dynamic_obstacles, generate_static_obstacles, Costmap
 from solver.src.casadi_solver import CasADiSolver
 from utils.const import GAUSSIAN
-from utils.math_utils import chi_square_quantile
 from utils.utils import LOG_DEBUG
 
 
@@ -58,6 +57,16 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	data.dynamic_obstacles = dynamic_obstacles
 
 	data.static_obstacles = generate_static_obstacles(1, 1, reference_path)
+
+
+	costmap = Costmap(width=400, height=400, resolution=0.05, origin=[-10, -10])
+	obst_pos = [obs.position for obs in data.dynamic_obstacles]
+	costmap.set_obstacles(obst_pos)
+	costmap.inflate_obstacles(0.5)
+
+	# Pass to DecompConstraints
+	data.costmap = costmap
+
 
 	normals = calculate_path_normals(data.reference_path)
 
@@ -274,104 +283,108 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 						obstacle_patches[idx].center = (float(obs.position[0]), float(obs.position[1]))
 
 			# ✅ Force plot update
+			from shapely.geometry import Polygon, box
+			from shapely.ops import unary_union
+			import matplotlib.cm as cm
+			import math
 
-			for artist in getattr(ax, "_constraint_lines", []):
-				try:
+			# Define chi-square quantile for 95% confidence
+			chi_sq_val = 5.991  # df=2, alpha=0.95
+
+			def plot_corridors_and_ellipses(ax, decomp_constraints, horizon, x_min, x_max, y_min, y_max, stage_colors):
+				# Remove old corridors
+				for artist in getattr(ax, "_corridor_polygons", []):
 					artist.remove()
-				except:
-					pass
-			ax._constraint_lines = []
+				ax._corridor_polygons = []
 
-			chi = chi_square_quantile(dof=2, alpha=1.0 - ellipsoid_constraints.risk)
-			ego_radius = data.robot_area[0].radius if hasattr(data, 'robot_area') else 0.0
+				# Base rectangle
+				base_rect = Polygon([(x_min, y_min), (x_max, y_min), (x_max, y_max), (x_min, y_max)])
 
-			for idx, obs in enumerate(data.dynamic_obstacles):
-				obstacle_patches[idx].center = (obs.position[0], obs.position[1])
-				pred = obs.prediction
-				if pred and len(pred.steps) > 0 and pred.type in [PredictionType.GAUSSIAN, PredictionType.NONGAUSSIAN]:
-					step = pred.steps[0]
-					major = (step.major_radius + obs.radius + ego_radius) * np.sqrt(chi)
-					minor = (step.minor_radius + obs.radius + ego_radius) * np.sqrt(chi)
-					ellipsoid_patches[idx].center = (step.position[0], step.position[1])
-					ellipsoid_patches[idx].width = 2 * major
-					ellipsoid_patches[idx].height = 2 * minor
-					ellipsoid_patches[idx].angle = np.degrees(step.angle)
-					ellipsoid_patches[idx].set_visible(True)
-				else:
-					ellipsoid_patches[idx].set_visible(False)
+				for k in range(horizon):
+					halfspaces = []
+					for idx in range(decomp_constraints.num_constraints):
+						a1 = decomp_constraints.a1[0][k][idx]
+						a2 = decomp_constraints.a2[0][k][idx]
+						b = decomp_constraints.b[0][k][idx]
+						if abs(a1) < 1e-8 and abs(a2) < 1e-8:
+							continue
+						halfspaces.append((a1, a2, b))
 
-			# ✅ Plot linearized constraints
-			current_k = 0  # Using first prediction step
-			disc_id = 0
-			# LOG_DEBUG(f"Num linear constraints: {len(linear_constraints._a1[disc_id][current_k])}")
-			# num_constraints = len(linear_constraints._a1[disc_id][current_k])
+					# Start with the bounding box
+					region = base_rect
+					for (a1, a2, b) in halfspaces:
+						# Create a large polygon representing the half-space a1*x + a2*y <= b
+						points = []
+						# Four corners of an extended bounding box
+						for px, py in [(x_min - 100, y_min - 100), (x_max + 100, y_min - 100),
+									   (x_max + 100, y_max + 100), (x_min - 100, y_max + 100)]:
+							if a1 * px + a2 * py <= b + 1e-9:
+								points.append((px, py))
+						# Approximate half-space by cutting the rectangle with its boundary line
+						line_points = []
+						if abs(a2) > 1e-8:
+							# y = (b - a1*x)/a2
+							line_points.append((x_min - 100, (b - a1 * (x_min - 100)) / a2))
+							line_points.append((x_max + 100, (b - a1 * (x_max + 100)) / a2))
+						if abs(a1) > 1e-8:
+							# x = (b - a2*y)/a1
+							line_points.append(((b - a2 * (y_min - 100)) / a1, y_min - 100))
+							line_points.append(((b - a2 * (y_max + 100)) / a1, y_max + 100))
+						points += line_points
+
+						# Sort points and make a polygon
+						halfspace_poly = Polygon(points).convex_hull
+						region = region.intersection(halfspace_poly)
+
+					if not region.is_empty:
+						color = stage_colors(k)
+						poly_patch = plt.Polygon(list(region.exterior.coords), closed=True, color=color, alpha=0.15,
+												 zorder=1)
+						ax.add_patch(poly_patch)
+						ax._corridor_polygons.append(poly_patch)
+
+			def plot_uncertainty_ellipses(ax, dynamic_obstacles):
+				for ell in getattr(ax, "_uncertainty_ellipses", []):
+					ell.remove()
+				ax._uncertainty_ellipses = []
+
+				for obs in dynamic_obstacles:
+					if obs.prediction and obs.prediction.type == "GAUSSIAN":
+						for step in obs.prediction.steps:
+							cov = step.covariance
+							if cov is None: continue
+							vals, vecs = np.linalg.eigh(cov)
+							order = vals.argsort()[::-1]
+							vals, vecs = vals[order], vecs[:, order]
+							angle = math.degrees(math.atan2(*vecs[:, 0][::-1]))
+							width, height = 2 * np.sqrt(chi_sq_val * vals)
+							ell = Ellipse(xy=(step.position[0], step.position[1]),
+										  width=width, height=height, angle=angle,
+										  edgecolor='blue', facecolor='none', alpha=0.3, lw=2)
+							ax.add_patch(ell)
+							ax._uncertainty_ellipses.append(ell)
+
+			stage_colors = cm.get_cmap('Greens', horizon)
+			plot_corridors_and_ellipses(ax, decomp_constraints, horizon, x_min, x_max, y_min, y_max, stage_colors)
+			plot_uncertainty_ellipses(ax, data.dynamic_obstacles)
+
+			# chi = chi_square_quantile(dof=2, alpha=1.0 - ellipsoid_constraints.risk)
+			# ego_radius = data.robot_area[0].radius if hasattr(data, 'robot_area') else 0.0
 			#
 			# for idx, obs in enumerate(data.dynamic_obstacles):
+			# 	obstacle_patches[idx].center = (obs.position[0], obs.position[1])
 			# 	pred = obs.prediction
-			#
-			# 	if pred and pred.modes and len(pred.modes[0]) > 0:
-			# 		# Extract positions from PredictionSteps
-			# 		steps = pred.modes[0]  # First mode
-			# 		pred_positions = np.array([step.position for step in steps])
-			# 		pred_x, pred_y = pred_positions[:, 0], pred_positions[:, 1]
-			#
-			# 		# Update line and markers
-			# 		prediction_lines[idx].set_data(pred_x, pred_y)
-			# 		prediction_markers[idx].set_data(pred_x, pred_y)
-			# 		LOG_DEBUG(f"Prediction line: {pred_x}, {pred_y}")
-			# 		# If GAUSSIAN → update uncertainty ellipse for last step
-			# 		if pred.type == PredictionType.GAUSSIAN:
-			# 			last_step = steps[-1]
-			# 			uncertainty_ellipses[idx].set_center((last_step.position[0], last_step.position[1]))
-			# 			uncertainty_ellipses[idx].width = last_step.major_radius * 2
-			# 			uncertainty_ellipses[idx].height = last_step.minor_radius * 2
-			# 			uncertainty_ellipses[idx].angle = np.degrees(last_step.angle)
-			# 		else:
-			# 			uncertainty_ellipses[idx].set_visible(False)
+			# 	if pred and len(pred.steps) > 0 and pred.type in [PredictionType.GAUSSIAN, PredictionType.NONGAUSSIAN]:
+			# 		step = pred.steps[0]
+			# 		major = (step.major_radius + obs.radius + ego_radius) * np.sqrt(chi)
+			# 		minor = (step.minor_radius + obs.radius + ego_radius) * np.sqrt(chi)
+			# 		ellipsoid_patches[idx].center = (step.position[0], step.position[1])
+			# 		ellipsoid_patches[idx].width = 2 * major
+			# 		ellipsoid_patches[idx].height = 2 * minor
+			# 		ellipsoid_patches[idx].angle = np.degrees(step.angle)
+			# 		ellipsoid_patches[idx].set_visible(True)
 			# 	else:
-			# 		LOG_DEBUG("No predictions so not plotting lines")
-			# 		# No prediction → clear
-			# 		prediction_lines[idx].set_data([], [])
-			# 		prediction_markers[idx].set_data([], [])
-			# 		uncertainty_ellipses[idx].set_visible(False)
-
-			# for obs_id in range(num_constraints):
-			# 	a1 = linear_constraints._a1[disc_id][current_k][obs_id]
-			# 	a2 = linear_constraints._a2[disc_id][current_k][obs_id]
-			# 	b = linear_constraints._b[disc_id][current_k][obs_id]
-			# 	LOG_DEBUG(f"For obstacle {obs_id}, a1: {a1}, a2: {a2}, b: {b}")
-			#
-			# 	if abs(a1) < 1e-6 and abs(a2) < 1e-6:
-			# 		continue
-			#
-			# 	# ✅ Constraint line
-			# 	xx = np.linspace(x_min, x_max, 200)
-			# 	if abs(a2) > 1e-6:
-			# 		yy = (b - a1 * xx) / a2
-			# 	else:
-			# 		xx = np.full(200, b / a1)
-			# 		yy = np.linspace(y_min, y_max, 200)
-			#
-			# 	line, = ax.plot(xx, yy, 'g--', linewidth=1.5, alpha=0.8, zorder=4)
-			# 	ax._constraint_lines.append(line)
-			#
-			# 	# ✅ Shading for half-space
-			# 	X, Y = np.meshgrid(np.linspace(x_min, x_max, 300),
-			# 					   np.linspace(y_min, y_max, 300))
-			# 	infeasible = (a1 * X + a2 * Y - b) > 0
-			# 	shade = ax.contourf(X, Y, infeasible, levels=[0.5, 1], colors=['#FFCCCC'], alpha=0.25, zorder=1)
-			# 	ax._constraint_lines.extend(shade.collections)
-			#
-			# 	# ✅ Draw normal vector
-			# 	if obs_id < len(data.dynamic_obstacles):
-			# 		obs = data.dynamic_obstacles[obs_id]
-			# 		obs_center = (float(obs.position[0]), float(obs.position[1]))
-			# 		normal_vec = np.array([a1, a2])
-			# 		normal_vec = normal_vec / np.linalg.norm(normal_vec) * 1.0
-			# 		arrow = ax.arrow(obs_center[0], obs_center[1], normal_vec[0], normal_vec[1],
-			# 						 head_width=0.2, color='orange', alpha=0.8, zorder=5)
-			# 		ax._constraint_lines.append(arrow)
-
+			# 		ellipsoid_patches[idx].set_visible(False)
 			# ✅ Force refresh
 			fig.canvas.draw()
 			fig.canvas.flush_events()
