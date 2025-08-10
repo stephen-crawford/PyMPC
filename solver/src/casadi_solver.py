@@ -7,7 +7,7 @@ from planning.src.dynamic_models import DynamicsModel
 from planning.src.types import State, Trajectory
 from solver.src.base_solver import BaseSolver
 from utils.const import OBJECTIVE
-from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO, CONFIG
+from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO
 
 '''
 Casadi solver used for trajectory optimization. 
@@ -27,7 +27,7 @@ Usage follows:
 DEFAULT_BRAKING = -2.0
 
 class CasADiSolver(BaseSolver):
-    def __init__(self, timestep=0.1, horizon=30):
+    def __init__(self, timestep=0.1, horizon=10):
         super().__init__(timestep, horizon)
         LOG_INFO("CasADiSolver: Initializing solver")
 
@@ -67,7 +67,7 @@ class CasADiSolver(BaseSolver):
             'print_time': 0,
             'ipopt.sb': 'yes',
             'ipopt.max_iter': 1000,
-            'ipopt.tol': 1e-8, #-4 for some slack, -8 for less slack
+            'ipopt.tol': 1e-4, #-4 for some slack, -8 for less slack
             'ipopt.mu_strategy': 'adaptive',
             'ipopt.hessian_approximation': 'limited-memory',
             'ipopt.warm_start_init_point': 'yes',
@@ -103,6 +103,7 @@ class CasADiSolver(BaseSolver):
 
         initial_forecast = self._create_trajectory_from_warmstart()
         self.forecast.append(copy.deepcopy(initial_forecast))
+        self.warmstart_intiailized = True
 
     def _initialize_base_warmstart(self, state: State):
         """Create initial warmstart trajectory using simple integration"""
@@ -299,7 +300,7 @@ class CasADiSolver(BaseSolver):
                 options['ipopt.max_cpu_time'] = timeout
 
             total_objective = 0
-            for stage_idx in range(self.horizon + 1):
+            for stage_idx in range(self.horizon + 1): # this gives stages up to but not including range end so through our horizon
 
                 LOG_DEBUG("Trying to get objective cost for stage " + str(stage_idx) + " curr var dict: " + str(self.var_dict))
                 symbolic_state = State(self.dynamics_model)

@@ -129,6 +129,9 @@ class State:
             lines.append(f" {var}: {value}")
         return "\n".join(lines)
 
+    def __repr__(self):
+        return self.__str__()
+
     def copy(self):
         state = State()
         state.initialize(self._model_type)
@@ -171,6 +174,10 @@ class PredictionStep:
         # Covariance
         self.major_radius = major_radius
         self.minor_radius = minor_radius
+
+    def __str__(self):
+
+        return f"PredictionStep({self.position}, {self.angle}, {self.major_radius}, {self.minor_radius})"
 
 class Prediction:
     def __init__(self, type_=None):
@@ -838,6 +845,7 @@ class Costmap:
     def set_obstacles(self, obstacle_coords):
         for x, y in obstacle_coords:
             i, j = self.world_to_map(x, y)
+            LOG_DEBUG(f"For obstacle with coordinates x: {x}, y: {y}, calculated i: {i}, j: {j}")
             if 0 <= i < self.width and 0 <= j < self.height:
                 self.data[j, i] = 255  # Mark as obstacle
 

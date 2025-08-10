@@ -47,7 +47,7 @@ def get_dummy_obstacle(state: State) -> DynamicObstacle:
 
 
 def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
-  if not data.dynamic_obstacles:
+  if data.dynamic_obstacles is None:
       return
 
   for obstacle in data.dynamic_obstacles:
@@ -147,6 +147,7 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
 
       pred.steps = pred_steps
 
+
 def get_constant_velocity_prediction(position: np.ndarray, velocity: np.ndarray, dt: float, steps: int) -> Prediction:
     """Generate prediction based on constant velocity model."""
     if CONFIG["probabilistic"]["enable"]:
@@ -185,6 +186,22 @@ def remove_distant_obstacles(obstacles: list[DynamicObstacle], state: 'State') -
     obstacles.clear()
     obstacles.extend(nearby_obstacles)
 
+def filter_distant_obstacles(obstacles: list[DynamicObstacle], state: 'State', distance_limit = None):
+    """Remove obstacles that are far from the current state."""
+    nearby_obstacles = []
+
+    dist = 0
+    if distance_limit is not None:
+        dist = distance_limit
+    else:
+        dist = CONFIG["max_obstacle_distance"]
+    pos = state.get_position()
+    for obstacle in obstacles:
+        if distance(pos, obstacle.position) < dist:
+            nearby_obstacles.append(obstacle)
+
+    return nearby_obstacles
+
 
 def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> None:
     """Ensure that the number of obstacles matches the configured maximum."""
@@ -201,7 +218,7 @@ def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> No
             min_dist = 1e5
             direction = np.array([np.cos(state.get("psi")), np.sin(state.get("psi"))])
 
-            for k in range(CONFIG["N"]):
+            for k in range(CONFIG["horizon"]):
                 # Linearly scaled
                 dist = (k + 1) * 0.6 * distance(
                     obstacle.prediction.steps[k].position,
@@ -238,7 +255,7 @@ def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> No
                 dummy.position,
                 np.array([0., 0.]),
                 CONFIG["integrator_step"],
-                CONFIG["N"]
+                CONFIG["horizon"]
             )
             obstacles.append(dummy)
 

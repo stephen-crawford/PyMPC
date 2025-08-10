@@ -60,14 +60,14 @@ class Planner:
 
     self.solver.initialize_rollout(self.state)
 
+    propagate_obstacles(data, self.solver.timestep, self.solver.horizon)
+
     for module in self.solver.module_manager.get_modules():
       module.update(self.state, data)
 
     for k in range(self.solver.horizon):
       for module in self.solver.module_manager.get_modules():
         module.set_parameters(self.solver.parameter_manager, data, k)
-
-    propagate_obstacles(data)
 
     used_time = time.time() - data.planning_start_time
 

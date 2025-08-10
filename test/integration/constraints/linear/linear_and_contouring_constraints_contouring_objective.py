@@ -19,8 +19,8 @@ from utils.const import GAUSSIAN
 from utils.utils import LOG_DEBUG
 
 
-def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(20.0, 20.0),
-		max_iterations=200):
+def run(dt=0.1, horizon=15, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(20.0, 20.0),
+		max_iterations=300):
 
 
 	dt = dt
@@ -53,7 +53,7 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	# Store path
 	data.reference_path = reference_path
 
-	dynamic_obstacles = generate_dynamic_obstacles(10, GAUSSIAN, 1)
+	dynamic_obstacles = generate_dynamic_obstacles(10, GAUSSIAN, .5)
 
 	data.dynamic_obstacles = dynamic_obstacles
 
@@ -267,7 +267,11 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 		else:
 			print(f"Iteration {i}: MPC failed!")
 
+		LOG_DEBUG("Active constraints BEFORE reset, a1:" + str(linear_constraints._a1) + " and a2:" + str(
+			linear_constraints._a2) + " and b: " + str(linear_constraints._b))
 		casadi_solver.reset()
+		LOG_DEBUG("Active constraints after reset, a1:" + str(linear_constraints._a1) + " and a2:" + str(
+			linear_constraints._a2))
 
 	# ✅ Keep plot open at the end
 	plt.ioff()

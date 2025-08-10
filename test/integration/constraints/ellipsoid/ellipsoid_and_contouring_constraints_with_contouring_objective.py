@@ -7,6 +7,7 @@ from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
 from planner_modules.src.constraints.decomp_constraints import DecompConstraints
+from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
 from planning.src.data_prep import define_robot_area
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel, numeric_rk4
@@ -39,8 +40,8 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	casadi_solver.module_manager.add_module(contouring_objective)
 	contouring_constraints = ContouringConstraints(casadi_solver)
 	casadi_solver.module_manager.add_module(contouring_constraints)
-	decomp_constraints = DecompConstraints(casadi_solver)
-	casadi_solver.module_manager.add_module(decomp_constraints)
+	ellipsoid_constraints = EllipsoidConstraints(casadi_solver)
+	casadi_solver.module_manager.add_module(ellipsoid_constraints)
 
 
 	data = Data()
@@ -53,7 +54,7 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	# Store path
 	data.reference_path = reference_path
 
-	dynamic_obstacles = generate_dynamic_obstacles(10, GAUSSIAN, 1)
+	dynamic_obstacles = generate_dynamic_obstacles(10, GAUSSIAN, .1)
 
 	data.dynamic_obstacles = dynamic_obstacles
 

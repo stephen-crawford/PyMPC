@@ -1,4 +1,4 @@
-horizon: 30
+horizon: 10
 contouring:
   add_road_constraints: true
   dynamic_velocity_reference: false
@@ -20,11 +20,12 @@ enable_output: true
 integrator_step: 0.1
 decomp:
   range: 2
-  max_constraints: 10
+  max_constraints: 40
   use_slack: False
+  use_guidance: False
   costmap:
     resolution: 0.05  # meters per cell
-    origin: [0.0,0.0 ]  # bottom-left corner of costmap
+    origin: [-10.0,-10.0 ]  # bottom-left corner of costmap
     width: 400  # number of cells in x
     height: 400  # number of cells in y
     obstacle_threshold: 100  # cost value marking obstacle
@@ -34,8 +35,11 @@ linearized_constraints:
   add_halfspaces: 0
   max_constraints: 10
   use_slack: true
+  use_topology_constraints: false
+  filter_distant_obstacles: false
 max_obstacles: 10
 num_discs: 1
+disc_radius: 0.5
 name: test
 obstacle_radius: 0.35
 robot:

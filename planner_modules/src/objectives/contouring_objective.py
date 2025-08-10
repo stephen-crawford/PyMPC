@@ -564,11 +564,12 @@ class ContouringObjective(BaseObjective):
 		if not hasattr(data, "static_obstacles") or data.static_obstacles is None:
 			data.set("static_obstacles", [])
 
-		# Extend the list if needed
-		req_additional_length = self.solver.horizon + 1
-		previous_len = len(data.static_obstacles)
+		# Ensure we have enough slots for all horizon steps
+		required_length = self.solver.horizon + 1
+		current_length = len(data.static_obstacles)
 
-		data.static_obstacles.extend([None] * (req_additional_length))
+		if current_length < required_length:
+			data.static_obstacles.extend([None] * (required_length - current_length))
 
 		# Get current vehicle progress
 		current_norm_s = self.solver.get_initial_state().get("spline") / self.reference_path.get_arc_length()
@@ -577,12 +578,41 @@ class ContouringObjective(BaseObjective):
 		vehicle_velocity = self.solver.get_initial_state().get("v")  # Default to 1.0 if not available
 		dt = self.solver.dt if hasattr(self.solver, 'dt') else 0.1  # Time step
 		LOG_DEBUG("Static obstacles: {}".format(data.static_obstacles))
-		for k in range(previous_len, self.solver.horizon + 1):
+
+		# Create obstacles for all horizon steps (not just the new ones)
+		for k in range(self.solver.horizon + 1):
 			# Create a static obstacle for this time step
 			data.static_obstacles[k] = StaticObstacle()
 
+			# Initialize prediction structure for static obstacles
+			if not hasattr(data.static_obstacles[k], 'prediction'):
+				# Create a basic prediction object
+				data.static_obstacles[k].prediction = type('Prediction', (), {
+					'steps': [],
+					'type': None,  # or whatever default prediction type you use
+					'path': None
+				})()
+
+			# Since this is a road boundary (static), set a dummy position
+			# You might want to use the center of the road or some representative point
+			if not hasattr(data.static_obstacles[k], 'position'):
+				# Use path center as representative position
+				future_distance = vehicle_velocity * dt * k
+				future_norm_s = current_norm_s + (future_distance / self.reference_path.get_arc_length())
+				future_norm_s = max(0.0, min(1.0, future_norm_s))
+
+				if len(self.reference_path.s) >= 2:
+					s_min = self.reference_path.s[0]
+					s_max = self.reference_path.s[-1]
+					cur_s = s_min + future_norm_s * (s_max - s_min)
+					path_point_x = float(self.reference_path.x_spline(cur_s))
+					path_point_y = float(self.reference_path.y_spline(cur_s))
+					data.static_obstacles[k].position = np.array([path_point_x, path_point_y, 0.0])
+				else:
+					data.static_obstacles[k].position = np.array([0.0, 0.0, 0.0])
+
+			# Rest of your existing code for creating halfspace constraints...
 			# Project future position along path
-			# Estimate how far along the path we'll be at time step k
 			future_distance = vehicle_velocity * dt * k
 			future_norm_s = current_norm_s + (future_distance / self.reference_path.get_arc_length())
 
