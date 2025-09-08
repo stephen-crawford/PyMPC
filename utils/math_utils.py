@@ -167,71 +167,6 @@ Extract yaw angle from a quaternion or pose with quaternion.
 
     return math.atan2(t3, t4)
 
-class RandomGenerator:
-    def __init__(self, seed=-1):
-        if seed == -1:
-            # Use random seeds
-            self.rng__ = random.Random()
-            self.rng_int_ = random.Random()
-            self.rng_gaussian_ = random.Random()
-        else:
-            # Use fixed seeds
-            self.rng__ = random.Random(seed)
-            self.rng_int_ = random.Random(seed)
-            self.rng_gaussian_ = random.Random(seed)
-
-        self.epsilon_ = np.finfo(float).eps
-
-    def random(self):
-        """Generate a random number between 0 and 1."""
-        return self.rng__.random()
-
-    def int(self, max_val):
-        """Generate a random integer between 0 and max."""
-        return self.rng_int_.randint(0, max_val)
-
-    def gaussian(self, mean, stddev):
-        """Generate a random number from a Gaussian distribution."""
-        return self.rng_gaussian_.gauss(mean, stddev)
-
-    def uniform_to_gaussian_2d(self, uniform_variables):
-        """Convert uniform random variables to Gaussian via Box-Muller."""
-        # Temporarily save the first variable
-        temp_u1 = uniform_variables[0]
-
-        # Convert the uniform variables to gaussian via Box-Muller
-        uniform_variables[0] = math.sqrt(-2 * math.log(temp_u1)) * math.cos(2 * math.pi * uniform_variables[1])
-        uniform_variables[1] = math.sqrt(-2 * math.log(temp_u1)) * math.sin(2 * math.pi * uniform_variables[1])
-
-        return uniform_variables
-
-    def bivariate_gaussian(self, mean, major_axis, minor_axis, angle):
-        """Generate a random point from a bivariate Gaussian distribution."""
-        # Get the rotation matrix
-        R = rotation_matrix_from_heading(angle)
-
-        # Generate uniform random numbers in 2D
-        u1 = 0
-        while u1 <= self.epsilon_:
-            u1 = self.rng_gaussian_.random()
-        u2 = self.rng_gaussian_.random()
-        uniform_samples = np.array([u1, u2])
-
-        # Convert them to a Gaussian
-        uniform_samples = self.uniform_to_gaussian_2d(uniform_samples)
-
-        # Convert the semi axes back to gaussians
-        SVD = np.array([[major_axis ** 2, 0.0], [0.0, minor_axis ** 2]])
-
-        # Compute Sigma and Cholesky decomposition
-        Sigma = R @ SVD @ R.T
-        A = np.linalg.cholesky(Sigma)  # Matrix square root
-
-        # Apply transformation to uniform Gaussian samples
-        result = A @ uniform_samples + np.array(mean)
-        return result
-
-
 class BandMatrix:
     """Band matrix implementation with LU decomposition for solving linear systems."""
 
@@ -1362,3 +1297,101 @@ class DouglasRachford:
             np.ndarray: Reflected point
         """
         return 2.0 * self._project(position, delta, r, starting_pose) - position
+
+###### Probability Utils ######
+
+class RandomGenerator:
+    """Python equivalent of RosTools::RandomGenerator."""
+
+    def __init__(self, seed: int = -1):
+        if seed == -1:
+            self.rng_double = np.random.default_rng()
+            self.rng_int = np.random.default_rng()
+            self.rng_gaussian = np.random.default_rng()
+        else:
+            self.rng_double = np.random.default_rng(seed)
+            self.rng_int = np.random.default_rng(seed)
+            self.rng_gaussian = np.random.default_rng(seed)
+
+        self.epsilon = np.finfo(float).eps
+
+    def Double(self) -> float:
+        """Uniform [0, 1) double."""
+        return self.rng_double.uniform(0.0, 1.0)
+
+    def Int(self, max_val: int) -> int:
+        """Uniform integer in [0, max_val]."""
+        return self.rng_int.integers(0, max_val + 1)
+
+    def Gaussian(self, mean: float, stddev: float) -> float:
+        """Normal distribution sample."""
+        return self.rng_gaussian.normal(mean, stddev)
+
+    @staticmethod
+    def uniform_to_gaussian_two_dim(uniform_variables: np.ndarray):
+        """
+        Convert a pair of uniform(0,1) samples into Gaussian(0,1) samples
+        using Box–Muller transform.
+        """
+        u1 = uniform_variables[0]
+        u2 = uniform_variables[1]
+
+        r = np.sqrt(-2.0 * np.log(u1))
+        theta = 2.0 * np.pi * u2
+
+        uniform_variables[0] = r * np.cos(theta)
+        uniform_variables[1] = r * np.sin(theta)
+
+    @staticmethod
+    def uniform_to_gaussian_two_dim_array(u):
+        u1 = u[..., 0]
+        u2 = u[..., 1]
+        r = np.sqrt(-2 * np.log(u1))
+        theta = 2 * np.pi * u2
+        u[..., 0] = r * np.cos(theta)
+        u[..., 1] = r * np.sin(theta)
+        return u
+
+    def BivariateGaussian(self,
+                          mean: np.ndarray,
+                          major_axis: float,
+                          minor_axis: float,
+                          angle: float) -> np.ndarray:
+        """
+        Sample from a 2D Gaussian with given mean, axes, and rotation.
+        mean: np.array([mx, my])
+        major_axis, minor_axis: stddevs along principal axes
+        angle: rotation (radians)
+        """
+
+        # Rotation matrix from heading
+        R = np.array([
+            [np.cos(angle), -np.sin(angle)],
+            [np.sin(angle),  np.cos(angle)]
+        ])
+
+        # Generate uniform random numbers in 2D
+        u1 = 0.0
+        while u1 <= self.epsilon:
+            u1 = self.rng_gaussian.uniform(0.0, 1.0)
+        u2 = self.rng_gaussian.uniform(0.0, 1.0)
+
+        uniform_samples = np.array([u1, u2], dtype=float)
+
+        # Convert to Gaussian(0,1)
+        self.uniformToGaussian2D(uniform_samples)
+
+        # Construct covariance in principal axis form
+        SVD = np.array([
+            [major_axis ** 2, 0.0],
+            [0.0, minor_axis ** 2]
+        ])
+
+        # Sigma = R * SVD * R^T
+        Sigma = R @ SVD @ R.T
+
+        # Cholesky decomposition (lower-triangular)
+        A = np.linalg.cholesky(Sigma)
+
+        # Transform standard normal to desired covariance + mean
+        return A @ uniform_samples + mean

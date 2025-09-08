@@ -101,9 +101,9 @@ class BaseSolver(ABC):
                 lb += module.get_lower_bound()
         return lb
 
-    def on_data_received(self, data, data_name):
+    def on_data_received(self, data):
         for module in self.module_manager.modules:
-            module.on_data_received(data, data_name)
+            module.on_data_received(data)
 
     @abstractmethod
     def reset(self):

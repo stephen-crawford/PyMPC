@@ -50,8 +50,7 @@ class ContouringConstraints(BaseConstraint):
 			data.reference_path.set('y_spline', self.reference_path.y_spline)
 			data.reference_path.set('s', self.reference_path.s)
 
-	def on_data_received(self, data, data_name):
-		LOG_DEBUG(f"{self.name.title()} on data received: {data_name}")
+	def on_data_received(self, data):
 		if data.has("reference_path") and data.reference_path is not None:
 			LOG_DEBUG("Received Reference Path")
 			self.process_reference_path(data)

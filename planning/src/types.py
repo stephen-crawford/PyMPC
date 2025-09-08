@@ -1,5 +1,6 @@
 import os
 import random
+from dataclasses import dataclass
 from enum import Enum
 
 import numpy as np
@@ -10,7 +11,7 @@ from typing import List, Optional
 from planning.src.dynamic_models import DynamicsModel
 from utils.const import DETERMINISTIC, GAUSSIAN
 from utils.math_utils import Halfspace
-from utils.utils import LOG_DEBUG, LOG_WARN, CONFIG
+from utils.utils import LOG_DEBUG, LOG_WARN, CONFIG, DataSaver
 
 
 class State:
@@ -160,11 +161,202 @@ class Disc:
             self.offset * np.sin(angle)
         ])
 
+    class ScenarioDisc:
+        def __init__(self, offset: float, radius: float):
+            self.offset = offset
+            self.radius = radius
+
+        def get_position(self, robot_position: np.ndarray, angle: float) -> np.ndarray:
+            """Returns the disc's position relative to the robot's position and orientation angle."""
+            return robot_position + np.array([
+                self.offset * np.cos(angle),
+                self.offset * np.sin(angle)
+            ])
+
+        def to_robot_center(self, disc_position: np.ndarray, angle: float) -> np.ndarray:
+            """Returns the robot's center position from the disc's position and orientation angle."""
+            return disc_position - np.array([
+                self.offset * np.cos(angle),
+                self.offset * np.sin(angle)
+            ])
+
+
 class PredictionType(Enum):
     DETERMINISTIC = 0
     GAUSSIAN = 1
     NONGAUSSIAN = 2
     NONE = 3
+
+
+class ScenarioStatus(Enum):
+    SUCCESS = 0
+    PROJECTED_SUCCESS = 1
+    BACKUP_PLAN = 2
+    INFEASIBLE = 3,
+    DATA_MISSING = 4,
+    RESET = 5,
+    NONE = 6
+
+class ScenarioSolveStatus(Enum):
+    SUCCESS = 0,
+    INFEASIBLE = 1,
+    SUPPORT_EXCEEDED = 2,
+    NONZERO_SLACK = 3
+
+import numpy as np
+from enum import Enum
+from typing import List
+
+
+# ==== trajectory_sample ====
+# C++: std::vector<std::vector<Eigen::VectorXd>>
+# In Python: list[list[np.ndarray]], where each np.ndarray is 1D
+trajectory_sample = List[List[np.ndarray]]
+
+
+# ==== Enums ====
+
+class ObstacleType(Enum):
+    STATIC = 0
+    DYNAMIC = 1
+    RANGE = 2
+
+
+class ConstraintSide(Enum):
+    BOTTOM = 0
+    TOP = 1
+    UNDEFINED = 2
+
+
+class ScenarioBase:
+    def __init__(self, sampler=None):
+        self.support_subsample = None
+        self.sampler = None
+        if sampler is not None:
+            self.sampler = sampler
+        self.status = ScenarioStatus.NONE
+        self.polygon_failed = False
+
+    def set_parameters(self, data, step):
+        return
+
+    def set_sampler(self, sampler):
+        return
+
+    def update(self, data):
+        return
+
+    def compute_active_constraints(self, active_constraints_aggregate, infeasible_scenarios):
+        return
+
+# ==== Scenario Struct ====
+
+class Scenario:
+    def __init__(self, idx: int, obstacle_idx: int):
+        self.idx_ = idx
+        self.obstacle_idx_ = obstacle_idx
+
+
+
+@dataclass
+class ScenarioConstraint:
+    """Meta-data of constructed constraints"""
+    a1: float
+    a2: float
+    b: float
+    scenario: Scenario
+    k: int  # time step
+
+
+# ==== ScenarioConstraint Struct ====
+
+class ScenarioConstraint:
+    def __init__(self, scenario: Scenario,
+                 type_: ObstacleType,
+                 side_: ConstraintSide):
+        self.scenario_ = scenario
+        self.type_ = type_
+        self.side_ = side_
+
+    def get_halfspace_index(self, sample_size: int) -> int:
+        if self.type_ == ObstacleType.DYNAMIC:
+            return sample_size * self.scenario_.obstacle_idx_ + self.scenario_.idx_
+        else:
+            return self.scenario_.idx_
+
+
+# ==== SupportSubsample Struct ====
+
+class SupportSubsample:
+    def __init__(self, initial_size: int = 150):
+        self.support_indices_: List[int] = []
+        self.scenarios_: List[Scenario] = []
+        self.size_ = 0
+
+    def add(self, scenario: Scenario):
+        if self.contains_scenario(scenario):
+            return
+        self.support_indices_.append(scenario.idx_)
+        self.scenarios_.append(scenario)
+        self.size_ += 1
+
+    def reset(self):
+        self.size_ = 0
+        self.support_indices_.clear()
+        self.scenarios_.clear()
+
+    def contains_scenario(self, scenario: Scenario) -> bool:
+        return scenario.idx_ in self.support_indices_[:self.size_]
+
+    def merge_with(self, other: "SupportSubsample"):
+        for sc in other.scenarios_:
+            if not self.contains_scenario(sc):
+                self.add(sc)
+
+    def print_(self):
+        print("=" * 40)
+        print("Support Subsample")
+        for sc in self.scenarios_:
+            print(f"Scenario {sc.idx_}, Obstacle {sc.obstacle_idx_}")
+        print("=" * 40)
+
+    def print_update(self, solver_id: int, bound: int, iterations: int):
+        print(f"[Solver {solver_id}] SQP ({iterations}): Support = {self.size_}/{bound}")
+
+
+@dataclass
+class SupportData:
+    """Class for managing the Convex SP setting the support maximum"""
+    name: str
+    n_collected: int = 0
+    max_support: int = 0
+
+    def __post_init__(self):
+        self.support_saver = DataSaver()
+
+    def add(self, support: int):
+        self.support_saver.add_data("support", support)
+        self.n_collected += 1
+        self.max_support = max(self.max_support, support)
+
+    def save(self):
+        self.support_saver.save_data("./",f"{self.name}_support-data")
+
+    def load(self) -> bool:
+        return self.support_saver.load()
+
+    def get_filename(self) -> str:
+        return f"{self.name}_support-data"
+
+
+# ==== Partition Struct ====
+
+class Partition:
+    def __init__(self, id_: int, velocity: float):
+        self.id = id_
+        self.velocity = velocity
+
+####### Obstacle Logic ######
 
 class PredictionStep:
     def __init__(self, position: np.ndarray, angle: float, major_radius: float, minor_radius: float):

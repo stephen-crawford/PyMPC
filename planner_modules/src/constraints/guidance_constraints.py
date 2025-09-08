@@ -332,26 +332,25 @@ class GuidanceConstraints(BaseConstraint):
 
         return len(missing_data) < 1
 
-    def on_data_received(self, data, data_name):
+    def on_data_received(self, data):
         """Handle incoming data"""
-        if data_name == "dynamic obstacles":
-            LOG_DEBUG("Guidance Constraints: Received dynamic obstacles")
+        LOG_DEBUG("Guidance Constraints: Received dynamic obstacles")
 
-            obstacles = []
-            for obstacle in data.dynamic_obstacles:
-                positions = [obstacle.position]  # Current position
+        obstacles = []
+        for obstacle in data.dynamic_obstacles:
+            positions = [obstacle.position]  # Current position
 
-                for k in range(len(obstacle.prediction.modes[0])):
-                    positions.append(obstacle.prediction.modes[0][k].position)
+            for k in range(len(obstacle.prediction.modes[0])):
+                positions.append(obstacle.prediction.modes[0][k].position)
 
-                obstacles.append((
-                    obstacle.index,
-                    positions,
-                    obstacle.radius + data.robot_area[0].radius
-                ))
+            obstacles.append((
+                obstacle.index,
+                positions,
+                obstacle.radius + data.robot_area[0].radius
+            ))
 
-            for planner in self.planners:
-                planner.load_obstacles(obstacles)
+        for planner in self.planners:
+            planner.load_obstacles(obstacles)
 
     def reset(self):
         """Reset the guidance constraints"""

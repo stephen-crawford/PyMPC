@@ -402,7 +402,7 @@ class ContouringObjective(BaseObjective):
 			"contouring_terminal_cost": terminal_cost
 		}
 
-	def on_data_received(self, data, data_name):
+	def on_data_received(self, data):
 		LOG_DEBUG("RECEIVED DATA FOR CONTOURING OBJ")
 		if data.has("reference_path") and data.reference_path is not None:
 			LOG_DEBUG("Received Reference Path")

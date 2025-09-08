@@ -16,12 +16,11 @@ class PathReferenceVelocityObjective(BaseObjective):
         if module_data.path_velocity is None and self.velocity_spline is not None:
             module_data.path_velocity = self.velocity_spline
 
-    def on_data_received(self, data, data_name):
-        if data_name == "reference_path":
-            LOG_DEBUG("Received Reference Path")
-            if data.reference_path.has_velocity():
-                self.velocity_spline = CubicSpline()
-                self.velocity_spline.set_points(data.reference_path.s, data.reference_path.v)
+    def on_data_received(self, data):
+        LOG_DEBUG("Received Reference Path")
+        if data.reference_path.has_velocity():
+            self.velocity_spline = CubicSpline()
+            self.velocity_spline.set_points(data.reference_path.s, data.reference_path.v)
 
     def define_parameters(self, params):
 

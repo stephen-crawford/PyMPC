@@ -1,5 +1,6 @@
 import datetime
 import inspect
+import json
 import logging
 import sys
 import time
@@ -15,6 +16,8 @@ import logging
 
 import os
 import yaml
+from typing import List, Tuple, Dict, Union, Any
+
 
 ######## CONFIGURATION MANAGEMENT
 
@@ -367,30 +370,43 @@ class Benchmarker:
         """Check if the timer is running."""
         return self.running_
 
+from datetime import datetime
 
 class Timer:
-    def __init__(self, duration):
-        self.duration_ = duration
+    def __init__(self, hard_stop):
+        self.max_runtime = hard_stop
         self.start_time = None
+        self.stop_time = None
 
-    def set_duration(self, duration):
-        """Set the timer duration."""
-        self.duration_ = duration
+    def set_max_runtime(self, duration):
+        """Set the maximum runtime in seconds."""
+        self.max_runtime = duration
 
     def start(self):
         """Start the timer."""
-        self.start_time = datetime.datetime.now()
+        self.start_time = datetime.now()
+        self.stop_time = None  # In case it's a restart
 
-    def current_duration(self):
-        """Get the current duration."""
-        end_time = datetime.datetime.now()
+    def current_runtime(self):
+        """Get the current duration in seconds."""
+        if self.start_time is None:
+            return 0.0
+        end_time = self.stop_time or datetime.now()
         return (end_time - self.start_time).total_seconds()
 
     def has_finished(self):
         """Check if the timer has finished."""
-        duration = self.current_duration()
-        return duration >= self.duration_
+        return self.current_runtime() >= self.max_runtime
 
+    def stop(self):
+        """Stop the timer."""
+        if self.start_time is not None:
+            self.stop_time = datetime.now()
+
+    def reset(self):
+        """Reset the timer."""
+        self.stop_time = None
+        self.start_time = None
 
 # Chrome trace event format profiler
 class ProfileResult:
@@ -400,23 +416,156 @@ class ProfileResult:
         self.End = end
         self.ThreadID = thread_id
 
+
 class DataSaver:
     def __init__(self):
-        self.data = {}
+        self.data: Dict[str, List[Union[float, int, str]]] = {}
         self.add_timestamp = False
 
-    def set_add_timestamp(self, value):
+    def set_add_timestamp(self, value: bool):
+        """Enable/disable automatic timestamp addition"""
         self.add_timestamp = value
 
-    def add_data(self, key, value):
-        self.data[key] = value
+    def clear(self):
+        """Clear all stored data"""
+        self.data.clear()
 
-    def save_data(self, folder, file):
-        with open(f"{folder}/{file}", "w") as f:
-            f.write(str(self.data))  # Example: Save as a string dictionary
+    def add_data(self, key: str, value: Union[float, int, str, List]):
+        """
+        Add data to the specified key. Values are stored as lists to support multiple entries.
 
-    def get_file_path(self, folder, file, flag):
-        return f"{folder}/{file}"
+        Args:
+            key: The data key/name
+            value: The value to store (will be converted to list if not already)
+        """
+        if key not in self.data:
+            self.data[key] = []
+
+        # Handle different value types
+        if isinstance(value, list):
+            self.data[key].extend(value)
+        else:
+            self.data[key].append(value)
+
+        # Add timestamp if enabled
+        if self.add_timestamp:
+            timestamp_key = f"{key}_timestamp"
+            if timestamp_key not in self.data:
+                self.data[timestamp_key] = []
+            self.data[timestamp_key].append(datetime.now().isoformat())
+
+    def save_data(self, filename: str, folder: str = ".", use_json: bool = True):
+        """
+        Save data to file
+
+        Args:
+            filename: Name of the file (without extension)
+            folder: Folder to save in (default: current directory)
+            use_json: If True, save as JSON; if False, save as plain text
+        """
+        # Create folder if it doesn't exist
+        os.makedirs(folder, exist_ok=True)
+
+        if use_json:
+            filepath = os.path.join(folder, f"{filename}.json")
+            with open(filepath, "w") as f:
+                json.dump(self.data, f, indent=2)
+        else:
+            filepath = os.path.join(folder, f"{filename}.txt")
+            with open(filepath, "w") as f:
+                for key, values in self.data.items():
+                    f.write(f"{key}: {values}\n")
+
+    def load_data(self, filename: str, folder: str = ".", use_json: bool = True) -> Tuple[bool, Dict[str, List]]:
+        """
+        Load data from file
+
+        Args:
+            filename: Name of the file (without extension)
+            folder: Folder to load from (default: current directory)
+            use_json: If True, expect JSON format; if False, expect plain text
+
+        Returns:
+            Tuple of (success: bool, data: Dict[str, List])
+        """
+        try:
+            if use_json:
+                filepath = os.path.join(folder, f"{filename}.json")
+                with open(filepath, "r") as f:
+                    loaded_data = json.load(f)
+            else:
+                # Simple text format parsing (basic implementation)
+                filepath = os.path.join(folder, f"{filename}.txt")
+                loaded_data = {}
+                with open(filepath, "r") as f:
+                    for line in f:
+                        if ": " in line:
+                            key, value_str = line.strip().split(": ", 1)
+                            try:
+                                # Try to parse as list
+                                loaded_data[key] = eval(value_str)
+                            except:
+                                loaded_data[key] = [value_str]
+
+            self.data = loaded_data
+            return True, loaded_data
+        except FileNotFoundError:
+            return False, {}
+        except Exception as e:
+            print(f"Error loading data: {e}")
+            return False, {}
+
+    def get_file_path(self, folder: str, filename: str, extension: str = "json") -> str:
+        """
+        Get the full file path
+
+        Args:
+            folder: Folder path
+            filename: Filename (without extension)
+            extension: File extension (default: json)
+
+        Returns:
+            Full file path
+        """
+        return os.path.join(folder, f"{filename}.{extension}")
+
+    def get_data(self, key: str) -> List:
+        """Get data for a specific key"""
+        return self.data.get(key, [])
+
+    def has_key(self, key: str) -> bool:
+        """Check if a key exists in the data"""
+        return key in self.data
+
+    def get_keys(self) -> List[str]:
+        """Get all data keys"""
+        return list(self.data.keys())
+
+    def remove_key(self, key: str):
+        """Remove a key and its data"""
+        if key in self.data:
+            del self.data[key]
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Get a summary of stored data"""
+        summary = {}
+        for key, values in self.data.items():
+            summary[key] = {
+                'count': len(values),
+                'type': type(values[0]).__name__ if values else 'empty',
+                'sample_values': values[:3] if len(values) > 3 else values
+            }
+        return summary
+
+    def print_summary(self):
+        """Print a summary of stored data"""
+        print("DataSaver Summary:")
+        print("-" * 40)
+        for key, info in self.get_summary().items():
+            print(f"{key}: {info['count']} items ({info['type']})")
+            if info['sample_values']:
+                print(f"  Sample: {info['sample_values']}")
+        print("-" * 40)
 
 
 class ExperimentManager:

@@ -81,7 +81,7 @@ class TestEllipsoidConstraints(unittest.TestCase):
 		module_data = MagicMock()
 
 		# Call method under test
-		self.ellipsoid_constraints.update(state, data, module_data)
+		self.ellipsoid_constraints.update(state, data)
 
 		# Assertions
 		self.assertEqual(self.ellipsoid_constraints._dummy_x, 60.0)  # 10.0 + 50.0

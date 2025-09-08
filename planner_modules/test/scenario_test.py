@@ -255,7 +255,7 @@ class TestScenarioConstraints(unittest.TestCase):
 		data.dynamic_obstacles = [obstacle]
 
 		# Call method under test
-		self.scenario_constraints.on_data_received(data, "dynamic obstacles")
+		self.scenario_constraints.on_data_received(data)
 
 		# Check that sampler was called for each solver when safe horizon is enabled
 		for solver in self.mock_solver_instances:

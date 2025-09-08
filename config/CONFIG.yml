@@ -1,4 +1,5 @@
 horizon: 10
+max_constraints: 20
 contouring:
   add_road_constraints: true
   dynamic_velocity_reference: false
@@ -63,6 +64,12 @@ road.width: 10.0
 scenario_constraints:
   num_constraints: 0
   parallel_solvers: 1
+  enable_safe_horizon: true
+  use_slack: false
+  num_scenarios: 4
+  num_halfspaces: 2
+  draw_disc: 1
+  enable_visualization: false
 shift_previous_solution_forward: false
 solver_settings:
   solver: casadi

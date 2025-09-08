@@ -112,8 +112,8 @@ class Planner:
   def is_objective_reached(self, data):
     return all(module.is_objective_reached(self.state, data) for module in self.solver.module_manager.modules if module.module_type == OBJECTIVE)
 
-  def on_data_received(self, data, data_name):
-    self.solver.on_data_received(data, data_name)
+  def on_data_received(self, data):
+    self.solver.on_data_received(data)
 
   def visualize(self, data):
     LOG_DEBUG("Planner::visualize")
