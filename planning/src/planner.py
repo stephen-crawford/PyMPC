@@ -3,7 +3,7 @@ import time
 from planning.src.data_prep import propagate_obstacles
 from planning.src.types import *
 from utils.const import OBJECTIVE
-from utils.utils import CONFIG, ExperimentManager
+from utils.utils import CONFIG, ExperimentManager, LOG_INFO
 
 
 class Planner:
@@ -40,7 +40,7 @@ class Planner:
       if self.experiment_manager.timer.has_finished():
         LOG_WARN("Data is not ready")
       self.output.process_solver_result(False, None)
-      return
+      return self.output
 
     if self.was_reset:
       self.experiment_manager.set_start_experiment()
@@ -65,6 +65,8 @@ class Planner:
     for module in self.solver.module_manager.get_modules():
       module.update(self.state, data)
 
+    LOG_DEBUG("Planner going to try to set parameters for all modules")
+
     for k in range(self.solver.horizon):
       for module in self.solver.module_manager.get_modules():
         module.set_parameters(self.solver.parameter_manager, data, k)
@@ -72,6 +74,21 @@ class Planner:
     used_time = time.time() - data.planning_start_time
 
     self.solver.parameter_manager.solver_timeout = 1.0 / CONFIG["control_frequency"] - used_time - 0.006
+    exit_flag = -1  # Default to failure
+    optimization_handled_by_module = False
+
+    # Check if any module has its own custom optimize method
+    for module in self.solver.module_manager.get_modules():
+      if hasattr(module, "optimize"):
+        LOG_INFO(f"Module '{module.get_name()}' is handling the optimization.")
+        exit_flag = module.optimize(self.state, data)
+        optimization_handled_by_module = True
+        break  # Assume only one module will handle optimization
+
+    # If no module handled optimization, run the standard solver
+    if not optimization_handled_by_module:
+      LOG_INFO("No module optimizer found. Running standard solver.")
+      exit_flag = self.solver.solve()
 
     for module in self.solver.module_manager.get_modules():
       if hasattr(module, "optimize"):

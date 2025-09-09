@@ -39,7 +39,7 @@ class ContouringObjective(BaseObjective):
 		LOG_INFO("ContouringObjective.update")
 
 		if self.reference_path is None:
-			LOG_WARN("No reference path available")
+			LOG_WARN(f"{id(self)} No reference path available")
 			return
 
 		# Update the closest point

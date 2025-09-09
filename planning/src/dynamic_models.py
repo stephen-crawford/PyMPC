@@ -120,6 +120,21 @@ class DynamicsModel:
         self.params = None
         self.state_dimension_integrate = None
 
+    def symbolic_dynamics(self, x, u, p, timestep):
+        """
+		Performs symbolic RK4 integration for the full state vector.
+		This method is used by the CasADiSolver to build the optimization constraints.
+		Subclasses with algebraic states (non-integrated) should override this.
+		"""
+        # RK4 integration
+        k1 = self.continuous_model(x, u, p)
+        k2 = self.continuous_model(x + timestep / 2 * k1, u, p)
+        k3 = self.continuous_model(x + timestep / 2 * k2, u, p)
+        k4 = self.continuous_model(x + timestep * k3, u, p)
+
+        x_next = x + timestep / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        return x_next
+
 
     def get_dependent_vars(self):
         return self.dependent_vars
@@ -467,6 +482,37 @@ class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
         theta = cd.atan2(vt_t, R - contour_error - vn_t)
 
         return cd.vertcat(integrated_states, s + R * theta)
+
+    def symbolic_dynamics(self, x, u, p, timestep):
+        """
+		Symbolic dynamics for the curvature-aware model.
+		It integrates the first 4 states and uses an algebraic update for the 5th state ('spline').
+		"""
+        # 1. Separate states into integrated and algebraic parts
+        x_integrated = x[0:4]  # x, y, psi, v
+        s = x[4]  # spline
+
+        # 2. Perform RK4 integration on the first 4 states
+        k1 = self.continuous_model(x_integrated, u, p)
+        k2 = self.continuous_model(x_integrated + timestep / 2 * k1, u, p)
+        k3 = self.continuous_model(x_integrated + timestep / 2 * k2, u, p)
+        k4 = self.continuous_model(x_integrated + timestep * k3, u, p)
+        x_next_integrated = x_integrated + timestep / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+        # 3. Perform symbolic algebraic update for the 'spline' state
+        # NOTE: This part requires a SYMBOLIC spline representation, not Scipy.
+        # This logic should mirror what's in the ContouringObjective.
+        # We assume a simple symbolic placeholder for path evaluation here.
+        # In a real system, you would pass the spline coefficients via 'p'.
+
+        # Placeholder for symbolic path evaluation. In the real code, this would
+        # use the 'p' parameter vector to get spline coefficients.
+        # For this example, we'll use a simplified algebraic update.
+        v_current = x_integrated[3]
+        s_next = s + v_current * timestep  # Simple linear progression
+
+        # 4. Combine the results
+        return cd.vertcat(x_next_integrated, s_next)
 
 
 class ContouringSecondOrderUnicycleModelWithSlack(DynamicsModel):

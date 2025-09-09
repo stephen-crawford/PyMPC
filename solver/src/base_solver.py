@@ -35,6 +35,7 @@ class BaseSolver(ABC):
 
     def initialize(self, data):
         self.define_parameters()
+        LOG_DEBUG("Base solver going to trigger module_manager set parameters for all modules ")
         self.module_manager.set_parameters_all(self.parameter_manager, data, self.horizon)
 
     def initialize_rollout(self, state, shift_forward=True):

@@ -426,7 +426,7 @@ class SafeHorizon:
 				self.constraints_[k].append(constraint)
 
 		# Initialize polygon constructors
-		polygon_range = self.get_config_value("scenario_constraints.polygon_range_", 10.0)
+		polygon_range = self.get_config_value("scenario_constraints.polygon_range", 10.0)
 		self.polytopes_ = []
 		self.polytopes = []  # Alternative access for compatibility
 
@@ -688,7 +688,7 @@ class SafeHorizon:
 		self.dr_projection(data)
 
 		# Precompute distances and feasibility
-		max_obstacles = self.get_config_value("scenario_constraints.max_obstacles_", 5)
+		max_obstacles = self.get_config_value("scenario_constraints.max_obstacles", 5)
 		for step in range(min(self.horizon, self.N)):
 			for obs_id in range(min(max_obstacles, len(self.radii_))):
 				self.compute_distances(data, step, obs_id)
@@ -972,14 +972,17 @@ class SafeHorizon:
 			# Check if sampler has scenarios ready
 			if self.sampler is not None:
 				if not hasattr(self.sampler, 'samples_ready') or not self.sampler.samples_ready():
+					LOG_DEBUG("Sampler not ready yet")
 					return False
 
 				# Check if scenarios are available
 				if not hasattr(self.sampler, 'samples') or self.sampler.samples is None:
+					LOG_DEBUG("Samples not ready yet")
 					return False
 
 			# Check if obstacle data is available
 			if not hasattr(data, 'dynamic_obstacles') or data.dynamic_obstacles is None:
+				LOG_DEBUG("Dynamic obstacles not ready yet")
 				return False
 
 			return True
@@ -1021,4 +1024,7 @@ class SafeHorizon:
 
 	def get_config_value(self, key: str, default=None):
 		"""Get configuration value with fallback"""
-		return get_config_dotted(self.config, key) if self.config else default
+		res = self.config.get(key, self.config.get(f"scenario_constraints.{key}", default))
+		if res is None:
+			res = get_config_dotted(self.config, key)
+		return res

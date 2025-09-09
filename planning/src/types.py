@@ -221,7 +221,6 @@ class ObstacleType(Enum):
     DYNAMIC = 1
     RANGE = 2
 
-
 class ConstraintSide(Enum):
     BOTTOM = 0
     TOP = 1
@@ -379,10 +378,6 @@ class Prediction:
 
     def empty(self) -> bool:
         return len(self.steps) == 0
-
-class ObstacleType(Enum):
-    STATIC = 0
-    DYNAMIC = 1
 
 
 class StaticObstacle:

@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import casadi as cd
 from utils.utils import print_header, print_value, parameter_map_path, write_to_yaml, LOG_INFO, LOG_DEBUG
@@ -47,7 +49,7 @@ class ParameterManager:
             self.parameter_values = []
         if key not in self.parameter_lookup:
             LOG_DEBUG("Parameter manager set parameter failing because key missing")
-            raise KeyError(f"Parameter '{key}' not found.")
+            raise KeyError(f"{id(self)} Parameter '{key}' not found.")
 
         start, length = self.parameter_lookup[key]
         value = np.atleast_1d(value).astype(float)
@@ -136,5 +138,8 @@ class ParameterManager:
     def format_value(self, name, value, tab=False):
         prefix = "  " if tab else ""
         return f"{prefix}{name}: {value}"
+
+    def copy(self):
+        return copy.deepcopy(self)
 
 

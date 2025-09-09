@@ -315,8 +315,9 @@ class LinearizedConstraints(BaseConstraint):
 						not data.dynamic_obstacles[i].prediction.type is PredictionType.DETERMINISTIC and
 						not data.dynamic_obstacles[i].prediction.type is PredictionType.GAUSSIAN):
 					missing_data += "Obstacle Prediction (type must be deterministic, or gaussian) "
-		LOG_DEBUG("Missing data in linearized constraints: {}".format(missing_data))
-		LOG_DEBUG("Obstacles: {}".format(data.dynamic_obstacles))
+		if len(missing_data) > 0:
+			LOG_DEBUG("Missing data in linearized constraints: {}".format(missing_data))
+			LOG_DEBUG("Obstacles: {}".format(data.dynamic_obstacles))
 		return len(missing_data) < 1
 
 	def reset(self):

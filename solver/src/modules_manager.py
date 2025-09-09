@@ -1,5 +1,7 @@
+import copy
+
 from utils.const import CONSTRAINT, OBJECTIVE
-from utils.utils import LOG_DEBUG
+from utils.utils import LOG_DEBUG, read_config_file
 from utils.utils import print_value, print_header, CONFIG, get_config_dotted
 from utils.visualizer import ROSLine
 
@@ -131,11 +133,14 @@ class ModuleManager:
             module_name = getattr(module, "name", "Unnamed Module")
             print_value(module_name, str(module), tab=True)
 
+    def copy(self):
+        return copy.deepcopy(self)
+
 class Module:
 
     def __init__(self):
         self.name = None
-        self.config = CONFIG
+        self.config = read_config_file()
         self.module_type = None
         self.description = ""
 
@@ -186,7 +191,6 @@ class Module:
         return self.name
 
     def get_config_value(self, key, default=None):
-        print("self.config " + str(self.config))
         res = self.config.get(key, self.config.get(f"{self.name}.{key}", default))
         if res is None:
             res = get_config_dotted(self.config, key)
@@ -197,4 +201,5 @@ class Module:
         publisher_name = f"{self.name}/{name_suffix}"
         return publisher_type(publisher_name, "map")
 
-
+    def copy(self):
+        return copy.deepcopy(self)

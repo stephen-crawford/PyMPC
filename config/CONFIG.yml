@@ -67,7 +67,10 @@ scenario_constraints:
   enable_safe_horizon: true
   use_slack: false
   num_scenarios: 4
+  max_constraints: 10
   num_halfspaces: 2
+  polygon_range: 2
+  sample_truncated: false
   draw_disc: 1
   enable_visualization: false
 shift_previous_solution_forward: false
