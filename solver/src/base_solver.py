@@ -70,6 +70,7 @@ class BaseSolver(ABC):
         for module in self.module_manager.modules:
             if module.module_type == CONSTRAINT:
                 c_list = module.get_constraints(self.dynamics_model, self.parameter_manager, stage_idx)
+                LOG_DEBUG(f"Successfully fetch constraint list from module")
                 l_bound = module.get_lower_bound()
                 u_bound = module.get_upper_bound()
 

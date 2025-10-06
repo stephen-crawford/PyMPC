@@ -60,15 +60,15 @@ class PartitionReader:
           LOG_WARN(f"[ERROR] Error reading partitions from {self.file_path_}: {e}")
           return False
 
-       v2_x = [0.0] * self.horizon
-       v2_y = [0.0] * self.horizon
+       v2_x = [0.0] * (self.horizon  + 1)
+       v2_y = [0.0] * (self.horizon + 1)
 
        for s in range(len(j)):
           try:
              obs_val = round(float(j[str(s)]["Observable"]) * 10) / 10
              self.batch_o_.append(obs_val)
 
-             for k in range(self.horizon):
+             for k in range(self.horizon  + 1 ):
                 v2_x[k] = float(j[str(s)]["Trajectory X"][f"x{k}"])
                 v2_y[k] = float(j[str(s)]["Trajectory Y"][f"y{k}"])
 
@@ -262,9 +262,6 @@ class PartitionSampler:
           cc.extend(c[start_idx:end_idx])
 
 
-# (Keep all imports and existing classes: PartitionReader, PartitionSampler)
-# ...
-
 class ScenarioSampler:
     """Main scenario sampler class"""
 
@@ -314,30 +311,28 @@ class ScenarioSampler:
        # Initialize probability and transformation matrices
        self._initialize_matrices()
 
-       # ** THE FIX IS HERE **
-       # Re-add the missing method
-
+    # **FIXED**: Added the missing 'samples_ready' method that is called by the scenario module.
     def samples_ready(self):
        """Check if samples are ready for use"""
        return self._samples_ready
 
     def resize_samples(self):
        """
-	   Resize sample arrays to current configuration by re-initializing them.
-	   This ensures the `self.samples` structure matches the current `self.horizon`,
-	   `self.max_obstacles`, and `self.sample_size` parameters.
-	   """
+       Resize sample arrays to current configuration by re-initializing them.
+       This ensures the `self.samples` structure matches the current `self.horizon`,
+       `self.max_obstacles`, and `self.sample_size` parameters.
+       """
        self._initialize_samples()
 
     def _initialize_samples(self):
        """Initialize the sample data structure"""
        self.samples = []
-       for step in range(self.horizon):
+       for step in range(self.horizon + 1):
           step_samples = []
           for obstacle_id in range(self.max_obstacles):
              obstacle_samples = [
                 np.ones(self.sample_size) * 100.0,  # x coordinates
-                np.ones(self.sample_size) * 100.5  # y coordinates
+                np.ones(self.sample_size) * 100.5   # y coordinates
              ]
              step_samples.append(obstacle_samples)
           self.samples.append(step_samples)
@@ -361,10 +356,10 @@ class ScenarioSampler:
        self.A_ = []
 
        for obstacle_id in range(self.max_obstacles):
-          self.R.append([[None] * num_modes for _ in range(self.horizon)])
-          self.SVD.append([[None] * num_modes for _ in range(self.horizon)])
-          self.Sigma.append([[None] * num_modes for _ in range(self.horizon)])
-          self.A_.append([[None] * num_modes for _ in range(self.horizon)])
+          self.R.append([[None] * num_modes for _ in range(self.horizon + 1)])
+          self.SVD.append([[None] * num_modes for _ in range(self.horizon+ 1 )])
+          self.Sigma.append([[None] * num_modes for _ in range(self.horizon+ 1)])
+          self.A_.append([[None] * num_modes for _ in range(self.horizon + 1)])
 
     def get_config_value(self, key, default=None):
        res = self.config.get(key, self.config.get(f"scenario_constraints.{key}", default))
@@ -499,12 +494,12 @@ class ScenarioSampler:
 
        # Generate batch picks for each time step
        batch_pick = []
-       for step in range(self.horizon):
+       for step in range(self.horizon + 1):
           batch_pick.append(random_generator.Int(self.batch_count - 1))
 
        # Generate shuffle indices
        shuffle_indices = []
-       for step in range(self.horizon):
+       for step in range(self.horizon  + 1):
           indices = np.arange(self.sample_size)
           np.random.shuffle(indices)
           shuffle_indices.append(indices)
@@ -543,7 +538,7 @@ class ScenarioSampler:
        """Generate a single sample trajectory"""
        bivariate_gaussian = np.zeros(2)
 
-       for step in range(self.horizon):
+       for step in range(self.horizon + 1):
           # Get prediction for this time step
           if hasattr(mode_prediction, 'states') and step < len(mode_prediction.states):
              step_prediction = mode_prediction.states[step]
@@ -609,3 +604,4 @@ class ScenarioSampler:
        """Load samples from database (placeholder)"""
        # This would load pre-computed samples from a database
        # For now, return False to generate new samples
+       return False

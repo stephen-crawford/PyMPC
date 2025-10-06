@@ -14,7 +14,7 @@ from planning.src.types import Data, Bound, generate_reference_path, calculate_p
 	generate_dynamic_obstacles, PredictionType, ScenarioSolveStatus
 from solver.src.casadi_solver import CasADiSolver
 from utils.const import GAUSSIAN
-from utils.utils import LOG_INFO, LOG_WARN
+from utils.utils import LOG_INFO, LOG_WARN, LOG_DEBUG
 
 
 class MPCVisualizer:
@@ -69,9 +69,10 @@ class MPCVisualizer:
 
 		# MPC prediction
 		forecast = planner.solver.get_forecasts()
-		if forecast:
-			pred_x = [s.get("x") for s in forecast.get_states()]
-			pred_y = [s.get("y") for s in forecast.get_states()]
+		LOG_DEBUG("Forecast states are {}".format(forecast[-1].get_states()))
+		if forecast[0]:
+			pred_x = [s.get("x") for s in forecast[-1].get_states()]
+			pred_y = [s.get("y") for s in forecast[-1].get_states()]
 			pred_line, = self.ax.plot(pred_x, pred_y, 'c--', linewidth=2, label="Predicted Trajectory")
 			self.dynamic_elements.append(pred_line)
 
@@ -125,7 +126,7 @@ class MPCVisualizer:
 		self.dynamic_elements.append(status_artist)
 
 
-def run(dt=0.1, horizon=15, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(50.0, 10.0),
+def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(50.0, 10.0),
 		max_iterations=300):
 	casadi_solver = CasADiSolver(dt, horizon)
 	vehicle = model()
@@ -227,5 +228,6 @@ def run(dt=0.1, horizon=15, model=ContouringSecondOrderUnicycleModel, start=(0.0
 if __name__ == '__main__':
 	import logging
 
-	logging.basicConfig(level=logging.DEBUG)  # Use INFO for cleaner output, DEBUG for verbose
+	logger = logging.getLogger("root")
+	logger.setLevel(logging.DEBUG)
 	run()

@@ -229,6 +229,7 @@ class LinearizedConstraints(BaseConstraint):
 				for obstacle_id in range(self.max_obstacles + self.num_other_halfspaces):
 					# Create unique parameter names
 					base_name = self.constraint_name(obstacle_id, step, disc_id)
+					LOG_DEBUG(f"Defining parameters for {base_name}")
 					params.add(f"{base_name}_a1")
 					params.add(f"{base_name}_a2")
 					params.add(f"{base_name}_b")
@@ -249,6 +250,7 @@ class LinearizedConstraints(BaseConstraint):
 			for disc_id in range(self.num_discs):
 				for constraint_id in range(self.max_obstacles + self.num_other_halfspaces):
 					base_name = self.constraint_name(constraint_id, step, disc_id)
+
 					parameter_manager.set_parameter(f"{base_name}_a1", self._dummy_a1)
 					parameter_manager.set_parameter(f"{base_name}_a2", self._dummy_a2)
 					parameter_manager.set_parameter(f"{base_name}_b", self._dummy_b)
@@ -289,7 +291,7 @@ class LinearizedConstraints(BaseConstraint):
 					a1_val = self._dummy_a1
 					a2_val = self._dummy_a2
 					b_val = self._dummy_b
-
+				LOG_DEBUG(f"Setting parameters for {base_name}")
 				# Set the parameter values
 				parameter_manager.set_parameter(f"{base_name}_a1", a1_val)
 				parameter_manager.set_parameter(f"{base_name}_a2", a2_val)

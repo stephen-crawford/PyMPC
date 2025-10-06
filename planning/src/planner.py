@@ -59,7 +59,7 @@ class Planner:
     # optimization_benchmarker.start()
 
     self.solver.initialize_rollout(self.state)
-
+    LOG_DEBUG("Going to propagate obstacles with horizon: " + str(self.solver.horizon))
     propagate_obstacles(data, self.solver.timestep, self.solver.horizon)
 
     for module in self.solver.module_manager.get_modules():

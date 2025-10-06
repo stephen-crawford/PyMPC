@@ -571,8 +571,8 @@ class SafeHorizon:
 		"""
 		feasible = True
 		infeasible_count = 0
-
-		for step in range(min(self.horizon - 1, len(self.polytopes))):
+		LOG_DEBUG("Trying to compute active constraints")
+		for step in range(min(self.horizon, len(self.polytopes))):
 			# Get slack value from solver
 			slack = 0.0
 			if hasattr(self.solver, 'get_output'):
