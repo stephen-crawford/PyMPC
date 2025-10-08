@@ -69,13 +69,16 @@ class MPCVisualizer:
 
 		# MPC prediction
 		forecast = planner.solver.get_forecasts()
-		LOG_DEBUG("Forecast states are {}".format(forecast[-1].get_states()))
-		if forecast[0]:
+
+		# **FIXED**: Add a check to ensure the forecast list is not empty
+		if forecast:
+			LOG_DEBUG("Forecast states are {}".format(forecast[-1].get_states()))
 			pred_x = [s.get("x") for s in forecast[-1].get_states()]
 			pred_y = [s.get("y") for s in forecast[-1].get_states()]
 			pred_line, = self.ax.plot(pred_x, pred_y, 'c--', linewidth=2, label="Predicted Trajectory")
 			self.dynamic_elements.append(pred_line)
 
+		# (rest of the function is the same...)
 		# Dynamic obstacles
 		for obs in self.data.dynamic_obstacles:
 			obs_patch = plt.Circle(obs.position, obs.radius, color='red', alpha=0.7)

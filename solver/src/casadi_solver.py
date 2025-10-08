@@ -106,51 +106,38 @@ class CasADiSolver(BaseSolver):
         self.warmstart_intiailized = True
 
     def _initialize_base_warmstart(self, state: State):
-        """Create initial warmstart trajectory using simple integration"""
-        # Initialize states
-        for var_name in self.dynamics_model.get_dependent_vars():
-            current_value = state.get(var_name) if state.get(var_name) is not None else 0.0
-
-            if var_name == 'v':
-                for k in range(self.horizon + 1):
-
-                    v_k = max(0.0, current_value + DEFAULT_BRAKING * k * self.timestep)
-                    self.warmstart_values[var_name][k] = v_k
-            elif var_name == 'psi':
-                for k in range(self.horizon + 1):
-                    # Integrate heading: psi_k = psi_0 + w * k * dt
-                    #psi_k = current_value + state.get('w') * k * self.timestep
-                    #psi_k = max(-np.pi * 4, psi_k)  # Apply bounds after integration
-                    psi_k = current_value
-                    self.warmstart_values[var_name][k] = psi_k
-        for var_name in self.dynamics_model.get_dependent_vars():
-            current_value = state.get(var_name) if state.get(var_name) is not None else 0.0
-
-            if var_name in ['x', 'y', 'z']:  # Position - integrate velocity
-                for k in range(self.horizon + 1):
-                    if k == 0:
-                        self.warmstart_values[var_name][k] = current_value
-                    else:
-                        # Use the updated velocity and heading from current time step
-                        v_k = self.warmstart_values['v'][k]  # Current velocity
-                        psi_k = self.warmstart_values['psi'][k]  # Current heading
-
-                        if var_name == 'x':
-                            self.warmstart_values[var_name][k] = (
-                                    self.warmstart_values[var_name][k - 1] +
-                                    v_k * self.timestep * np.cos(psi_k)
-                            )
-                        elif var_name == 'y':
-                            self.warmstart_values[var_name][k] = (
-                                    self.warmstart_values[var_name][k - 1] +
-                                    v_k * self.timestep * np.sin(psi_k)
-                            )
-                    # ignore z since this should not change
-
-        LOG_DEBUG("After base warmstart initialization, warm is " + str(self.warmstart_values))
-        # Initialize inputs to predict based on current controls
+        """
+		**FIXED**: Initialize with a small positive velocity instead of zero
+		to provide a better initial guess and prevent "infeasible" warnings from
+		the contouring objective.
+		"""
+        # Initialize inputs to zero
         for var_name in self.dynamics_model.get_inputs():
-            self.warmstart_values[var_name][:] = state.get(var_name)
+            self.warmstart_values[var_name][:] = 0.0
+
+        # Initialize states based on the current state
+        for var_name in self.dynamics_model.get_dependent_vars():
+            current_value = state.get(var_name) if state.get(var_name) is not None else 0.0
+
+            # **MODIFIED HERE**
+            if var_name == 'v':
+                # Start with a small forward velocity instead of braking to a stop
+                self.warmstart_values[var_name][:] = 1.0
+            else:
+                self.warmstart_values[var_name][:] = current_value
+
+        # Rollout a simple trajectory based on this initial guess
+        for k in range(self.horizon):
+            # Simple Euler integration for the warmstart
+            v = self.warmstart_values['v'][k]
+            psi = self.warmstart_values['psi'][k]
+            self.warmstart_values['x'][k + 1] = self.warmstart_values['x'][k] + v * np.cos(psi) * self.timestep
+            self.warmstart_values['y'][k + 1] = self.warmstart_values['y'][k] + v * np.sin(psi) * self.timestep
+            # Keep other states constant for the simple rollout
+            self.warmstart_values['psi'][k + 1] = psi
+            self.warmstart_values['v'][k + 1] = v
+            if 'spline' in self.warmstart_values:
+                self.warmstart_values['spline'][k + 1] = self.warmstart_values['spline'][k] + v * self.timestep
 
     def _shift_warmstart_forward(self):
         """Shift previous solution forward by one timestep"""
@@ -328,7 +315,7 @@ class CasADiSolver(BaseSolver):
 
                 total_objective += objective_value
 
-                constraints = self.get_constraints(stage_idx)
+                constraints = self.get_constraints(symbolic_state, stage_idx)
                 if constraints is not None:
                     for (c, lb, ub) in constraints:
                         LOG_DEBUG("Adding constraint: " + str(c))

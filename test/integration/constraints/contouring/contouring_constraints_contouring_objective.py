@@ -7,7 +7,6 @@ from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
-from planner_modules.src.objectives.goal_objective import GoalObjective
 from planning.src.data_prep import define_robot_area
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel, numeric_rk4
 from planning.src.planner import Planner

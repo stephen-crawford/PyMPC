@@ -5,7 +5,7 @@ from planning.src.types import Data
 from solver.src.modules_manager import ModuleManager
 from solver.src.parameter_manager import ParameterManager
 from utils.const import CONSTRAINT, OBJECTIVE
-from utils.utils import LOG_DEBUG
+from utils.utils import LOG_DEBUG, LOG_WARN
 
 
 class BaseSolver(ABC):
@@ -65,18 +65,29 @@ class BaseSolver(ABC):
         cost = self.module_manager.objective(state, self.parameter_manager, stage_idx)
         return cost
 
-    def get_constraints(self, stage_idx):
+    def get_constraints(self, symbolic_state, stage_idx):
         constraints = []
         for module in self.module_manager.modules:
             if module.module_type == CONSTRAINT:
-                c_list = module.get_constraints(self.dynamics_model, self.parameter_manager, stage_idx)
-                LOG_DEBUG(f"Successfully fetch constraint list from module")
+                c_list = module.get_constraints(symbolic_state, self.parameter_manager, stage_idx)
+
+                if not c_list:
+                    continue
+
                 l_bound = module.get_lower_bound()
                 u_bound = module.get_upper_bound()
 
-                # Pair each constraint with its bounds
+                if len(c_list) != len(l_bound) or len(c_list) != len(u_bound):
+                    LOG_WARN(f"Constraint/bound list length mismatch for module {module.name}!")
+                    continue
+
                 for i, c in enumerate(c_list):
-                    constraints.append((c, l_bound[i], u_bound[i]))  # tuple of (constraint, lb, ub)
+                    # **FIXED**: Add this check to prevent passing constants to the solver.
+                    # CasADi expressions have an .is_constant() method.
+                    if c.is_constant():
+                        continue
+
+                    constraints.append((c, l_bound[i], u_bound[i]))
         return constraints
 
     def get_penalty_terms(self, stage_idx):

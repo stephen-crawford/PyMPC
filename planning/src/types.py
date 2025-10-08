@@ -185,7 +185,8 @@ class PredictionType(Enum):
     DETERMINISTIC = 0
     GAUSSIAN = 1
     NONGAUSSIAN = 2
-    NONE = 3
+    MULTIMODAL = 3
+    NONE = 4
 
 
 class ScenarioStatus(Enum):

@@ -46,30 +46,18 @@ class Planner:
       self.experiment_manager.set_start_experiment()
       self.was_reset = False
 
-    # planning_benchmarker = Benchmarker("planning")
-    # self.benchmarkers.append(planning_benchmarker)
-    # if planning_benchmarker.is_running():
-    #   planning_benchmarker.cancel()
-    # planning_benchmarker.start()
-    #
-    # optimization_benchmarker = Benchmarker("optimization")
-    # self.benchmarkers.append(optimization_benchmarker)
-    # if optimization_benchmarker.is_running():
-    #   optimization_benchmarker.cancel()
-    # optimization_benchmarker.start()
-
     self.solver.initialize_rollout(self.state)
     LOG_DEBUG("Going to propagate obstacles with horizon: " + str(self.solver.horizon))
     propagate_obstacles(data, self.solver.timestep, self.solver.horizon)
-
-    for module in self.solver.module_manager.get_modules():
-      module.update(self.state, data)
 
     LOG_DEBUG("Planner going to try to set parameters for all modules")
 
     for k in range(self.solver.horizon):
       for module in self.solver.module_manager.get_modules():
         module.set_parameters(self.solver.parameter_manager, data, k)
+
+    for module in self.solver.module_manager.get_modules():
+      module.update(self.state, data)
 
     used_time = time.time() - data.planning_start_time
 
