@@ -21,104 +21,104 @@ from utils.utils import LOG_DEBUG
 
 
 def run(dt=0.1, horizon=15, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(20.0, 20.0),
-		max_iterations=300):
-	dt = dt
-	horizon = horizon
+        max_iterations=300):
+    dt = dt
+    horizon = horizon
 
-	casadi_solver = CasADiSolver(dt, horizon)
+    casadi_solver = CasADiSolver(dt, horizon)
 
-	vehicle = model()
+    vehicle = model()
 
-	casadi_solver.set_dynamics_model(vehicle)
+    casadi_solver.set_dynamics_model(vehicle)
 
-	# Create the planner
-	planner = Planner(casadi_solver, vehicle)
+    # Create the planner
+    planner = Planner(casadi_solver, vehicle)
 
-	contouring_objective = ContouringObjective(casadi_solver)
-	casadi_solver.module_manager.add_module(contouring_objective)
-	contouring_constraints = ContouringConstraints(casadi_solver)
-	casadi_solver.module_manager.add_module(contouring_constraints)
-	gaussian_constraints = GaussianConstraints(casadi_solver)
-	casadi_solver.module_manager.add_module(gaussian_constraints)
+    contouring_objective = ContouringObjective(casadi_solver)
+    casadi_solver.module_manager.add_module(contouring_objective)
+    contouring_constraints = ContouringConstraints(casadi_solver)
+    casadi_solver.module_manager.add_module(contouring_constraints)
+    gaussian_constraints = GaussianConstraints(casadi_solver)
+    casadi_solver.module_manager.add_module(gaussian_constraints)
 
-	data = Data()
-	data.start = np.array(start)
-	data.goal = np.array(goal)
-	data.goal_received = True
-	data.planning_start_time = 0.0
+    data = Data()
+    data.start = np.array(start)
+    data.goal = np.array(goal)
+    data.goal_received = True
+    data.planning_start_time = 0.0
 
-	reference_path = generate_reference_path(data.start, data.goal, path_type="curved")
-	# Store path
-	data.reference_path = reference_path
+    reference_path = generate_reference_path(data.start, data.goal, path_type="curved")
+    # Store path
+    data.reference_path = reference_path
 
-	dynamic_obstacles = generate_dynamic_obstacles(10, GAUSSIAN, .5)
+    dynamic_obstacles = generate_dynamic_obstacles(10, GAUSSIAN, .5)
 
-	data.dynamic_obstacles = dynamic_obstacles
+    data.dynamic_obstacles = dynamic_obstacles
 
-	normals = calculate_path_normals(data.reference_path)
+    normals = calculate_path_normals(data.reference_path)
 
-	# Road width (adjust based on your actual data structure)
-	road_width = data.road_width if hasattr(data, 'road_width') and data.road_width is not None else 8.0
-	half_width = road_width / 2
-	quarter_width = half_width / 2
+    # Road width (adjust based on your actual data structure)
+    road_width = data.road_width if hasattr(data, 'road_width') and data.road_width is not None else 8.0
+    half_width = road_width / 2
+    quarter_width = half_width / 2
 
-	# Generate left and right boundaries
-	left_x = []
-	left_y = []
-	right_x = []
-	right_y = []
+    # Generate left and right boundaries
+    left_x = []
+    left_y = []
+    right_x = []
+    right_y = []
 
-	for i in range(len(data.reference_path.x)):
-		nx, ny = normals[i]
+    for i in range(len(data.reference_path.x)):
+        nx, ny = normals[i]
 
-		# Left boundary (offset in the positive normal direction)
-		left_x.append(data.reference_path.x[i] + nx * quarter_width)
-		left_y.append(data.reference_path.y[i] + ny * quarter_width)
+        # Left boundary (offset in the positive normal direction)
+        left_x.append(data.reference_path.x[i] + nx * quarter_width)
+        left_y.append(data.reference_path.y[i] + ny * quarter_width)
 
-		# Right boundary (offset in the negative normal direction)
-		right_x.append(data.reference_path.x[i] - nx * quarter_width)
-		right_y.append(data.reference_path.y[i] - ny * quarter_width)
+        # Right boundary (offset in the negative normal direction)
+        right_x.append(data.reference_path.x[i] - nx * quarter_width)
+        right_y.append(data.reference_path.y[i] - ny * quarter_width)
 
-	# Create splines for the boundaries if needed
-	left_boundary_spline_x = CubicSpline(data.reference_path.s, np.array(left_x))
-	left_boundary_spline_y = CubicSpline(data.reference_path.s, np.array(left_y))
-	right_boundary_spline_x = CubicSpline(data.reference_path.s, np.array(right_x))
-	right_boundary_spline_y = CubicSpline(data.reference_path.s, np.array(right_y))
+    # Create splines for the boundaries if needed
+    left_boundary_spline_x = CubicSpline(data.reference_path.s, np.array(left_x))
+    left_boundary_spline_y = CubicSpline(data.reference_path.s, np.array(left_y))
+    right_boundary_spline_x = CubicSpline(data.reference_path.s, np.array(right_x))
+    right_boundary_spline_y = CubicSpline(data.reference_path.s, np.array(right_y))
 
-	# Store boundary data
-	data.left_boundary_x = left_x
-	data.left_boundary_y = left_y
-	data.right_boundary_x = right_x
-	data.right_boundary_y = right_y
+    # Store boundary data
+    data.left_boundary_x = left_x
+    data.left_boundary_y = left_y
+    data.right_boundary_x = right_x
+    data.right_boundary_y = right_y
 
-	# Store the spline functions themselves if needed for later evaluation
-	data.left_spline_x = left_boundary_spline_x
-	data.left_spline_y = left_boundary_spline_y
-	data.right_spline_x = right_boundary_spline_x
-	data.right_spline_y = right_boundary_spline_y
+    # Store the spline functions themselves if needed for later evaluation
+    data.left_spline_x = left_boundary_spline_x
+    data.left_spline_y = left_boundary_spline_y
+    data.right_spline_x = right_boundary_spline_x
+    data.right_spline_y = right_boundary_spline_y
 
-	# Add boundaries to data
-	data.left_bound = Bound(left_x, left_y, data.reference_path.s)
-	data.right_bound = Bound(right_x, right_y, data.reference_path.s)
+    # Add boundaries to data
+    data.left_bound = Bound(left_x, left_y, data.reference_path.s)
+    data.right_bound = Bound(right_x, right_y, data.reference_path.s)
 
-	data.robot_area = define_robot_area(vehicle.length, vehicle.width, 1)
+    data.robot_area = define_robot_area(vehicle.length, vehicle.width, 1)
 
-	# Add solver timeout parameter
-	casadi_solver.parameter_manager.add("solver_timeout", 10.0)
+    # Add solver timeout parameter
+    casadi_solver.parameter_manager.add("solver_timeout", 10.0)
 
-	# Create initial state - make sure to match the model's state variables
-	state = State(model())
-	state.set("x", start[0])
-	state.set("y", start[1])
-	state.set("psi", 0.1)
-	state.set("v", 0.0)
-	state.set("spline", 0.0)
-	state.set("a", 0.0)
-	state.set("w", 0.0)
-	planner.set_state(state)
+    # Create initial state - make sure to match the model's state variables
+    state = State(model())
+    state.set("x", start[0])
+    state.set("y", start[1])
+    state.set("psi", 0.1)
+    state.set("v", 0.0)
+    state.set("spline", 0.0)
+    state.set("a", 0.0)
+    state.set("w", 0.0)
+    planner.set_state(state)
 
-	# Define parameters for the goal objective
-	planner.initialize(data)
+    # Define parameters for the goal objective
+    planner.initialize(data)
 
 	# ✅ Initialize real-time plot
 	matplotlib.use('TkAgg')

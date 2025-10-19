@@ -3,7 +3,16 @@ import copy
 from utils.const import CONSTRAINT, OBJECTIVE
 from utils.utils import LOG_DEBUG, read_config_file
 from utils.utils import print_value, print_header, CONFIG, get_config_dotted
-from utils.visualizer import ROSLine
+
+# Optional ROS import
+try:
+    from utils.visualizer import ROSLine
+    ROS_AVAILABLE = True
+except ImportError:
+    ROS_AVAILABLE = False
+    # Create dummy class for when ROS is not available
+    class ROSLine:
+        pass
 
 
 class ModuleManager:

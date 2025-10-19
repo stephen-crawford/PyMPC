@@ -2,11 +2,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
-import casadi as cd
+
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.constraints.scenario_utils.scenario_module import ScenarioSolver
 from planning.src.types import PredictionType
-from utils.utils import read_config_file, LOG_INFO, LOG_DEBUG, get_config_dotted, LOG_WARN
+from utils.utils import LOG_DEBUG, LOG_WARN
 
 
 class ScenarioConstraints(BaseConstraint):
@@ -24,6 +24,7 @@ class ScenarioConstraints(BaseConstraint):
       self.use_slack = self.get_config_value("scenario_constraints.use_slack", True)
       self.slack_penalty_weight = self.get_config_value("scenario_constraints.slack_penalty_weight", 1000.0)
       self.enable_safe_horizon = self.get_config_value("scenario_constraints.enable_safe_horizon", True)
+      self.slack = self.get_config_value("scenario_constraints.slack", 0.0)
       # Initialize scenario solvers for parallel computation
       self.scenario_solvers = []
       self.best_solver = None
@@ -158,14 +159,9 @@ class ScenarioConstraints(BaseConstraint):
       pos_x = symbolic_state.get("x")
       pos_y = symbolic_state.get("y")
 
-      try:
-         # **NOTE**: We will fix the "slack not found" issue in the next step.
-         slack = symbolic_state.get("slack") if self.use_slack else 0.0
-      except:
-         slack = 0.0
-
       for disc_id in range(self.num_discs):
          for i in range(self.max_constraints_per_disc):
+            LOG_DEBUG(f"Trying to get constraints for disc #{disc_id} constraint number {i} at step {stage_idx}.")
             base_name = f"disc_{disc_id}_scen_constraint_{i}_step_{stage_idx}"
             a1 = params.get(f"{base_name}_a1")
             a2 = params.get(f"{base_name}_a2")
@@ -174,7 +170,7 @@ class ScenarioConstraints(BaseConstraint):
             # **THE FIX IS HERE**: The check for dummy constraints is removed.
             # We create an expression for every slot. The optimizer can handle
             # constant expressions like 0*x + 0*y - 100 <= 0 perfectly fine.
-            constraint_expr = a1 * pos_x + a2 * pos_y - b - slack
+            constraint_expr = a1 * pos_x + a2 * pos_y - b - self.slack
             constraints.append(constraint_expr)
 
       return constraints

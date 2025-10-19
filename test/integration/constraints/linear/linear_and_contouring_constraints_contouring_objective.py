@@ -3,7 +3,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import patches
-from matplotlib.patches import Ellipse
 from scipy.interpolate import CubicSpline
 
 from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
@@ -13,7 +12,7 @@ from planning.src.data_prep import define_robot_area
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel, numeric_rk4
 from planning.src.planner import Planner
 from planning.src.types import Data, Bound, generate_reference_path, calculate_path_normals, State, \
-	generate_dynamic_obstacles, PredictionType
+	generate_dynamic_obstacles
 from solver.src.casadi_solver import CasADiSolver
 from utils.const import GAUSSIAN
 from utils.utils import LOG_DEBUG

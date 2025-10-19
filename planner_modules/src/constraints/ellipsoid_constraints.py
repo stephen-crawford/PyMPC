@@ -1,11 +1,9 @@
 import casadi as cd
-import numpy as np
 
 from planner_modules.src.constraints.base_constraint import BaseConstraint
-from planning.src.types import PredictionType, PredictionStep
+from planning.src.types import PredictionType
 from solver.src.parameter_manager import ParameterManager
-from utils.const import DETERMINISTIC, GAUSSIAN
-from utils.math_utils import exponential_quantile, rotation_matrix, chi_square_quantile
+from utils.math_utils import chi_square_quantile
 from utils.utils import LOG_DEBUG
 
 
@@ -247,8 +245,7 @@ class EllipsoidConstraints(BaseConstraint):
 
 
 import numpy as np
-import casadi as cs
-from typing import List, Tuple, Dict, Optional
+from typing import List, Dict
 from dataclasses import dataclass
 
 

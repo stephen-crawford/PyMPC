@@ -67,25 +67,16 @@ class Planner:
 
     # Check if any module has its own custom optimize method
     for module in self.solver.module_manager.get_modules():
-      if hasattr(module, "optimize"):
-        LOG_INFO(f"Module '{module.get_name()}' is handling the optimization.")
-        exit_flag = module.optimize(self.state, data)
-        optimization_handled_by_module = True
-        break  # Assume only one module will handle optimization
+        if hasattr(module, "optimize"):
+            LOG_INFO(f"Module '{module.get_name()}' is handling the optimization.")
+            exit_flag = module.optimize(self.state, data)
+            optimization_handled_by_module = True
+            break  # Assume only one module will handle optimization
 
     # If no module handled optimization, run the standard solver
     if not optimization_handled_by_module:
-      LOG_INFO("No module optimizer found. Running standard solver.")
-      exit_flag = self.solver.solve()
-
-    for module in self.solver.module_manager.get_modules():
-      if hasattr(module, "optimize"):
-        exit_flag = module.optimize(self.state, data)
-        if exit_flag != -1:
-          LOG_WARN("Exit flag: {}".format(exit_flag))
-          break
-
-    exit_flag = self.solver.solve()
+        LOG_INFO("No module optimizer found. Running standard solver.")
+        exit_flag = self.solver.solve()
 
     if exit_flag != 1:
       self.output.success = False

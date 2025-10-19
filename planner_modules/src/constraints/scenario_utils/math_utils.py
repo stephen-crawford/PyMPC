@@ -504,6 +504,61 @@ class SafeHorizon:
 
 		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} update completed")
 
+	def clear_all(self):
+		"""Clear all computed data"""
+		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} clearing all data")
+		# Reset all arrays to initial state
+		for k in range(self.N):
+			self.diffs_x_[k].fill(0.0)
+			self.diffs_y_[k].fill(0.0)
+			self.distances_[k].fill(0.0)
+			self.infeasible_scenario_poses_[k].clear()
+			self.infeasible_scenario_idxs_[k].clear()
+			self.old_intersects_[k].clear()
+		
+		self.distances_feasible_ = [True for _ in range(self.N)]
+		self.is_feasible_ = True
+
+	def load_data(self, data):
+		"""Load external data and prepare scenarios"""
+		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} loading data")
+		# This method would load obstacle data and prepare scenarios
+		# For now, just a placeholder
+		pass
+
+	def compute_distances(self, data, step, obstacle_id):
+		"""Compute distances to all scenarios for a given obstacle"""
+		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} computing distances for step {step}, obstacle {obstacle_id}")
+		# Placeholder implementation
+		pass
+
+	def check_feasibility_by_distance(self, step, obstacle_id):
+		"""Check feasibility based on computed distances"""
+		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} checking feasibility for step {step}, obstacle {obstacle_id}")
+		# Placeholder implementation
+		pass
+
+	def compute_halfspaces(self, step, obstacle_id):
+		"""Compute halfspace constraints"""
+		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} computing halfspaces for step {step}, obstacle {obstacle_id}")
+		# Placeholder implementation
+		pass
+
+	def construct_polytopes(self, step, data):
+		"""Construct polytopes for the given time step"""
+		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} constructing polytopes for step {step}")
+		# Placeholder implementation
+		pass
+
+	def is_data_ready(self, data):
+		"""Check if data is ready for processing"""
+		return hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles is not None
+
+	def reset(self):
+		"""Reset the SafeHorizon state"""
+		self.status = ScenarioStatus.RESET if 'ScenarioStatus' in globals() else 0
+		self.clear_all()
+
 	def set_parameters(self, data, step: int):
 		"""
 		Set constraint parameters for optimization at time step k
@@ -706,11 +761,14 @@ class SafeHorizon:
 		if self.scenarios_ is None:
 			return
 
-		# Access scenarios with bounds checking
-		if obstacle_id >= len(self.scenarios_) or k >= len(self.scenarios_[obstacle_id]):
+		# ** THE FIX IS HERE **
+		# Access scenarios with the correct index order: [step][obstacle_id]
+		if k >= len(self.scenarios_) or obstacle_id >= len(self.scenarios_[k]):
 			return
 
-		scenarios_at_k = self.scenarios_[obstacle_id][k]
+		# Now this access is safe
+		scenarios_at_k = self.scenarios_[k][obstacle_id]
+
 		if len(scenarios_at_k) == 0:
 			return
 

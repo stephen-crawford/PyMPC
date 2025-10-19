@@ -60,15 +60,15 @@ class TestScenarioConstraints(unittest.TestCase):
 		self.addCleanup(self.patcher.stop)
 
 		# Create mocks for ScenarioSolver, ScenarioModule and ScenarioSampler classes
-		self.scenario_solver_patcher = patch('planner_modules.src.constraints.scenario_constraints.ScenarioSolver')
+		self.scenario_solver_patcher = patch('planner_modules.src.constraints.scenario_utils.scenario_module.ScenarioSolver')
 		self.mock_scenario_solver_class = self.scenario_solver_patcher.start()
 		self.addCleanup(self.scenario_solver_patcher.stop)
 
-		self.scenario_module_patcher = patch('planner_modules.src.constraints.scenario_constraints.ScenarioModule')
+		self.scenario_module_patcher = patch('planner_modules.src.constraints.scenario_utils.scenario_module.ScenarioModule')
 		self.mock_scenario_module_class = self.scenario_module_patcher.start()
 		self.addCleanup(self.scenario_module_patcher.stop)
 
-		self.scenario_sampler_patcher = patch('planner_modules.src.constraints.scenario_constraints.ScenarioSampler')
+		self.scenario_sampler_patcher = patch('planner_modules.src.constraints.scenario_utils.sampler.ScenarioSampler')
 		self.mock_scenario_sampler_class = self.scenario_sampler_patcher.start()
 		self.addCleanup(self.scenario_sampler_patcher.stop)
 

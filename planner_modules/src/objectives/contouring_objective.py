@@ -560,139 +560,78 @@ class ContouringObjective(BaseObjective):
 
 	def construct_road_constraints_from_bounds(self, data):
 		"""Construct road constraints using actual road bounds"""
-		# Ensure static_obstacles exists
+		# 1. Ensure static_obstacles list is initialized and has the correct length
 		if not hasattr(data, "static_obstacles") or data.static_obstacles is None:
 			data.set("static_obstacles", [])
 
-		# Ensure we have enough slots for all horizon steps
 		required_length = self.solver.horizon + 1
-		current_length = len(data.static_obstacles)
+		if len(data.static_obstacles) < required_length:
+			data.static_obstacles.extend([None] * (required_length - len(data.static_obstacles)))
 
-		if current_length < required_length:
-			data.static_obstacles.extend([None] * (required_length - current_length))
-
-		# Get current vehicle progress
+		# 2. Get initial conditions before the loop
 		current_norm_s = self.solver.get_initial_state().get("spline") / self.reference_path.get_arc_length()
-
-		# Estimate vehicle velocity to predict future positions
-		vehicle_velocity = self.solver.get_initial_state().get("v")  # Default to 1.0 if not available
-		dt = self.solver.dt if hasattr(self.solver, 'dt') else 0.1  # Time step
+		dt = self.solver.timestep if hasattr(self.solver, 'timestep') else 0.1
 		LOG_DEBUG("Static obstacles: {}".format(data.static_obstacles))
 
-		# Create obstacles for all horizon steps (not just the new ones)
+		# 3. Create constraints for each step in the horizon
 		for k in range(self.solver.horizon + 1):
-			# Create a static obstacle for this time step
 			data.static_obstacles[k] = StaticObstacle()
 
-			# Initialize prediction structure for static obstacles
-			if not hasattr(data.static_obstacles[k], 'prediction'):
-				# Create a basic prediction object
-				data.static_obstacles[k].prediction = type('Prediction', (), {
-					'steps': [],
-					'type': None,  # or whatever default prediction type you use
-					'path': None
-				})()
+			# 4. **THE FIX**: Get the PREDICTED velocity for step 'k' from the warmstart trajectory
+			vehicle_velocity = self.solver.warmstart_values['v'][k] if k < len(
+				self.solver.warmstart_values['v']) else 1.0
 
-			# Since this is a road boundary (static), set a dummy position
-			# You might want to use the center of the road or some representative point
-			if not hasattr(data.static_obstacles[k], 'position'):
-				# Use path center as representative position
-				future_distance = vehicle_velocity * dt * k
-				future_norm_s = current_norm_s + (future_distance / self.reference_path.get_arc_length())
-				future_norm_s = max(0.0, min(1.0, future_norm_s))
-
-				if len(self.reference_path.s) >= 2:
-					s_min = self.reference_path.s[0]
-					s_max = self.reference_path.s[-1]
-					cur_s = s_min + future_norm_s * (s_max - s_min)
-					path_point_x = float(self.reference_path.x_spline(cur_s))
-					path_point_y = float(self.reference_path.y_spline(cur_s))
-					data.static_obstacles[k].position = np.array([path_point_x, path_point_y, 0.0])
-				else:
-					data.static_obstacles[k].position = np.array([0.0, 0.0, 0.0])
-
-			# Rest of your existing code for creating halfspace constraints...
-			# Project future position along path
+			# 5. Project the vehicle's future position along the path for this time step
 			future_distance = vehicle_velocity * dt * k
 			future_norm_s = current_norm_s + (future_distance / self.reference_path.get_arc_length())
+			future_norm_s = max(0.0, min(1.0, future_norm_s))  # Clamp to valid range [0, 1]
 
-			# Clamp to valid range [0, 1]
-			future_norm_s = max(0.0, min(1.0, future_norm_s))
-
-			# Convert to actual arc length
-			if len(self.reference_path.s) >= 2:
-				s_min = self.reference_path.s[0]
-				s_max = self.reference_path.s[-1]
-				cur_s = s_min + future_norm_s * (s_max - s_min)
-				cur_s = float(cur_s)
-			else:
+			# Convert normalized path progress 's' to actual arc length
+			if len(self.reference_path.s) < 2:
 				continue
+			s_min, s_max = self.reference_path.s[0], self.reference_path.s[-1]
+			cur_s = float(s_min + future_norm_s * (s_max - s_min))
 
 			# Get centerline path point and its tangent
-			path_point_x = float(self.reference_path.x_spline(cur_s))
-			path_point_y = float(self.reference_path.y_spline(cur_s))
-
+			center_point = np.array([
+				float(self.reference_path.x_spline(cur_s)),
+				float(self.reference_path.y_spline(cur_s))
+			])
 			path_dx = float(self.reference_path.x_spline.derivative()(cur_s))
 			path_dy = float(self.reference_path.y_spline.derivative()(cur_s))
 
-			# Normalize path tangent
+			# Normalize the path tangent to get a direction vector
 			path_norm = safe_norm(path_dx, path_dy)
-			path_dx_norm = path_dx / path_norm
-			path_dy_norm = path_dy / path_norm
+			path_dx_norm, path_dy_norm = path_dx / path_norm, path_dy / path_norm
 
-			# Create consistent normal vector (pointing left from path direction)
+			# Create the normal vector (points to the left of the path's direction)
 			path_normal = np.array([-path_dy_norm, path_dx_norm])
 
-			# Get left and right bound points
-			left_bounds = self.bound_left_spline(cur_s)
-			right_bounds = self.bound_right_spline(cur_s)
-
-			left_point = np.array([float(left_bounds[0]), float(left_bounds[1])])
-			right_point = np.array([float(right_bounds[0]), float(right_bounds[1])])
-
-			# Determine which side is actually left/right by checking cross product
-			center_point = np.array([path_point_x, path_point_y])
-			center_to_left = left_point - center_point
-			center_to_right = right_point - center_point
-
-			# Cross product to determine orientation
-			left_cross = np.cross(np.array([path_dx_norm, path_dy_norm]), center_to_left)
-			right_cross = np.cross(np.array([path_dx_norm, path_dy_norm]), center_to_right)
-
-			# Ensure correct assignment (left should have positive cross product)
-			if left_cross < 0:
-				left_point, right_point = right_point, left_point
-				LOG_DEBUG("Swapped left and right bounds based on cross product")
+			# Get the points on the left and right road boundaries corresponding to cur_s
+			left_point = np.array(self.bound_left_spline(cur_s), dtype=float).flatten()
+			right_point = np.array(self.bound_right_spline(cur_s), dtype=float).flatten()
 
 			# Get robot radius for proper constraint placement
-			robot_radius = data.robot_area[0].radius if hasattr(data, 'robot_area') and len(
-				data.robot_area) > 0 else 0.5
+			robot_radius = data.robot_area[0].radius if hasattr(data, 'robot_area') and data.robot_area else 0.5
 
-			# Create halfspace constraints with proper robot radius consideration
-			# Left bound: normal points inward (toward the road)
-			left_normal = -path_normal  # Points right (inward from left bound)
-			# Move constraint inward by robot radius
-			left_constraint_point = left_point + left_normal * .5 * robot_radius
+			# --- Create Halfspace Constraints ---
+			# Left bound: The normal vector must point inwards (towards the road)
+			left_normal = -path_normal
+			left_constraint_point = left_point + left_normal * 0.5 * robot_radius
 			bl = float(np.dot(left_normal, left_constraint_point))
 			data.static_obstacles[k].add_halfspace(left_normal, bl)
 
-			# Right bound: normal points inward (toward the road)
-			right_normal = path_normal  # Points left (inward from right bound)
-			# Move constraint inward by robot radius
-			right_constraint_point = right_point + right_normal * .5 * robot_radius
+			# Right bound: The normal vector must point inwards (towards the road)
+			right_normal = path_normal
+			right_constraint_point = right_point + right_normal * 0.5 * robot_radius
 			br = float(np.dot(right_normal, right_constraint_point))
 			data.static_obstacles[k].add_halfspace(right_normal, br)
 
-			LOG_DEBUG(f"Time step {k}: Future norm_s={float(future_norm_s):.3f}, cur_s={float(cur_s):.3f}")
-			LOG_DEBUG(f"Left constraint: normal={left_normal}, b={float(bl)}")
-			LOG_DEBUG(f"Right constraint: normal={right_normal}, b={float(br)}")
-			LOG_DEBUG(f"Left point: {left_point}, Right point: {right_point}")
+			LOG_DEBUG(f"Time step {k}: Future norm_s={future_norm_s:.3f}, cur_s={cur_s:.3f}")
 
-			# Additional safety check: ensure constraints are not too restrictive
-			# Check that the centerline is feasible
+			# Final safety check to ensure the centerline itself is considered feasible
 			center_feasible_left = np.dot(left_normal, center_point) <= bl + 1e-6
 			center_feasible_right = np.dot(right_normal, center_point) <= br + 1e-6
-
 			if not center_feasible_left or not center_feasible_right:
 				LOG_WARN(
 					f"Centerline infeasible at time step {k}! Left: {center_feasible_left}, Right: {center_feasible_right}")

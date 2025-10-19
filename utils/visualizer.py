@@ -1,12 +1,33 @@
 import numpy as np
-import rclpy
-from rclpy.node import Node
-from rclpy.clock import Clock
-from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Point, Pose, Quaternion
-import tf2_ros
 import utils.math_utils
 from enum import Enum
+
+# Optional ROS imports
+try:
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.clock import Clock
+    from visualization_msgs.msg import Marker, MarkerArray
+    from geometry_msgs.msg import Point, Pose, Quaternion
+    import tf2_ros
+    ROS_AVAILABLE = True
+except ImportError:
+    ROS_AVAILABLE = False
+    # Create dummy classes for when ROS is not available
+    class Node:
+        pass
+    class Clock:
+        pass
+    class Marker:
+        pass
+    class MarkerArray:
+        pass
+    class Point:
+        pass
+    class Pose:
+        pass
+    class Quaternion:
+        pass
 
 
 class Colormap(Enum):

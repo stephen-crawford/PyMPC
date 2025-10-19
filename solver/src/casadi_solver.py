@@ -573,19 +573,19 @@ class CasADiSolver(BaseSolver):
         """
         pass
 
+    # In class CasADiSolver
     def copy(self):
-        """Create a copy of the solver (for solver management)
-
-        Returns:
-            E
-        """
+        """Create a copy of the solver (for solver management)"""
         # Create a new solver with same parameters
         new_solver = CasADiSolver(self.timestep, self.horizon)
 
-        # Copy module manager
-        new_solver.module_manager = self.module_manager
+        # ** THE FIX IS HERE **
+        # Set the dynamics model, which also initializes the optimization variables.
+        if self.dynamics_model:
+            new_solver.set_dynamics_model(self.dynamics_model)
 
-        # Copy parameter manager
+        # Now copy the managers
+        new_solver.module_manager = self.module_manager
         new_solver.parameter_manager = self.parameter_manager.copy()
 
         return new_solver
