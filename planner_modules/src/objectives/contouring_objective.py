@@ -503,7 +503,7 @@ class ContouringObjective(BaseObjective):
 		"""Construct road constraints based on centerline and width"""
 		# If bounds are not supplied construct road constraints based on a set width
 
-		data.set("static_obstacles", [None] * self.solver.horizon + 1)
+		data.set("static_obstacles", [None] * (self.solver.horizon + 1))
 
 		# Get road width
 		road_width_half = self.get_config_value("road.width") / 2.0
@@ -523,8 +523,8 @@ class ContouringObjective(BaseObjective):
 				continue
 
 			# Get path point and derivatives
-			path_point_x = self.reference_path.x(cur_s)
-			path_point_y = self.reference_path.y(cur_s)
+			path_point_x = self.reference_path.x_spline(cur_s)
+			path_point_y = self.reference_path.y_spline(cur_s)
 			path_point = np.array([path_point_x, path_point_y])
 
 			# Get orthogonal vector (normal to path)

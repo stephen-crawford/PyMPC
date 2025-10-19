@@ -208,13 +208,27 @@ class ScenarioConstraints(BaseConstraint):
 
       for disc_id in range(self.num_discs):
          for i in range(self.max_constraints_per_disc):
-
             base_name = f"disc_{disc_id}_scen_constraint_{i}_step_{step}"
             LOG_DEBUG(f"Setting parameters for {base_name}")
-            # Get values from storage (computed in the optimize method)
-            a1_val = self._a1[disc_id][step - 1][i]
-            a2_val = self._a2[disc_id][step - 1][i]
-            b_val = self._b[disc_id][step - 1][i]
+            
+            # **FIX**: Add bounds checking and fallback to dummy values
+            try:
+               # Check if the arrays exist and have the right dimensions
+               if (hasattr(self, '_a1') and disc_id < len(self._a1) and 
+                   step - 1 < len(self._a1[disc_id]) and i < len(self._a1[disc_id][step - 1])):
+                  a1_val = self._a1[disc_id][step - 1][i]
+                  a2_val = self._a2[disc_id][step - 1][i]
+                  b_val = self._b[disc_id][step - 1][i]
+               else:
+                  # Fallback to dummy values if arrays are not properly initialized
+                  a1_val = self._dummy_a1
+                  a2_val = self._dummy_a2
+                  b_val = self._dummy_b
+            except (IndexError, AttributeError) as e:
+               LOG_DEBUG(f"Using dummy values for {base_name} due to: {e}")
+               a1_val = self._dummy_a1
+               a2_val = self._dummy_a2
+               b_val = self._dummy_b
 
             parameter_manager.set_parameter(f"{base_name}_a1", a1_val)
             parameter_manager.set_parameter(f"{base_name}_a2", a2_val)
