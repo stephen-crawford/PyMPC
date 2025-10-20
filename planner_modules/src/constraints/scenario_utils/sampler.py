@@ -484,6 +484,13 @@ class ScenarioSampler:
        """Main sampling function that integrates obstacle predictions"""
        if not self.standard_samples_ready:
           LOG_WARN("Must call standard sampling before obstacle sampling")
+          LOG_WARN("Generating standard samples now...")
+          self.sample_standard_normal()
+          self.standard_samples_ready = True
+
+       if obstacles is None or len(obstacles) == 0:
+          LOG_WARN(f"No obstacles provided to integrate_and_translate_to_mean_and_variance: obstacles={obstacles}")
+          self._samples_ready = True  # Still mark as ready to continue
           return self.samples
 
        if len(obstacles) > self.max_obstacles:
@@ -505,25 +512,31 @@ class ScenarioSampler:
           shuffle_indices.append(indices)
 
        # Process each obstacle
+       LOG_DEBUG(f"Processing {len(obstacles)} obstacles for scenario sampling")
        for obstacle_id, obstacle in enumerate(obstacles):
           if not hasattr(obstacle, 'prediction') or obstacle.prediction is None:
              LOG_WARN(f"Obstacle {obstacle_id} has no prediction")
              continue
 
           prediction = obstacle.prediction
+          LOG_DEBUG(f"Obstacle {obstacle_id}: type={prediction.type if hasattr(prediction, 'type') else 'unknown'}")
 
           # Handle different prediction types
           if hasattr(prediction, 'modes') and prediction.modes:
+             LOG_DEBUG(f"Processing multimodal prediction for obstacle {obstacle_id}")
              self._process_multimodal_prediction(
                 obstacle_id, prediction, batch_pick, shuffle_indices, timestep
              )
           else:
              # Single mode prediction
+             LOG_DEBUG(f"Processing single mode prediction for obstacle {obstacle_id}")
              self._process_single_mode_prediction(
                 obstacle_id, prediction, batch_pick, shuffle_indices, timestep
              )
 
+       LOG_DEBUG("Setting _samples_ready = True")
        self._samples_ready = True
+       LOG_DEBUG(f"Returning samples: {self.samples is not None}")
        return self.samples
 
     def _process_single_mode_prediction(self, obstacle_id, prediction, batch_pick, shuffle_indices, timestep):
@@ -632,11 +645,5 @@ class ScenarioSampler:
     def prune(self):
        """Prune samples based on configuration"""
        LOG_DEBUG("Pruning samples")
-       # Placeholder implementation
-       pass
-
-    def integrate_and_translate_to_mean_and_variance(self, obstacles, timestep):
-       """Integrate obstacle predictions and translate to mean and variance"""
-       LOG_DEBUG("Integrating obstacle predictions")
        # Placeholder implementation
        pass

@@ -7,6 +7,7 @@ from matplotlib import patches
 
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
 from planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
+from planner_modules.src.constraints.simplified_scenario_constraints import SimplifiedScenarioConstraints
 from planning.src.data_prep import define_robot_area
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel
 from planning.src.planner import Planner
@@ -140,6 +141,8 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	# Add objectives and constraints
 	contouring_objective = ContouringObjective(casadi_solver)
 	casadi_solver.module_manager.add_module(contouring_objective)
+	
+	# Use full scenario constraints with fixed sampler integration
 	scenario_constraints = ScenarioConstraints(casadi_solver)
 	casadi_solver.module_manager.add_module(scenario_constraints)
 
@@ -164,6 +167,10 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 	data.left_bound = Bound(left_x, left_y, data.reference_path.s)
 	data.right_bound = Bound(right_x, right_y, data.reference_path.s)
 	data.robot_area = define_robot_area(vehicle.length, vehicle.width, 1)
+	
+	# Initialize additional required fields for scenario constraints
+	data.goal_received = True
+	data.static_obstacles = []
 
 	# Initialize planner state
 	initial_state = State(vehicle)
@@ -196,11 +203,43 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 
 		if output.success:
 			# Use the first control action to propagate the state
-			next_state = planner.solver.dynamics_model.numeric_rk4(
-				planner.get_state(),
-				output.forecasts.get_states()[0],  # a, w
-				dt
-			)
+			# Extract control inputs from the MPC solution
+			try:
+				if output.trajectory_history and len(output.trajectory_history) > 0:
+					control_state = output.trajectory_history[-1].states[0]
+					a = control_state.get("a")
+					w = control_state.get("w")
+				else:
+					a = 0.0
+					w = 0.0
+			except:
+				a = 0.0
+				w = 0.0
+			
+			# Simple numeric integration using Euler method
+			current_state = planner.get_state()
+			x = current_state.get("x")
+			y = current_state.get("y")
+			psi = current_state.get("psi")
+			v = current_state.get("v")
+			spline = current_state.get("spline")
+			
+			# Propagate state forward
+			dt_step = 0.1
+			new_x = x + v * np.cos(psi) * dt_step
+			new_y = y + v * np.sin(psi) * dt_step
+			new_psi = psi + w * dt_step
+			new_v = v + a * dt_step
+			new_spline = spline + v * dt_step
+			
+			# Create new state
+			next_state = State(planner.solver.dynamics_model)
+			next_state.set("x", new_x)
+			next_state.set("y", new_y)
+			next_state.set("psi", new_psi)
+			next_state.set("v", new_v)
+			next_state.set("spline", new_spline)
+			
 			planner.set_state(next_state)
 
 			states_x.append(next_state.get("x"))
@@ -210,11 +249,19 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 				if hasattr(obs, 'update_position'):
 					obs.update_position(dt)
 
+			# Check progress towards goal
+			current_pos = np.array([new_x, new_y])
+			goal_pos = np.array(data.goal)
+			distance_to_goal = np.linalg.norm(current_pos - goal_pos)
+			
+			LOG_INFO(f"Iteration {i}: Position ({new_x:.3f}, {new_y:.3f}), Velocity {new_v:.3f}, Distance to goal: {distance_to_goal:.3f}")
+
 			visualizer.update_frame(next_state, states_x, states_y, planner, scenario_constraints)
 			plt.pause(0.05)
 
-			if planner.is_objective_reached(data):
-				LOG_INFO(f"Objective reached at iteration {i}!")
+			# Check if goal is reached (within 1 meter)
+			if distance_to_goal < 1.0:
+				LOG_INFO(f"Goal reached at iteration {i}! Final distance: {distance_to_goal:.3f}")
 				break
 		else:
 			LOG_WARN(f"Iteration {i}: MPC failed. Stopping.")

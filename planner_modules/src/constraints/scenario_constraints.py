@@ -33,9 +33,10 @@ class ScenarioConstraints(BaseConstraint):
          self.scenario_solvers.append(ScenarioSolver(i, solver))
 
       # Storage for the computed numeric constraint coefficients
-      self._a1 = np.zeros((self.num_discs, self.solver.horizon, self.max_constraints_per_disc))
-      self._a2 = np.zeros((self.num_discs, self.solver.horizon, self.max_constraints_per_disc))
-      self._b = np.full((self.num_discs, self.solver.horizon, self.max_constraints_per_disc),
+      # Size: (num_discs, horizon + 1, max_constraints_per_disc) to match define_parameters
+      self._a1 = np.zeros((self.num_discs, self.solver.horizon + 1, self.max_constraints_per_disc))
+      self._a2 = np.zeros((self.num_discs, self.solver.horizon + 1, self.max_constraints_per_disc))
+      self._b = np.full((self.num_discs, self.solver.horizon + 1, self.max_constraints_per_disc),
                         100.0)  # Default "far away" constraint
 
       self._dummy_a1 = 0.0
@@ -46,11 +47,39 @@ class ScenarioConstraints(BaseConstraint):
 
    def update(self, state, data):
       """
-	  **MODIFIED**: This method now triggers the parallel computation to find and store
-	  the optimal scenario constraints for the current planning step.
+	  **FIXED**: Generate samples ONCE in main thread before parallel workers.
+	  This prevents NoneType errors from samplers not being ready.
 	  """
       LOG_DEBUG(f"{self.name}::update -> Computing optimal scenario constraints")
       start_time = time.time()
+
+      # **FIX**: Generate samples ONCE in main thread before parallel execution
+      if self.enable_safe_horizon and self.scenario_solvers:
+         # Get the sampler from the first solver (all share the same samples structure)
+         sampler = self.scenario_solvers[0].scenario_module.get_sampler()
+         if sampler and hasattr(sampler, 'integrate_and_translate_to_mean_and_variance'):
+            try:
+               timestep = getattr(self.solver, 'timestep', 0.1)
+               LOG_DEBUG(f"Generating scenario samples for {len(data.dynamic_obstacles) if data.dynamic_obstacles else 0} obstacles")
+               LOG_DEBUG(f"Sampler before: _samples_ready={sampler._samples_ready}, standard_samples_ready={sampler.standard_samples_ready}")
+               result = sampler.integrate_and_translate_to_mean_and_variance(
+                  data.dynamic_obstacles, timestep
+               )
+               LOG_DEBUG(f"Sampler after: _samples_ready={sampler._samples_ready}, result={type(result)}")
+               LOG_DEBUG(f"Scenario samples generated: {sampler.samples_ready()}")
+               
+               # Make sure all scenario solvers reference the same sampler
+               for solver in self.scenario_solvers:
+                  for disc in solver.scenario_module.disc_manager:
+                     disc.sampler = sampler
+                     disc.scenarios_ = sampler.samples
+                     
+            except Exception as e:
+               import traceback
+               LOG_WARN(f"Error generating scenario samples: {e}")
+               LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+               # Continue with dummy constraints if sampling fails
+               return
 
       # Run parallel workers to find the best set of constraints
       with ThreadPoolExecutor(max_workers=len(self.scenario_solvers)) as executor:
@@ -77,7 +106,8 @@ class ScenarioConstraints(BaseConstraint):
 
       # Extract and store the computed constraint coefficients from the best solver's SafeHorizon module
       for disc_id, disc_manager in enumerate(self.best_solver.scenario_module.disc_manager):
-         for step in range(self.solver.horizon):
+         # Iterate over horizon + 1 steps to match array dimensions
+         for step in range(min(self.solver.horizon + 1, len(self._a1[disc_id]))):
             if hasattr(disc_manager, 'polytopes') and step < len(disc_manager.polytopes):
                polytope = disc_manager.polytopes[step]
                num_found_constraints = min(len(polytope.polygon_out), self.max_constraints_per_disc)
@@ -107,22 +137,13 @@ class ScenarioConstraints(BaseConstraint):
          scenario_solver.solver_timeout = max(0.1, self.planning_time - used_time - 0.008)
          scenario_solver.solver = main_solver.copy()
 
-         # **THIS IS THE CRUCIAL ADDITION**
-         # Initialize the copied solver with the current vehicle state.
-         # This gives the inner optimization a good starting point.
-         # We get the state from the main_solver, which is up-to-date.
+         # Initialize the copied solver with the current vehicle state
          scenario_solver.solver.initialize_rollout(main_solver.initial_state)
 
-         # The sampling logic we added before
-         if self.enable_safe_horizon:
-            sampler = scenario_solver.scenario_module.get_sampler()
-            if sampler and hasattr(sampler, 'integrate_and_translate_to_mean_and_variance'):
-               timestep = getattr(self.solver, 'timestep', 0.1)
-               sampler.integrate_and_translate_to_mean_and_variance(
-                  data.dynamic_obstacles, timestep
-               )
+         # **REMOVED**: Sampling is now done in main thread before workers start
+         # The sampler already has populated samples from the main thread
 
-         # Now, the update call will have both a good initial trajectory AND the scenarios
+         # Update the scenario module (uses already-generated samples)
          scenario_solver.scenario_module.update(data)
          exit_code = scenario_solver.scenario_module.optimize(data)
 
@@ -133,6 +154,8 @@ class ScenarioConstraints(BaseConstraint):
          return exit_code, objective_value, scenario_solver
       except Exception as e:
          LOG_WARN(f"Error in scenario worker for solver {scenario_solver.solver_id}: {e}")
+         import traceback
+         LOG_DEBUG(f"Worker traceback: {traceback.format_exc()}")
          return -1, float('inf'), scenario_solver
 
    def define_parameters(self, params):
@@ -211,14 +234,14 @@ class ScenarioConstraints(BaseConstraint):
             base_name = f"disc_{disc_id}_scen_constraint_{i}_step_{step}"
             LOG_DEBUG(f"Setting parameters for {base_name}")
             
-            # **FIX**: Add bounds checking and fallback to dummy values
+            # **FIX**: Use step directly (arrays now sized for horizon + 1)
             try:
                # Check if the arrays exist and have the right dimensions
                if (hasattr(self, '_a1') and disc_id < len(self._a1) and 
-                   step - 1 < len(self._a1[disc_id]) and i < len(self._a1[disc_id][step - 1])):
-                  a1_val = self._a1[disc_id][step - 1][i]
-                  a2_val = self._a2[disc_id][step - 1][i]
-                  b_val = self._b[disc_id][step - 1][i]
+                   step < len(self._a1[disc_id]) and i < len(self._a1[disc_id][step])):
+                  a1_val = self._a1[disc_id][step][i]
+                  a2_val = self._a2[disc_id][step][i]
+                  b_val = self._b[disc_id][step][i]
                else:
                   # Fallback to dummy values if arrays are not properly initialized
                   a1_val = self._dummy_a1

@@ -1,0 +1,78 @@
+================================================================================
+MPC TEST ERROR REPORT
+================================================================================
+
+Test Name: scenario_mpcc_short
+Timestamp: 2025-10-19 17:00:50
+Error Type: Unexpected Exception
+Iteration: 0 / 100
+
+================================================================================
+ERROR MESSAGE
+================================================================================
+Unexpected exception during test execution: State.get() takes 2 positional arguments but 3 were given
+Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/framework/base_test.py", line 407, in run
+    output = self.planner.solve_mpc(self.data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 79, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/constraints/distance_scenario_constraints.py", line 91, in update
+    self.vehicle_prediction = self._get_vehicle_prediction(state, data)
+                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/constraints/distance_scenario_constraints.py", line 162, in _get_vehicle_prediction
+    v = state.get("v", 0.0)
+TypeError: State.get() takes 2 positional arguments but 3 were given
+
+
+================================================================================
+TEST CONFIGURATION
+================================================================================
+Timestep (dt): 0.1
+Horizon: 10
+Max Iterations: 100
+Visualization Enabled: False
+Stop on Failure: True
+Max Consecutive Failures: 5
+
+================================================================================
+CURRENT STATE
+================================================================================
+State: (ContouringSecondOrderUnicycleModel(
+  nx=5, nu=2,
+  dependent_vars=['x', 'y', 'psi', 'v', 'spline'],
+  inputs=['a', 'w'],
+  lower_bound=[-2.0, -0.8, -2000.0, -2000.0, -18.84955592153876, -0.01, -1.0],
+  upper_bound=[2.0, 0.8, 2000.0, 2000.0, 18.84955592153876, 3.0, 10000.0]
+)):
+ a: 0.0
+ w: 0.0
+ x: 0.0
+ y: 0.0
+ psi: 0.3217505543966422
+ v: 0.0
+ spline: 0.0
+
+================================================================================
+SOLVER INFORMATION
+================================================================================
+Modules: 2
+  - contouring_objective
+  - distance_scenario_constraints
+
+================================================================================
+RESULTS SO FAR
+================================================================================
+Iterations Completed: 0
+Failed Iterations: 0
+Consecutive Failures: 0
+Goal Reached: False
+Final Distance to Goal: infm
+
+================================================================================
+FAILURE HISTORY
+================================================================================
+
+================================================================================
+END OF ERROR REPORT
+================================================================================

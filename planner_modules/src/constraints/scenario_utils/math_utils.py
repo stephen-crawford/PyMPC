@@ -526,29 +526,6 @@ class SafeHorizon:
 		# For now, just a placeholder
 		pass
 
-	def compute_distances(self, data, step, obstacle_id):
-		"""Compute distances to all scenarios for a given obstacle"""
-		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} computing distances for step {step}, obstacle {obstacle_id}")
-		# Placeholder implementation
-		pass
-
-	def check_feasibility_by_distance(self, step, obstacle_id):
-		"""Check feasibility based on computed distances"""
-		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} checking feasibility for step {step}, obstacle {obstacle_id}")
-		# Placeholder implementation
-		pass
-
-	def compute_halfspaces(self, step, obstacle_id):
-		"""Compute halfspace constraints"""
-		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} computing halfspaces for step {step}, obstacle {obstacle_id}")
-		# Placeholder implementation
-		pass
-
-	def construct_polytopes(self, step, data):
-		"""Construct polytopes for the given time step"""
-		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} constructing polytopes for step {step}")
-		# Placeholder implementation
-		pass
 
 	def is_data_ready(self, data):
 		"""Check if data is ready for processing"""
@@ -845,21 +822,20 @@ class SafeHorizon:
 			if k < len(self.infeasible_scenario_idxs_):
 				self.infeasible_scenario_idxs_[k].extend(infeasible_indices.tolist())
 
-			# Record poses of infeasible scenarios
-			if (self.scenarios_ is not None and obstacle_id < len(self.scenarios_) and
-					k < len(self.scenarios_[obstacle_id])):
-				scenarios_at_k = self.scenarios_[obstacle_id][k]
-				if k < len(self.infeasible_scenario_poses_):
-					for idx in infeasible_indices:
-						if idx < len(scenarios_at_k):
-							scenario = scenarios_at_k[idx]
-							if hasattr(scenario, 'position'):
-								pose = np.array([scenario.position[0], scenario.position[1]])
-							elif isinstance(scenario, (list, tuple)) and len(scenario) >= 2:
-								pose = np.array([scenario[0], scenario[1]])
-							else:
-								pose = np.array([0.0, 0.0])
-							self.infeasible_scenario_poses_[k].append(pose)
+		# Record poses of infeasible scenarios
+		# **FIX**: Use correct indexing [step][obstacle_id][0/1][sample_id]
+		if (self.scenarios_ is not None and k < len(self.scenarios_) and
+				obstacle_id < len(self.scenarios_[k]) and
+				len(self.scenarios_[k][obstacle_id]) >= 2):
+			# Get x and y coordinate arrays for this timestep and obstacle
+			scenarios_x = self.scenarios_[k][obstacle_id][0]  # x coordinates
+			scenarios_y = self.scenarios_[k][obstacle_id][1]  # y coordinates
+			
+			if k < len(self.infeasible_scenario_poses_):
+				for idx in infeasible_indices:
+					if idx < len(scenarios_x) and idx < len(scenarios_y):
+						pose = np.array([scenarios_x[idx], scenarios_y[idx]])
+						self.infeasible_scenario_poses_[k].append(pose)
 
 	def compute_halfspaces(self, k: int, obstacle_id: int):
 		"""
@@ -941,7 +917,14 @@ class SafeHorizon:
 
 	def construct_polytopes(self, k: int, data):
 		"""
-		Construct the polytope given all computed constraints
+		Construct the polytope given all computed constraints.
+		This reduces many individual scenario constraints into a minimal set
+		of polytope boundary constraints using angular sector grouping.
+
+		Algorithm:
+		1. Group constraints by angular direction (sectors)
+		2. In each sector, keep only the most restrictive constraint (closest to robot)
+		3. Remove redundant constraints that don't contribute to the polytope boundary
 
 		Args:
 			k: Time step index
@@ -950,39 +933,100 @@ class SafeHorizon:
 		if k >= len(self.polytopes_):
 			return
 
-		# Collect all constraint points for this time step
-		constraint_points = []
+		# Get config for max constraints
+		max_constraints = self.get_config_value("scenario_constraints.max_constraints", 10)
 
-		if (k < len(self.a1_) and len(self.a1_[k]) > 0 and
-				k < len(self.a2_) and len(self.a2_[k]) > 0):
+		# Check if we have computed halfspace constraints
+		if (k >= len(self.a1_) or len(self.a1_[k]) == 0 or
+				k >= len(self.a2_) or len(self.a2_[k]) == 0 or
+				k >= len(self.b_) or len(self.b_[k]) == 0):
+			# No constraints for this timestep
+			return
 
-			for i in range(len(self.a1_[k])):
-				if abs(self.a1_[k][i]) > 1e-8 or abs(self.a2_[k][i]) > 1e-8:
-					# Convert constraint to point representation for polygon computation
-					# This is a simplified approach - in practice you'd use proper geometric algorithms
-					point = np.array([self.a1_[k][i], self.a2_[k][i]])
-					constraint_points.append(point)
+		a1_all = np.array(self.a1_[k])
+		a2_all = np.array(self.a2_[k])
+		b_all = np.array(self.b_[k])
 
-		if len(constraint_points) > 2:
-			# Compute minimal polygon
-			constraint_points_array = np.array(constraint_points)
-			polygon_constraints = self.polytopes_[k].compute_minimal_polygon(constraint_points_array)
+		# Filter out zero/invalid constraints
+		valid_mask = (np.abs(a1_all) > 1e-8) | (np.abs(a2_all) > 1e-8)
+		if not np.any(valid_mask):
+			return
 
-			# Update constraint data with minimal polygon
-			self.polytopes_[k].polygon_out.clear()
-			for i, (a1, a2, b) in enumerate(polygon_constraints):
-				# Create scenario for the constraint
-				scenario_obj = Scenario(idx_=i, obstacle_idx_=-1)  # Aggregate constraint
+		a1_valid = a1_all[valid_mask]
+		a2_valid = a2_all[valid_mask]
+		b_valid = b_all[valid_mask]
 
-				constraint = ScenarioConstraint(
-					a1=a1,
-					a2=a2,
-					b=b,
-					scenario_=scenario_obj,
-					type_=ObstacleType.DYNAMIC,
-					side_=ConstraintSide.UNDEFINED
-				)
-				self.polytopes_[k].polygon_out.append(constraint)
+		num_valid = len(a1_valid)
+		if num_valid == 0:
+			return
+
+		# If we have fewer constraints than max, use them all
+		if num_valid <= max_constraints:
+			selected_a1 = a1_valid
+			selected_a2 = a2_valid
+			selected_b = b_valid
+		else:
+			# Use angular sector approach to reduce constraints
+			# Compute angle for each constraint (normal direction)
+			angles = np.arctan2(a2_valid, a1_valid)
+
+			# Divide circle into sectors
+			num_sectors = min(max_constraints, 12)  # Up to 12 sectors (30 degrees each)
+			sector_size = 2 * np.pi / num_sectors
+
+			selected_indices = []
+
+			for sector in range(num_sectors):
+				sector_start = -np.pi + sector * sector_size
+				sector_end = -np.pi + (sector + 1) * sector_size
+
+				# Find constraints in this sector
+				# Handle wraparound at -pi/+pi
+				if sector_end > np.pi:
+					in_sector = (angles >= sector_start) | (angles < (sector_end - 2 * np.pi))
+				else:
+					in_sector = (angles >= sector_start) & (angles < sector_end)
+
+				if np.any(in_sector):
+					# Get indices in this sector
+					sector_indices = np.where(in_sector)[0]
+					
+					# Find the most restrictive constraint (smallest b = closest to robot)
+					# Since constraint is a1*x + a2*y <= b, smaller b is more restrictive
+					most_restrictive_idx = sector_indices[np.argmin(b_valid[sector_indices])]
+					selected_indices.append(most_restrictive_idx)
+
+			# Extract selected constraints
+			if len(selected_indices) > 0:
+				selected_indices = np.array(selected_indices)
+				selected_a1 = a1_valid[selected_indices]
+				selected_a2 = a2_valid[selected_indices]
+				selected_b = b_valid[selected_indices]
+			else:
+				# Fallback: use closest N constraints
+				closest_indices = np.argsort(b_valid)[:max_constraints]
+				selected_a1 = a1_valid[closest_indices]
+				selected_a2 = a2_valid[closest_indices]
+				selected_b = b_valid[closest_indices]
+
+		# Store in polytope structure
+		self.polytopes_[k].polygon_out.clear()
+		
+		for i in range(len(selected_a1)):
+			# Create scenario object for this constraint
+			scenario_obj = Scenario(idx_=i, obstacle_idx_=-1)  # Aggregate constraint
+
+			constraint = ScenarioConstraint(
+				a1=float(selected_a1[i]),
+				a2=float(selected_a2[i]),
+				b=float(selected_b[i]),
+				scenario_=scenario_obj,
+				type_=ObstacleType.DYNAMIC,
+				side_=ConstraintSide.UNDEFINED
+			)
+			self.polytopes_[k].polygon_out.append(constraint)
+
+		LOG_DEBUG(f"SafeHorizon disc {self.disc_id_} step {k}: Reduced {num_valid} constraints to {len(selected_a1)} polytope boundaries")
 
 	def push_algorithm(self, data):
 		"""Push the initial plan away from scenarios if infeasible (orthogonal to vehicle plan)"""

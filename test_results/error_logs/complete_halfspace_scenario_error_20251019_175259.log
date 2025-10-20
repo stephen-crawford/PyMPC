@@ -1,0 +1,120 @@
+================================================================================
+MPC TEST ERROR REPORT
+================================================================================
+
+Test Name: complete_halfspace_scenario
+Timestamp: 2025-10-19 17:52:59
+Error Type: Unexpected Exception
+Iteration: 0 / 150
+
+================================================================================
+ERROR MESSAGE
+================================================================================
+Unexpected exception during test execution: FancyBboxPatch.set() got an unexpected keyword argument 'angle'
+Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/framework/base_test.py", line 473, in run
+    self.viz_manager.update(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        current_state=self.planner.get_state(),
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+        failed=True
+        ^^^^^^^^^^^
+    )
+    ^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/framework/visualization_manager.py", line 212, in update
+    self._update_main_plot(
+    ~~~~~~~~~~~~~~~~~~~~~~^
+        current_state,
+        ^^^^^^^^^^^^^^
+    ...<4 lines>...
+        failed
+        ^^^^^^
+    )
+    ^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/framework/visualization_manager.py", line 250, in _update_main_plot
+    vehicle_patch = patches.FancyBboxPatch(
+        (x - self.vehicle.length/2, y - self.vehicle.width/2),
+    ...<7 lines>...
+        label="Vehicle" if not self.dynamic_elements else None
+    )
+  File "/home/stephencrawford/miniconda3/lib/python3.13/site-packages/matplotlib/patches.py", line 3947, in __init__
+    super().__init__(**kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/home/stephencrawford/miniconda3/lib/python3.13/site-packages/matplotlib/patches.py", line 99, in __init__
+    self._internal_update(kwargs)
+    ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^
+  File "/home/stephencrawford/miniconda3/lib/python3.13/site-packages/matplotlib/artist.py", line 1233, in _internal_update
+    return self._update_props(
+           ~~~~~~~~~~~~~~~~~~^
+        kwargs, "{cls.__name__}.set() got an unexpected keyword argument "
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        "{prop_name!r}")
+        ^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/miniconda3/lib/python3.13/site-packages/matplotlib/artist.py", line 1206, in _update_props
+    raise AttributeError(
+        errfmt.format(cls=type(self), prop_name=k),
+        name=k)
+AttributeError: FancyBboxPatch.set() got an unexpected keyword argument 'angle'
+
+
+================================================================================
+TEST CONFIGURATION
+================================================================================
+Timestep (dt): 0.1
+Horizon: 15
+Max Iterations: 150
+Visualization Enabled: 30
+Stop on Failure: True
+Max Consecutive Failures: 3
+
+================================================================================
+CURRENT STATE
+================================================================================
+State: (SecondOrderUnicycleModel(
+  nx=4, nu=2,
+  dependent_vars=['x', 'y', 'psi', 'v'],
+  inputs=['a', 'w'],
+  lower_bound=[-2.0, -2.0, -200.0, -200.0, -12.566370614359172, -2.0],
+  upper_bound=[2.0, 2.0, 200.0, 200.0, 12.566370614359172, 3.0]
+)):
+ a: 0.0
+ w: 0.0
+ x: 0
+ y: 0
+ psi: 0.5404195002705842
+ v: 0.0
+
+================================================================================
+SOLVER INFORMATION
+================================================================================
+Modules: 3
+  - contouring_objective
+  - scenario_constraints_halfspace
+  - contouring_constraints
+
+================================================================================
+RESULTS SO FAR
+================================================================================
+Iterations Completed: 0
+Failed Iterations: 1
+Consecutive Failures: 1
+Goal Reached: False
+Final Distance to Goal: infm
+
+================================================================================
+TIMING STATISTICS
+================================================================================
+Average Solve Time: 0.0446s
+Min Solve Time: 0.0446s
+Max Solve Time: 0.0446s
+Std Dev Solve Time: 0.0000s
+
+================================================================================
+FAILURE HISTORY
+================================================================================
+  - Iteration 0: MPC solve failed
+
+================================================================================
+END OF ERROR REPORT
+================================================================================

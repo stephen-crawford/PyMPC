@@ -1,0 +1,81 @@
+================================================================================
+MPC TEST ERROR REPORT
+================================================================================
+
+Test Name: scenario_mpcc_narrow
+Timestamp: 2025-10-19 17:03:19
+Error Type: Consecutive Failures
+Iteration: 7 / 200
+
+================================================================================
+ERROR MESSAGE
+================================================================================
+Too many consecutive failures: 8 (max: 8)
+
+================================================================================
+TEST CONFIGURATION
+================================================================================
+Timestep (dt): 0.1
+Horizon: 10
+Max Iterations: 200
+Visualization Enabled: False
+Stop on Failure: True
+Max Consecutive Failures: 8
+
+================================================================================
+CURRENT STATE
+================================================================================
+State: (ContouringSecondOrderUnicycleModel(
+  nx=5, nu=2,
+  dependent_vars=['x', 'y', 'psi', 'v', 'spline'],
+  inputs=['a', 'w'],
+  lower_bound=[-2.0, -0.8, -2000.0, -2000.0, -18.84955592153876, -0.01, -1.0],
+  upper_bound=[2.0, 0.8, 2000.0, 2000.0, 18.84955592153876, 3.0, 10000.0]
+)):
+ a: 0.0
+ w: 0.0
+ x: 0.0
+ y: 0.0
+ psi: 0.35877067027057225
+ v: 0.0
+ spline: 0.0
+
+================================================================================
+SOLVER INFORMATION
+================================================================================
+Modules: 2
+  - contouring_objective
+  - distance_scenario_constraints
+
+================================================================================
+RESULTS SO FAR
+================================================================================
+Iterations Completed: 0
+Failed Iterations: 8
+Consecutive Failures: 8
+Goal Reached: False
+Final Distance to Goal: infm
+
+================================================================================
+TIMING STATISTICS
+================================================================================
+Average Solve Time: 0.2043s
+Min Solve Time: 0.1666s
+Max Solve Time: 0.2185s
+Std Dev Solve Time: 0.0149s
+
+================================================================================
+FAILURE HISTORY
+================================================================================
+  - Iteration 0: MPC solve failed
+  - Iteration 1: MPC solve failed
+  - Iteration 2: MPC solve failed
+  - Iteration 3: MPC solve failed
+  - Iteration 4: MPC solve failed
+  - Iteration 5: MPC solve failed
+  - Iteration 6: MPC solve failed
+  - Iteration 7: MPC solve failed
+
+================================================================================
+END OF ERROR REPORT
+================================================================================

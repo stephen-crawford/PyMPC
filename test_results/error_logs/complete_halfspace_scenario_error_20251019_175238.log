@@ -1,0 +1,79 @@
+================================================================================
+MPC TEST ERROR REPORT
+================================================================================
+
+Test Name: complete_halfspace_scenario
+Timestamp: 2025-10-19 17:52:38
+Error Type: Unexpected Exception
+Iteration: 0 / 150
+
+================================================================================
+ERROR MESSAGE
+================================================================================
+Unexpected exception during test execution: 'DynamicObstacle' object has no attribute 'x'
+Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/framework/base_test.py", line 410, in run
+    output = self.planner.solve_mpc(self.data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 79, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/constraints/scenario_constraints_halfspace.py", line 141, in update
+    self._use_distance_based_fallback(state, data)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/constraints/scenario_constraints_halfspace.py", line 283, in _use_distance_based_fallback
+    obs_pos = np.array([obs.x, obs.y])
+                        ^^^^^
+AttributeError: 'DynamicObstacle' object has no attribute 'x'
+
+
+================================================================================
+TEST CONFIGURATION
+================================================================================
+Timestep (dt): 0.1
+Horizon: 15
+Max Iterations: 150
+Visualization Enabled: 30
+Stop on Failure: True
+Max Consecutive Failures: 3
+
+================================================================================
+CURRENT STATE
+================================================================================
+State: (SecondOrderUnicycleModel(
+  nx=4, nu=2,
+  dependent_vars=['x', 'y', 'psi', 'v'],
+  inputs=['a', 'w'],
+  lower_bound=[-2.0, -2.0, -200.0, -200.0, -12.566370614359172, -2.0],
+  upper_bound=[2.0, 2.0, 200.0, 200.0, 12.566370614359172, 3.0]
+)):
+ a: 0.0
+ w: 0.0
+ x: 0
+ y: 0
+ psi: 0.5404195002705842
+ v: 0.0
+
+================================================================================
+SOLVER INFORMATION
+================================================================================
+Modules: 3
+  - contouring_objective
+  - scenario_constraints_halfspace
+  - contouring_constraints
+
+================================================================================
+RESULTS SO FAR
+================================================================================
+Iterations Completed: 0
+Failed Iterations: 0
+Consecutive Failures: 0
+Goal Reached: False
+Final Distance to Goal: infm
+
+================================================================================
+FAILURE HISTORY
+================================================================================
+
+================================================================================
+END OF ERROR REPORT
+================================================================================

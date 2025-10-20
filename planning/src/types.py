@@ -496,6 +496,20 @@ def generate_dynamic_obstacles(
             obst.prediction.path = ref_path
             obst.prediction.type = PredictionType.GAUSSIAN
             obst.prediction.steps = []
+            
+            # Create prediction states for scenario sampling
+            obst.prediction.states = []
+            for t in range(min(num_points, len(ref_path.x))):
+                class PredictionState:
+                    def __init__(self, pos, major_r=0.3, minor_r=0.2, ang=0.0):
+                        self.position = pos
+                        self.major_radius = major_r
+                        self.minor_radius = minor_r
+                        self.angle = ang
+                
+                state_pos = [ref_path.x[t], ref_path.y[t]]
+                state = PredictionState(state_pos, major_r=0.3, minor_r=0.2, ang=angle)
+                obst.prediction.states.append(state)
 
         obstacles.append(obst)
 
