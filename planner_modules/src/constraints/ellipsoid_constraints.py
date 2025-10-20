@@ -26,6 +26,10 @@ class EllipsoidConstraints(BaseConstraint):
 
 		LOG_DEBUG("Ellipsoid Constraints successfully initialized")
 
+	def get_visualization_overlay(self):
+		"""Best-effort overlay for ellipsoids (parameters live in manager; keep None)."""
+		return None
+
 	def update(self, state, data):
 		LOG_DEBUG("EllipsoidConstraints.update")
 

@@ -47,8 +47,14 @@ class ModuleManager:
         objective_value = []
         for module in self.modules:
             if module.module_type == OBJECTIVE:
-                if hasattr(module, "get_value"):
-                    objective_value.append(module.get_value(state, param, stage_idx))
+                try:
+                    if hasattr(module, "get_value"):
+                        obj_value = module.get_value(state, param, stage_idx)
+                        if obj_value:
+                            objective_value.append(obj_value)
+                except Exception as e:
+                    LOG_DEBUG(f"Error getting objective from module {module.name}: {e}")
+                    continue
         return objective_value
 
     def constraints(self, param, model, settings, stage_idx):

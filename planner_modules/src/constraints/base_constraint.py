@@ -17,8 +17,34 @@ class BaseConstraint(Module):
 			self.config = settings
 		LOG_DEBUG(f"Initializing {self.name.title()} Constraints")
 
+	def get_visualization_overlay(self):
+		"""Optional visualization overlay for this constraint.
+
+		Return a dict compatible with StandardizedVisualizer._plot_constraint_projection or None.
+		This method is intentionally a no-op by default and safe for all modules.
+		"""
+		return None
+
 	def define_parameters(self, params):
+		"""Define parameters for this constraint module."""
 		pass
 
 	def get_penalty(self, symbolic_state, params, stage_idx):
+		"""Get penalty terms for this constraint (default: no penalty)."""
 		return cd.MX(0)
+	
+	def get_constraints(self, symbolic_state, params, stage_idx):
+		"""Get constraint expressions for this module."""
+		return []
+	
+	def get_lower_bound(self):
+		"""Get lower bounds for constraints."""
+		return []
+	
+	def get_upper_bound(self):
+		"""Get upper bounds for constraints."""
+		return []
+	
+	def is_data_ready(self, data):
+		"""Check if required data is available."""
+		return True

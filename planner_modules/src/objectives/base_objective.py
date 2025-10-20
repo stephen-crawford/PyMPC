@@ -1,4 +1,5 @@
 from abc import abstractmethod
+import casadi as cd
 
 from solver.src.modules_manager import Module
 from utils.const import OBJECTIVE
@@ -16,4 +17,13 @@ class BaseObjective(Module):
 
 	@abstractmethod
 	def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
+		"""Get symbolic cost for a given stage."""
 		pass
+	
+	def get_value(self, symbolic_state, params, stage_idx):
+		"""Get objective value for a given stage (default implementation)."""
+		return {"default_cost": cd.MX(0)}
+	
+	def is_data_ready(self, data):
+		"""Check if required data is available."""
+		return True

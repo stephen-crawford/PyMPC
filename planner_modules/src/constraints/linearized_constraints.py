@@ -53,6 +53,27 @@ class LinearizedConstraints(BaseConstraint):
 
 		LOG_DEBUG("Linearized Constraints successfully initialized")
 
+	def get_visualization_overlay(self):
+		"""Return a lightweight overlay representing current linearized halfspaces.
+
+		This draws the latest step halfspaces for disc 0 as dashed lines.
+		"""
+		if self.num_active_obstacles <= 0:
+			return None
+		step = min(self.solver.horizon - 1, 1)
+		halfspaces = []
+		try:
+			for idx in range(min(self.num_active_obstacles, self.max_num_constraints)):
+				a1 = self._a1[0][step][idx]
+				a2 = self._a2[0][step][idx]
+				b = self._b[0][step][idx]
+				if a1 is None or a2 is None or b is None:
+					continue
+				halfspaces.append((a1, a2, -b))  # store as ax + by + c = 0 => a=a1, b=a2, c=-b
+			return {'halfspaces': halfspaces}
+		except Exception:
+			return None
+
 	def update(self, state: State, data: Data):
 		LOG_DEBUG("LinearizedConstraints.update")
 

@@ -34,6 +34,39 @@ class ContouringConstraints(BaseConstraint):
 
 		LOG_DEBUG(f"{self.name.title()} successfully initialized")
 
+	def get_visualization_overlay(self):
+		"""Return current road corridor as polygon bands along the reference path."""
+		try:
+			if self.reference_path is None:
+				return None
+			# Build a thin corridor around the reference as two polylines
+			path_x = np.array(self.reference_path.x)
+			path_y = np.array(self.reference_path.y)
+			if path_x.size < 2:
+				return None
+			# Approximate normals from gradient
+			dx = np.gradient(path_x)
+			dy = np.gradient(path_y)
+			nx = -dy / (np.sqrt(dx**2 + dy**2) + 1e-9)
+			ny = dx / (np.sqrt(dx**2 + dy**2) + 1e-9)
+			w = 1.0
+			left_x = path_x + w * nx
+			left_y = path_y + w * ny
+			right_x = path_x - w * nx
+			right_y = path_y - w * ny
+			poly_x = list(left_x) + list(right_x[::-1])
+			poly_y = list(left_y) + list(right_y[::-1])
+			return {
+				'polygons': [{
+					'x': poly_x,
+					'y': poly_y,
+					'color': '#99cc99',
+					'alpha': 0.1
+				}]
+			}
+		except Exception:
+			return None
+
 	def update(self, state, data: Data):
 		LOG_DEBUG(f"{self.name.title()}::update")
 
@@ -132,7 +165,7 @@ class ContouringConstraints(BaseConstraint):
 
 		if k == 0:
 			self.process_reference_path(data)
-			self.set_path_parameters(parameter_manager)
+			self.set_path_parameters(parameter_manager, data)
 
 	def _compute_width_from_bounds(self, data):
 		"""
@@ -140,6 +173,7 @@ class ContouringConstraints(BaseConstraint):
 		Returns arrays of left and right widths at each reference path point.
 		"""
 		if self.reference_path is None or self.bound_left_spline is None or self.bound_right_spline is None:
+			LOG_WARN("Missing reference path or boundary splines for width calculation")
 			return None, None
 
 		# Get reference path points
@@ -164,6 +198,8 @@ class ContouringConstraints(BaseConstraint):
 			right_dist = np.sqrt((path_x[i] - right_bound_points[i, 0]) ** 2 +
 								 (path_y[i] - right_bound_points[i, 1]) ** 2)
 			width_right.append(right_dist)
+
+		LOG_DEBUG(f"Computed widths - left: {width_left[:5]}, right: {width_right[:5]}")
 		return np.array(width_left), np.array(width_right)
 
 	def _fit_cubic_spline_coefficients(self, x_data, y_data):
@@ -223,7 +259,7 @@ class ContouringConstraints(BaseConstraint):
 
 		return segments, segment_starts
 
-	def set_path_parameters(self, parameter_manager):
+	def set_path_parameters(self, parameter_manager, data=None):
 		LOG_DEBUG(f"{self.name.title()}::set_path_parameters")
 		if self.reference_path is None:
 			LOG_WARN("No reference path available when trying to set path params so returning")
@@ -240,7 +276,7 @@ class ContouringConstraints(BaseConstraint):
 			path_z = self.reference_path.z
 
 		# Compute width parameters from bounds
-		width_left_orig, width_right_orig = self._compute_width_from_bounds(None)
+		width_left_orig, width_right_orig = self._compute_width_from_bounds(data)
 
 		# Prepare interpolated data for the number of segments
 		if len(path_x) < self.num_segments + 1:

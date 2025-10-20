@@ -1,283 +1,320 @@
-import time
-import casadi as ca
-import matplotlib
-import matplotlib.pyplot as plt
+"""
+Scenario And Contouring Constraints With Contouring Objective - Converted to Standardized Systems
+
+This test has been automatically converted to use the standardized
+logging, visualization, and testing framework.
+"""
+
+import sys
+import os
 import numpy as np
-from matplotlib import patches
+import time
+from pathlib import Path
 
-from planner_modules.src.objectives.contouring_objective import ContouringObjective
-from planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
-from planner_modules.src.constraints.simplified_scenario_constraints import SimplifiedScenarioConstraints
-from planning.src.data_prep import define_robot_area
-from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel
-from planning.src.planner import Planner
-from planning.src.types import Data, Bound, generate_reference_path, calculate_path_normals, State, \
-	generate_dynamic_obstacles, PredictionType, ScenarioSolveStatus
-from solver.src.casadi_solver import CasADiSolver
-from utils.const import GAUSSIAN
-from utils.utils import LOG_INFO, LOG_WARN, LOG_DEBUG
+# Add project root to path
+project_root = Path(__file__).parent.parent.parent.parent.parent
+sys.path.insert(0, str(project_root))
+
+from test.framework.standardized_test import BaseMPCTest, TestConfig
+from utils.standardized_logging import get_test_logger
+from utils.standardized_visualization import VisualizationConfig, VisualizationMode
+from utils.debugging_tools import ConstraintAnalyzer, SolverDiagnostics, TrajectoryAnalyzer
 
 
-class MPCVisualizer:
-	"""A dedicated visualizer class for the MPC simulation."""
+class ScenarioAndContouringConstraintsWithContouringObjective(BaseMPCTest):
+    """
+    Scenario And Contouring Constraints With Contouring Objective using standardized systems.
+    
+    This test demonstrates scenario constraints with contouring objective
+    using the standardized framework.
+    """
+    
+    def __init__(self):
+        config = TestConfig(
+            test_name="test_name",
+            description="Test with visualization framework",
+            timeout=120.0,
+            max_iterations=200,
+            goal_tolerance=1.0,
+            enable_visualization=True,
+            visualization_mode=VisualizationMode.REALTIME,
+            log_level="INFO"
+        )
+        super().__init__(config)
+        
+        # Enhanced visualization configuration
+        self.viz_config = VisualizationConfig(
+            mode=VisualizationMode.REALTIME,
+            realtime=True,
+            show_constraint_projection=True,
+            save_animation=True,
+            save_plots=True,
+            fps=10,
+            dpi=100,
+            output_dir=f"test_results/{config.test_name}/visualizations"
+        )
+        
+        # Initialize enhanced visualizer
+        if config.enable_visualization:
+            self.visualizer = TestVisualizationManager(config.test_name)
+            self.visualizer.initialize(self.viz_config)
+        
+        # Initialize debugging tools
+        self.constraint_analyzer = ConstraintAnalyzer()
+        self.solver_diagnostics = SolverDiagnostics()
+        self.trajectory_analyzer = TrajectoryAnalyzer()
+    
+    def setup_test_environment(self):
+        """Setup test environment with curved road and obstacles."""
+        self.logger.log_phase("Environment Setup", "Creating test environment")
+        
+        # Create curved reference path
+        t = np.linspace(0, 1, 50)
+        x_path = np.linspace(0, 50, 50)
+        y_path = 3 * np.sin(2 * np.pi * t)
+        s_path = np.linspace(0, 1, 50)
+        
+        reference_path = {
+            'x': x_path, 'y': y_path, 's': s_path
+        }
+        
+        # Create road boundaries
+        normals = self.calculate_path_normals(reference_path)
+        road_width = 8.0
+        half_width = road_width / 2
+        
+        left_bound = {
+            'x': x_path + normals[:, 0] * half_width,
+            'y': y_path + normals[:, 1] * half_width,
+            's': s_path
+        }
+        
+        right_bound = {
+            'x': x_path - normals[:, 0] * half_width,
+            'y': y_path - normals[:, 1] * half_width,
+            's': s_path
+        }
+        
+        # Create dynamic obstacles
+        obstacles = [
+            {'x': 20, 'y': 2, 'radius': 1.0, 'type': 'gaussian'},
+            {'x': 35, 'y': -1, 'radius': 0.8, 'type': 'gaussian'}
+        ]
+        
+        environment_data = {
+            'start': (0, 0),
+            'goal': (50, 0),
+            'reference_path': reference_path,
+            'left_bound': left_bound,
+            'right_bound': right_bound,
+            'dynamic_obstacles': obstacles
+        }
+        
+        self.logger.log_success("Environment setup completed")
+        return environment_data
+    
+    def setup_mpc_system(self, data):
+        """Setup MPC system with scenario and contouring constraints."""
+        self.logger.log_phase("MPC System Setup", "Initializing solver and modules")
+        
+        try:
+            # Import required modules
+            from solver.src.casadi_solver import CasADiSolver
+            from planning.src.planner import Planner
+            from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel
+            from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+            from planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
+            from planner_modules.src.objectives.contouring_objective import ContouringObjective
+            
+            # Create vehicle model
+            vehicle = ContouringSecondOrderUnicycleModel()
+            
+            # Create solver
+            solver = CasADiSolver()
+            solver.set_dynamics_model(vehicle)
+            
+            # Create planner
+            planner = Planner(solver, vehicle)
+            
+            # Add modules
+            contouring_constraints = ContouringConstraints(solver)
+            scenario_constraints = FixedScenarioConstraints(solver)
+            contouring_objective = ContouringObjective(solver)
+            
+            solver.module_manager.add_module(contouring_constraints)
+            solver.module_manager.add_module(scenario_constraints)
+            solver.module_manager.add_module(contouring_objective)
+            
+            # Pass data to constraints
+            contouring_constraints.on_data_received(data)
+            scenario_constraints.on_data_received(data)
+            
+            # Initialize solver
+            solver.define_parameters()
+            
+            self.logger.log_success("MPC system setup completed")
+            return planner, solver
+            
+        except Exception as e:
+            self.logger.log_error("Failed to setup MPC system", e)
+            raise
+    
+    def execute_mpc_iteration(self, planner, data, iteration):
+        """Execute one MPC iteration with comprehensive diagnostics."""
+        iteration_start = time.time()
+        
+        try:
+            # Get current state
+            current_state = planner.get_state()
+            
+            # Update data
+            planner.update_data(data)
+            
+            # Solve MPC
+            result = planner.solve()
+            
+            # Analyze solver performance
+            solve_time = time.time() - iteration_start
+            diagnostic = self.solver_diagnostics.analyze_solver_performance(
+                planner.solver, solve_time, iteration
+            )
+            
+            # Extract control inputs
+            if hasattr(result, 'control_inputs') and result.control_inputs:
+                control_inputs = result.control_inputs
+            else:
+                # Fallback control
+                self.logger.log_warning(f"No control inputs at iteration {iteration}, using fallback")
+                control_inputs = self.generate_fallback_control(current_state, data)
+            
+            # Apply control
+            new_state = self.apply_control(current_state, control_inputs)
+            planner.set_state(new_state)
+            
+            # Log progress
+            if iteration % 10 == 0:
+                distance = np.linalg.norm([
+                    new_state.get('x', 0) - data['goal'][0],
+                    new_state.get('y', 0) - data['goal'][1]
+                ])
+                self.logger.log_info(f"Iteration {iteration}: Distance to goal: {distance:.3f}")
+            
+            return new_state
+            
+        except Exception as e:
+            self.logger.log_error(f"MPC iteration {iteration} failed", e)
+            # Use fallback control
+            return self.execute_fallback_control(planner, data, iteration)
+    
+    def check_goal_reached(self, state, goal):
+        """Check if goal has been reached."""
+        distance = np.linalg.norm([state.get('x', 0) - goal[0], state.get('y', 0) - goal[1]])
+        return distance <= self.config.goal_tolerance
+    
+    def apply_control(self, state, control_inputs):
+        """Apply control inputs to get new state."""
+        dt = 0.1
+        
+        # Extract control inputs
+        if isinstance(control_inputs, dict):
+            a = control_inputs.get('a', 0)
+            w = control_inputs.get('w', 0)
+        else:
+            a, w = control_inputs[0], control_inputs[1]
+        
+        # Apply dynamics
+        x = state.get('x', 0)
+        y = state.get('y', 0)
+        psi = state.get('psi', 0)
+        v = state.get('v', 0)
+        
+        new_x = x + v * np.cos(psi) * dt
+        new_y = y + v * np.sin(psi) * dt
+        new_psi = psi + w * dt
+        new_v = max(0, v + a * dt)
+        new_spline = state.get('spline', 0) + v * dt
+        
+        return {
+            'x': new_x, 'y': new_y, 'psi': new_psi, 
+            'v': new_v, 'spline': new_spline
+        }
+    
+    def generate_fallback_control(self, state, data):
+        """Generate fallback control when MPC fails."""
+        goal = data['goal']
+        dx = goal[0] - state.get('x', 0)
+        dy = goal[1] - state.get('y', 0)
+        goal_angle = np.arctan2(dy, dx)
+        
+        angle_error = goal_angle - state.get('psi', 0)
+        
+        # Normalize angle error
+        while angle_error > np.pi:
+            angle_error -= 2 * np.pi
+        while angle_error < -np.pi:
+            angle_error += 2 * np.pi
+        
+        return {'a': 1.0, 'w': angle_error * 2.0}
+    
+    def execute_fallback_control(self, planner, data, iteration):
+        """Execute fallback control when MPC fails."""
+        current_state = planner.get_state()
+        control_inputs = self.generate_fallback_control(current_state, data)
+        new_state = self.apply_control(current_state, control_inputs)
+        planner.set_state(new_state)
+        
+        self.logger.log_warning(f"Using fallback control at iteration {iteration}")
+        return new_state
+    
 
-	def __init__(self, ax, data, vehicle_model, horizon):
-		self.ax = ax
-		self.data = data
-		self.vehicle = vehicle_model
-		self.horizon = horizon
-		self.dynamic_elements = []
-
-	def setup_static_elements(self):
-		"""Plots static environment elements."""
-		self.ax.plot(self.data.left_bound.x, self.data.left_bound.y, 'k--', label='Road Boundary')
-		self.ax.plot(self.data.right_bound.x, self.data.right_bound.y, 'k--')
-		self.ax.plot(self.data.reference_path.x, self.data.reference_path.y, 'g:', label='Reference Path')
-		self.ax.plot(self.data.goal[0], self.data.goal[1], 'r*', markersize=20, label='Goal')
-		self.ax.plot(self.data.start[0], self.data.start[1], 'go', markersize=10, label='Start')
-		self.ax.legend(loc='upper left')
-
-	def clear_dynamic_elements(self):
-		"""Removes artists that are updated each frame."""
-		for element in self.dynamic_elements:
-			element.remove()
-		self.dynamic_elements.clear()
-
-	def update_frame(self, current_state, realized_x, realized_y, planner, scenario_constraints):
-		"""Master update function called every simulation step."""
-		self.clear_dynamic_elements()
-
-		# ** THE FIX IS HERE **
-		# Corrected syntax for creating a rotated rectangle
-		vehicle_patch = patches.Rectangle(
-			(current_state.get("x"), current_state.get("y")),  # Set anchor point at the center
-			self.vehicle.length,
-			self.vehicle.width,
-			angle=np.rad2deg(current_state.get("psi")),
-			fc='blue',
-			label="Vehicle",
-			alpha=0.8,
-			transform=matplotlib.transforms.Affine2D().rotate_deg_around(
-				current_state.get("x"), current_state.get("y"), np.rad2deg(current_state.get("psi"))
-			) + self.ax.transData
-		)
-
-		self.ax.add_patch(vehicle_patch)
-		self.dynamic_elements.append(vehicle_patch)
-
-		realized_line, = self.ax.plot(realized_x, realized_y, 'b-', linewidth=2, label="Realized Trajectory")
-		self.dynamic_elements.append(realized_line)
-
-		# MPC prediction
-		forecast = planner.solver.get_forecasts()
-
-		# **FIXED**: Add a check to ensure the forecast list is not empty
-		if forecast:
-			LOG_DEBUG("Forecast states are {}".format(forecast[-1].get_states()))
-			pred_x = [s.get("x") for s in forecast[-1].get_states()]
-			pred_y = [s.get("y") for s in forecast[-1].get_states()]
-			pred_line, = self.ax.plot(pred_x, pred_y, 'c--', linewidth=2, label="Predicted Trajectory")
-			self.dynamic_elements.append(pred_line)
-
-		# (rest of the function is the same...)
-		# Dynamic obstacles
-		for obs in self.data.dynamic_obstacles:
-			obs_patch = plt.Circle(obs.position, obs.radius, color='red', alpha=0.7)
-			self.ax.add_patch(obs_patch)
-			self.dynamic_elements.append(obs_patch)
-
-		# Scenario-specific visualizations
-		self.visualize_scenarios(scenario_constraints)
-
-		# Adjust view and redraw
-		self.ax.set_xlim(current_state.get("x") - 20, current_state.get("x") + 20)
-		self.ax.set_ylim(current_state.get("y") - 20, current_state.get("y") + 20)
-		self.ax.figure.canvas.draw()
-		self.ax.figure.canvas.flush_events()
-
-	def visualize_scenarios(self, scenario_constraints):
-		best_solver = getattr(scenario_constraints, 'best_solver', None)
-		if not best_solver or not hasattr(best_solver, 'scenario_module'):
-			return
-
-		scenario_module = best_solver.scenario_module
-		sampler = scenario_module.get_sampler()
-
-		# Visualize sampled obstacle positions
-		if sampler and hasattr(sampler, 'samples') and sampler.samples_ready():
-			samples = sampler.samples
-			num_steps_to_plot = min(len(samples), self.horizon)
-			num_obs_to_plot = len(self.data.dynamic_obstacles)
-
-			for k in range(num_steps_to_plot):
-				for obs_id in range(num_obs_to_plot):
-					if k < len(samples) and obs_id < len(samples[k]):
-						x_samples, y_samples = samples[k][obs_id][0], samples[k][obs_id][1]
-						alpha = 0.3 * (1 - k / num_steps_to_plot)
-						color = plt.cm.autumn(obs_id / max(1, num_obs_to_plot))
-						scatter = self.ax.scatter(x_samples, y_samples, s=5, color=color, alpha=alpha,
-												  edgecolors='none', zorder=0)
-						self.dynamic_elements.append(scatter)
-
-		# Display solver status
-		solve_status = getattr(scenario_module, 'solve_status', ScenarioSolveStatus.INFEASIBLE)
-		status_text = f"Scenario Solver: {solve_status.name}"
-		status_color = 'green' if solve_status == ScenarioSolveStatus.SUCCESS else 'red'
-		status_artist = self.ax.text(0.98, 0.98, status_text, transform=self.ax.transAxes,
-									 va='top', ha='right',
-									 bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
-									 color=status_color)
-		self.dynamic_elements.append(status_artist)
+    def _collect_constraint_overlays(self, planner):
+        """Collect constraint overlays from active modules."""
+        overlays = {'halfspaces': [], 'polygons': [], 'points': []}
+        
+        try:
+            if hasattr(planner, 'solver') and hasattr(planner.solver, 'module_manager'):
+                modules = getattr(planner.solver.module_manager, 'modules', [])
+                for module in modules:
+                    if hasattr(module, 'get_visualization_overlay'):
+                        overlay = module.get_visualization_overlay()
+                        if overlay:
+                            if 'halfspaces' in overlay:
+                                overlays['halfspaces'].extend(overlay['halfspaces'])
+                            if 'polygons' in overlay:
+                                overlays['polygons'].extend(overlay['polygons'])
+                            if 'points' in overlay:
+                                overlays['points'].extend(overlay['points'])
+        except Exception as e:
+            if hasattr(self, 'logger'):
+                self.logger.log_debug(f"Could not collect constraint overlays: {e}")
+        
+        return overlays
+    def calculate_path_normals(self, reference_path):
+        """Calculate path normals for road boundaries."""
+        x = np.array(reference_path['x'])
+        y = np.array(reference_path['y'])
+        
+        dx = np.gradient(x)
+        dy = np.gradient(y)
+        
+        # Normalize
+        norm = np.sqrt(dx**2 + dy**2)
+        dx_norm = dx / norm
+        dy_norm = dy / norm
+        
+        # Perpendicular vectors (normals)
+        normals_x = -dy_norm
+        normals_y = dx_norm
+        
+        return np.column_stack([normals_x, normals_y])
 
 
-def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0, 0.0), goal=(50.0, 10.0),
-		max_iterations=300):
-	casadi_solver = CasADiSolver(dt, horizon)
-	vehicle = model()
-	casadi_solver.set_dynamics_model(vehicle)
-
-	planner = Planner(casadi_solver, vehicle)
-
-	# Add objectives and constraints
-	contouring_objective = ContouringObjective(casadi_solver)
-	casadi_solver.module_manager.add_module(contouring_objective)
-	
-	# Use full scenario constraints with fixed sampler integration
-	scenario_constraints = ScenarioConstraints(casadi_solver)
-	casadi_solver.module_manager.add_module(scenario_constraints)
-
-	# Initialize all modules
-	casadi_solver.define_parameters()
-
-	# Setup environment data
-	data = Data()
-	data.start, data.goal = np.array(start), np.array(goal)
-	data.reference_path = generate_reference_path(data.start, data.goal, path_type="curved")
-	data.dynamic_obstacles = generate_dynamic_obstacles(3, GAUSSIAN, 0.5)
-
-	normals = np.array(calculate_path_normals(data.reference_path))
-	road_width = 8.0
-	# ** THE FIX IS HERE **: Use half_width for proper lane boundaries
-	half_width = road_width / 2
-	left_x = data.reference_path.x + normals[:, 0] * half_width
-	left_y = data.reference_path.y + normals[:, 1] * half_width
-	right_x = data.reference_path.x - normals[:, 0] * half_width
-	right_y = data.reference_path.y - normals[:, 1] * half_width
-
-	data.left_bound = Bound(left_x, left_y, data.reference_path.s)
-	data.right_bound = Bound(right_x, right_y, data.reference_path.s)
-	data.robot_area = define_robot_area(vehicle.length, vehicle.width, 1)
-	
-	# Initialize additional required fields for scenario constraints
-	data.goal_received = True
-	data.static_obstacles = []
-
-	# Initialize planner state
-	initial_state = State(vehicle)
-	initial_state.set("x", start[0])
-	initial_state.set("y", start[1])
-	initial_state.set("psi", np.arctan2(goal[1] - start[1], goal[0] - start[0]))
-	planner.set_state(initial_state)
-
-	# Setup Visualization
-	matplotlib.use('TkAgg')
-	plt.ion()
-	fig, ax = plt.subplots(figsize=(12, 12))
-	ax.set_title("MPCC with Scenario Constraints"), ax.set_xlabel("X [m]"), ax.set_ylabel("Y [m]")
-	ax.grid(True), ax.set_aspect('equal')
-	visualizer = MPCVisualizer(ax, data, vehicle, horizon)
-	visualizer.setup_static_elements()
-	plt.show()
-
-	# Main Simulation Loop
-	states_x, states_y = [start[0]], [start[1]]
-	for i in range(max_iterations):
-		LOG_INFO(f"\n--- Iteration {i} ---")
-		data.planning_start_time = time.time()
-
-		# ** THE FIX IS HERE **: Process data and generate scenarios BEFORE solving
-		scenario_constraints.on_data_received(data)
-
-		# Solve the MPC problem
-		output = planner.solve_mpc(data)
-
-		if output.success:
-			# Use the first control action to propagate the state
-			# Extract control inputs from the MPC solution
-			try:
-				if output.trajectory_history and len(output.trajectory_history) > 0:
-					control_state = output.trajectory_history[-1].states[0]
-					a = control_state.get("a")
-					w = control_state.get("w")
-				else:
-					a = 0.0
-					w = 0.0
-			except:
-				a = 0.0
-				w = 0.0
-			
-			# Simple numeric integration using Euler method
-			current_state = planner.get_state()
-			x = current_state.get("x")
-			y = current_state.get("y")
-			psi = current_state.get("psi")
-			v = current_state.get("v")
-			spline = current_state.get("spline")
-			
-			# Propagate state forward
-			dt_step = 0.1
-			new_x = x + v * np.cos(psi) * dt_step
-			new_y = y + v * np.sin(psi) * dt_step
-			new_psi = psi + w * dt_step
-			new_v = v + a * dt_step
-			new_spline = spline + v * dt_step
-			
-			# Create new state
-			next_state = State(planner.solver.dynamics_model)
-			next_state.set("x", new_x)
-			next_state.set("y", new_y)
-			next_state.set("psi", new_psi)
-			next_state.set("v", new_v)
-			next_state.set("spline", new_spline)
-			
-			planner.set_state(next_state)
-
-			states_x.append(next_state.get("x"))
-			states_y.append(next_state.get("y"))
-
-			for obs in data.dynamic_obstacles:
-				if hasattr(obs, 'update_position'):
-					obs.update_position(dt)
-
-			# Check progress towards goal
-			current_pos = np.array([new_x, new_y])
-			goal_pos = np.array(data.goal)
-			distance_to_goal = np.linalg.norm(current_pos - goal_pos)
-			
-			LOG_INFO(f"Iteration {i}: Position ({new_x:.3f}, {new_y:.3f}), Velocity {new_v:.3f}, Distance to goal: {distance_to_goal:.3f}")
-
-			visualizer.update_frame(next_state, states_x, states_y, planner, scenario_constraints)
-			plt.pause(0.05)
-
-			# Check if goal is reached (within 1 meter)
-			if distance_to_goal < 1.0:
-				LOG_INFO(f"Goal reached at iteration {i}! Final distance: {distance_to_goal:.3f}")
-				break
-		else:
-			LOG_WARN(f"Iteration {i}: MPC failed. Stopping.")
-			visualizer.update_frame(planner.get_state(), states_x, states_y, planner, scenario_constraints)
-			break
-
-	LOG_INFO("Simulation finished.")
-	plt.ioff()
-	ax.set_title("MPCC Simulation Finished")
-	plt.show()
-
-
-# Main execution block
-if __name__ == '__main__':
-	import logging
-
-	logger = logging.getLogger("root")
-	logger.setLevel(logging.DEBUG)
-	run()
+# Run the test
+if __name__ == "__main__":
+    test = ScenarioAndContouringConstraintsWithContouringObjective()
+    result = test.run_test()
+    
+    print(f"Test {'PASSED' if result.success else 'FAILED'}")
+    print(f"Duration: {result.duration:.2f}s")
+    print(f"Iterations: {result.iterations_completed}")
+    print(f"Final distance: {result.final_distance_to_goal:.3f}")

@@ -75,6 +75,25 @@ class DecompConstraints(BaseConstraint):
 
 		LOG_DEBUG("Decomp Constraints successfully initialized")
 
+	def get_visualization_overlay(self):
+		"""Return a polygon overlay of current decomp polyhedron (disc 0, last step)."""
+		try:
+			polyhedrons = self.decomp_util.get_polyhedrons()
+			if not polyhedrons:
+				return None
+			poly = polyhedrons[min(len(polyhedrons)-1, 0)]
+			if hasattr(poly, 'polygon_x') and hasattr(poly, 'polygon_y'):
+				return {
+					'polygons': [{
+						'x': list(poly.polygon_x),
+						'y': list(poly.polygon_y),
+						'color': '#66ccff',
+						'alpha': 0.15
+					}]
+				}
+		except Exception:
+			return None
+
 	def update(self, state: State, data):
 		PROFILE_SCOPE("DecompConstraints.update")
 		LOG_DEBUG("DecompConstraints.update")

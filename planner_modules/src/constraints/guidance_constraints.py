@@ -18,7 +18,7 @@ class GuidanceConstraints(BaseConstraint):
         self.control_frequency = self.get_config_value("control_frequency")
         self.planning_time = 1. / self.control_frequency
         self.max_obstacles = self.get_config_value("max_obstacles")
-        self.num_other_halfspaces = self.get_config_value("guidance.num_other_halfspaces")
+        self.num_other_halfspaces = self.get_config_value("guidance.num_other_halfspaces", 0)
         self.nh = self.max_obstacles + self.num_other_halfspaces
 
         # Guidance-specific parameters

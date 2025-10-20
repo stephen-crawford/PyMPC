@@ -69,25 +69,29 @@ class BaseSolver(ABC):
         constraints = []
         for module in self.module_manager.modules:
             if module.module_type == CONSTRAINT:
-                c_list = module.get_constraints(symbolic_state, self.parameter_manager, stage_idx)
+                try:
+                    c_list = module.get_constraints(symbolic_state, self.parameter_manager, stage_idx)
 
-                if not c_list:
-                    continue
-
-                l_bound = module.get_lower_bound()
-                u_bound = module.get_upper_bound()
-
-                if len(c_list) != len(l_bound) or len(c_list) != len(u_bound):
-                    LOG_WARN(f"Constraint/bound list length mismatch for module {module.name}!")
-                    continue
-
-                for i, c in enumerate(c_list):
-                    # **FIXED**: Add this check to prevent passing constants to the solver.
-                    # CasADi expressions have an .is_constant() method.
-                    if c.is_constant():
+                    if not c_list:
                         continue
 
-                    constraints.append((c, l_bound[i], u_bound[i]))
+                    l_bound = module.get_lower_bound()
+                    u_bound = module.get_upper_bound()
+
+                    if len(c_list) != len(l_bound) or len(c_list) != len(u_bound):
+                        LOG_WARN(f"Constraint/bound list length mismatch for module {module.name}!")
+                        continue
+
+                    for i, c in enumerate(c_list):
+                        # **FIXED**: Add this check to prevent passing constants to the solver.
+                        # CasADi expressions have an .is_constant() method.
+                        if hasattr(c, 'is_constant') and c.is_constant():
+                            continue
+
+                        constraints.append((c, l_bound[i], u_bound[i]))
+                except Exception as e:
+                    LOG_WARN(f"Error getting constraints from module {module.name}: {e}")
+                    continue
         return constraints
 
     def get_penalty_terms(self, stage_idx):
