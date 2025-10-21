@@ -14,9 +14,11 @@ The test was running without crashes but the vehicle wasn't progressing toward t
 ### 1. **Fixed Scenario Constraints**
 - **Problem**: Original `ScenarioConstraints` causing solver failures
 - **Fix**: Replaced with `FixedScenarioConstraints` to prevent solver failures
+
 ```python
 # FIXED: Use simplified scenario constraints to prevent solver failures
-from planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
+from planner.src.planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
+
 scenario_constraints = FixedScenarioConstraints(casadi_solver)
 ```
 

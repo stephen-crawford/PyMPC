@@ -1,10 +1,9 @@
 from planning.src.planner import Planner
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel
-from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
-from planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
-from planner_modules.src.objectives.goal_objective import GoalObjective
-from planner_modules.src.objectives.contouring_objective import ContouringObjective
-from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints
+from planner.src.planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+from planner.src.planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
+from planner.src.planner_modules.src.objectives.goal_objective import GoalObjective
+from planner.src.planner_modules.src.objectives.contouring_objective import ContouringObjective
 from solver.src.casadi_solver import CasADiSolver
 from planning.src.types import Data, ReferencePath
 import numpy as np

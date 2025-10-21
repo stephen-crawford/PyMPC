@@ -4,7 +4,6 @@ Simple test script to verify the MPC system works.
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add project root to path
@@ -14,7 +13,7 @@ sys.path.insert(0, str(project_root))
 from solver.src.casadi_solver import CasADiSolver
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel
 from planning.src.types import Data, ReferencePath
-import numpy as np
+
 
 def test_basic_solver():
     """Test basic solver functionality."""
@@ -69,8 +68,8 @@ def test_with_modules():
         solver.set_dynamics_model(model)
         
         # Add simple modules
-        from planner_modules.src.objectives.goal_objective import GoalObjective
-        from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+        from planner.src.planner_modules.src.objectives.goal_objective import GoalObjective
+        from planner.src.planner_modules.src.constraints.contouring_constraints import ContouringConstraints
         
         goal_module = GoalObjective(solver)
         contouring_module = ContouringConstraints(solver)

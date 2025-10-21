@@ -5,7 +5,6 @@ This script demonstrates the standardized test framework with proper visualizati
 """
 
 import sys
-import os
 import numpy as np
 from pathlib import Path
 
@@ -14,16 +13,16 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 from test.framework.standardized_test import BaseMPCTest, TestConfig
-from utils.standardized_visualization import VisualizationConfig, VisualizationMode
+from utils.standardized_visualization import VisualizationMode
 
 # Import MPC components
 from solver.src.casadi_solver import CasADiSolver
 from planning.src.planner import Planner
 from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel
-from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
-from planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
-from planner_modules.src.objectives.goal_objective import GoalObjective
-from planner_modules.src.objectives.contouring_objective import ContouringObjective
+from planner.src.planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+from planner.src.planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
+from planner.src.planner_modules.src.objectives.goal_objective import GoalObjective
+from planner.src.planner_modules.src.objectives.contouring_objective import ContouringObjective
 from planning.src.types import Data, ReferencePath
 
 

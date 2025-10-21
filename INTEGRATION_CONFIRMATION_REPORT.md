@@ -158,9 +158,9 @@ solver.module_manager.add_module(contouring_objective)
 
 ```python
 # Complete integration example
-from planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
-from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
-from planner_modules.src.objectives.contouring_objective import ContouringObjective
+from planner.src.planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
+from planner.src.planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+from planner.src.planner_modules.src.objectives.contouring_objective import ContouringObjective
 from solver.src.casadi_solver import CasADiSolver
 
 # Create solver

@@ -324,8 +324,8 @@ class {test_class_name}(BaseMPCTest):
         try:
             # Import required modules
             from solver.src.casadi_solver import CasADiSolver
-            from planning.src.planner import Planner
-            from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel
+            from planner.src.planner import Planner
+            from planner.src.dynamic_models import ContouringSecondOrderUnicycleModel
             from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
             from planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
             from planner_modules.src.objectives.contouring_objective import ContouringObjective
@@ -628,8 +628,8 @@ class {test_class_name}(BaseMPCTest):
         try:
             # Import required modules
             from solver.src.casadi_solver import CasADiSolver
-            from planning.src.planner import Planner
-            from planning.src.dynamic_models import ContouringSecondOrderUnicycleModel
+            from planner.src.planner import Planner
+            from planner.src.dynamic_models import ContouringSecondOrderUnicycleModel
             from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
             from planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
             from planner_modules.src.objectives.contouring_objective import ContouringObjective

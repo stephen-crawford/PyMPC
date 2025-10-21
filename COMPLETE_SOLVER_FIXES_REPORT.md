@@ -207,19 +207,21 @@ The final integration test confirms that scenario constraints with contouring co
 
 ```python
 # Use the fixed scenario constraints
-from planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
+from planner.src.planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
 
 # Add to solver
 scenario_constraints = FixedScenarioConstraints(solver)
 solver.module_manager.add_module(scenario_constraints)
 
 # Add contouring constraints
-from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+from planner.src.planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+
 contouring_constraints = ContouringConstraints(solver)
 solver.module_manager.add_module(contouring_constraints)
 
 # Add contouring objective
-from planner_modules.src.objectives.contouring_objective import ContouringObjective
+from planner.src.planner_modules.src.objectives.contouring_objective import ContouringObjective
+
 contouring_objective = ContouringObjective(solver)
 solver.module_manager.add_module(contouring_objective)
 ```

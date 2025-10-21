@@ -176,7 +176,7 @@ def _generate_constraints_for_step(self, data: Data, step: int):
 
 ```python
 # Use the fixed scenario constraints
-from planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
+from planner.src.planner_modules.src.constraints.fixed_scenario_constraints import FixedScenarioConstraints
 
 # Add to solver
 scenario_constraints = FixedScenarioConstraints(solver)

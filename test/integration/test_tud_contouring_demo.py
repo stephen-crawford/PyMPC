@@ -8,21 +8,18 @@ The vehicle should follow the reference path while respecting road boundaries.
 
 import sys
 import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
-import time
 
 # Add project root to path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from utils.standardized_logging import get_test_logger
 from test.framework.standardized_test import BaseMPCTest, TestConfig
-from utils.standardized_visualization import VisualizationConfig, VisualizationMode
+from utils.standardized_visualization import VisualizationMode
 from solver.src.casadi_solver import CasADiSolver
-from planner_modules.src.constraints.tud_contouring_constraints import TUDContouringConstraints
-from planner_modules.src.objectives.tud_contouring_objective import TUDContouringObjective
-from planning.src.types import Data, Bound, State
+from planner.src.planner_modules.src.constraints.tud_contouring_constraints import TUDContouringConstraints
+from planner.src.planner_modules.src.objectives.tud_contouring_objective import TUDContouringObjective
+from planning.src.types import Data, Bound
 
 
 class TUDContouringDemo(BaseMPCTest):

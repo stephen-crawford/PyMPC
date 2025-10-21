@@ -11,9 +11,11 @@ The vehicle was not respecting road boundaries despite having contouring constra
 ## Fixes Applied
 
 ### 1. Added Contouring Constraints Module
+
 ```python
 # ** FIXED: Add contouring constraints to enforce road boundaries **
-from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+from planner.src.planner_modules.src.constraints.contouring_constraints import ContouringConstraints
+
 contouring_constraints = ContouringConstraints(casadi_solver)
 casadi_solver.module_manager.add_module(contouring_constraints)
 ```

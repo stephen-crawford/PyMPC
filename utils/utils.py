@@ -586,7 +586,7 @@ class ExperimentManager:
         self.experiment_counter = 0
 
     def update(self, state, solver, data):
-        logger.info("planning.util.save_data()")
+        logger.info("planner.util.save_data()")
 
         if len(data.dynamic_obstacles) == 0:
             logger.info("Not exporting data: Obstacles not yet received.")
@@ -644,7 +644,7 @@ class ExperimentManager:
         else:
             logger.info(f"Starting experiment {self.experiment_counter + 1} / {num_experiments}")
 
-        assert self.experiment_counter < num_experiments, "Stopping the planning."
+        assert self.experiment_counter < num_experiments, "Stopping the planner."
 
     def set_start_experiment(self, duration=1):
         self.iteration_at_last_reset = self.control_iteration
