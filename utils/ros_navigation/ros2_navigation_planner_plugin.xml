@@ -1,7 +1,0 @@
-<library path="mpc_planner_ros2">
-  <class type="mpc_planner_ros2.ros2_navigation_planner.ROS2NavigationPlanner" base_class_type="nav2_core.controller.Controller">
-    <description>
-      ROS2 implementation of MPC Navigation Planner
-    </description>
-  </class>
-</library>
