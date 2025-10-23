@@ -1,26 +1,43 @@
 """
-Standardized testing framework for PyMPC.
+Testing framework for PyMPC.
 
-This module provides a comprehensive test framework with:
-- Easy test implementation and modification
-- Clear failure explanations and diagnostics
-- Automatic test discovery and execution
-- Performance monitoring and reporting
-- Integration with logging and visualization systems
+This module provides a comprehensive testing framework for MPC systems including:
+- Unified test runner for various MPC scenarios
+- Constraint testing framework
+- Test configuration and result management
+- Visualization and analysis tools
 """
 
-from .base_test import BaseMPCTest, TestConfig, TestResult
-from .test_suite import TestSuite
-from .constraint_tests import ConstraintTestSuite
-from .objective_tests import ObjectiveTestSuite
-from .integration_tests import IntegrationTestSuite
+from .test_config import (
+    TestConfig, TestResult, ConstraintTestConfig, ConstraintTestResult,
+    TestConfigManager, TestType, VehicleType, RoadType, ConstraintType,
+    VehicleConfig, RoadConfig, MPCConfig, ObstacleConfig
+)
+
+from .unified_test_runner import UnifiedTestRunner
+from .unified_constraint_framework import UnifiedConstraintFramework
 
 __all__ = [
-    'BaseMPCTest',
+    # Test configuration classes
     'TestConfig',
     'TestResult',
-    'TestSuite',
-    'ConstraintTestSuite',
-    'ObjectiveTestSuite',
-    'IntegrationTestSuite'
+    'ConstraintTestConfig',
+    'ConstraintTestResult',
+    'TestConfigManager',
+    
+    # Enums
+    'TestType',
+    'VehicleType',
+    'RoadType',
+    'ConstraintType',
+    
+    # Config dataclasses
+    'VehicleConfig',
+    'RoadConfig',
+    'MPCConfig',
+    'ObstacleConfig',
+    
+    # Testing frameworks
+    'UnifiedTestRunner',
+    'UnifiedConstraintFramework',
 ]

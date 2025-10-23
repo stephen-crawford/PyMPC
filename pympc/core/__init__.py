@@ -1,27 +1,25 @@
-"""
-Core MPC components.
+"""Core MPC components."""
 
-This module contains the fundamental building blocks for MPC:
-- Planner: Main MPC orchestrator
-- Solver: Optimization backend
-- Dynamics: Vehicle dynamics models
-- ModuleManager: Module management system
-- ParameterManager: Parameter management system
-"""
-
+from .dynamics import BaseDynamics, BicycleModel, KinematicModel, OveractuatedPointMass, OveractuatedUnicycle, ContouringBicycleModel, QuadrotorModel, AckermannModel, DifferentialDriveModel
 from .planner import MPCCPlanner
-from .solver import BaseSolver, CasADiSolver
-from .dynamics import BaseDynamics, BicycleModel
+from .solver import CasADiSolver
 from .modules_manager import ModuleManager, BaseModule
 from .parameters_manager import ParameterManager
 
 __all__ = [
-    'MPCCPlanner',
-    'BaseSolver', 
-    'CasADiSolver',
     'BaseDynamics',
     'BicycleModel',
+    'KinematicModel',
+    'OveractuatedPointMass',
+    'OveractuatedUnicycle',
+    'ContouringBicycleModel',
+    'QuadrotorModel',
+    'AckermannModel',
+    'DifferentialDriveModel',
+    'MPCCPlanner',
+    'CasADiSolver',
     'ModuleManager',
     'BaseModule',
     'ParameterManager'
 ]
+

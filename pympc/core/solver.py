@@ -1,259 +1,396 @@
 """
-Optimization solvers for MPC.
+MPC solver implementations.
 
-This module provides solver backends for the MPC optimization problem.
+This module contains various solver implementations for MPC optimization problems.
 """
 
 import numpy as np
-import casadi as ca
+import casadi as cs
+from typing import Dict, Tuple, Optional, Any
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, Tuple, List, Callable
+from .dynamics import BaseDynamics
 
 
 class BaseSolver(ABC):
-    """
-    Abstract base class for optimization solvers.
-
-    All solvers should inherit from this class and implement
-    the required methods for solving optimization problems.
-    """
-
-    def __init__(self, **kwargs):
+    """Abstract base class for MPC solvers."""
+    
+    def __init__(self, dynamics: BaseDynamics, horizon_length: int = 20, dt: float = 0.1):
         """
-        Initialize the solver.
-
+        Initialize solver.
+        
         Args:
-            **kwargs: Solver-specific parameters
-        """
-        self.solver_options = kwargs
-        self.solution = None
-        self.solve_time = 0.0
-        self.iterations = 0
-        self.status = "not_solved"
-
-    @abstractmethod
-    def setup_problem(self,
-                      state_dim: int,
-                      control_dim: int,
-                      horizon_length: int,
-                      objective_function: callable,
-                      constraints: list,
-                      **kwargs) -> None:
-        """
-        Set up the optimization problem.
-
-        Args:
-            state_dim: Dimension of state vector
-            control_dim: Dimension of control vector
+            dynamics: Dynamics model
             horizon_length: Prediction horizon length
-            objective_function: Objective function to minimize
-            constraints: List of constraint functions
-            **kwargs: Additional problem parameters
+            dt: Time step
         """
-        pass
-
+        self.dynamics = dynamics
+        self.horizon_length = horizon_length
+        self.dt = dt
+        
+        # Optimization variables
+        self.x_vars: Optional[cs.SX] = None
+        self.u_vars: Optional[cs.SX] = None
+        self.p_vars: Optional[cs.SX] = None
+        
+        # Problem setup
+        self.problem: Optional[cs.Opti] = None
+        self.solver: Optional[Any] = None
+        
+        # Solution
+        self.solution: Optional[Any] = None
+        self.solve_time: float = 0.0
+    
     @abstractmethod
-    def solve(self, initial_state: np.ndarray, **kwargs) -> Dict[str, Any]:
+    def setup_problem(self) -> None:
+        """Set up the optimization problem."""
+    
+    @abstractmethod
+    def solve(self, x0: np.ndarray, **kwargs) -> Tuple[bool, Dict[str, Any]]:
         """
-        Solve the optimization problem.
-
+        Solve the MPC problem.
+        
         Args:
-            initial_state: Initial state vector
-            **kwargs: Additional solve parameters
-
+            x0: Initial state
+            **kwargs: Additional parameters
+            
         Returns:
-            Dictionary containing solution information
+            (success, result_dict)
         """
-        pass
-
-    def get_solution(self) -> Optional[Dict[str, Any]]:
+    
+    def get_solution(self, k: int, var_name: str) -> float:
         """
-        Get the last solution.
-
+        Get solution value for variable at step k.
+        
+        Args:
+            k: Time step
+            var_name: Variable name
+            
         Returns:
-            Dictionary containing solution information or None if not solved
+            Solution value
         """
-        return self.solution
-
-    def get_solve_time(self) -> float:
+        if self.solution is None:
+            return 0.0
+        
+        if var_name in self.dynamics.state_names:
+            idx = self.dynamics.get_state_index(var_name)
+            return float(self.solution.value(self.x_vars[idx, k]))
+        elif var_name in self.dynamics.input_names:
+            idx = self.dynamics.get_input_index(var_name)
+            return float(self.solution.value(self.u_vars[idx, k]))
+        else:
+            raise ValueError(f"Variable {var_name} not found")
+    
+    def get_trajectory(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Get the time taken for the last solve.
-
+        Get planned trajectory.
+        
         Returns:
-            Solve time in seconds
+            (x_trajectory, y_trajectory)
         """
-        return self.solve_time
-
-    def get_iterations(self) -> int:
-        """
-        Get the number of iterations for the last solve.
-
-        Returns:
-            Number of iterations
-        """
-        return self.iterations
-
-    def get_status(self) -> str:
-        """
-        Get the status of the last solve.
-
-        Returns:
-            Status string
-        """
-        return self.status
-
-    def is_feasible(self) -> bool:
-        """
-        Check if the last solution is feasible.
-
-        Returns:
-            True if feasible, False otherwise
-        """
-        return self.status in ["optimal", "feasible"]
-
+        if self.solution is None:
+            return np.array([]), np.array([])
+        
+        x_sol = self.solution.value(self.x_vars)
+        return x_sol[0, :], x_sol[1, :]  # x, y positions
+    
     def reset(self) -> None:
-        """
-        Reset the solver state.
-        """
+        """Reset solver state."""
         self.solution = None
         self.solve_time = 0.0
-        self.iterations = 0
-        self.status = "not_solved"
 
 
 class CasADiSolver(BaseSolver):
-    """
-    CasADi-based solver for MPC optimization.
-
-    This solver uses CasADi's Opti interface for nonlinear optimization.
-    """
-
-    def __init__(self, **kwargs):
+    """CasADi-based MPC solver."""
+    
+    def __init__(self, dynamics: BaseDynamics, horizon_length: int = 20, dt: float = 0.1,
+                 solver_options: Optional[Dict[str, Any]] = None):
         """
-        Initialize the CasADi solver.
-
+        Initialize CasADi solver.
+        
         Args:
-            **kwargs: Solver options
-        """
-        super().__init__(**kwargs)
-        self.opti = None
-        self.state_dim = None
-        self.control_dim = None
-        self.horizon_length = None
-        self.objective_function = None
-        self.constraints = None
-
-    def setup_problem(self,
-                      state_dim: int,
-                      control_dim: int,
-                      horizon_length: int,
-                      objective_function: callable,
-                      constraints: list,
-                      **kwargs) -> None:
-        """
-        Set up the CasADi optimization problem.
-
-        Args:
-            state_dim: Dimension of state vector
-            control_dim: Dimension of control vector
+            dynamics: Dynamics model
             horizon_length: Prediction horizon length
-            objective_function: Objective function to minimize
-            constraints: List of constraint functions
-            **kwargs: Additional problem parameters
+            dt: Time step
+            solver_options: Solver options
         """
-        self.state_dim = state_dim
-        self.control_dim = control_dim
-        self.horizon_length = horizon_length
-        self.objective_function = objective_function
-        self.constraints = constraints
-
-        # Create Opti instance
-        self.opti = ca.Opti()
-
-        # Decision variables
-        X = self.opti.variable(state_dim, horizon_length + 1)
-        U = self.opti.variable(control_dim, horizon_length)
-
-        # Set up objective
-        objective = objective_function(X, U, self.opti)
-        self.opti.minimize(objective)
-
-        # Add constraints
-        for constraint_func in constraints:
-            constraint_func(X, U, self.opti)
-
+        super().__init__(dynamics, horizon_length, dt)
+        self.solver_options = solver_options or {}
+        
+        # Set up problem
+        self.setup_problem()
+    
+    def setup_problem(self) -> None:
+        """Set up the optimization problem."""
+        self.problem = cs.Opti()
+        
+        # Variables
+        self.x_vars = self.problem.variable(self.dynamics.nx, self.horizon_length + 1)
+        self.u_vars = self.problem.variable(self.dynamics.nu, self.horizon_length)
+        
+        # Parameters
+        n_params = 100  # Maximum number of parameters
+        self.p_vars = self.problem.parameter(n_params)
+        
+        # Set bounds
+        self._set_bounds()
+        
+        # Add dynamics constraints
+        self._add_dynamics_constraints()
+        
         # Set up solver
-        solver_options = {
+        self._setup_solver()
+    
+    def _set_bounds(self) -> None:
+        """Set variable bounds."""
+        # State bounds
+        x_lb, x_ub = self.dynamics.get_state_bounds()
+        for i in range(self.dynamics.nx):
+            self.problem.subject_to(
+                self.problem.bounded(x_lb[i], self.x_vars[i, :], x_ub[i])
+            )
+        
+        # Input bounds
+        u_lb, u_ub = self.dynamics.get_input_bounds()
+        for i in range(self.dynamics.nu):
+            self.problem.subject_to(
+                self.problem.bounded(u_lb[i], self.u_vars[i, :], u_ub[i])
+            )
+    
+    def _add_dynamics_constraints(self) -> None:
+        """Add dynamics constraints."""
+        for k in range(self.horizon_length):
+            x_k = self.x_vars[:, k]
+            u_k = self.u_vars[:, k]
+            x_next = self.x_vars[:, k + 1]
+            
+            # Discrete dynamics
+            x_pred = self.dynamics.discrete_dynamics(x_k, u_k)
+            self.problem.subject_to(x_next == x_pred)
+    
+    def _setup_solver(self) -> None:
+        """Set up the solver."""
+        # Default solver options
+        opts = {
             'ipopt.print_level': 0,
+            'ipopt.sb': 'yes',
+            'print_time': 0,
             'ipopt.max_iter': 1000,
             'ipopt.tol': 1e-6,
-            'print_time': 0
+            'ipopt.linear_solver': 'ma27'
         }
-        solver_options.update(self.solver_options.get('ipopt', {}))
-
-        self.opti.solver('ipopt', solver_options)
-
-    def solve(self, initial_state: np.ndarray, **kwargs) -> Dict[str, Any]:
-        """
-        Solve the optimization problem.
-
-        Args:
-            initial_state: Initial state vector
-            **kwargs: Additional solve parameters
-
-        Returns:
-            Dictionary containing solution information
-        """
-        if self.opti is None:
-            raise RuntimeError("Problem not set up. Call setup_problem() first.")
-
-        # Set initial state constraint
-        self.opti.set_initial(self.opti.variable(self.state_dim, self.horizon_length + 1)[:, 0], initial_state)
-        self.opti.subject_to(self.opti.variable(self.state_dim, self.horizon_length + 1)[:, 0] == initial_state)
-
-        # Solve
-        import time
-        start_time = time.time()
         
+        # Update with user options
+        opts.update(self.solver_options)
+        
+        self.solver = self.problem.solver('ipopt', opts)
+    
+    def add_objective(self, objective: cs.SX) -> None:
+        """
+        Add objective function.
+        
+        Args:
+            objective: Objective function
+        """
+        self.problem.minimize(objective)
+    
+    def add_constraint(self, constraint: cs.SX, lb: float = 0.0, ub: float = 0.0) -> None:
+        """
+        Add constraint.
+        
+        Args:
+            constraint: Constraint expression
+            lb: Lower bound
+            ub: Upper bound
+        """
+        if lb == ub:
+            self.problem.subject_to(constraint == lb)
+        else:
+            self.problem.subject_to(self.problem.bounded(lb, constraint, ub))
+    
+    def set_initial_state(self, x0: np.ndarray) -> None:
+        """
+        Set initial state constraint.
+        
+        Args:
+            x0: Initial state
+        """
+        for i in range(min(len(x0), self.dynamics.nx)):
+            self.problem.subject_to(self.x_vars[i, 0] == x0[i])
+    
+    def set_parameters(self, params: Dict[str, float]) -> None:
+        """
+        Set parameter values.
+        
+        Args:
+            params: Parameter dictionary
+        """
+        param_values = np.zeros(self.p_vars.shape[0])
+        for i, (_, value) in enumerate(params.items()):
+            if i < len(param_values):
+                param_values[i] = value
+        self.problem.set_value(self.p_vars, param_values)
+    
+    def set_warmstart(self, x_warm: np.ndarray, u_warm: np.ndarray) -> None:
+        """
+        Set warmstart solution.
+        
+        Args:
+            x_warm: State warmstart
+            u_warm: Input warmstart
+        """
+        if x_warm.shape[0] == self.dynamics.nx and x_warm.shape[1] == self.horizon_length + 1:
+            self.problem.set_initial(self.x_vars, x_warm)
+        if u_warm.shape[0] == self.dynamics.nu and u_warm.shape[1] == self.horizon_length:
+            self.problem.set_initial(self.u_vars, u_warm)
+    
+    def solve(self, x0: np.ndarray, **kwargs) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Solve the MPC problem.
+        
+        Args:
+            x0: Initial state
+            **kwargs: Additional parameters
+            
+        Returns:
+            (success, result_dict)
+        """
+        import time
+        
+        # Set initial state
+        self.set_initial_state(x0)
+        
+        # Set parameters
+        if 'parameters' in kwargs:
+            self.set_parameters(kwargs['parameters'])
+        
+        # Set warmstart
+        if 'x_warm' in kwargs and 'u_warm' in kwargs:
+            self.set_warmstart(kwargs['x_warm'], kwargs['u_warm'])
+        
+        # Solve
+        start_time = time.time()
         try:
-            sol = self.opti.solve()
+            self.solution = self.solver.solve()
             self.solve_time = time.time() - start_time
-            self.status = "optimal"
             
             # Extract solution
-            X_opt = sol.value(self.opti.variable(self.state_dim, self.horizon_length + 1))
-            U_opt = sol.value(self.opti.variable(self.control_dim, self.horizon_length))
+            x_sol = self.solution.value(self.x_vars)
+            u_sol = self.solution.value(self.u_vars)
             
-            self.solution = {
-                'states': X_opt,
-                'controls': U_opt,
-                'status': self.status,
-                'solve_time': self.solve_time,
-                'iterations': sol.stats()['iter_count'] if 'iter_count' in sol.stats() else 0
+            result = {
+                'success': True,
+                'x': x_sol,
+                'u': u_sol,
+                'cost': self.solution.value(self.problem.f),
+                'solve_time': self.solve_time
             }
             
-            return self.solution
+            return True, result
             
         except Exception as e:
             self.solve_time = time.time() - start_time
-            self.status = "failed"
-            self.solution = {
-                'states': None,
-                'controls': None,
-                'status': self.status,
-                'solve_time': self.solve_time,
-                'error': str(e)
+            return False, {
+                'success': False,
+                'error': str(e),
+                'solve_time': self.solve_time
             }
-            return self.solution
-
+    
     def reset(self) -> None:
-        """
-        Reset the solver state.
-        """
+        """Reset solver state."""
         super().reset()
-        self.opti = None
-        self.state_dim = None
-        self.control_dim = None
-        self.horizon_length = None
-        self.objective_function = None
-        self.constraints = None
+        self.setup_problem()
+
+
+class SimpleSolver(BaseSolver):
+    """Simple solver for basic MPC problems."""
+    
+    def __init__(self, dynamics: BaseDynamics, horizon_length: int = 20, dt: float = 0.1):
+        """
+        Initialize simple solver.
+        
+        Args:
+            dynamics: Dynamics model
+            horizon_length: Prediction horizon length
+            dt: Time step
+        """
+        super().__init__(dynamics, horizon_length, dt)
+        self.objective = None
+        self.constraints = []
+    
+    def setup_problem(self) -> None:
+        """Set up the optimization problem."""
+        # Simple solver doesn't need complex setup
+    
+    def add_objective(self, objective: cs.SX) -> None:
+        """Add objective function."""
+        self.objective = objective
+    
+    def add_constraint(self, constraint: cs.SX, lb: float = 0.0, ub: float = 0.0) -> None:
+        """Add constraint."""
+        self.constraints.append((constraint, lb, ub))
+    
+    def solve(self, x0: np.ndarray, **kwargs) -> Tuple[bool, Dict[str, Any]]:
+        """
+        Solve the MPC problem.
+        
+        Args:
+            x0: Initial state
+            **kwargs: Additional parameters
+            
+        Returns:
+            (success, result_dict)
+        """
+        # Simple solver implementation
+        # This is a placeholder - in practice, you would implement
+        # a proper optimization algorithm here
+        
+        # Generate a simple trajectory
+        x_traj = np.zeros((self.dynamics.nx, self.horizon_length + 1))
+        u_traj = np.zeros((self.dynamics.nu, self.horizon_length))
+        
+        # Initialize with current state
+        x_traj[:, 0] = x0
+        
+        # Simple forward integration
+        for k in range(self.horizon_length):
+            # Simple control: maintain current velocity
+            u_traj[:, k] = np.zeros(self.dynamics.nu)
+            
+            # Integrate dynamics
+            if k < self.horizon_length:
+                x_traj[:, k + 1] = x_traj[:, k] + self.dt * np.array([x_traj[2, k], x_traj[3, k], 0, 0])
+        
+        return True, {
+            'success': True,
+            'x': x_traj,
+            'u': u_traj,
+            'cost': 0.0,
+            'solve_time': 0.001
+        }
+
+
+def create_solver(solver_type: str, dynamics: BaseDynamics, 
+                  horizon_length: int = 20, dt: float = 0.1,
+                  **kwargs) -> BaseSolver:
+    """
+    Factory function to create solvers.
+    
+    Args:
+        solver_type: Type of solver
+        dynamics: Dynamics model
+        horizon_length: Prediction horizon length
+        dt: Time step
+        **kwargs: Additional parameters
+        
+    Returns:
+        Solver instance
+    """
+    solvers = {
+        "casadi": CasADiSolver,
+        "simple": SimpleSolver
+    }
+    
+    if solver_type not in solvers:
+        raise ValueError(f"Unknown solver type: {solver_type}. Available: {list(solvers.keys())}")
+    
+    return solvers[solver_type](dynamics, horizon_length, dt, **kwargs)

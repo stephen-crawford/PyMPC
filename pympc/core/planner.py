@@ -1,334 +1,417 @@
 """
-Main MPC planner implementation.
+MPC planner implementation.
 
-This module contains the main MPCCPlanner class that orchestrates
-the MPC optimization with contouring control and scenario constraints.
+This module contains the main MPC planner that coordinates between
+dynamics models, solvers, and modules (constraints/objectives).
 """
 
 import numpy as np
-import casadi as ca
-from typing import List, Dict, Any, Optional, Tuple, Callable
 import time
-
-from .dynamics import BaseDynamics
-from ..objectives import BaseObjective, ContouringObjective, GoalObjective
-from ..constraints import BaseConstraint
-from .solver import CasADiSolver
+from typing import Dict, List, Tuple, Optional, Any
+from .dynamics import BaseDynamics, create_dynamics_model
+from .solver import BaseSolver, create_solver
 
 
 class MPCCPlanner:
     """
-    Model Predictive Contouring Control Planner.
-
-    This planner combines contouring control with scenario constraints
-    to provide robust path following in uncertain environments.
+    Model Predictive Contouring Control (MPCC) planner.
+    
+    This planner coordinates between dynamics models, solvers, and modules
+    to solve MPC problems with contouring control capabilities.
     """
-
-    def __init__(self,
-                 dynamics: BaseDynamics,
-                 horizon_length: int = 20,
-                 dt: float = 0.1,
+    
+    def __init__(self, dynamics: BaseDynamics, horizon_length: int = 20, 
+                 dt: float = 0.1, solver_type: str = "casadi",
                  solver_options: Optional[Dict[str, Any]] = None):
         """
-        Initialize the MPC planner.
-
+        Initialize MPCC planner.
+        
         Args:
-            dynamics: Vehicle dynamics model
+            dynamics: Dynamics model
             horizon_length: Prediction horizon length
             dt: Time step
-            solver_options: Options for the optimization solver
+            solver_type: Type of solver to use
+            solver_options: Solver options
         """
         self.dynamics = dynamics
         self.horizon_length = horizon_length
         self.dt = dt
-        self.solver_options = solver_options or {}
-
-        # Initialize components
-        self.objectives: List[BaseObjective] = []
-        self.constraints: List[BaseConstraint] = []
-        self.solver = CasADiSolver(**self.solver_options)
-
-        # Problem setup status
-        self.problem_setup = False
-        self.last_solution = None
-
-    def add_objective(self, objective: BaseObjective) -> None:
+        
+        # Create solver
+        self.solver = create_solver(
+            solver_type, dynamics, horizon_length, dt, 
+            **(solver_options or {})
+        )
+        
+        # Modules
+        self.objectives: List[Any] = []
+        self.constraints: List[Any] = []
+        
+        # State
+        self.current_state: Optional[np.ndarray] = None
+        self.last_solution: Optional[Dict[str, Any]] = None
+        self.solve_count: int = 0
+        self.success_count: int = 0
+        
+        # Timing
+        self.total_solve_time: float = 0.0
+        self.avg_solve_time: float = 0.0
+    
+    def add_objective(self, objective: Any) -> None:
         """
-        Add an objective function to the planner.
-
+        Add objective function.
+        
         Args:
-            objective: Objective function to add
+            objective: Objective function module
         """
         self.objectives.append(objective)
-        self.problem_setup = False  # Need to re-setup problem
-
-    def add_constraint(self, constraint: BaseConstraint) -> None:
+    
+    def add_constraint(self, constraint: Any) -> None:
         """
-        Add a constraint to the planner.
-
+        Add constraint.
+        
         Args:
-            constraint: Constraint to add
+            constraint: Constraint module
         """
         self.constraints.append(constraint)
-        self.problem_setup = False  # Need to re-setup problem
-
-    def remove_objective(self, index: int) -> None:
+    
+    def solve(self, x0: np.ndarray, **kwargs) -> Optional[Dict[str, Any]]:
         """
-        Remove an objective function by index.
-
+        Solve the MPC problem.
+        
         Args:
-            index: Index of objective to remove
-        """
-        if 0 <= index < len(self.objectives):
-            del self.objectives[index]
-            self.problem_setup = False
-
-    def remove_constraint(self, index: int) -> None:
-        """
-        Remove a constraint by index.
-
-        Args:
-            index: Index of constraint to remove
-        """
-        if 0 <= index < len(self.constraints):
-            del self.constraints[index]
-            self.problem_setup = False
-
-    def setup_problem(self) -> None:
-        """
-        Set up the optimization problem.
-        """
-        if not self.objectives:
-            raise ValueError("At least one objective function must be added")
-
-        # Create combined objective function
-        def combined_objective(X, U, opti):
-            total_objective = 0
-            for obj in self.objectives:
-                if obj.is_active():
-                    total_objective += obj.compute_casadi(X, U, opti)
-            return total_objective
-
-        # Create constraint functions
-        constraint_functions = []
-        for constraint in self.constraints:
-            if constraint.is_active():
-                constraint_functions.append(
-                    lambda X, U, opti, c=constraint: c.add_to_opti(X, U, opti)
-                )
-
-        # Add dynamics constraints
-        def dynamics_constraint(X, U, opti):
-            for k in range(self.horizon_length):
-                x_k = X[:, k]
-                u_k = U[:, k]
-                x_next = X[:, k + 1]
-
-                # Add dynamics constraint: x_{k+1} = f(x_k, u_k)
-                dynamics_expr = self._get_dynamics_expression(x_k, u_k, opti)
-                opti.subject_to(x_next == dynamics_expr)
-
-        constraint_functions.append(dynamics_constraint)
-
-        # Set up the solver
-        self.solver.setup_problem(
-            state_dim=self.dynamics.get_state_dimension(),
-            control_dim=self.dynamics.get_control_dimension(),
-            horizon_length=self.horizon_length,
-            objective_function=combined_objective,
-            constraints=constraint_functions
-        )
-
-        self.problem_setup = True
-
-    def _get_dynamics_expression(self, x: ca.MX, u: ca.MX, opti: ca.Opti) -> ca.MX:
-        """
-        Get CasADi expression for dynamics.
-
-        Args:
-            x: Current state
-            u: Current control
-            opti: CasADi Opti object
-
+            x0: Initial state
+            **kwargs: Additional parameters
+            
         Returns:
-            Next state expression
+            Solution dictionary or None if failed
         """
-        # Get linearized dynamics matrices
-        A, B = self.dynamics.get_jacobian(
-            np.zeros(self.dynamics.get_state_dimension()),
-            np.zeros(self.dynamics.get_control_dimension())
-        )
-
-        # Discretize
-        A_d, B_d = self.dynamics.discretize(A, B)
-
-        return A_d @ x + B_d @ u
-
-    def solve(self,
-              initial_state: np.ndarray,
-              reference_path: Optional[np.ndarray] = None,
-              **kwargs) -> Dict[str, Any]:
-        """
-        Solve the MPC optimization problem.
-
-        Args:
-            initial_state: Initial state vector
-            reference_path: Reference path for contouring control
-            **kwargs: Additional solve parameters
-
-        Returns:
-            Dictionary containing solution information
-        """
-        if not self.problem_setup:
-            self.setup_problem()
-
-        # Update reference path if provided
-        if reference_path is not None:
-            for obj in self.objectives:
-                if isinstance(obj, ContouringObjective):
-                    obj.set_reference_path(reference_path)
-
-        # Solve the optimization problem
+        self.current_state = x0.copy()
+        self.solve_count += 1
+        
+        # Set up optimization problem
+        self._setup_optimization_problem(x0, **kwargs)
+        
+        # Solve
         start_time = time.time()
-        solution = self.solver.solve(initial_state, **kwargs)
+        success, result = self.solver.solve(x0, **kwargs)
         solve_time = time.time() - start_time
-
-        # Store solution
-        self.last_solution = solution
-        solution['solve_time'] = solve_time
-
-        return solution
-
-    def get_solution(self) -> Optional[Dict[str, Any]]:
-        """
-        Get the last solution.
-
-        Returns:
-            Last solution or None if not solved
-        """
-        return self.last_solution
-
-    def get_optimal_control(self) -> Optional[np.ndarray]:
-        """
-        Get the optimal control sequence.
-
-        Returns:
-            Optimal control sequence or None if not solved
-        """
-        if self.last_solution is None:
+        
+        # Update statistics
+        self.total_solve_time += solve_time
+        self.avg_solve_time = self.total_solve_time / self.solve_count
+        
+        if success:
+            self.success_count += 1
+            self.last_solution = result
+            result['solve_time'] = solve_time
+            return result
+        else:
+            print(f"MPC solve failed: {result.get('error', 'Unknown error')}")
             return None
-
-        return self.last_solution.get('controls')
-
-    def get_optimal_trajectory(self) -> Optional[np.ndarray]:
+    
+    def _setup_optimization_problem(self, x0: np.ndarray, **kwargs) -> None:
         """
-        Get the optimal state trajectory.
-
-        Returns:
-            Optimal state trajectory or None if not solved
+        Set up the optimization problem with objectives and constraints.
+        
+        Args:
+            x0: Initial state
+            **kwargs: Additional parameters
         """
-        if self.last_solution is None:
-            return None
-
-        return self.last_solution.get('states')
-
-    def is_feasible(self) -> bool:
-        """
-        Check if the last solution is feasible.
-
-        Returns:
-            True if feasible, False otherwise
-        """
-        if self.last_solution is None:
-            return False
-
-        return self.last_solution.get('status') in ['optimal', 'feasible']
-
-    def get_solve_time(self) -> float:
-        """
-        Get the time taken for the last solve.
-
-        Returns:
-            Solve time in seconds
-        """
-        if self.last_solution is None:
-            return 0.0
-
-        return self.last_solution.get('solve_time', 0.0)
-
-    def reset(self) -> None:
-        """
-        Reset the planner state.
-        """
-        self.problem_setup = False
-        self.last_solution = None
+        # Reset solver
         self.solver.reset()
-
-    def update_dynamics(self, dynamics: BaseDynamics) -> None:
+        
+        # Add objectives
+        total_objective = None
+        for k in range(self.horizon_length):
+            # Get variables for this time step
+            x_k = self.solver.x_vars[:, k]
+            u_k = self.solver.u_vars[:, k]
+            
+            # Add objectives from modules
+            for objective in self.objectives:
+                if hasattr(objective, 'add_objective'):
+                    obj = objective.add_objective(x_k, u_k, k, **kwargs)
+                    if total_objective is None:
+                        total_objective = obj
+                    else:
+                        total_objective += obj
+        
+        # Add constraints
+        for k in range(self.horizon_length):
+            x_k = self.solver.x_vars[:, k]
+            u_k = self.solver.u_vars[:, k]
+            
+            for constraint in self.constraints:
+                if hasattr(constraint, 'add_constraints'):
+                    constraints = constraint.add_constraints(x_k, u_k, k, **kwargs)
+                    for constr in constraints:
+                        self.solver.add_constraint(constr)
+        
+        # Set objective
+        if total_objective is not None:
+            self.solver.add_objective(total_objective)
+    
+    def get_solution(self, k: int, var_name: str) -> float:
         """
-        Update the dynamics model.
-
+        Get solution value for variable at step k.
+        
         Args:
-            dynamics: New dynamics model
+            k: Time step
+            var_name: Variable name
+            
+        Returns:
+            Solution value
         """
-        self.dynamics = dynamics
-        self.problem_setup = False
-
-    def set_horizon_length(self, horizon_length: int) -> None:
+        return self.solver.get_solution(k, var_name)
+    
+    def get_trajectory(self) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Set the prediction horizon length.
-
+        Get planned trajectory.
+        
+        Returns:
+            (x_trajectory, y_trajectory)
+        """
+        return self.solver.get_trajectory()
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """
+        Get solver statistics.
+        
+        Returns:
+            Statistics dictionary
+        """
+        return {
+            'solve_count': self.solve_count,
+            'success_count': self.success_count,
+            'success_rate': self.success_count / max(self.solve_count, 1),
+            'total_solve_time': self.total_solve_time,
+            'avg_solve_time': self.avg_solve_time
+        }
+    
+    def reset(self) -> None:
+        """Reset planner state."""
+        self.current_state = None
+        self.last_solution = None
+        self.solve_count = 0
+        self.success_count = 0
+        self.total_solve_time = 0.0
+        self.avg_solve_time = 0.0
+        
+        # Reset solver
+        self.solver.reset()
+        
+        # Reset modules
+        for objective in self.objectives:
+            if hasattr(objective, 'reset'):
+                objective.reset()
+        
+        for constraint in self.constraints:
+            if hasattr(constraint, 'reset'):
+                constraint.reset()
+    
+    def visualize(self, **kwargs) -> None:
+        """
+        Visualize planner state and computations.
+        
         Args:
-            horizon_length: New horizon length
+            **kwargs: Visualization options
         """
+        print(f"MPC Planner Statistics:")
+        print(f"  Solve count: {self.solve_count}")
+        print(f"  Success count: {self.success_count}")
+        print(f"  Success rate: {self.success_count / max(self.solve_count, 1):.2%}")
+        print(f"  Average solve time: {self.avg_solve_time:.4f}s")
+        
+        if self.current_state is not None:
+            print(f"  Current state: {self.current_state}")
+        
+        if self.last_solution is not None:
+            print(f"  Last solution cost: {self.last_solution.get('cost', 'N/A')}")
+        
+        # Visualize modules
+        for objective in self.objectives:
+            if hasattr(objective, 'visualize'):
+                objective.visualize(**kwargs)
+        
+        for constraint in self.constraints:
+            if hasattr(constraint, 'visualize'):
+                constraint.visualize(**kwargs)
+
+
+class MPCPlannerBuilder:
+    """Builder class for creating MPC planners with modules."""
+    
+    def __init__(self, dynamics_type: str = "bicycle", horizon_length: int = 20, 
+                 dt: float = 0.1, solver_type: str = "casadi"):
+        """
+        Initialize builder.
+        
+        Args:
+            dynamics_type: Type of dynamics model
+            horizon_length: Prediction horizon length
+            dt: Time step
+            solver_type: Type of solver
+        """
+        self.dynamics_type = dynamics_type
         self.horizon_length = horizon_length
-        self.problem_setup = False
-
-    def get_horizon_length(self) -> int:
+        self.dt = dt
+        self.solver_type = solver_type
+        self.solver_options = {}
+        
+        # Modules
+        self.objectives = []
+        self.constraints = []
+    
+    def set_solver_options(self, options: Dict[str, Any]) -> 'MPCPlannerBuilder':
         """
-        Get the current horizon length.
-
+        Set solver options.
+        
+        Args:
+            options: Solver options
+            
         Returns:
-            Current horizon length
+            Self for chaining
         """
-        return self.horizon_length
-
-    def get_objective_count(self) -> int:
+        self.solver_options.update(options)
+        return self
+    
+    def add_objective(self, objective: Any) -> 'MPCPlannerBuilder':
         """
-        Get the number of objective functions.
-
+        Add objective function.
+        
+        Args:
+            objective: Objective function module
+            
         Returns:
-            Number of objectives
+            Self for chaining
         """
-        return len(self.objectives)
-
-    def get_constraint_count(self) -> int:
+        self.objectives.append(objective)
+        return self
+    
+    def add_constraint(self, constraint: Any) -> 'MPCPlannerBuilder':
         """
-        Get the number of constraints.
-
+        Add constraint.
+        
+        Args:
+            constraint: Constraint module
+            
         Returns:
-            Number of constraints
+            Self for chaining
         """
-        return len(self.constraints)
-
-    def get_iterations(self) -> int:
+        self.constraints.append(constraint)
+        return self
+    
+    def build(self) -> MPCCPlanner:
         """
-        Get the number of iterations from the last solve.
-
+        Build the MPC planner.
+        
         Returns:
-            Number of iterations
+            Configured MPC planner
         """
-        if hasattr(self.solver, 'get_iterations'):
-            return self.solver.get_iterations()
-        return 0
+        # Create dynamics model
+        dynamics = create_dynamics_model(self.dynamics_type, dt=self.dt)
+        
+        # Create planner
+        planner = MPCCPlanner(
+            dynamics=dynamics,
+            horizon_length=self.horizon_length,
+            dt=self.dt,
+            solver_type=self.solver_type,
+            solver_options=self.solver_options
+        )
+        
+        # Add modules
+        for objective in self.objectives:
+            planner.add_objective(objective)
+        
+        for constraint in self.constraints:
+            planner.add_constraint(constraint)
+        
+        return planner
 
-    def get_status(self) -> str:
-        """
-        Get the status from the last solve.
 
-        Returns:
-            Status string
-        """
-        if hasattr(self.solver, 'get_status'):
-            return self.solver.get_status()
-        return "unknown"
+def create_mpc_planner(dynamics_type: str = "bicycle", 
+                      horizon_length: int = 20,
+                      dt: float = 0.1,
+                      solver_type: str = "casadi",
+                      solver_options: Optional[Dict[str, Any]] = None) -> MPCCPlanner:
+    """
+    Create an MPC planner with default configuration.
+    
+    Args:
+        dynamics_type: Type of dynamics model
+        horizon_length: Prediction horizon length
+        dt: Time step
+        solver_type: Type of solver
+        solver_options: Solver options
+        
+    Returns:
+        Configured MPC planner
+    """
+    # Create dynamics model
+    dynamics = create_dynamics_model(dynamics_type, dt=dt)
+    
+    # Create planner
+    planner = MPCCPlanner(
+        dynamics=dynamics,
+        horizon_length=horizon_length,
+        dt=dt,
+        solver_type=solver_type,
+        solver_options=solver_options or {}
+    )
+    
+    return planner
+
+
+def create_contouring_mpc(reference_path: np.ndarray,
+                         dynamics_type: str = "contouring_bicycle",
+                         horizon_length: int = 20,
+                         dt: float = 0.1,
+                         contouring_weight: float = 2.0,
+                         lag_weight: float = 1.0,
+                         progress_weight: float = 1.5,
+                         road_width: float = 6.0,
+                         safety_margin: float = 0.5) -> MPCCPlanner:
+    """
+    Create an MPC planner configured for contouring control.
+    
+    Args:
+        reference_path: Reference path as Nx2 array
+        dynamics_type: Type of dynamics model
+        horizon_length: Prediction horizon length
+        dt: Time step
+        contouring_weight: Weight for contouring error
+        lag_weight: Weight for lag error
+        progress_weight: Weight for progress
+        road_width: Road width
+        safety_margin: Safety margin
+        
+    Returns:
+        Configured MPC planner for contouring control
+    """
+    # Create planner
+    planner = create_mpc_planner(
+        dynamics_type=dynamics_type,
+        horizon_length=horizon_length,
+        dt=dt
+    )
+    
+    # Add contouring objective (placeholder - would need actual implementation)
+    # contouring_obj = ContouringObjective(
+    #     contouring_weight=contouring_weight,
+    #     lag_weight=lag_weight,
+    #     progress_weight=progress_weight
+    # )
+    # contouring_obj.set_reference_path(reference_path)
+    # planner.add_objective(contouring_obj)
+    
+    # Add contouring constraints (placeholder - would need actual implementation)
+    # contouring_const = ContouringConstraints(
+    #     road_width=road_width,
+    #     safety_margin=safety_margin
+    # )
+    # contouring_const.set_reference_path(reference_path)
+    # planner.add_constraint(contouring_const)
+    
+    return planner

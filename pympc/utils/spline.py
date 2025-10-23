@@ -1,376 +1,316 @@
 """
-Spline utilities for MPC path representation.
+Spline utilities for MPC framework.
 
-This module provides spline classes that match the original C++ implementation
-from tud-amr/mpc_planner, specifically the Spline2D and Spline classes.
+This module provides spline interpolation and manipulation utilities
+for smooth path representation and contouring control.
 """
 
 import numpy as np
-import casadi as cd
-from typing import Union, Tuple, Optional
+from scipy.interpolate import CubicSpline, interp1d
+from typing import Tuple, Optional, List
+import matplotlib.pyplot as plt
 
 
 class Spline:
     """
-    1D cubic spline implementation matching the original C++ Spline class.
+    Spline class for smooth path representation.
     
-    This class represents a 1D cubic spline with the form:
-    y = a*t^3 + b*t^2 + c*t + d
-    
-    where t is normalized to [0, 1] within each segment.
+    This class provides methods for creating, evaluating, and manipulating
+    splines for use in MPC path following.
     """
     
-    def __init__(self, parameter_manager, base_name: str, num_segments: int, s: Union[float, cd.MX]):
+    def __init__(self, points: np.ndarray, kind: str = 'cubic'):
         """
-        Initialize spline with parameter manager and segment information.
+        Initialize spline from points.
         
         Args:
-            parameter_manager: Parameter manager instance
-            base_name: Base name for parameters (e.g., "path_x", "width_left")
-            num_segments: Number of spline segments
-            s: Normalized parameter [0, 1] or CasADi symbolic variable
+            points: Array of points (Nx2) [x, y]
+            kind: Type of spline interpolation ('cubic', 'linear', 'quadratic')
         """
-        self.parameter_manager = parameter_manager
-        self.base_name = base_name
-        self.num_segments = num_segments
-        self.s = s
+        self.points = np.array(points)
+        self.kind = kind
+        self.spline_x = None
+        self.spline_y = None
+        self.arc_lengths = None
+        self.total_length = 0.0
         
-    def at(self, s: Union[float, cd.MX]) -> Union[float, cd.MX]:
-        """
-        Evaluate spline at parameter s.
+        if len(self.points) < 2:
+            raise ValueError("At least 2 points required for spline")
         
-        Args:
-            s: Parameter value [0, 1] or CasADi symbolic variable
-            
-        Returns:
-            Spline value at s
-        """
-        # Find which segment s belongs to
-        segment_idx = self._find_segment(s)
+        self._create_spline()
+    
+    def _create_spline(self) -> None:
+        """Create the spline interpolation."""
+        if len(self.points) < 2:
+            return
         
-        # Get segment parameters
-        a = self.parameter_manager.get(f"{self.base_name}_{segment_idx}_a")
-        b = self.parameter_manager.get(f"{self.base_name}_{segment_idx}_b")
-        c = self.parameter_manager.get(f"{self.base_name}_{segment_idx}_c")
-        d = self.parameter_manager.get(f"{self.base_name}_{segment_idx}_d")
+        # Compute arc lengths
+        diffs = np.diff(self.points, axis=0)
+        distances = np.linalg.norm(diffs, axis=1)
+        self.arc_lengths = np.concatenate([[0], np.cumsum(distances)])
+        self.total_length = self.arc_lengths[-1]
         
-        # Normalize s to [0, 1] within the segment
-        t = self._normalize_to_segment(s, segment_idx)
-        
-        # Evaluate cubic polynomial: y = a*t^3 + b*t^2 + c*t + d
-        if isinstance(s, cd.MX):
-            return a * t**3 + b * t**2 + c * t + d
+        # Create splines for x and y coordinates
+        if self.kind == 'cubic' and len(self.points) >= 4:
+            self.spline_x = CubicSpline(self.arc_lengths, self.points[:, 0])
+            self.spline_y = CubicSpline(self.arc_lengths, self.points[:, 1])
         else:
-            return float(a * t**3 + b * t**2 + c * t + d)
+            # Fall back to linear interpolation
+            self.spline_x = interp1d(self.arc_lengths, self.points[:, 0], 
+                                   kind='linear', bounds_error=False, 
+                                   fill_value='extrapolate')
+            self.spline_y = interp1d(self.arc_lengths, self.points[:, 1], 
+                                   kind='linear', bounds_error=False, 
+                                   fill_value='extrapolate')
     
-    def derivative(self, s: Union[float, cd.MX]) -> Union[float, cd.MX]:
+    def evaluate(self, s: float) -> Tuple[float, float]:
         """
-        Evaluate spline derivative at parameter s.
+        Evaluate spline at arc length s.
         
         Args:
-            s: Parameter value [0, 1] or CasADi symbolic variable
-            
-        Returns:
-            Spline derivative at s
-        """
-        # Find which segment s belongs to
-        segment_idx = self._find_segment(s)
-        
-        # Get segment parameters
-        a = self.parameter_manager.get(f"{self.base_name}_{segment_idx}_a")
-        b = self.parameter_manager.get(f"{self.base_name}_{segment_idx}_b")
-        c = self.parameter_manager.get(f"{self.base_name}_{segment_idx}_c")
-        
-        # Normalize s to [0, 1] within the segment
-        t = self._normalize_to_segment(s, segment_idx)
-        
-        # Evaluate derivative: dy/dt = 3*a*t^2 + 2*b*t + c
-        if isinstance(s, cd.MX):
-            return 3 * a * t**2 + 2 * b * t + c
-        else:
-            return float(3 * a * t**2 + 2 * b * t + c)
-    
-    def _find_segment(self, s: Union[float, cd.MX]) -> Union[int, cd.MX]:
-        """Find which segment the parameter s belongs to."""
-        if isinstance(s, cd.MX):
-            # For CasADi, use conditional logic
-            segment_idx = cd.MX(0)
-            for i in range(self.num_segments):
-                segment_start = i / self.num_segments
-                segment_end = (i + 1) / self.num_segments
-                segment_idx = cd.if_else(
-                    cd.logic_and(s >= segment_start, s < segment_end),
-                    i,
-                    segment_idx
-                )
-            return segment_idx
-        else:
-            # For numeric values, find segment directly
-            s_clamped = max(0.0, min(1.0, float(s)))
-            segment_idx = int(s_clamped * self.num_segments)
-            return min(segment_idx, self.num_segments - 1)
-    
-    def _normalize_to_segment(self, s: Union[float, cd.MX], segment_idx: Union[int, cd.MX]) -> Union[float, cd.MX]:
-        """Normalize parameter s to [0, 1] within the given segment."""
-        if isinstance(s, cd.MX):
-            segment_start = segment_idx / self.num_segments
-            segment_end = (segment_idx + 1) / self.num_segments
-            segment_length = segment_end - segment_start
-            return (s - segment_start) / segment_length
-        else:
-            s_clamped = max(0.0, min(1.0, float(s)))
-            segment_start = segment_idx / self.num_segments
-            segment_end = (segment_idx + 1) / self.num_segments
-            segment_length = segment_end - segment_start
-            return (s_clamped - segment_start) / segment_length
-
-
-class Spline2D:
-    """
-    2D cubic spline implementation matching the original C++ Spline2D class.
-    
-    This class represents a 2D cubic spline for path representation with
-    separate x and y components, each following the Spline class structure.
-    """
-    
-    def __init__(self, parameter_manager, num_segments: int, s: Union[float, cd.MX]):
-        """
-        Initialize 2D spline with parameter manager and segment information.
-        
-        Args:
-            parameter_manager: Parameter manager instance
-            num_segments: Number of spline segments
-            s: Normalized parameter [0, 1] or CasADi symbolic variable
-        """
-        self.parameter_manager = parameter_manager
-        self.num_segments = num_segments
-        self.s = s
-        
-        # Create separate splines for x and y components
-        self.x_spline = Spline(parameter_manager, "path_x", num_segments, s)
-        self.y_spline = Spline(parameter_manager, "path_y", num_segments, s)
-    
-    def at(self, s: Union[float, cd.MX]) -> Tuple[Union[float, cd.MX], Union[float, cd.MX]]:
-        """
-        Evaluate 2D spline at parameter s.
-        
-        Args:
-            s: Parameter value [0, 1] or CasADi symbolic variable
+            s: Arc length parameter (0 to total_length)
             
         Returns:
             Tuple of (x, y) coordinates
         """
-        x = self.x_spline.at(s)
-        y = self.y_spline.at(s)
-        return x, y
+        if self.spline_x is None or self.spline_y is None:
+            return (0.0, 0.0)
+        
+        # Clamp s to valid range
+        s = np.clip(s, 0, self.total_length)
+        
+        x = float(self.spline_x(s))
+        y = float(self.spline_y(s))
+        
+        return (x, y)
     
-    def deriv(self, s: Union[float, cd.MX]) -> Tuple[Union[float, cd.MX], Union[float, cd.MX]]:
+    def evaluate_derivative(self, s: float) -> Tuple[float, float]:
         """
-        Evaluate 2D spline derivatives at parameter s.
+        Evaluate spline derivative at arc length s.
         
         Args:
-            s: Parameter value [0, 1] or CasADi symbolic variable
+            s: Arc length parameter
             
         Returns:
-            Tuple of (dx, dy) derivatives
+            Tuple of (dx/ds, dy/ds)
         """
-        dx = self.x_spline.derivative(s)
-        dy = self.y_spline.derivative(s)
-        return dx, dy
-    
-    def deriv_normalized(self, s: Union[float, cd.MX]) -> Tuple[Union[float, cd.MX], Union[float, cd.MX]]:
-        """
-        Evaluate normalized 2D spline derivatives at parameter s.
+        if self.spline_x is None or self.spline_y is None:
+            return (0.0, 0.0)
         
-        This returns the unit tangent vector to the spline.
+        # Clamp s to valid range
+        s = np.clip(s, 0, self.total_length)
         
-        Args:
-            s: Parameter value [0, 1] or CasADi symbolic variable
-            
-        Returns:
-            Tuple of normalized (dx, dy) derivatives
-        """
-        dx, dy = self.deriv(s)
-        
-        if isinstance(s, cd.MX):
-            # For CasADi, compute normalized derivatives
-            norm = cd.sqrt(dx**2 + dy**2)
-            # Avoid division by zero
-            norm_safe = cd.fmax(norm, 1e-9)
-            return dx / norm_safe, dy / norm_safe
+        if hasattr(self.spline_x, 'derivative'):
+            dx_ds = float(self.spline_x.derivative()(s))
+            dy_ds = float(self.spline_y.derivative()(s))
         else:
-            # For numeric values
-            norm = np.sqrt(float(dx)**2 + float(dy)**2)
-            if norm < 1e-9:
-                return 0.0, 0.0
-            return float(dx) / norm, float(dy) / norm
+            # For linear interpolation, use finite differences
+            eps = 1e-6
+            s1 = max(0, s - eps)
+            s2 = min(self.total_length, s + eps)
+            
+            x1, y1 = self.evaluate(s1)
+            x2, y2 = self.evaluate(s2)
+            
+            dx_ds = (x2 - x1) / (s2 - s1) if s2 > s1 else 0.0
+            dy_ds = (y2 - y1) / (s2 - s1) if s2 > s1 else 0.0
+        
+        return (dx_ds, dy_ds)
     
-    def curvature(self, s: Union[float, cd.MX]) -> Union[float, cd.MX]:
+    def evaluate_second_derivative(self, s: float) -> Tuple[float, float]:
         """
-        Compute curvature at parameter s.
+        Evaluate spline second derivative at arc length s.
         
         Args:
-            s: Parameter value [0, 1] or CasADi symbolic variable
+            s: Arc length parameter
+            
+        Returns:
+            Tuple of (d²x/ds², d²y/ds²)
+        """
+        if self.spline_x is None or self.spline_y is None:
+            return (0.0, 0.0)
+        
+        # Clamp s to valid range
+        s = np.clip(s, 0, self.total_length)
+        
+        if hasattr(self.spline_x, 'derivative') and hasattr(self.spline_x.derivative(), 'derivative'):
+            d2x_ds2 = float(self.spline_x.derivative().derivative()(s))
+            d2y_ds2 = float(self.spline_y.derivative().derivative()(s))
+        else:
+            # For linear interpolation, second derivative is zero
+            d2x_ds2 = 0.0
+            d2y_ds2 = 0.0
+        
+        return (d2x_ds2, d2y_ds2)
+    
+    def get_tangent(self, s: float) -> Tuple[float, float]:
+        """
+        Get tangent vector at arc length s.
+        
+        Args:
+            s: Arc length parameter
+            
+        Returns:
+            Normalized tangent vector (tx, ty)
+        """
+        dx_ds, dy_ds = self.evaluate_derivative(s)
+        norm = np.sqrt(dx_ds**2 + dy_ds**2)
+        
+        if norm > 1e-8:
+            return (dx_ds / norm, dy_ds / norm)
+        else:
+            return (1.0, 0.0)  # Default tangent
+    
+    def get_normal(self, s: float) -> Tuple[float, float]:
+        """
+        Get normal vector at arc length s.
+        
+        Args:
+            s: Arc length parameter
+            
+        Returns:
+            Normalized normal vector (nx, ny)
+        """
+        tx, ty = self.get_tangent(s)
+        return (-ty, tx)  # Rotate tangent by 90 degrees
+    
+    def get_curvature(self, s: float) -> float:
+        """
+        Get curvature at arc length s.
+        
+        Args:
+            s: Arc length parameter
             
         Returns:
             Curvature value
         """
-        # Get first and second derivatives
-        dx, dy = self.deriv(s)
+        dx_ds, dy_ds = self.evaluate_derivative(s)
+        d2x_ds2, d2y_ds2 = self.evaluate_second_derivative(s)
         
-        # For second derivatives, we need to implement d2x and d2y
-        # This would require extending the Spline class with second derivatives
-        # For now, return zero curvature
-        if isinstance(s, cd.MX):
-            return cd.MX(0)
+        # Curvature formula: κ = (x'y'' - y'x'') / (x'² + y'²)^(3/2)
+        numerator = dx_ds * d2y_ds2 - dy_ds * d2x_ds2
+        denominator = (dx_ds**2 + dy_ds**2)**(3/2)
+        
+        if abs(denominator) > 1e-8:
+            return numerator / denominator
         else:
             return 0.0
-
-
-class SplineFitter:
-    """
-    Utility class for fitting cubic splines to data points.
     
-    This matches the original C++ spline fitting functionality.
-    """
-    
-    @staticmethod
-    def fit_cubic_spline(x_data: np.ndarray, y_data: np.ndarray, num_segments: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def find_closest_point(self, x: float, y: float) -> Tuple[float, float, float]:
         """
-        Fit cubic spline coefficients to data points.
+        Find the closest point on the spline to a given point.
         
         Args:
-            x_data: X coordinates of data points
-            y_data: Y coordinates of data points  
-            num_segments: Number of spline segments
+            x: Query x coordinate
+            y: Query y coordinate
             
         Returns:
-            Tuple of (coefficients, segment_starts, segment_ends)
+            Tuple of (s, closest_x, closest_y)
         """
-        n = len(x_data)
-        if n < 2:
-            raise ValueError("Need at least 2 points for spline fitting")
+        if self.spline_x is None or self.spline_y is None:
+            return (0.0, 0.0, 0.0)
         
-        # Normalize x_data to [0, 1] range
-        x_min, x_max = np.min(x_data), np.max(x_data)
-        x_normalized = (x_data - x_min) / (x_max - x_min) if x_max > x_min else np.zeros_like(x_data)
+        # Sample the spline at many points to find closest
+        num_samples = max(100, len(self.points) * 10)
+        s_samples = np.linspace(0, self.total_length, num_samples)
         
-        # Create segments
-        segment_starts = np.linspace(0, 1, num_segments + 1)[:-1]
-        segment_ends = np.linspace(0, 1, num_segments + 1)[1:]
+        distances = []
+        for s in s_samples:
+            sx, sy = self.evaluate(s)
+            dist = np.sqrt((x - sx)**2 + (y - sy)**2)
+            distances.append(dist)
         
-        coefficients = []
+        # Find minimum distance
+        min_idx = np.argmin(distances)
+        s_closest = s_samples[min_idx]
+        closest_x, closest_y = self.evaluate(s_closest)
         
-        for i in range(num_segments):
-            # Find data points in this segment
-            mask = (x_normalized >= segment_starts[i]) & (x_normalized <= segment_ends[i])
-            if not np.any(mask):
-                # No data in segment, use linear interpolation
-                if i == 0:
-                    y_start = y_data[0]
-                    y_end = y_data[0]
-                elif i == num_segments - 1:
-                    y_start = y_data[-1]
-                    y_end = y_data[-1]
-                else:
-                    # Interpolate from neighboring segments
-                    y_start = y_data[min(len(y_data)-1, int(segment_starts[i] * (len(y_data)-1)))]
-                    y_end = y_data[min(len(y_data)-1, int(segment_ends[i] * (len(y_data)-1)))]
-                
-                # Linear segment: y = c*t + d
-                d = y_start
-                c = y_end - y_start
-                a, b = 0.0, 0.0
-            else:
-                # Fit cubic spline to data in segment
-                segment_x = x_normalized[mask]
-                segment_y = y_data[mask]
-                
-                # Normalize segment_x to [0, 1]
-                if len(segment_x) > 1:
-                    seg_x_norm = (segment_x - segment_starts[i]) / (segment_ends[i] - segment_starts[i])
-                else:
-                    seg_x_norm = np.array([0.5])  # Middle of segment
-                
-                # Estimate derivatives at endpoints
-                if len(segment_y) > 1:
-                    dy_start = (segment_y[1] - segment_y[0]) / (seg_x_norm[1] - seg_x_norm[0]) if len(seg_x_norm) > 1 else 0
-                    dy_end = (segment_y[-1] - segment_y[-2]) / (seg_x_norm[-1] - seg_x_norm[-2]) if len(seg_x_norm) > 1 else 0
-                else:
-                    dy_start = dy_end = 0
-                
-                # Scale derivatives by segment length
-                segment_length = segment_ends[i] - segment_starts[i]
-                dy_start_scaled = dy_start * segment_length
-                dy_end_scaled = dy_end * segment_length
-                
-                # Solve for cubic coefficients: y = a*t^3 + b*t^2 + c*t + d
-                # Conditions: y(0) = y_start, y(1) = y_end, y'(0) = dy_start_scaled, y'(1) = dy_end_scaled
-                y_start = segment_y[0]
-                y_end = segment_y[-1]
-                
-                d = y_start
-                c = dy_start_scaled
-                a = 2 * y_start - 2 * y_end + dy_start_scaled + dy_end_scaled
-                b = -3 * y_start + 3 * y_end - 2 * dy_start_scaled - dy_end_scaled
-            
-            coefficients.append([a, b, c, d])
-        
-        return np.array(coefficients), segment_starts, segment_ends
+        return (s_closest, closest_x, closest_y)
     
-    @staticmethod
-    def fit_2d_spline(x_data: np.ndarray, y_data: np.ndarray, num_segments: int) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    def get_contouring_error(self, x: float, y: float) -> Tuple[float, float]:
         """
-        Fit 2D cubic spline to data points.
+        Compute contouring error (lateral deviation from path).
         
         Args:
-            x_data: X coordinates of data points
-            y_data: Y coordinates of data points
-            num_segments: Number of spline segments
+            x: Vehicle x position
+            y: Vehicle y position
             
         Returns:
-            Tuple of (x_coeffs, y_coeffs, segment_starts, segment_ends, arc_lengths)
+            Tuple of (lag_error, contouring_error)
         """
-        # Compute arc length parameterization
-        dx = np.diff(x_data)
-        dy = np.diff(y_data)
-        ds = np.sqrt(dx**2 + dy**2)
-        s = np.concatenate([[0], np.cumsum(ds)])
-        s = s / s[-1] if s[-1] > 0 else s  # Normalize to [0, 1]
+        s, closest_x, closest_y = self.find_closest_point(x, y)
         
-        # Fit splines to x and y components
-        x_coeffs, segment_starts, segment_ends = SplineFitter.fit_cubic_spline(s, x_data, num_segments)
-        y_coeffs, _, _ = SplineFitter.fit_cubic_spline(s, y_data, num_segments)
+        # Compute lag error (longitudinal deviation)
+        lag_error = s
         
-        return x_coeffs, y_coeffs, segment_starts, segment_ends, s
-
-
-def haar_difference_without_abs(angle1: Union[float, cd.MX], angle2: Union[float, cd.MX]) -> Union[float, cd.MX]:
-    """
-    Compute angular difference without taking absolute value.
+        # Compute contouring error (lateral deviation)
+        tx, ty = self.get_tangent(s)
+        contouring_error = (x - closest_x) * (-ty) + (y - closest_y) * tx
+        
+        return (lag_error, contouring_error)
     
-    This matches the original C++ implementation for computing angular differences
-    in contouring constraints.
-    
-    Args:
-        angle1: First angle in radians
-        angle2: Second angle in radians
+    def sample_points(self, num_points: int = None, ds: float = None) -> np.ndarray:
+        """
+        Sample points along the spline.
         
-    Returns:
-        Angular difference in [-pi, pi]
-    """
-    if isinstance(angle1, cd.MX) or isinstance(angle2, cd.MX):
-        # For CasADi, use symbolic operations
-        diff = angle1 - angle2
-        # Normalize to [-pi, pi]
-        diff = diff - 2 * cd.pi * cd.floor((diff + cd.pi) / (2 * cd.pi))
-        return diff
-    else:
-        # For numeric values
-        diff = float(angle1) - float(angle2)
-        # Normalize to [-pi, pi]
-        while diff > np.pi:
-            diff -= 2 * np.pi
-        while diff < -np.pi:
-            diff += 2 * np.pi
-        return diff
+        Args:
+            num_points: Number of points to sample
+            ds: Arc length step size
+            
+        Returns:
+            Array of sampled points (Nx2)
+        """
+        if num_points is not None:
+            s_values = np.linspace(0, self.total_length, num_points)
+        elif ds is not None:
+            s_values = np.arange(0, self.total_length + ds, ds)
+        else:
+            s_values = self.arc_lengths
+        
+        points = []
+        for s in s_values:
+            x, y = self.evaluate(s)
+            points.append([x, y])
+        
+        return np.array(points)
+    
+    def get_length(self) -> float:
+        """
+        Get total arc length of the spline.
+        
+        Returns:
+            Total arc length
+        """
+        return self.total_length
+    
+    def visualize(self, ax: plt.Axes, num_points: int = 100, **kwargs) -> None:
+        """
+        Visualize the spline on a matplotlib axes.
+        
+        Args:
+            ax: Matplotlib axes object
+            num_points: Number of points to plot
+            **kwargs: Additional plotting options
+        """
+        s_values = np.linspace(0, self.total_length, num_points)
+        x_values = []
+        y_values = []
+        
+        for s in s_values:
+            x, y = self.evaluate(s)
+            x_values.append(x)
+            y_values.append(y)
+        
+        ax.plot(x_values, y_values, **kwargs)
+        
+        # Plot original points
+        ax.scatter(self.points[:, 0], self.points[:, 1], 
+                  color='red', s=50, zorder=5, label='Control Points')
+    
+    def __len__(self) -> int:
+        """Return number of control points."""
+        return len(self.points)
+    
+    def __str__(self) -> str:
+        """String representation."""
+        return f"Spline({self.kind}, {len(self.points)} points, length={self.total_length:.2f})"
