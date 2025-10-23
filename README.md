@@ -38,7 +38,7 @@ t = np.linspace(0, 4*np.pi, 100)
 reference_path = np.column_stack([t * np.cos(t/4), t * np.sin(t/4)])
 
 # Create MPC planner
-planner = create_mpc_planner(dynamics_type="bicycle", horizon_length=20)
+planner = create_mpc_planner(dynamics_type="bicycle", N=20)
 
 # Add contouring objective
 contouring_obj = ContouringObjective(contouring_weight=2.0, lag_weight=1.0)
@@ -80,12 +80,12 @@ The framework includes a comprehensive test suite with 8 scenarios:
 
 ```bash
 # Run all tests
-python pympc/testing/run_tests.py --test-type all
+python pympc/test/run_tests.py --test-type all
 
 # Run specific test types
-python pympc/testing/run_tests.py --test-type contouring
-python pympc/testing/run_tests.py --test-type obstacles
-python pympc/testing/run_tests.py --test-type robust
+python pympc/test/run_tests.py --test-type contouring
+python pympc/test/run_tests.py --test-type obstacles
+python pympc/test/run_tests.py --test-type robust
 ```
 
 ## Dynamics Models
@@ -158,7 +158,7 @@ dynamics:
   wheelbase: 2.79
 
 planner:
-  horizon_length: 20
+  N: 20
   timestep: 0.1
 
 constraints:

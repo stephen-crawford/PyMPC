@@ -9,23 +9,24 @@ import casadi as cs
 from typing import Dict, Tuple, Optional, Any
 from abc import ABC, abstractmethod
 from .dynamics import BaseDynamics
+from .. import ParameterManager, ModuleManager
 
 
 class BaseSolver(ABC):
     """Abstract base class for MPC solvers."""
     
-    def __init__(self, dynamics: BaseDynamics, horizon_length: int = 20, dt: float = 0.1):
+    def __init__(self):
         """
         Initialize solver.
         
         Args:
             dynamics: Dynamics model
-            horizon_length: Prediction horizon length
+            N: Prediction horizon length
             dt: Time step
         """
-        self.dynamics = dynamics
-        self.horizon_length = horizon_length
-        self.dt = dt
+        self.dynamics = None
+        self.N = None
+        self.dt = None
         
         # Optimization variables
         self.x_vars: Optional[cs.SX] = None
@@ -35,6 +36,10 @@ class BaseSolver(ABC):
         # Problem setup
         self.problem: Optional[cs.Opti] = None
         self.solver: Optional[Any] = None
+
+        self.modules_manager = ModuleManager()
+
+        self.parameter_manager = ParameterManager()
         
         # Solution
         self.solution: Optional[Any] = None
@@ -92,7 +97,14 @@ class BaseSolver(ABC):
         
         x_sol = self.solution.value(self.x_vars)
         return x_sol[0, :], x_sol[1, :]  # x, y positions
-    
+
+
+    def set_dt(self, dt: float) -> None:
+        self.dt = dt
+
+    def set_N(self, horizon: float) -> None:
+        self.N = horizon
+
     def reset(self) -> None:
         """Reset solver state."""
         self.solution = None
@@ -102,18 +114,18 @@ class BaseSolver(ABC):
 class CasADiSolver(BaseSolver):
     """CasADi-based MPC solver."""
     
-    def __init__(self, dynamics: BaseDynamics, horizon_length: int = 20, dt: float = 0.1,
+    def __init__(self,
                  solver_options: Optional[Dict[str, Any]] = None):
         """
         Initialize CasADi solver.
         
         Args:
             dynamics: Dynamics model
-            horizon_length: Prediction horizon length
+            N: Prediction horizon length
             dt: Time step
             solver_options: Solver options
         """
-        super().__init__(dynamics, horizon_length, dt)
+        super().__init__()
         self.solver_options = solver_options or {}
         
         # Set up problem
@@ -124,8 +136,8 @@ class CasADiSolver(BaseSolver):
         self.problem = cs.Opti()
         
         # Variables
-        self.x_vars = self.problem.variable(self.dynamics.nx, self.horizon_length + 1)
-        self.u_vars = self.problem.variable(self.dynamics.nu, self.horizon_length)
+        self.x_vars = self.problem.variable(self.dynamics.nx, self.N + 1)
+        self.u_vars = self.problem.variable(self.dynamics.nu, self.N)
         
         # Parameters
         n_params = 100  # Maximum number of parameters
@@ -158,7 +170,7 @@ class CasADiSolver(BaseSolver):
     
     def _add_dynamics_constraints(self) -> None:
         """Add dynamics constraints."""
-        for k in range(self.horizon_length):
+        for k in range(self.N):
             x_k = self.x_vars[:, k]
             u_k = self.u_vars[:, k]
             x_next = self.x_vars[:, k + 1]
@@ -238,9 +250,9 @@ class CasADiSolver(BaseSolver):
             x_warm: State warmstart
             u_warm: Input warmstart
         """
-        if x_warm.shape[0] == self.dynamics.nx and x_warm.shape[1] == self.horizon_length + 1:
+        if x_warm.shape[0] == self.dynamics.nx and x_warm.shape[1] == self.N + 1:
             self.problem.set_initial(self.x_vars, x_warm)
-        if u_warm.shape[0] == self.dynamics.nu and u_warm.shape[1] == self.horizon_length:
+        if u_warm.shape[0] == self.dynamics.nu and u_warm.shape[1] == self.N:
             self.problem.set_initial(self.u_vars, u_warm)
     
     def solve(self, x0: np.ndarray, **kwargs) -> Tuple[bool, Dict[str, Any]]:
@@ -304,16 +316,16 @@ class CasADiSolver(BaseSolver):
 class SimpleSolver(BaseSolver):
     """Simple solver for basic MPC problems."""
     
-    def __init__(self, dynamics: BaseDynamics, horizon_length: int = 20, dt: float = 0.1):
+    def __init__(self):
         """
         Initialize simple solver.
         
         Args:
             dynamics: Dynamics model
-            horizon_length: Prediction horizon length
+            N: Prediction horizon length
             dt: Time step
         """
-        super().__init__(dynamics, horizon_length, dt)
+        super().__init__()
         self.objective = None
         self.constraints = []
     
@@ -345,19 +357,19 @@ class SimpleSolver(BaseSolver):
         # a proper optimization algorithm here
         
         # Generate a simple trajectory
-        x_traj = np.zeros((self.dynamics.nx, self.horizon_length + 1))
-        u_traj = np.zeros((self.dynamics.nu, self.horizon_length))
+        x_traj = np.zeros((self.dynamics.nx, self.N + 1))
+        u_traj = np.zeros((self.dynamics.nu, self.N))
         
         # Initialize with current state
         x_traj[:, 0] = x0
         
         # Simple forward integration
-        for k in range(self.horizon_length):
+        for k in range(self.N):
             # Simple control: maintain current velocity
             u_traj[:, k] = np.zeros(self.dynamics.nu)
             
             # Integrate dynamics
-            if k < self.horizon_length:
+            if k < self.N:
                 x_traj[:, k + 1] = x_traj[:, k] + self.dt * np.array([x_traj[2, k], x_traj[3, k], 0, 0])
         
         return True, {
@@ -370,7 +382,7 @@ class SimpleSolver(BaseSolver):
 
 
 def create_solver(solver_type: str, dynamics: BaseDynamics, 
-                  horizon_length: int = 20, dt: float = 0.1,
+                  N: int = 20, dt: float = 0.1,
                   **kwargs) -> BaseSolver:
     """
     Factory function to create solvers.
@@ -378,7 +390,7 @@ def create_solver(solver_type: str, dynamics: BaseDynamics,
     Args:
         solver_type: Type of solver
         dynamics: Dynamics model
-        horizon_length: Prediction horizon length
+        N: Prediction horizon length
         dt: Time step
         **kwargs: Additional parameters
         
@@ -393,4 +405,4 @@ def create_solver(solver_type: str, dynamics: BaseDynamics,
     if solver_type not in solvers:
         raise ValueError(f"Unknown solver type: {solver_type}. Available: {list(solvers.keys())}")
     
-    return solvers[solver_type](dynamics, horizon_length, dt, **kwargs)
+    return solvers[solver_type](dynamics, N, dt, **kwargs)

@@ -10,6 +10,9 @@ import casadi as cs
 from typing import Dict, List, Tuple, Optional, Any
 from abc import ABC, abstractmethod
 
+from pympc.modules.constraints import BaseConstraint
+from pympc.modules.objectives import BaseObjective
+
 
 class BaseModule(ABC):
     """Abstract base class for MPC modules."""
@@ -94,6 +97,10 @@ class ModuleManager:
             self.objectives.append(module)
         elif isinstance(module, BaseConstraint):
             self.constraints.append(module)
+
+    def add_modules(self, modules: List[BaseModule]) -> None:
+        for module in modules:
+            self.add_module(module)
     
     def remove_module(self, module: BaseModule) -> None:
         """

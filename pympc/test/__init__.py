@@ -1,9 +1,9 @@
 """
 Testing framework for PyMPC.
 
-This module provides a comprehensive testing framework for MPC systems including:
+This module provides a comprehensive test framework for MPC systems including:
 - Unified test runner for various MPC scenarios
-- Constraint testing framework
+- Constraint test framework
 - Test configuration and result management
 - Visualization and analysis tools
 """

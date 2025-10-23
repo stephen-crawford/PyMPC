@@ -27,14 +27,14 @@ This directory contains a comprehensive, standardized testing framework for Mode
 ### Basic Usage
 
 ```python
-from pympc.testing.mpcc_test_framework import create_standard_mpcc_test
+from pympc.test.mpcc_test_framework import create_standard_mpcc_test
 
 # Create and run a basic MPCC test
 test = create_standard_mpcc_test(
-    test_name="my_test",
-    road=RoadConfig(road_type="curved", curvature_intensity=1.0),
-    obstacles=ObstacleConfig(num_obstacles=3, intersection_probability=0.7),
-    perception=PerceptionConfig(enabled=False)
+	test_name="my_test",
+	road=RoadConfig(road_type="curved", curvature_intensity=1.0),
+	obstacles=ObstacleConfig(num_obstacles=3, intersection_probability=0.7),
+	perception=PerceptionConfig(enabled=False)
 )
 
 result = test.run_test()
@@ -44,19 +44,19 @@ print(f"Test completed: {result['success']}")
 ### Enhanced MPCC (C++ Reference)
 
 ```python
-from pympc.testing.enhanced_mpcc_framework import create_enhanced_mpcc_test
+from pympc.test.enhanced_mpcc_framework import create_enhanced_mpcc_test
 
 # Create enhanced MPCC test with C++ reference implementation
 test = create_enhanced_mpcc_test(
-    test_name="enhanced_test",
-    road=RoadConfig(road_type="curved", curvature_intensity=1.0),
-    obstacles=ObstacleConfig(num_obstacles=3, intersection_probability=0.7),
-    mpc=MPCConfig(
-        contouring_weight=2.0,
-        lag_weight=1.0,
-        velocity_weight=0.1,
-        progress_weight=1.5
-    )
+	test_name="enhanced_test",
+	road=RoadConfig(road_type="curved", curvature_intensity=1.0),
+	obstacles=ObstacleConfig(num_obstacles=3, intersection_probability=0.7),
+	mpc=MPCConfig(
+		contouring_weight=2.0,
+		lag_weight=1.0,
+		velocity_weight=0.1,
+		progress_weight=1.5
+	)
 )
 
 result = test.run_test()
@@ -65,17 +65,17 @@ result = test.run_test()
 ### Perception Area Testing
 
 ```python
-from pympc.testing.mpcc_test_framework import create_perception_test
+from pympc.test.mpcc_test_framework import create_perception_test
 
 # Test with cone perception area
 test = create_perception_test(
-    test_name="perception_test",
-    perception=PerceptionConfig(
-        shape=PerceptionShape.CONE,
-        distance=20.0,
-        angle=np.pi/3,
-        enabled=True
-    )
+	test_name="perception_test",
+	perception=PerceptionConfig(
+		shape=PerceptionShape.CONE,
+		distance=20.0,
+		angle=np.pi / 3,
+		enabled=True
+	)
 )
 
 result = test.run_test()
@@ -146,16 +146,18 @@ perception = PerceptionConfig(
 ## Test Runners
 
 ### Standardized Runner
+
 ```python
-from pympc.testing.standardized_mpcc_runner import StandardizedMPCCRunner
+from pympc.test.standardized_mpcc_runner import StandardizedMPCCRunner
 
 runner = StandardizedMPCCRunner()
 results = runner.run_standard_test_suite()
 ```
 
 ### Comprehensive Runner
+
 ```python
-from pympc.testing.comprehensive_mpcc_runner import ComprehensiveMPCCRunner
+from pympc.test.comprehensive_mpcc_runner import ComprehensiveMPCCRunner
 
 runner = ComprehensiveMPCCRunner()
 results = runner.run_comprehensive_suite()
@@ -165,17 +167,17 @@ results = runner.run_comprehensive_suite()
 
 ### Basic Demo
 ```bash
-python pympc/testing/mpcc_demo.py
+python pympc/test/mpcc_demo.py
 ```
 
 ### Example Usage
 ```bash
-python pympc/testing/example_usage.py
+python pympc/test/example_usage.py
 ```
 
 ### Comprehensive Testing
 ```bash
-python pympc/testing/comprehensive_mpcc_runner.py
+python pympc/test/comprehensive_mpcc_runner.py
 ```
 
 ## Output Files

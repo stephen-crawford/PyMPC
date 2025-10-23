@@ -6,13 +6,13 @@ A comprehensive MPC framework for autonomous vehicle control with support for:
 - Scenario-based robust MPC
 - Various constraint types (contouring, obstacle avoidance, etc.)
 - Multiple objective functions
-- Comprehensive testing framework
+- Comprehensive test framework
 
 Main Components:
 - Core: Dynamics models, planners, solvers
 - Modules: Constraints and objectives
 - Utils: Mathematical utilities, logging, visualization
-- Testing: Unified testing framework
+- Testing: Unified test framework
 """
 
 # Core imports
@@ -42,12 +42,12 @@ from .utils import (
 
 # Testing imports
 try:
-    from .testing import (
+    from .test import (
         UnifiedTestRunner, TestConfig, TestResult,
         UnifiedConstraintFramework
     )
 except ImportError:
-    # Fallback for missing testing modules
+    # Fallback for missing test modules
     pass
 
 # Version information
@@ -85,7 +85,7 @@ __all__ = [
 
 
 def create_mpc_planner(dynamics_type: str = "bicycle", 
-                      horizon_length: int = 20,
+                      N: int = 20,
                       timestep: float = 0.1,
                       solver_options: dict = None) -> MPCCPlanner:
     """
@@ -93,7 +93,7 @@ def create_mpc_planner(dynamics_type: str = "bicycle",
     
     Args:
         dynamics_type: Type of dynamics model ("bicycle" or "kinematic")
-        horizon_length: Prediction horizon length
+        N: Prediction horizon length
         timestep: Time step
         solver_options: Solver options
         
@@ -114,7 +114,7 @@ def create_mpc_planner(dynamics_type: str = "bicycle",
     # Create planner
     planner = MPCCPlanner(
         dynamics=dynamics,
-        horizon_length=horizon_length,
+        N=N,
         dt=timestep,
         solver_options=solver_options or {}
     )
@@ -248,14 +248,14 @@ def run_simple_test(test_name: str = "simple_test",
     Returns:
         Test results dictionary
     """
-    from .testing.unified_test_runner import UnifiedTestRunner, TestConfig
+    from .test.unified_test_runner import UnifiedTestRunner, TestConfig
     
     # Create test configuration
     config = TestConfig(
         test_name=test_name,
         test_type=test_type,
         vehicle_type="bicycle",
-        horizon_length=15,
+        N=15,
         timestep=0.1,
         max_steps=100,
         gif_generation=True,

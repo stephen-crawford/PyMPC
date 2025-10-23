@@ -12,36 +12,27 @@ from .dynamics import BaseDynamics, create_dynamics_model
 from .solver import BaseSolver, create_solver
 
 
-class MPCCPlanner:
-    """
-    Model Predictive Contouring Control (MPCC) planner.
+class Planner:
+
     
-    This planner coordinates between dynamics models, solvers, and modules
-    to solve MPC problems with contouring control capabilities.
-    """
-    
-    def __init__(self, dynamics: BaseDynamics, horizon_length: int = 20, 
-                 dt: float = 0.1, solver_type: str = "casadi",
-                 solver_options: Optional[Dict[str, Any]] = None):
+    def __init__(self, solver):
         """
-        Initialize MPCC planner.
+        Initialize MPC planner.
         
         Args:
             dynamics: Dynamics model
-            horizon_length: Prediction horizon length
+            N: Prediction horizon length
             dt: Time step
             solver_type: Type of solver to use
             solver_options: Solver options
         """
-        self.dynamics = dynamics
-        self.horizon_length = horizon_length
-        self.dt = dt
+
+        self.dynamics = None
+        self.N = None
+        self.dt = None
         
         # Create solver
-        self.solver = create_solver(
-            solver_type, dynamics, horizon_length, dt, 
-            **(solver_options or {})
-        )
+        self.solver = solver
         
         # Modules
         self.objectives: List[Any] = []
@@ -56,24 +47,18 @@ class MPCCPlanner:
         # Timing
         self.total_solve_time: float = 0.0
         self.avg_solve_time: float = 0.0
-    
-    def add_objective(self, objective: Any) -> None:
-        """
-        Add objective function.
-        
-        Args:
-            objective: Objective function module
-        """
-        self.objectives.append(objective)
-    
-    def add_constraint(self, constraint: Any) -> None:
-        """
-        Add constraint.
-        
-        Args:
-            constraint: Constraint module
-        """
-        self.constraints.append(constraint)
+
+    def build_problem(self, dynamics: BaseDynamics, N: int, dt: float, objectives: List[Any], constraints: List[Any]) -> None:
+        self.dynamics = dynamics
+        self.N = N
+        self.dt = dt
+        self.objectives = objectives
+        self.constraints = constraints
+
+        self.solver.set_dt(self.dt)
+        self.solver.set_N(self.N)
+        self.solver.modules_manager.add_modules(objectives)
+        self.solver.modules_manager.add_modules(constraints)
     
     def solve(self, x0: np.ndarray, **kwargs) -> Optional[Dict[str, Any]]:
         """
@@ -123,7 +108,7 @@ class MPCCPlanner:
         
         # Add objectives
         total_objective = None
-        for k in range(self.horizon_length):
+        for k in range(self.N):
             # Get variables for this time step
             x_k = self.solver.x_vars[:, k]
             u_k = self.solver.u_vars[:, k]
@@ -138,7 +123,7 @@ class MPCCPlanner:
                         total_objective += obj
         
         # Add constraints
-        for k in range(self.horizon_length):
+        for k in range(self.N):
             x_k = self.solver.x_vars[:, k]
             u_k = self.solver.u_vars[:, k]
             
@@ -239,22 +224,22 @@ class MPCCPlanner:
                 constraint.visualize(**kwargs)
 
 
-class MPCPlannerBuilder:
+class PlannerBuilder:
     """Builder class for creating MPC planners with modules."""
     
-    def __init__(self, dynamics_type: str = "bicycle", horizon_length: int = 20, 
+    def __init__(self, dynamics_type: str = "bicycle", N: int = 20, 
                  dt: float = 0.1, solver_type: str = "casadi"):
         """
         Initialize builder.
         
         Args:
             dynamics_type: Type of dynamics model
-            horizon_length: Prediction horizon length
+            N: Prediction horizon length
             dt: Time step
             solver_type: Type of solver
         """
         self.dynamics_type = dynamics_type
-        self.horizon_length = horizon_length
+        self.N = N
         self.dt = dt
         self.solver_type = solver_type
         self.solver_options = {}
@@ -263,7 +248,7 @@ class MPCPlannerBuilder:
         self.objectives = []
         self.constraints = []
     
-    def set_solver_options(self, options: Dict[str, Any]) -> 'MPCPlannerBuilder':
+    def set_solver_options(self, options: Dict[str, Any]) -> 'PlannerBuilder':
         """
         Set solver options.
         
@@ -276,7 +261,7 @@ class MPCPlannerBuilder:
         self.solver_options.update(options)
         return self
     
-    def add_objective(self, objective: Any) -> 'MPCPlannerBuilder':
+    def add_objective(self, objective: Any) -> 'PlannerBuilder':
         """
         Add objective function.
         
@@ -289,7 +274,7 @@ class MPCPlannerBuilder:
         self.objectives.append(objective)
         return self
     
-    def add_constraint(self, constraint: Any) -> 'MPCPlannerBuilder':
+    def add_constraint(self, constraint: Any) -> 'PlannerBuilder':
         """
         Add constraint.
         
@@ -302,7 +287,7 @@ class MPCPlannerBuilder:
         self.constraints.append(constraint)
         return self
     
-    def build(self) -> MPCCPlanner:
+    def build(self) -> Planner:
         """
         Build the MPC planner.
         
@@ -313,9 +298,9 @@ class MPCPlannerBuilder:
         dynamics = create_dynamics_model(self.dynamics_type, dt=self.dt)
         
         # Create planner
-        planner = MPCCPlanner(
+        planner = Planner(
             dynamics=dynamics,
-            horizon_length=self.horizon_length,
+            N=self.N,
             dt=self.dt,
             solver_type=self.solver_type,
             solver_options=self.solver_options
@@ -332,16 +317,16 @@ class MPCPlannerBuilder:
 
 
 def create_mpc_planner(dynamics_type: str = "bicycle", 
-                      horizon_length: int = 20,
+                      N: int = 20,
                       dt: float = 0.1,
                       solver_type: str = "casadi",
-                      solver_options: Optional[Dict[str, Any]] = None) -> MPCCPlanner:
+                      solver_options: Optional[Dict[str, Any]] = None) -> Planner:
     """
     Create an MPC planner with default configuration.
     
     Args:
         dynamics_type: Type of dynamics model
-        horizon_length: Prediction horizon length
+        N: Prediction horizon length
         dt: Time step
         solver_type: Type of solver
         solver_options: Solver options
@@ -353,65 +338,12 @@ def create_mpc_planner(dynamics_type: str = "bicycle",
     dynamics = create_dynamics_model(dynamics_type, dt=dt)
     
     # Create planner
-    planner = MPCCPlanner(
+    planner = Planner(
         dynamics=dynamics,
-        horizon_length=horizon_length,
+        N=N,
         dt=dt,
         solver_type=solver_type,
         solver_options=solver_options or {}
     )
-    
-    return planner
-
-
-def create_contouring_mpc(reference_path: np.ndarray,
-                         dynamics_type: str = "contouring_bicycle",
-                         horizon_length: int = 20,
-                         dt: float = 0.1,
-                         contouring_weight: float = 2.0,
-                         lag_weight: float = 1.0,
-                         progress_weight: float = 1.5,
-                         road_width: float = 6.0,
-                         safety_margin: float = 0.5) -> MPCCPlanner:
-    """
-    Create an MPC planner configured for contouring control.
-    
-    Args:
-        reference_path: Reference path as Nx2 array
-        dynamics_type: Type of dynamics model
-        horizon_length: Prediction horizon length
-        dt: Time step
-        contouring_weight: Weight for contouring error
-        lag_weight: Weight for lag error
-        progress_weight: Weight for progress
-        road_width: Road width
-        safety_margin: Safety margin
-        
-    Returns:
-        Configured MPC planner for contouring control
-    """
-    # Create planner
-    planner = create_mpc_planner(
-        dynamics_type=dynamics_type,
-        horizon_length=horizon_length,
-        dt=dt
-    )
-    
-    # Add contouring objective (placeholder - would need actual implementation)
-    # contouring_obj = ContouringObjective(
-    #     contouring_weight=contouring_weight,
-    #     lag_weight=lag_weight,
-    #     progress_weight=progress_weight
-    # )
-    # contouring_obj.set_reference_path(reference_path)
-    # planner.add_objective(contouring_obj)
-    
-    # Add contouring constraints (placeholder - would need actual implementation)
-    # contouring_const = ContouringConstraints(
-    #     road_width=road_width,
-    #     safety_margin=safety_margin
-    # )
-    # contouring_const.set_reference_path(reference_path)
-    # planner.add_constraint(contouring_const)
     
     return planner
