@@ -73,6 +73,17 @@ scenario_constraints:
   sample_truncated: false
   draw_disc: 1
   enable_visualization: false
+
+safe_horizon:
+  epsilon_p: 0.1  # Constraint violation probability
+  beta: 0.01      # Confidence level (1 - beta is confidence)
+  n_bar: 10       # Support dimension
+  num_removal: 0  # Number of scenarios to remove
+  max_constraints_per_disc: 24
+  use_slack: true
+  num_scenarios: 100
+  enable_outlier_removal: true
+  parallel_solvers: 4
 shift_previous_solution_forward: false
 solver_settings:
   solver: casadi
