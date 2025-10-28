@@ -6,7 +6,7 @@ from planner_modules.src.constraints.base_constraint import BaseConstraint
 from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
 # Import modules to test
 from utils.const import CONSTRAINT, GAUSSIAN, DETERMINISTIC
-from utils.visualizer import ROSLine
+from utils.visualizer_compat import ROSLine
 
 # Manually patch CONFIG to avoid dependency issues in testing
 CONFIG_MOCK = {

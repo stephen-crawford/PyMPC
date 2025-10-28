@@ -1,12 +1,13 @@
+"""
+ROS-free visualizer module for PyMPC.
+This module provides visualization capabilities without ROS dependencies.
+"""
 import numpy as np
-import rclpy
-from rclpy.node import Node
-from rclpy.clock import Clock
-from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Point, Pose, Quaternion
-import tf2_ros
-import utils.math_utils
 from enum import Enum
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from typing import List, Optional, Tuple
+import utils.math_utils
 
 
 class Colormap(Enum):
@@ -15,7 +16,59 @@ class Colormap(Enum):
     BRUNO = 3
 
 
-class ROSMarker:
+class MockVisualizer:
+    """Mock visualizer that provides ROS-like interface without ROS dependencies."""
+    
+    def __init__(self, name: str = "mock_visualizer", frame_id: str = "map"):
+        self.name = name
+        self.frame_id = frame_id
+        self.data = []
+        
+    def publish(self, data=None):
+        """Mock publish method - stores data for later visualization."""
+        if data is not None:
+            if not hasattr(self, 'data') or self.data is None:
+                self.data = []
+            self.data.append(data)
+    
+    def clear(self):
+        """Clear stored data."""
+        self.data = []
+
+
+class ROSLine(MockVisualizer):
+    """ROS-free line visualizer."""
+    
+    def __init__(self, name: str = "line", frame_id: str = "map"):
+        super().__init__(name, frame_id)
+        self.points = []
+        
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the line."""
+        self.points.append([x, y, z])
+    
+    def set_color(self, r: float, g: float, b: float, alpha: float = 1.0):
+        """Set line color."""
+        self.color = (r, g, b, alpha)
+    
+    def set_width(self, width: float):
+        """Set line width."""
+        self.width = width
+    
+    def publish(self):
+        """Publish the line (store for visualization)."""
+        if len(self.points) > 1:
+            self.data = {
+                'type': 'line',
+                'points': self.points,
+                'color': getattr(self, 'color', (1.0, 0.0, 0.0, 1.0)),
+                'width': getattr(self, 'width', 1.0)
+            }
+
+
+class ROSMarker(MockVisualizer):
+    """ROS-free marker visualizer."""
+    
     # Color palettes
     VIRIDIS = [253, 231, 37, 234, 229, 26, 210, 226, 27, 186, 222, 40, 162, 218, 55, 139, 214, 70, 119, 209, 83, 99,
                203, 95, 80, 196, 106, 63, 188, 115, 49, 181, 123, 38, 173, 129, 33, 165, 133, 30, 157, 137, 31, 148,
@@ -26,654 +79,390 @@ class ROSMarker:
     BRUNO = [217, 83, 25, 0, 114, 189, 119, 172, 48, 126, 47, 142, 237, 177, 32, 77, 190, 238, 162, 19, 47, 256, 153,
              256, 0, 103, 256]
 
-    def __init__(self, ros_publisher, frame_id):
-        self.ros_publisher_ = ros_publisher
-        self.marker_ = Marker()
-        self.marker_.header.frame_id = frame_id
-
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__("marker", frame_id)
+        self.publisher = publisher
+        self.marker_data = {}
+        
     def stamp(self):
-        self.marker_.header.stamp = Clock().now().to_msg()
+        """Mock timestamp."""
+        import time
+        self.marker_data['timestamp'] = time.time()
 
-    def set_color(self, r, g, b, alpha=1.0):
-        self.marker_.color.r = r
-        self.marker_.color.g = g
-        self.marker_.color.b = b
-        self.marker_.color.a = alpha
+    def set_color(self, r: float, g: float, b: float, alpha: float = 1.0):
+        """Set marker color."""
+        self.marker_data['color'] = (r, g, b, alpha)
 
-    def set_color_ratio(self, ratio, alpha=1.0):
+    def set_color_ratio(self, ratio: float, alpha: float = 1.0):
+        """Set color based on ratio."""
         r, g, b = self.get_color_from_range(ratio)
         self.set_color(r, g, b, alpha)
 
-    def set_color_int(self, select, alpha=1.0, colormap=Colormap.VIRIDIS):
+    def set_color_int(self, select: int, alpha: float = 1.0, colormap: Colormap = Colormap.VIRIDIS):
+        """Set color based on integer selection."""
         r, g, b = self.get_color_from_range_int(select, colormap)
         self.set_color(r, g, b, alpha)
 
-    def set_color_int_range(self, select, range_val, alpha=1.0, colormap=Colormap.VIRIDIS):
-        colors = self.get_colors(colormap)
-        select = math.floor(select * (len(colors) // 3) / range_val)  # Scale selection with range
-        r, g, b = self.get_color_from_range_int(select, colormap)
-        self.set_color(r, g, b, alpha)
+    def get_color_from_range(self, ratio: float) -> Tuple[float, float, float]:
+        """Get color from ratio (0.0 to 1.0)."""
+        # Convert ratio to RGB using viridis colormap
+        colors = self.VIRIDIS
+        idx = int(ratio * (len(colors) // 3 - 1)) * 3
+        idx = max(0, min(idx, len(colors) - 3))
+        
+        r = colors[idx] / 255.0
+        g = colors[idx + 1] / 255.0
+        b = colors[idx + 2] / 255.0
+        
+        return r, g, b
 
-    def set_scale(self, x, y=None, z=None):
-        self.marker_.scale.x = x
-        if y is not None:
-            self.marker_.scale.y = y
-            if z is not None:
-                self.marker_.scale.z = z
-
-    def set_orientation(self, val):
-        if isinstance(val, float):  # Assume it's a psi angle (yaw)
-            q = tf2_ros.transformations.quaternion_from_euler(0, 0, val)
-            self.marker_.pose.orientation.x = q[0]
-            self.marker_.pose.orientation.y = q[1]
-            self.marker_.pose.orientation.z = q[2]
-            self.marker_.pose.orientation.w = q[3]
-        elif isinstance(val, Quaternion):
-            self.marker_.pose.orientation = val
-        else:  # Assume it's a tf2 quaternion
-            self.marker_.pose.orientation.x = val[0]
-            self.marker_.pose.orientation.y = val[1]
-            self.marker_.pose.orientation.z = val[2]
-            self.marker_.pose.orientation.w = val[3]
-
-    def set_lifetime(self, lifetime):
-        self.marker_.lifetime = rclpy.duration.Duration(seconds=lifetime).to_msg()
-
-    def set_action_delete(self):
-        self.marker_.action = Marker.DELETE
-
-    @staticmethod
-    def vec_to_point(v):
-        p = Point()
-        p.x = v[0]
-        p.y = v[1]
-        p.z = v[2] if len(v) > 2 else 0.0
-        return p
-
-    @staticmethod
-    def get_color_from_range_int(select, colormap=Colormap.VIRIDIS):
-        colors = ROSMarker.get_colors(colormap)
-
-        select %= len(colors) // 3  # We only have limited values
-        # Invert the color range
-        select = (len(colors) // 3) - 1 - select
-
-        red = colors[select * 3 + 0]
-        green = colors[select * 3 + 1]
-        blue = colors[select * 3 + 2]
-
-        return red / 256.0, green / 256.0, blue / 256.0
-
-    @staticmethod
-    def get_colors(colormap):
+    def get_color_from_range_int(self, select: int, colormap: Colormap = Colormap.VIRIDIS) -> Tuple[float, float, float]:
+        """Get color from integer selection."""
         if colormap == Colormap.VIRIDIS:
-            return ROSMarker.VIRIDIS
+            colors = self.VIRIDIS
         elif colormap == Colormap.INFERNO:
-            return ROSMarker.INFERNO
-        elif colormap == Colormap.BRUNO:
-            return ROSMarker.BRUNO
+            colors = self.INFERNO
         else:
-            raise RuntimeError("Invalid colormap given")
+            colors = self.BRUNO
+            
+        idx = (select % (len(colors) // 3)) * 3
+        r = colors[idx] / 255.0
+        g = colors[idx + 1] / 255.0
+        b = colors[idx + 2] / 255.0
+        
+        return r, g, b
 
-    @staticmethod
-    def get_color_from_range(ratio):
-        # Normalize ratio to fit into 6 regions of 256 units each
-        normalized = int(ratio * 256 * 6)
+    def set_scale(self, x: float, y: float, z: float):
+        """Set marker scale."""
+        self.marker_data['scale'] = (x, y, z)
 
-        # Find distance to start of closest region
-        x = normalized % 256
+    def set_position(self, x: float, y: float, z: float = 0.0):
+        """Set marker position."""
+        self.marker_data['position'] = (x, y, z)
 
-        region = normalized // 256
-        if region == 0:
-            red, green, blue = 255, x, 0  # red
-        elif region == 1:
-            red, green, blue = 255 - x, 255, 0  # yellow
-        elif region == 2:
-            red, green, blue = 0, 255, x  # green
-        elif region == 3:
-            red, green, blue = 0, 255 - x, 255  # cyan
-        elif region == 4:
-            red, green, blue = x, 0, 255  # blue
-        elif region == 5:
-            red, green, blue = 255, 0, 255 - x  # magenta
+    def set_orientation(self, x: float, y: float, z: float, w: float):
+        """Set marker orientation (quaternion)."""
+        self.marker_data['orientation'] = (x, y, z, w)
 
-        return red / 256.0, green / 256.0, blue / 256.0
+    def set_text(self, text: str):
+        """Set marker text."""
+        self.marker_data['text'] = text
 
-
-class ROSMarkerPublisher:
-    def __init__(self, node, topic_name, frame_id, max_size=1000):
-        self.frame_id_ = frame_id
-        self.max_size_ = max_size
-
-        # Use the node directly if passed a Node object, otherwise assume it's a SharedPtr
-        if isinstance(node, Node):
-            self.pub_ = node.create_publisher(MarkerArray, topic_name, 3)
-        else:
-            self.pub_ = node.create_publisher(MarkerArray, topic_name, 3)
-
-        self.id_ = 0
-        self.prev_id_ = 0
-        self.topic_name_ = topic_name
-
-        # Initialize marker list
-        self.marker_list_ = MarkerArray()
-        self.ros_markers_ = []
-
-        # Clear any left-over markers
-        remove_all_marker_list = MarkerArray()
-        remove_all_marker = Marker()
-        remove_all_marker.action = Marker.DELETEALL
-        remove_all_marker.header.frame_id = frame_id
-        remove_all_marker.header.stamp = Clock().now().to_msg()
-        remove_all_marker_list.markers.append(remove_all_marker)
-        self.pub_.publish(remove_all_marker_list)
-
-    def add(self, marker):
-        if marker.id > self.max_size_ - 1:
-            # If we exceed the max size, allocate 1.5 times the space
-            prev_size = self.max_size_
-            self.max_size_ = math.ceil(self.max_size_ * 1.5)
-            # We would log a warning here in ROS
-
-        # Add the marker
-        self.marker_list_.markers.append(marker)
-
-    def get_new_line(self):
-        # Create a line
-        ros_line = ROSLine(self, self.frame_id_)
-        self.ros_markers_.append(ros_line)
-        return ros_line
-
-    def get_new_point_marker(self, marker_type="CUBE"):
-        # Create a point marker
-        ros_point = ROSPointMarker(self, self.frame_id_, marker_type)
-        self.ros_markers_.append(ros_point)
-        return ros_point
-
-    def get_new_multiple_point_marker(self, marker_type="CUBE"):
-        # Create multiple point marker
-        ros_points = ROSMultiplePointMarker(self, self.frame_id_, marker_type)
-        self.ros_markers_.append(ros_points)
-        return ros_points
-
-    def get_new_text_marker(self):
-        # Create text marker
-        ros_text = ROSTextMarker(self, self.frame_id_)
-        self.ros_markers_.append(ros_text)
-        return ros_text
-
-    def get_new_model_marker(self, model_path):
-        # Create model marker
-        ros_model = ROSModelMarker(self, self.frame_id_, model_path)
-        self.ros_markers_.append(ros_model)
-        return ros_model
-
-    def publish(self, keep_markers=False):
-        # If less markers are published, remove the extra markers explicitly
-        remove_marker_ = Marker()
-        remove_marker_.action = Marker.DELETE
-        remove_marker_.header.frame_id = self.frame_id_
-        remove_marker_.header.stamp = Clock().now().to_msg()
-
-        if self.prev_id_ > self.id_:
-            for i in range(self.id_, self.prev_id_):
-                remove_marker_.id = i
-                self.marker_list_.markers.append(remove_marker_)
-
-        # Add new markers
-        for marker in self.ros_markers_:
-            marker.stamp()
-
-        self.pub_.publish(self.marker_list_)
-
-        if not keep_markers:
-            # Clear marker data for the next iteration
-            self.marker_list_ = MarkerArray()
-            self.ros_markers_ = []
-
-            self.prev_id_ = self.id_
-            self.id_ = 0
-
-    def __del__(self):
-        # Remove all markers
-        remove_marker_ = Marker()
-        remove_marker_.action = Marker.DELETE
-        remove_marker_.header.frame_id = self.frame_id_
-
-        # Clear current markers
-        self.marker_list_ = MarkerArray()
-
-        # Delete all previous markers
-        for i in range(self.prev_id_):
-            remove_marker_.id = i
-            self.marker_list_.markers.append(remove_marker_)
-
-        self.pub_.publish(self.marker_list_)
-
-    def get_id(self):
-        cur_id = self.id_
-        self.id_ += 1
-        return cur_id
-
-
-class ROSLine(ROSMarker):
-    def __init__(self, ros_publisher, frame_id):
-        super().__init__(ros_publisher, frame_id)
-
-        self.marker_.type = Marker.LINE_LIST
-
-        # LINE_STRIP/LINE_LIST markers use only the x component of scale, for the line width
-        self.marker_.scale.x = 0.5
-
-        # Line strip is red
-        self.set_color(1, 0, 0)
-
-        self.marker_.pose.orientation.x = 0.0
-        self.marker_.pose.orientation.y = 0.0
-        self.marker_.pose.orientation.z = 0.0
-        self.marker_.pose.orientation.w = 1.0
-
-    def add_line(self, p1, p2, z=None):
-        if isinstance(p1, np.ndarray) and len(p1) == 2 and z is not None:
-            # Handle 2D points with z value
-            point1 = self.vec_to_point(np.array([p1[0], p1[1], z]))
-            point2 = self.vec_to_point(np.array([p2[0], p2[1], z]))
-            self.add_line_points(point1, point2)
-        elif isinstance(p1, np.ndarray) and len(p1) == 3:
-            # Handle 3D points
-            point1 = self.vec_to_point(p1)
-            point2 = self.vec_to_point(p2)
-            self.add_line_points(point1, point2)
-        elif isinstance(p1, np.ndarray) and len(p1) == 2 and z is None:
-            # Handle 2D points with default z=0
-            point1 = self.vec_to_point(np.array([p1[0], p1[1], 0.0]))
-            point2 = self.vec_to_point(np.array([p2[0], p2[1], 0.0]))
-            self.add_line_points(point1, point2)
-        elif isinstance(p1, Point) and isinstance(p2, Point):
-            # Handle Point messages
-            self.add_line_points(p1, p2)
-
-    def add_line_points(self, p1, p2):
-        # Request an ID
-        self.marker_.id = self.ros_publisher_.get_id()
-
-        # Add the points
-        self.marker_.points.append(p1)
-        self.marker_.points.append(p2)
-
-        # Add line to the publisher
-        self.ros_publisher_.add(self.marker_)
-
-        # Clear points
-        self.marker_.points = []
-
-    def add_broken_line(self, p1, p2, dist):
-        if isinstance(p1, np.ndarray) and isinstance(p2, np.ndarray):
-            # Convert to Point messages
-            p1_msg = self.vec_to_point(p1)
-            p2_msg = self.vec_to_point(p2)
-            self.add_broken_line_points(p1_msg, p2_msg, dist)
-        else:
-            # Assume they're already Point messages
-            self.add_broken_line_points(p1, p2, dist)
-
-    def add_broken_line_points(self, p1, p2, dist):
-        # Interpolate the points, ensure 0.5 of the broken line at both sides!
-        dpoints = math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2 + (p1.z - p2.z) ** 2)
-        num_lines = math.floor(dpoints / (2.0 * dist))  # Also includes spaces!
-        extra = dpoints - num_lines * (2.0 * dist)  # The difference
-
-        num_elements = num_lines * 2
-
-        dir_vec = np.array([p2.x - p1.x, p2.y - p1.y, p2.z - p1.z])
-        dir_vec = dir_vec / np.linalg.norm(dir_vec)  # Normalize
-
-        cur_p = p1
-        for i in range(num_elements + 1):  # The first line is split in an end and start
-            next_p = Point()
-
-            if i == 0 or i == num_elements:
-                next_p.x = cur_p.x + dir_vec[0] * 0.5 * (dist + extra / 2.0)
-                next_p.y = cur_p.y + dir_vec[1] * 0.5 * (dist + extra / 2.0)
-                next_p.z = cur_p.z + dir_vec[2] * 0.5 * (dist + extra / 2.0)
-            else:
-                next_p.x = cur_p.x + dir_vec[0] * dist
-                next_p.y = cur_p.y + dir_vec[1] * dist
-                next_p.z = cur_p.z + dir_vec[2] * dist
-
-            if i % 2 == 0:  # If this is a line, not a space
-                self.add_line_points(cur_p, next_p)
-
-            cur_p = next_p
+    def set_type(self, marker_type: int):
+        """Set marker type."""
+        self.marker_data['type'] = marker_type
 
     def publish(self):
-        pass
+        """Publish marker (store for visualization)."""
+        self.data = self.marker_data.copy()
 
-    def add_new_line(self):
-        pass
+
+class ROSMarkerPublisher(MockVisualizer):
+    """ROS-free marker publisher."""
+    
+    def __init__(self, name: str = "marker_publisher", frame_id: str = "map"):
+        super().__init__(name, frame_id)
+        self.markers = []
+        
+    def add_marker(self, marker: ROSMarker):
+        """Add a marker to the publisher."""
+        self.markers.append(marker)
+    
+    def publish(self):
+        """Publish all markers."""
+        marker_data = []
+        for marker in self.markers:
+            if hasattr(marker, 'data') and marker.data:
+                marker_data.append(marker.data)
+        self.data = marker_data
 
 
 class ROSPointMarker(ROSMarker):
-    def __init__(self, ros_publisher, frame_id, marker_type):
-        super().__init__(ros_publisher, frame_id)
-        self.marker_type_ = marker_type
-
-        self.marker_.type = self.get_marker_type(marker_type)
-
-        # Set default scale
-        self.marker_.scale.x = 0.5
-        self.marker_.scale.y = 0.5
-
-        # Default color (red)
-        self.set_color(1.0, 0.0, 0.0)
-
-        # Default orientation (identity quaternion)
-        self.marker_.pose.orientation.x = 0.0
-        self.marker_.pose.orientation.y = 0.0
-        self.marker_.pose.orientation.z = 0.0
-        self.marker_.pose.orientation.w = 1.0
-
-    def add_point_marker(self, p, z=None):
-        if isinstance(p, np.ndarray) and len(p) == 2 and z is not None:
-            # Handle 2D point with z
-            result = Point()
-            result.x = p[0]
-            result.y = p[1]
-            result.z = z
-            self.add_point_from_msg(result)
-        elif isinstance(p, np.ndarray) and len(p) == 3:
-            # Handle 3D point
-            result = self.vec_to_point(p)
-            self.add_point_from_msg(result)
-        elif isinstance(p, np.ndarray) and len(p) == 2 and z is None:
-            # Handle 2D point with default z=0
-            result = Point()
-            result.x = p[0]
-            result.y = p[1]
-            result.z = 0.0
-            self.add_point_from_msg(result)
-        elif isinstance(p, Point):
-            # Handle Point message
-            self.add_point_from_msg(p)
-        elif isinstance(p, Pose):
-            # Handle Pose message
-            self.marker_.id = self.ros_publisher_.get_id()
-            self.marker_.pose = p
-            self.ros_publisher_.add(self.marker_)
-
-    def add_point_from_msg(self, point):
-        # Request an ID
-        self.marker_.id = self.ros_publisher_.get_id()
-
-        # Set position
-        self.marker_.pose.position = point
-
-        # Add to publisher
-        self.ros_publisher_.add(self.marker_)
-
-    def set_z(self, z):
-        self.marker_.pose.position.z = z
-
-    @staticmethod
-    def get_marker_type(marker_type):
-        marker_types = {
-            "CUBE": Marker.CUBE,
-            "ARROW": Marker.ARROW,
-            "SPHERE": Marker.SPHERE,
-            "POINTS": Marker.POINTS,
-            "CYLINDER": Marker.CYLINDER
-        }
-        return marker_types.get(marker_type, Marker.CUBE)
+    """ROS-free point marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(2)  # SPHERE
+        self.set_scale(0.1, 0.1, 0.1)
 
 
 class ROSMultiplePointMarker(ROSMarker):
-    def __init__(self, ros_publisher, frame_id, marker_type="POINTS"):
-        super().__init__(ros_publisher, frame_id)
-
-        self.marker_.type = self.get_multiple_marker_type(marker_type)
-
-        # Set default scale
-        self.marker_.scale.x = 0.5
-        self.marker_.scale.y = 0.5
-
-        # Default color (green)
-        self.set_color(0, 1, 0)
-
-        # Default orientation (identity quaternion)
-        self.marker_.pose.orientation.x = 0.0
-        self.marker_.pose.orientation.y = 0.0
-        self.marker_.pose.orientation.z = 0.0
-        self.marker_.pose.orientation.w = 1.0
-
-    def add_point_marker(self, p):
-        if isinstance(p, np.ndarray):
-            # Handle numpy array
-            result = self.vec_to_point(p)
-            self.marker_.points.append(result)
-        elif isinstance(p, Point):
-            # Handle Point message
-            self.marker_.points.append(p)
-        elif isinstance(p, Pose):
-            # Handle Pose message
-            result = Point()
-            result.x = p.position.x
-            result.y = p.position.y
-            result.z = p.position.z
-            self.marker_.points.append(result)
-
-    def finish_points(self):
-        self.marker_.id = self.ros_publisher_.get_id()
-        self.ros_publisher_.add(self.marker_)
-
-    @staticmethod
-    def get_multiple_marker_type(marker_type):
-        marker_types = {
-            "CUBE": Marker.CUBE_LIST,
-            "SPHERE": Marker.SPHERE_LIST,
-            "POINTS": Marker.POINTS
-        }
-        return marker_types.get(marker_type, Marker.CUBE_LIST)
+    """ROS-free multiple point marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(8)  # POINTS
+        self.points = []
+    
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the marker."""
+        self.points.append((x, y, z))
+    
+    def publish(self):
+        """Publish multiple points."""
+        self.marker_data['points'] = self.points
+        super().publish()
 
 
 class ROSTextMarker(ROSMarker):
-    def __init__(self, ros_publisher, frame_id):
-        super().__init__(ros_publisher, frame_id)
-
-        self.marker_.type = Marker.TEXT_VIEW_FACING
-
-        # Set default scale (z sets the size of an uppercase "A")
-        self.marker_.scale.x = 1.0
-        self.marker_.scale.y = 1.0
-        self.marker_.scale.z = 0.2
-
-        # Default text
-        self.marker_.text = "TEST"
-
-        # Default color (green)
-        self.set_color(0, 1, 0)
-
-        # Default orientation (identity quaternion)
-        self.marker_.pose.orientation.x = 0.0
-        self.marker_.pose.orientation.y = 0.0
-        self.marker_.pose.orientation.z = 0.0
-        self.marker_.pose.orientation.w = 1.0
-
-    def add_point_marker(self, p):
-        if isinstance(p, np.ndarray):
-            # Handle numpy array
-            result = self.vec_to_point(p)
-            self.add_point_from_msg(result)
-        elif isinstance(p, Point):
-            # Handle Point message
-            self.add_point_from_msg(p)
-        elif isinstance(p, Pose):
-            # Handle Pose message
-            result = Point()
-            result.x = p.position.x
-            result.y = p.position.y
-            result.z = p.position.z
-            self.add_point_from_msg(result)
-
-    def add_point_from_msg(self, point):
-        # Request an ID
-        self.marker_.id = self.ros_publisher_.get_id()
-
-        # Set position
-        self.marker_.pose.position = point
-
-        # Add to publisher
-        self.ros_publisher_.add(self.marker_)
-
-    def set_z(self, z):
-        self.marker_.pose.position.z = z
-
-    def set_text(self, text):
-        self.marker_.text = text
-
-    def set_scale(self, z):
-        self.marker_.scale.z = z  # Only scale "z" is used for text
+    """ROS-free text marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(9)  # TEXT_VIEW_FACING
 
 
-class ROSModelMarker(ROSMarker):
-    def __init__(self, ros_publisher, frame_id, model_path):
-        super().__init__(ros_publisher, frame_id)
-
-        self.marker_.type = Marker.MESH_RESOURCE
-        self.marker_.mesh_resource = model_path
-
-        # Set default scale
-        self.marker_.scale.x = 1.0
-        self.marker_.scale.y = 1.0
-        self.marker_.scale.z = 1.0
-
-        # Default color (green)
-        self.set_color(0, 1, 0)
-
-        # Default orientation (identity quaternion)
-        self.marker_.pose.orientation.x = 0.0
-        self.marker_.pose.orientation.y = 0.0
-        self.marker_.pose.orientation.z = 0.0
-        self.marker_.pose.orientation.w = 1.0
-
-    def add_point_marker(self, p, z=None):
-        if isinstance(p, np.ndarray) and len(p) == 2 and z is not None:
-            # Handle 2D point with z
-            result = Point()
-            result.x = p[0]
-            result.y = p[1]
-            result.z = z
-            self.add_point_from_msg(result)
-        elif isinstance(p, np.ndarray) and len(p) == 3:
-            # Handle 3D point
-            result = self.vec_to_point(p)
-            self.add_point_from_msg(result)
-        elif isinstance(p, np.ndarray) and len(p) == 2 and z is None:
-            # Handle 2D point with default z=0
-            result = Point()
-            result.x = p[0]
-            result.y = p[1]
-            result.z = 0.0
-            self.add_point_from_msg(result)
-        elif isinstance(p, Point):
-            # Handle Point message
-            self.add_point_from_msg(p)
-        elif isinstance(p, Pose):
-            # Handle Pose message
-            result = Point()
-            result.x = p.position.x
-            result.y = p.position.y
-            result.z = p.position.z
-            self.add_point_from_msg(result)
-
-    def add_point_from_msg(self, point):
-        # Request an ID
-        self.marker_.id = self.ros_publisher_.get_id()
-
-        # Set position
-        self.marker_.pose.position = point
-
-        # Add to publisher
-        self.ros_publisher_.add(self.marker_)
+class ROSPolygonMarker(ROSMarker):
+    """ROS-free polygon marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(5)  # LINE_LIST
+        self.points = []
+    
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the polygon."""
+        self.points.append((x, y, z))
+    
+    def publish(self):
+        """Publish polygon."""
+        self.marker_data['points'] = self.points
+        super().publish()
 
 
-# New class to manage publishers - similar to how C++ implementation works
-class ROSVisualsManager:
-    def __init__(self, node, frame_id="map"):
-        self.node = node
-        self.frame_id = frame_id
-        self.publishers = {}
+class ROSArrowMarker(ROSMarker):
+    """ROS-free arrow marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(0)  # ARROW
 
-    def getPublisher(self, name):
-        """Get or create a publisher with the given name"""
-        if name not in self.publishers:
-            # Create new publisher
-            self.publishers[name] = ROSMarkerPublisher(self.node, f"/visualization/{name}", self.frame_id)
-        return self.publishers[name]
 
-def visualize_linear_constraint(a1, a2, b, k, N, topic_name, publish, alpha, thickness):
-    publisher = VISUALS.get_publisher(topic_name)
-    line = publisher.get_new_line()
-    line.set_color_from_index(k, N, alpha)  # Assuming equivalent of setColorInt
-    line.set_scale(thickness)
+class ROSCubeMarker(ROSMarker):
+    """ROS-free cube marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(1)  # CUBE
 
-    if abs(a1) < 1e-3 and abs(a2) < 1e-3:
-        return publisher
 
-    line_length = 1e6
-    p1 = np.zeros(2)
-    p2 = np.zeros(2)
+class ROSSphereMarker(ROSMarker):
+    """ROS-free sphere marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(2)  # SPHERE
 
-    if abs(a2) >= 1e-3:
-        p1[0] = -line_length
-        p1[1] = (b - a1 * p1[0]) / a2
 
-        p2[0] = line_length
-        p2[1] = (b - a1 * p2[0]) / a2
-    else:
-        p1[1] = -line_length
-        p1[0] = (b - a2 * p1[1]) / a1
+class ROSCylinderMarker(ROSMarker):
+    """ROS-free cylinder marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(3)  # CYLINDER
 
-        p2[1] = line_length
-        p2[0] = (b - a2 * p2[1]) / a1
 
-    line.add_line(p1.tolist(), p2.tolist())
+class ROSPlaneMarker(ROSMarker):
+    """ROS-free plane marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(4)  # PLANE
 
-    if publish:
-        publisher.publish()
 
+class ROSLineStripMarker(ROSMarker):
+    """ROS-free line strip marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(4)  # LINE_STRIP
+        self.points = []
+    
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the line strip."""
+        self.points.append((x, y, z))
+    
+    def publish(self):
+        """Publish line strip."""
+        self.marker_data['points'] = self.points
+        super().publish()
+
+
+class ROSLineListMarker(ROSMarker):
+    """ROS-free line list marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(5)  # LINE_LIST
+        self.points = []
+    
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the line list."""
+        self.points.append((x, y, z))
+    
+    def publish(self):
+        """Publish line list."""
+        self.marker_data['points'] = self.points
+        super().publish()
+
+
+class ROSCubeListMarker(ROSMarker):
+    """ROS-free cube list marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(6)  # CUBE_LIST
+        self.points = []
+    
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the cube list."""
+        self.points.append((x, y, z))
+    
+    def publish(self):
+        """Publish cube list."""
+        self.marker_data['points'] = self.points
+        super().publish()
+
+
+class ROSSphereListMarker(ROSMarker):
+    """ROS-free sphere list marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(7)  # SPHERE_LIST
+        self.points = []
+    
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the sphere list."""
+        self.points.append((x, y, z))
+    
+    def publish(self):
+        """Publish sphere list."""
+        self.marker_data['points'] = self.points
+        super().publish()
+
+
+class ROSPointsMarker(ROSMarker):
+    """ROS-free points marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(8)  # POINTS
+        self.points = []
+    
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the points marker."""
+        self.points.append((x, y, z))
+    
+    def publish(self):
+        """Publish points."""
+        self.marker_data['points'] = self.points
+        super().publish()
+
+
+class ROSMeshMarker(ROSMarker):
+    """ROS-free mesh marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(10)  # MESH_RESOURCE
+
+
+class ROSTriangleListMarker(ROSMarker):
+    """ROS-free triangle list marker."""
+    
+    def __init__(self, publisher=None, frame_id: str = "map"):
+        super().__init__(publisher, frame_id)
+        self.set_type(11)  # TRIANGLE_LIST
+        self.points = []
+    
+    def add_point(self, x: float, y: float, z: float = 0.0):
+        """Add a point to the triangle list."""
+        self.points.append((x, y, z))
+    
+    def publish(self):
+        """Publish triangle list."""
+        self.marker_data['points'] = self.points
+        super().publish()
+
+
+class VisualizationManager:
+    """Manager for ROS-free visualization."""
+    
+    def __init__(self):
+        self.visualizers = {}
+        self.fig = None
+        self.ax = None
+        
+    def add_visualizer(self, name: str, visualizer: MockVisualizer):
+        """Add a visualizer."""
+        self.visualizers[name] = visualizer
+        
+    def create_plot(self, title: str = "PyMPC Visualization", figsize: Tuple[int, int] = (12, 8)):
+        """Create a matplotlib plot."""
+        self.fig, self.ax = plt.subplots(figsize=figsize)
+        self.ax.set_title(title)
+        self.ax.set_xlabel('X (m)')
+        self.ax.set_ylabel('Y (m)')
+        self.ax.grid(True, alpha=0.3)
+        self.ax.set_aspect('equal')
+        
+    def visualize_all(self):
+        """Visualize all stored data."""
+        if self.fig is None:
+            self.create_plot()
+            
+        for name, visualizer in self.visualizers.items():
+            if hasattr(visualizer, 'data') and visualizer.data:
+                self._plot_visualizer_data(name, visualizer.data)
+                
+        plt.legend()
+        plt.show()
+        
+    def _plot_visualizer_data(self, name: str, data):
+        """Plot data from a visualizer."""
+        if isinstance(data, dict):
+            if data.get('type') == 'line' and 'points' in data:
+                points = np.array(data['points'])
+                if len(points) > 1:
+                    color = data.get('color', (1.0, 0.0, 0.0, 1.0))[:3]
+                    width = data.get('width', 1.0)
+                    self.ax.plot(points[:, 0], points[:, 1], color=color, linewidth=width, label=name)
+                    
+            elif 'position' in data:
+                pos = data['position']
+                color = data.get('color', (1.0, 0.0, 0.0, 1.0))[:3]
+                scale = data.get('scale', (0.1, 0.1, 0.1))
+                
+                if data.get('type') == 2:  # SPHERE
+                    circle = patches.Circle((pos[0], pos[1]), scale[0], color=color, alpha=0.7)
+                    self.ax.add_patch(circle)
+                elif data.get('type') == 1:  # CUBE
+                    rect = patches.Rectangle((pos[0] - scale[0]/2, pos[1] - scale[1]/2), 
+                                          scale[0], scale[1], color=color, alpha=0.7)
+                    self.ax.add_patch(rect)
+                    
+        elif isinstance(data, list):
+            for i, item in enumerate(data):
+                self._plot_visualizer_data(f"{name}_{i}", item)
+                
+    def save_plot(self, filename: str):
+        """Save the current plot."""
+        if self.fig is not None:
+            self.fig.savefig(filename, dpi=300, bbox_inches='tight')
+            
+    def clear_all(self):
+        """Clear all visualizer data."""
+        for visualizer in self.visualizers.values():
+            visualizer.clear()
+
+
+# Global visualization manager
+viz_manager = VisualizationManager()
+
+
+def create_visualization_publisher(name: str, publisher_type=ROSLine, frame_id: str = "map"):
+    """Create a visualization publisher (ROS-free version)."""
+    publisher = publisher_type(name, frame_id)
+    viz_manager.add_visualizer(name, publisher)
     return publisher
-
-def visualize_linear_constraint_from_halfspace(halfspace, k, N, topic_name, publish, alpha, thickness):
-    return visualize_linear_constraint(
-        halfspace.A[0], halfspace.A[1], halfspace.b,
-        k, N, topic_name, publish, alpha, thickness
-    )
-
-
-
-# Singleton instance for visualizer
-class VisualizerSingleton:
-    _instance = None
-
-    @classmethod
-    def initialize(cls, node, frame_id="map"):
-        """Initialize the visualizer singleton"""
-        if cls._instance is None:
-            cls._instance = ROSVisualsManager(node, frame_id)
-        return cls._instance
-
-    @classmethod
-    def getInstance(cls):
-        """Get the visualizer singleton instance"""
-        if cls._instance is None:
-            raise RuntimeError("Visualizer singleton not initialized")
-        return cls._instance
-
-
-# Global VISUALS accessor - matches C++ usage
-def get_visualizer():
-    return VisualizerSingleton.getInstance()
-
-
-# Define a global VISUALS variable when imported
-VISUALS = None

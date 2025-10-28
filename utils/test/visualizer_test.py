@@ -1,13 +1,10 @@
 import unittest
 from unittest.mock import MagicMock, patch
 import numpy as np
-from rclpy.node import Node
-from visualization_msgs.msg import Marker, MarkerArray
-from geometry_msgs.msg import Point, Pose, Quaternion
 import math
 
 # Import your modules - adjust import paths as needed
-from utils.visualizer import ROSMarker, ROSMarkerPublisher, ROSLine, ROSPointMarker, ROSMultiplePointMarker, ROSTextMarker, \
+from utils.visualizer_compat import ROSMarker, ROSMarkerPublisher, ROSLine, ROSPointMarker, ROSMultiplePointMarker, ROSTextMarker, \
     ROSModelMarker, Colormap
 
 
@@ -70,7 +67,7 @@ class TestROSMarker(unittest.TestCase):
         self.assertEqual(self.marker.marker_.scale.y, 4.0)
         self.assertEqual(self.marker.marker_.scale.z, 5.0)
 
-    @patch('tf2_ros.transformations.quaternion_from_euler')
+    @patch('utils.visualizer_compat.time.time')
     def test_set_orientation(self, mock_quaternion):
         # Test with float (yaw angle)
         mock_quaternion.return_value = [0.1, 0.2, 0.3, 0.4]
@@ -98,7 +95,7 @@ class TestROSMarker(unittest.TestCase):
         self.assertEqual(self.marker.marker_.pose.orientation.w, 0.6)
 
     def test_set_lifetime(self):
-        with patch('rclpy.duration.Duration') as mock_duration:
+        with patch('utils.visualizer_compat.time.time') as mock_time:
             mock_duration_instance = MagicMock()
             mock_duration.return_value = mock_duration_instance
 

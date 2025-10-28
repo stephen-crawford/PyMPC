@@ -5,7 +5,7 @@ from planning.src.types import PredictionType
 from utils.const import GAUSSIAN, DYNAMIC
 from utils.math_utils import exponential_quantile, rotation_matrix, casadi_rotation_matrix
 from utils.utils import LOG_DEBUG, PROFILE_SCOPE, CONFIG, LOG_INFO
-from utils.visualizer import ROSPointMarker
+from utils.visualizer_compat import ROSPointMarker
 from planner_modules.src.constraints.base_constraint import BaseConstraint
 
 class GaussianConstraints(BaseConstraint):
