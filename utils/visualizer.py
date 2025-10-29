@@ -83,7 +83,7 @@ class ROSMarker(MockVisualizer):
         super().__init__("marker", frame_id)
         self.publisher = publisher
         self.marker_data = {}
-        
+
     def stamp(self):
         """Mock timestamp."""
         import time
@@ -167,7 +167,7 @@ class ROSMarkerPublisher(MockVisualizer):
     def add_marker(self, marker: ROSMarker):
         """Add a marker to the publisher."""
         self.markers.append(marker)
-    
+
     def publish(self):
         """Publish all markers."""
         marker_data = []

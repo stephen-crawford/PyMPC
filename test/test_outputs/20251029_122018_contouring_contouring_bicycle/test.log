@@ -1,0 +1,2642 @@
+2025-10-29 12:20:18,681 - INFO - Step 0/80
+2025-10-29 12:20:18,695 - ERROR - MPC solve failed at step 0: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,695 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,695 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,695 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,695 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,695 - INFO - Step 0 completed in 0.014s
+2025-10-29 12:20:18,711 - INFO - Step 1/80
+2025-10-29 12:20:18,725 - ERROR - MPC solve failed at step 1: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,725 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,725 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,725 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,725 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,725 - INFO - Step 1 completed in 0.014s
+2025-10-29 12:20:18,741 - INFO - Step 2/80
+2025-10-29 12:20:18,754 - ERROR - MPC solve failed at step 2: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,754 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,754 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,754 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,754 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,754 - INFO - Step 2 completed in 0.013s
+2025-10-29 12:20:18,769 - INFO - Step 3/80
+2025-10-29 12:20:18,781 - ERROR - MPC solve failed at step 3: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,781 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,781 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,781 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,781 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,781 - INFO - Step 3 completed in 0.013s
+2025-10-29 12:20:18,796 - INFO - Step 4/80
+2025-10-29 12:20:18,808 - ERROR - MPC solve failed at step 4: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,808 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,808 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,808 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,808 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,808 - INFO - Step 4 completed in 0.013s
+2025-10-29 12:20:18,823 - INFO - Step 5/80
+2025-10-29 12:20:18,835 - ERROR - MPC solve failed at step 5: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,835 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,835 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,835 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,835 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,835 - INFO - Step 5 completed in 0.012s
+2025-10-29 12:20:18,850 - INFO - Step 6/80
+2025-10-29 12:20:18,862 - ERROR - MPC solve failed at step 6: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,862 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,862 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,862 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,862 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,862 - INFO - Step 6 completed in 0.012s
+2025-10-29 12:20:18,877 - INFO - Step 7/80
+2025-10-29 12:20:18,890 - ERROR - MPC solve failed at step 7: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,890 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,890 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,890 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,890 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,891 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,891 - INFO - Step 7 completed in 0.013s
+2025-10-29 12:20:18,906 - INFO - Step 8/80
+2025-10-29 12:20:18,918 - ERROR - MPC solve failed at step 8: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,918 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,918 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,918 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,918 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,919 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,919 - INFO - Step 8 completed in 0.013s
+2025-10-29 12:20:18,934 - INFO - Step 9/80
+2025-10-29 12:20:18,946 - ERROR - MPC solve failed at step 9: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,946 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,946 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,946 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,946 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,947 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,947 - INFO - Step 9 completed in 0.013s
+2025-10-29 12:20:18,961 - INFO - Step 10/80
+2025-10-29 12:20:18,974 - ERROR - MPC solve failed at step 10: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:18,974 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:18,974 - ERROR - robot_area length: 1
+2025-10-29 12:20:18,974 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:18,974 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:18,974 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:18,974 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:18,974 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:18,974 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:18,975 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:18,975 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:18,975 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:18,975 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:18,975 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:18,975 - INFO - Step 10 completed in 0.013s
+2025-10-29 12:20:18,990 - INFO - Step 11/80
+2025-10-29 12:20:19,002 - ERROR - MPC solve failed at step 11: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,002 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,002 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,002 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,002 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,002 - INFO - Step 11 completed in 0.012s
+2025-10-29 12:20:19,018 - INFO - Step 12/80
+2025-10-29 12:20:19,030 - ERROR - MPC solve failed at step 12: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,030 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,030 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,030 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,030 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,030 - INFO - Step 12 completed in 0.012s
+2025-10-29 12:20:19,045 - INFO - Step 13/80
+2025-10-29 12:20:19,057 - ERROR - MPC solve failed at step 13: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,057 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,057 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,057 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,057 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,057 - INFO - Step 13 completed in 0.012s
+2025-10-29 12:20:19,072 - INFO - Step 14/80
+2025-10-29 12:20:19,084 - ERROR - MPC solve failed at step 14: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,084 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,084 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,084 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,084 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,084 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,084 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,084 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,084 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,084 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,084 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,085 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,085 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,085 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,085 - INFO - Step 14 completed in 0.012s
+2025-10-29 12:20:19,099 - INFO - Step 15/80
+2025-10-29 12:20:19,112 - ERROR - MPC solve failed at step 15: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,112 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,112 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,112 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,112 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,112 - INFO - Step 15 completed in 0.013s
+2025-10-29 12:20:19,126 - INFO - Step 16/80
+2025-10-29 12:20:19,138 - ERROR - MPC solve failed at step 16: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,138 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,138 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,138 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,138 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,138 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,138 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,138 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,138 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,138 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,139 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,139 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,139 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,139 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,139 - INFO - Step 16 completed in 0.012s
+2025-10-29 12:20:19,154 - INFO - Step 17/80
+2025-10-29 12:20:19,165 - ERROR - MPC solve failed at step 17: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,166 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,166 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,166 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,166 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,166 - INFO - Step 17 completed in 0.012s
+2025-10-29 12:20:19,180 - INFO - Step 18/80
+2025-10-29 12:20:19,192 - ERROR - MPC solve failed at step 18: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,193 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,193 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,193 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,193 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,193 - INFO - Step 18 completed in 0.013s
+2025-10-29 12:20:19,207 - INFO - Step 19/80
+2025-10-29 12:20:19,220 - ERROR - MPC solve failed at step 19: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,220 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,220 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,220 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,220 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,221 - INFO - Step 19 completed in 0.013s
+2025-10-29 12:20:19,237 - INFO - Step 20/80
+2025-10-29 12:20:19,251 - ERROR - MPC solve failed at step 20: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,251 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,251 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,251 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,251 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,251 - INFO - Step 20 completed in 0.014s
+2025-10-29 12:20:19,268 - INFO - Step 21/80
+2025-10-29 12:20:19,281 - ERROR - MPC solve failed at step 21: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,281 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,281 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,281 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,281 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,281 - INFO - Step 21 completed in 0.013s
+2025-10-29 12:20:19,296 - INFO - Step 22/80
+2025-10-29 12:20:19,308 - ERROR - MPC solve failed at step 22: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,309 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,309 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,309 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,309 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,309 - INFO - Step 22 completed in 0.013s
+2025-10-29 12:20:19,324 - INFO - Step 23/80
+2025-10-29 12:20:19,336 - ERROR - MPC solve failed at step 23: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,336 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,336 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,336 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,336 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,336 - INFO - Step 23 completed in 0.012s
+2025-10-29 12:20:19,352 - INFO - Step 24/80
+2025-10-29 12:20:19,364 - ERROR - MPC solve failed at step 24: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,364 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,364 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,364 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,364 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,364 - INFO - Step 24 completed in 0.012s
+2025-10-29 12:20:19,379 - INFO - Step 25/80
+2025-10-29 12:20:19,390 - ERROR - MPC solve failed at step 25: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,391 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,391 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,391 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,391 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,391 - INFO - Step 25 completed in 0.012s
+2025-10-29 12:20:19,406 - INFO - Step 26/80
+2025-10-29 12:20:19,418 - ERROR - MPC solve failed at step 26: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,419 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,419 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,419 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,419 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,419 - INFO - Step 26 completed in 0.013s
+2025-10-29 12:20:19,434 - INFO - Step 27/80
+2025-10-29 12:20:19,446 - ERROR - MPC solve failed at step 27: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,446 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,446 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,446 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,446 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,446 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,446 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,446 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,447 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,447 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,447 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,447 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,447 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,447 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,447 - INFO - Step 27 completed in 0.013s
+2025-10-29 12:20:19,461 - INFO - Step 28/80
+2025-10-29 12:20:19,474 - ERROR - MPC solve failed at step 28: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,474 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,474 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,474 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,474 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,474 - INFO - Step 28 completed in 0.013s
+2025-10-29 12:20:19,490 - INFO - Step 29/80
+2025-10-29 12:20:19,504 - ERROR - MPC solve failed at step 29: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,504 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,504 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,504 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,504 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,505 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,505 - INFO - Step 29 completed in 0.014s
+2025-10-29 12:20:19,522 - INFO - Step 30/80
+2025-10-29 12:20:19,536 - ERROR - MPC solve failed at step 30: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,536 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,536 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,536 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,536 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,536 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,537 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,537 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,537 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,537 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,537 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,537 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,537 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,537 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,537 - INFO - Step 30 completed in 0.014s
+2025-10-29 12:20:19,555 - INFO - Step 31/80
+2025-10-29 12:20:19,570 - ERROR - MPC solve failed at step 31: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,570 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,570 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,570 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,570 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,570 - INFO - Step 31 completed in 0.015s
+2025-10-29 12:20:19,590 - INFO - Step 32/80
+2025-10-29 12:20:19,607 - ERROR - MPC solve failed at step 32: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,607 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,607 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,607 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,607 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,607 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,607 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,608 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,608 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,608 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,608 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,608 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,608 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,608 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,608 - INFO - Step 32 completed in 0.017s
+2025-10-29 12:20:19,628 - INFO - Step 33/80
+2025-10-29 12:20:19,644 - ERROR - MPC solve failed at step 33: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,644 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,645 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,645 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,645 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,645 - INFO - Step 33 completed in 0.017s
+2025-10-29 12:20:19,667 - INFO - Step 34/80
+2025-10-29 12:20:19,683 - ERROR - MPC solve failed at step 34: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,684 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,684 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,684 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,684 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,684 - INFO - Step 34 completed in 0.017s
+2025-10-29 12:20:19,701 - INFO - Step 35/80
+2025-10-29 12:20:19,715 - ERROR - MPC solve failed at step 35: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,715 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,715 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,715 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,715 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,715 - INFO - Step 35 completed in 0.014s
+2025-10-29 12:20:19,733 - INFO - Step 36/80
+2025-10-29 12:20:19,747 - ERROR - MPC solve failed at step 36: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,747 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,747 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,747 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,747 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,747 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,747 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,748 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,748 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,748 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,748 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,748 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,748 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,748 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,748 - INFO - Step 36 completed in 0.015s
+2025-10-29 12:20:19,765 - INFO - Step 37/80
+2025-10-29 12:20:19,779 - ERROR - MPC solve failed at step 37: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,779 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,779 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,779 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,779 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,779 - INFO - Step 37 completed in 0.014s
+2025-10-29 12:20:19,797 - INFO - Step 38/80
+2025-10-29 12:20:19,811 - ERROR - MPC solve failed at step 38: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,812 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,812 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,812 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,812 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,812 - INFO - Step 38 completed in 0.015s
+2025-10-29 12:20:19,830 - INFO - Step 39/80
+2025-10-29 12:20:19,844 - ERROR - MPC solve failed at step 39: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,845 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,845 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,845 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,845 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,845 - INFO - Step 39 completed in 0.015s
+2025-10-29 12:20:19,863 - INFO - Step 40/80
+2025-10-29 12:20:19,881 - ERROR - MPC solve failed at step 40: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,881 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,881 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,881 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,881 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,881 - INFO - Step 40 completed in 0.018s
+2025-10-29 12:20:19,900 - INFO - Step 41/80
+2025-10-29 12:20:19,915 - ERROR - MPC solve failed at step 41: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,915 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,915 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,916 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,916 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,916 - INFO - Step 41 completed in 0.016s
+2025-10-29 12:20:19,943 - INFO - Step 42/80
+2025-10-29 12:20:19,957 - ERROR - MPC solve failed at step 42: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,957 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,957 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,957 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,957 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,957 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,957 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,957 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,958 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,958 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,958 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,958 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,958 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,958 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,958 - INFO - Step 42 completed in 0.015s
+2025-10-29 12:20:19,975 - INFO - Step 43/80
+2025-10-29 12:20:19,989 - ERROR - MPC solve failed at step 43: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:19,989 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:19,989 - ERROR - robot_area length: 1
+2025-10-29 12:20:19,990 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:19,990 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:19,990 - INFO - Step 43 completed in 0.014s
+2025-10-29 12:20:20,009 - INFO - Step 44/80
+2025-10-29 12:20:20,024 - ERROR - MPC solve failed at step 44: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,024 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,024 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,024 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,024 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,024 - INFO - Step 44 completed in 0.015s
+2025-10-29 12:20:20,042 - INFO - Step 45/80
+2025-10-29 12:20:20,056 - ERROR - MPC solve failed at step 45: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,056 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,056 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,056 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,056 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,056 - INFO - Step 45 completed in 0.014s
+2025-10-29 12:20:20,075 - INFO - Step 46/80
+2025-10-29 12:20:20,089 - ERROR - MPC solve failed at step 46: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,089 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,090 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,090 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,090 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,090 - INFO - Step 46 completed in 0.015s
+2025-10-29 12:20:20,112 - INFO - Step 47/80
+2025-10-29 12:20:20,128 - ERROR - MPC solve failed at step 47: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,128 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,128 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,128 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,128 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,128 - INFO - Step 47 completed in 0.016s
+2025-10-29 12:20:20,144 - INFO - Step 48/80
+2025-10-29 12:20:20,159 - ERROR - MPC solve failed at step 48: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,159 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,159 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,159 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,159 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,159 - INFO - Step 48 completed in 0.015s
+2025-10-29 12:20:20,176 - INFO - Step 49/80
+2025-10-29 12:20:20,190 - ERROR - MPC solve failed at step 49: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,190 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,190 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,190 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,190 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,190 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,191 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,191 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,191 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,191 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,191 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,191 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,191 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,191 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,191 - INFO - Step 49 completed in 0.014s
+2025-10-29 12:20:20,208 - INFO - Step 50/80
+2025-10-29 12:20:20,222 - ERROR - MPC solve failed at step 50: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,222 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,222 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,222 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,222 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,222 - INFO - Step 50 completed in 0.014s
+2025-10-29 12:20:20,239 - INFO - Step 51/80
+2025-10-29 12:20:20,254 - ERROR - MPC solve failed at step 51: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,254 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,254 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,254 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,254 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,254 - INFO - Step 51 completed in 0.015s
+2025-10-29 12:20:20,272 - INFO - Step 52/80
+2025-10-29 12:20:20,287 - ERROR - MPC solve failed at step 52: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,287 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,287 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,287 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,287 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,287 - INFO - Step 52 completed in 0.015s
+2025-10-29 12:20:20,305 - INFO - Step 53/80
+2025-10-29 12:20:20,319 - ERROR - MPC solve failed at step 53: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,319 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,319 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,319 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,319 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,319 - INFO - Step 53 completed in 0.014s
+2025-10-29 12:20:20,336 - INFO - Step 54/80
+2025-10-29 12:20:20,352 - ERROR - MPC solve failed at step 54: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,352 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,352 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,352 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,352 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,353 - INFO - Step 54 completed in 0.017s
+2025-10-29 12:20:20,370 - INFO - Step 55/80
+2025-10-29 12:20:20,384 - ERROR - MPC solve failed at step 55: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,384 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,384 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,384 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,384 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,384 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,384 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,384 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,384 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,384 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,385 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,385 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,385 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,385 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,385 - INFO - Step 55 completed in 0.014s
+2025-10-29 12:20:20,401 - INFO - Step 56/80
+2025-10-29 12:20:20,415 - ERROR - MPC solve failed at step 56: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,416 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,416 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,416 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,416 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,416 - INFO - Step 56 completed in 0.014s
+2025-10-29 12:20:20,433 - INFO - Step 57/80
+2025-10-29 12:20:20,447 - ERROR - MPC solve failed at step 57: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,447 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,447 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,447 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,447 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,448 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,448 - INFO - Step 57 completed in 0.015s
+2025-10-29 12:20:20,465 - INFO - Step 58/80
+2025-10-29 12:20:20,480 - ERROR - MPC solve failed at step 58: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,480 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,480 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,480 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,480 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,480 - INFO - Step 58 completed in 0.015s
+2025-10-29 12:20:20,498 - INFO - Step 59/80
+2025-10-29 12:20:20,513 - ERROR - MPC solve failed at step 59: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,514 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,514 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,514 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,514 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,514 - INFO - Step 59 completed in 0.015s
+2025-10-29 12:20:20,533 - INFO - Step 60/80
+2025-10-29 12:20:20,548 - ERROR - MPC solve failed at step 60: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,548 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,548 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,548 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,548 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,548 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,548 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,548 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,548 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,548 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,549 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,549 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,549 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,549 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,549 - INFO - Step 60 completed in 0.016s
+2025-10-29 12:20:20,569 - INFO - Step 61/80
+2025-10-29 12:20:20,586 - ERROR - MPC solve failed at step 61: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,586 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,586 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,586 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,586 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,587 - INFO - Step 61 completed in 0.017s
+2025-10-29 12:20:20,605 - INFO - Step 62/80
+2025-10-29 12:20:20,619 - ERROR - MPC solve failed at step 62: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,619 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,619 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,619 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,619 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,619 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,619 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,619 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,619 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,619 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,620 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,620 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,620 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,620 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,620 - INFO - Step 62 completed in 0.014s
+2025-10-29 12:20:20,636 - INFO - Step 63/80
+2025-10-29 12:20:20,650 - ERROR - MPC solve failed at step 63: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,650 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,650 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,650 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,650 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,650 - INFO - Step 63 completed in 0.014s
+2025-10-29 12:20:20,667 - INFO - Step 64/80
+2025-10-29 12:20:20,680 - ERROR - MPC solve failed at step 64: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,680 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,680 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,680 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,680 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,680 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,680 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,680 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,681 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,681 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,681 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,681 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,681 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,681 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,681 - INFO - Step 64 completed in 0.014s
+2025-10-29 12:20:20,696 - INFO - Step 65/80
+2025-10-29 12:20:20,710 - ERROR - MPC solve failed at step 65: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,710 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,710 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,710 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,710 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,710 - INFO - Step 65 completed in 0.014s
+2025-10-29 12:20:20,726 - INFO - Step 66/80
+2025-10-29 12:20:20,739 - ERROR - MPC solve failed at step 66: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,740 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,740 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,740 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,740 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,740 - INFO - Step 66 completed in 0.013s
+2025-10-29 12:20:20,756 - INFO - Step 67/80
+2025-10-29 12:20:20,769 - ERROR - MPC solve failed at step 67: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,770 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,770 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,770 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,770 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,770 - INFO - Step 67 completed in 0.013s
+2025-10-29 12:20:20,786 - INFO - Step 68/80
+2025-10-29 12:20:20,798 - ERROR - MPC solve failed at step 68: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,798 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,798 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,798 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,798 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,799 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,799 - INFO - Step 68 completed in 0.013s
+2025-10-29 12:20:20,815 - INFO - Step 69/80
+2025-10-29 12:20:20,828 - ERROR - MPC solve failed at step 69: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,828 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,828 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,828 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,828 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,828 - INFO - Step 69 completed in 0.014s
+2025-10-29 12:20:20,844 - INFO - Step 70/80
+2025-10-29 12:20:20,857 - ERROR - MPC solve failed at step 70: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,857 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,857 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,857 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,857 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,857 - INFO - Step 70 completed in 0.013s
+2025-10-29 12:20:20,874 - INFO - Step 71/80
+2025-10-29 12:20:20,887 - ERROR - MPC solve failed at step 71: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,887 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,887 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,887 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,888 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,888 - INFO - Step 71 completed in 0.013s
+2025-10-29 12:20:20,904 - INFO - Step 72/80
+2025-10-29 12:20:20,917 - ERROR - MPC solve failed at step 72: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,917 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,918 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,918 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,918 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,918 - INFO - Step 72 completed in 0.014s
+2025-10-29 12:20:20,933 - INFO - Step 73/80
+2025-10-29 12:20:20,946 - ERROR - MPC solve failed at step 73: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,947 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,947 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,947 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,947 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,947 - INFO - Step 73 completed in 0.013s
+2025-10-29 12:20:20,963 - INFO - Step 74/80
+2025-10-29 12:20:20,976 - ERROR - MPC solve failed at step 74: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:20,977 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:20,977 - ERROR - robot_area length: 1
+2025-10-29 12:20:20,977 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:20,977 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:20,977 - INFO - Step 74 completed in 0.014s
+2025-10-29 12:20:20,993 - INFO - Step 75/80
+2025-10-29 12:20:21,006 - ERROR - MPC solve failed at step 75: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:21,006 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:21,007 - ERROR - robot_area length: 1
+2025-10-29 12:20:21,007 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:21,007 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:21,007 - INFO - Step 75 completed in 0.014s
+2025-10-29 12:20:21,025 - INFO - Step 76/80
+2025-10-29 12:20:21,039 - ERROR - MPC solve failed at step 76: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:21,039 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:21,039 - ERROR - robot_area length: 1
+2025-10-29 12:20:21,039 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:21,039 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:21,039 - INFO - Step 76 completed in 0.014s
+2025-10-29 12:20:21,055 - INFO - Step 77/80
+2025-10-29 12:20:21,069 - ERROR - MPC solve failed at step 77: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:21,069 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:21,069 - ERROR - robot_area length: 1
+2025-10-29 12:20:21,069 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:21,069 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:21,069 - INFO - Step 77 completed in 0.014s
+2025-10-29 12:20:21,086 - INFO - Step 78/80
+2025-10-29 12:20:21,099 - ERROR - MPC solve failed at step 78: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:21,099 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:21,099 - ERROR - robot_area length: 1
+2025-10-29 12:20:21,099 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:21,100 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:21,100 - INFO - Step 78 completed in 0.014s
+2025-10-29 12:20:21,116 - INFO - Step 79/80
+2025-10-29 12:20:21,130 - ERROR - MPC solve failed at step 79: unsupported operand type(s) for -: 'list' and 'float'
+2025-10-29 12:20:21,130 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/integration_test_framework.py", line 555, in run_test
+    planner_output = planner.solve_mpc(data)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planning/src/planner.py", line 66, in solve_mpc
+    module.update(self.state, data)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 84, in update
+    self.closest_point_idx, self.closest_segment = self._find_closest_point(
+                                                   ~~~~~~~~~~~~~~~~~~~~~~~~^
+    	state.get_position(),
+     ^^^^^^^^^^^^^^^^^^^^^
+    	self.reference_path)
+     ^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephencrawford/PycharmProjects/PyMPC/planner_modules/src/objectives/contouring_objective.py", line 510, in _find_closest_point
+    dx = reference_path.x - pos_x
+         ~~~~~~~~~~~~~~~~~^~~~~~~
+TypeError: unsupported operand type(s) for -: 'list' and 'float'
+
+2025-10-29 12:20:21,130 - ERROR - robot_area length: 1
+2025-10-29 12:20:21,130 - ERROR - dynamic_obstacles count: 10
+2025-10-29 12:20:21,130 - ERROR -   Obstacle 0: prediction steps = 10
+2025-10-29 12:20:21,130 - ERROR -   Obstacle 1: prediction steps = 10
+2025-10-29 12:20:21,130 - ERROR -   Obstacle 2: prediction steps = 10
+2025-10-29 12:20:21,131 - ERROR -   Obstacle 3: prediction steps = 10
+2025-10-29 12:20:21,131 - ERROR -   Obstacle 4: prediction steps = 10
+2025-10-29 12:20:21,131 - ERROR -   Obstacle 5: prediction steps = 10
+2025-10-29 12:20:21,131 - ERROR -   Obstacle 6: prediction steps = 10
+2025-10-29 12:20:21,131 - ERROR -   Obstacle 7: prediction steps = 10
+2025-10-29 12:20:21,131 - ERROR -   Obstacle 8: prediction steps = 10
+2025-10-29 12:20:21,131 - ERROR -   Obstacle 9: prediction steps = 10
+2025-10-29 12:20:21,131 - INFO - Step 79 completed in 0.014s
+2025-10-29 12:20:21,375 - INFO - Saved animation with 1 frames to test_outputs/20251029_122018_contouring_contouring_bicycle/animation.gif
+2025-10-29 12:20:21,375 - INFO - Test completed successfully

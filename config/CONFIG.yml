@@ -1,115 +1,108 @@
-horizon: 10
-max_constraints: 20
-contouring:
-  add_road_constraints: true
-  dynamic_velocity_reference: false
-  num_segments: 20
-  preview: 0.0
-  adaptive_contour_weight: true
-  goal_reaching_contouring: true
-  three_dimensional_contouring: false
-  terminal_angle: 1
-  terminal_contouring: 1
-  slack: 0
-  penalty_weight: 0
-control_frequency: 20
-debug_limits: true
-debug_output: false
-deceleration_at_infeasible: 10.0
-timestep: 0.1
-enable_output: true
-integrator_step: 0.1
-decomp:
-  range: 2
-  max_constraints: 40
-  use_slack: False
-  use_guidance: False
-  costmap:
-    resolution: 0.05  # meters per cell
-    origin: [-10.0,-10.0 ]  # bottom-left corner of costmap
-    width: 400  # number of cells in x
-    height: 400  # number of cells in y
-    obstacle_threshold: 100  # cost value marking obstacle
-    inflation_radius: 0.5  # safety buffer
-    footprint: [ [ -0.325, -0.325 ], [ -0.325, 0.325 ], [ 0.325, 0.325 ], [ 0.325, -0.325 ] ]
-linearized_constraints:
-  add_halfspaces: 0
-  max_constraints: 10
-  use_slack: true
-  use_topology_constraints: false
-  filter_distant_obstacles: false
-max_obstacles: 10
-num_discs: 1
-disc_radius: 0.5
-name: test
-obstacle_radius: 0.35
-robot:
-  radius: 0.5
-params:
-  save_map: true
-probabilistic:
-  enable: true
-  propagate_uncertainty: true
-  risk: 0.05
-recording:
-  enable: false
-  file: planner_test_output
-  folder: tests
-  num_experiments: 5
-  timestamp: true
-road:
-  two_way: false
-  width: 7.0
-road.width: 10.0
-scenario_constraints:
-  num_constraints: 0
-  parallel_solvers: 1
-  enable_safe_horizon: true
-  use_slack: false
-  num_scenarios: 4
-  max_constraints: 10
-  num_halfspaces: 2
-  polygon_range: 2
-  sample_truncated: false
-  draw_disc: 1
-  enable_visualization: false
-
-safe_horizon:
-  epsilon_p: 0.1  # Constraint violation probability
-  beta: 0.01      # Confidence level (1 - beta is confidence)
-  n_bar: 10       # Support dimension
-  num_removal: 0  # Number of scenarios to remove
-  max_constraints_per_disc: 24
-  use_slack: true
-  num_scenarios: 100
-  enable_outlier_removal: true
-  parallel_solvers: 4
-shift_previous_solution_forward: false
-solver_settings:
-  solver: casadi
-t-mpc:
-  enable_constraints: true
-  highlight_selected: true
-  use_t-mpc+=1: true
-  warmstart_with_mpc_solution: false
-visualization:
+planner
+  horizon: 10
+  max_constraints: 20
+  timestep: 0.1
+  integrator_step: 0.1
+  visualization:
   draw_every: 5
-weights:
-  acceleration_x: 1
-  acceleration_y: 1
-  angular_velocity: 0.5
-  goal_weight: 10
-  goal_angle_weight: 10
-  goal_control_weight: 1
-  goal_terminal_weight: 10
-  goal_terminal_angle: 1
-  preview: 0.0
-  reference_velocity: 0.01
-  slack: 1.0
-  velocity: 0.3
-  contour_weight: 20.0
-  contouring_lag_weight: 0
-  contouring_goal_weight: 100
-  spline_progression_weight: 0.0
-  spline_velocity_weight: 0.0
-  terminal_spline_weight: 00.0
+  control_frequency: 20
+  debug_limits: true
+  debug_output: false
+  deceleration_at_infeasible: 10.0
+  enable_output: true
+  robot:
+    radius: 0.5
+  recording:
+    enable: false
+    file: planner_test_output
+    folder: tests
+    num_experiments: 5
+    timestamp: true
+solver:
+  solver: casadi
+  shift_previous_solution_forward: false
+  t-mpc:
+    enable_constraints: true
+    highlight_selected: true
+    use_t-mpc+=1: true
+    warmstart_with_mpc_solution: false
+    weights:
+    acceleration_x: 1
+    acceleration_y: 1
+    angular_velocity: 0.5
+    goal_weight: 10
+    goal_angle_weight: 10
+    goal_control_weight: 1
+    goal_terminal_weight: 10
+    goal_terminal_angle: 1
+    preview: 0.0
+    reference_velocity: 0.01
+    slack: 1.0
+    velocity: 0.3
+    contour_weight: 20.0
+    contouring_lag_weight: 0
+    contouring_goal_weight: 100
+    spline_progression_weight: 0.0
+    spline_velocity_weight: 0.0
+    terminal_spline_weight: 00.0
+modules:
+  constraints:
+    contouring_constraints:
+    guidance_constraints:
+    linearized_constraints:
+      add_halfspaces: 0
+      max_constraints: 10
+      use_slack: true
+      use_topology_constraints: false
+      filter_distant_obstacles: false
+      max_obstacles: 10
+      num_discs: 1
+      disc_radius: 0.5
+      name: test
+      obstacle_radius: 0.35
+    gaussian_constraints:
+    scenario_constraints:
+        num_constraints: 0
+        parallel_solvers: 1
+        enable_safe_horizon: true
+        use_slack: false
+        num_scenarios: 4
+        max_constraints: 10
+        num_halfspaces: 2
+        polygon_range: 2
+        sample_truncated: false
+        draw_disc: 1
+        enable_visualization: false
+    decomp_constraints:
+      range: 2
+      max_constraints: 40
+      use_slack: False
+      use_guidance: False
+      costmap:
+        resolution: 0.05  
+        origin: [-10.0,-10.0 ] 
+        width: 400  
+        height: 400  
+        obstacle_threshold: 100  
+        inflation_radius: 0.5 
+        footprint: [ [ -0.325, -0.325 ], [ -0.325, 0.325 ], [ 0.325, 0.325 ], [ 0.325, -0.325 ] ]
+    ellipsoid_constraints:
+    safe_horizon_constraints:
+  objectives:
+    goal_objective:
+    contouring_objective:
+        add_road_constraints: true
+        dynamic_velocity_reference: false
+        num_segments: 20
+        preview: 0.0
+        adaptive_contour_weight: true
+        goal_reaching_contouring: true
+        three_dimensional_contouring: false
+        terminal_angle: 1
+        terminal_contouring: 1
+        slack: 0
+        penalty_weight: 0
+        road:
+          two_way: false
+          width: 7.0
+    guidance_objective:
