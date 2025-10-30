@@ -299,367 +299,241 @@ def write_to_yaml(filename, data):
     yaml.dump(data, outfile, default_flow_style=False)
 
 
-# Profiling tools
-class Benchmarker:
-    def __init__(self, name):
-        self.name_ = name
-        self.running_ = False
-        self.total_duration_ = 0.0
-        self.max_duration_ = -1.0
-        self.min_duration_ = 99999.0
-        self.last_ = -1.0
-        self.total_runs_ = 0
+def define_robot_area(length: float, width: float, n_discs: int) -> list[Disc]:
+    """Define the robot area using discs."""
+    # Where is the center w.r.t. the back of the vehicle
+    center_offset = length / 2.  # Could become a parameter
+    radius = width / 2.
 
-    def print(self):
-        """Print results."""
-        average_run_time = self.total_duration_ / float(self.total_runs_) * 1000.0
+    robot_area = []
+    assert n_discs > 0, "Trying to create a collision region with less than a disc"
 
-        print("-" * 50)
-        print(f"Timing of: {self.name_}")
-        print(f"Average (ms): {average_run_time}")
-        print(f"Max (ms): {self.max_duration_ * 1000.0}")
-
-    def start(self):
-        """Start the timer."""
-        self.running_ = True
-        self.start_time_ = datetime.datetime.now()
-
-    def cancel(self):
-        """Cancel the timer."""
-        self.running_ = False
-
-    def stop(self):
-        """Stop the timer and record results."""
-        if not self.running_:
-            return 0.0
-
-        end_time = datetime.datetime.now()
-        time_diff = (end_time - self.start_time_).total_seconds()
-
-        if time_diff < self.min_duration_:
-            self.min_duration_ = time_diff
-
-        if time_diff > self.max_duration_:
-            self.max_duration_ = time_diff
-
-        self.total_duration_ += time_diff
-        self.total_runs_ += 1
-
-        self.last_ = time_diff
-        self.running_ = False
-        return self.last_
-
-    def get_last(self):
-        """Get the last recorded time."""
-        return self.last_
-
-    def get_total_duration(self):
-        """Get the total duration."""
-        return self.total_duration_
-
-    def reset(self):
-        """Reset the benchmarker."""
-        self.total_duration_ = 0.0
-        self.max_duration_ = -1.0
-        self.min_duration_ = 99999.0
-        self.last_ = -1.0
-        self.total_runs_ = 0
-        self.running_ = False
-
-    def is_running(self):
-        """Check if the timer is running."""
-        return self.running_
-
-from datetime import datetime
-
-class Timer:
-    def __init__(self, hard_stop):
-        self.max_runtime = hard_stop
-        self.start_time = None
-        self.stop_time = None
-
-    def set_max_runtime(self, duration):
-        """Set the maximum runtime in seconds."""
-        self.max_runtime = duration
-
-    def start(self):
-        """Start the timer."""
-        self.start_time = datetime.now()
-        self.stop_time = None  # In case it's a restart
-
-    def current_runtime(self):
-        """Get the current duration in seconds."""
-        if self.start_time is None:
-            return 0.0
-        end_time = self.stop_time or datetime.now()
-        return (end_time - self.start_time).total_seconds()
-
-    def has_finished(self):
-        """Check if the timer has finished."""
-        return self.current_runtime() >= self.max_runtime
-
-    def stop(self):
-        """Stop the timer."""
-        if self.start_time is not None:
-            self.stop_time = datetime.now()
-
-    def reset(self):
-        """Reset the timer."""
-        self.stop_time = None
-        self.start_time = None
-
-# Chrome trace event format profiler
-class ProfileResult:
-    def __init__(self, name, start, end, thread_id):
-        self.Name = name
-        self.Start = start
-        self.End = end
-        self.ThreadID = thread_id
-
-
-class DataSaver:
-    def __init__(self):
-        self.data: Dict[str, List[Union[float, int, str]]] = {}
-        self.add_timestamp = False
-
-    def set_add_timestamp(self, value: bool):
-        """Enable/disable automatic timestamp addition"""
-        self.add_timestamp = value
-
-    def clear(self):
-        """Clear all stored data"""
-        self.data.clear()
-
-    def add_data(self, key: str, value: Union[float, int, str, List]):
-        """
-        Add data to the specified key. Values are stored as lists to support multiple entries.
-
-        Args:
-            key: The data key/name
-            value: The value to store (will be converted to list if not already)
-        """
-        if key not in self.data:
-            self.data[key] = []
-
-        # Handle different value types
-        if isinstance(value, list):
-            self.data[key].extend(value)
-        else:
-            self.data[key].append(value)
-
-        # Add timestamp if enabled
-        if self.add_timestamp:
-            timestamp_key = f"{key}_timestamp"
-            if timestamp_key not in self.data:
-                self.data[timestamp_key] = []
-            self.data[timestamp_key].append(datetime.now().isoformat())
-
-    def save_data(self, filename: str, folder: str = ".", use_json: bool = True):
-        """
-        Save data to file
-
-        Args:
-            filename: Name of the file (without extension)
-            folder: Folder to save in (default: current directory)
-            use_json: If True, save as JSON; if False, save as plain text
-        """
-        # Create folder if it doesn't exist
-        os.makedirs(folder, exist_ok=True)
-
-        if use_json:
-            filepath = os.path.join(folder, f"{filename}.json")
-            with open(filepath, "w") as f:
-                json.dump(self.data, f, indent=2)
-        else:
-            filepath = os.path.join(folder, f"{filename}.txt")
-            with open(filepath, "w") as f:
-                for key, values in self.data.items():
-                    f.write(f"{key}: {values}\n")
-
-    def load_data(self, filename: str, folder: str = ".", use_json: bool = True) -> Tuple[bool, Dict[str, List]]:
-        """
-        Load data from file
-
-        Args:
-            filename: Name of the file (without extension)
-            folder: Folder to load from (default: current directory)
-            use_json: If True, expect JSON format; if False, expect plain text
-
-        Returns:
-            Tuple of (success: bool, data: Dict[str, List])
-        """
-        try:
-            if use_json:
-                filepath = os.path.join(folder, f"{filename}.json")
-                with open(filepath, "r") as f:
-                    loaded_data = json.load(f)
+    if n_discs == 1:
+        robot_area.append(Disc(0., radius))
+    else:
+        for i in range(n_discs):
+            if i == 0:
+                # First disc at the back of the car
+                robot_area.append(Disc(-center_offset + radius, radius))
+            elif i == n_discs - 1:
+                # Last disc at the front of the car
+                robot_area.append(Disc(-center_offset + length - radius, radius))
             else:
-                # Simple text format parsing (basic implementation)
-                filepath = os.path.join(folder, f"{filename}.txt")
-                loaded_data = {}
-                with open(filepath, "r") as f:
-                    for line in f:
-                        if ": " in line:
-                            key, value_str = line.strip().split(": ", 1)
-                            try:
-                                # Try to parse as list
-                                loaded_data[key] = eval(value_str)
-                            except:
-                                loaded_data[key] = [value_str]
+                # Other discs in between
+                offset = -center_offset + radius + (i * (length - 2. * radius) / (n_discs - 1.))
+                robot_area.append(Disc(offset, radius))
 
-            self.data = loaded_data
-            return True, loaded_data
-        except FileNotFoundError:
-            return False, {}
-        except Exception as e:
-            print(f"Error loading data: {e}")
-            return False, {}
+            logging.debug(f"Disc {i}: offset {robot_area[-1].offset}, radius {robot_area[-1].radius}")
 
-    def get_file_path(self, folder: str, filename: str, extension: str = "json") -> str:
-        """
-        Get the full file path
-
-        Args:
-            folder: Folder path
-            filename: Filename (without extension)
-            extension: File extension (default: json)
-
-        Returns:
-            Full file path
-        """
-        return os.path.join(folder, f"{filename}.{extension}")
-
-    def get_data(self, key: str) -> List:
-        """Get data for a specific key"""
-        return self.data.get(key, [])
-
-    def has_key(self, key: str) -> bool:
-        """Check if a key exists in the data"""
-        return key in self.data
-
-    def get_keys(self) -> List[str]:
-        """Get all data keys"""
-        return list(self.data.keys())
-
-    def remove_key(self, key: str):
-        """Remove a key and its data"""
-        if key in self.data:
-            del self.data[key]
-
-    def get_summary(self) -> Dict[str, Any]:
-        """Get a summary of stored data"""
-        summary = {}
-        for key, values in self.data.items():
-            summary[key] = {
-                'count': len(values),
-                'type': type(values[0]).__name__ if values else 'empty',
-                'sample_values': values[:3] if len(values) > 3 else values
-            }
-        return summary
-
-    def print_summary(self):
-        """Print a summary of stored data"""
-        print("DataSaver Summary:")
-        print("-" * 40)
-        for key, info in self.get_summary().items():
-            print(f"{key}: {info['count']} items ({info['type']})")
-            if info['sample_values']:
-                print(f"  Sample: {info['sample_values']}")
-        print("-" * 40)
+    return robot_area
 
 
-class ExperimentManager:
-    def __init__(self):
-        print("CONFIG is " + str(CONFIG))
-        self.SAVE_FOLDER = CONFIG["recording"]["folder"]
-        self.SAVE_FILE = CONFIG["recording"]["file"]
-        self.timer = Timer(1.0)
-        self.data_saver = DataSaver()
-        self.data_saver.set_add_timestamp(CONFIG["recording"]["timestamp"])
+def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
+  if data.dynamic_obstacles is None:
+      return
 
-        if CONFIG["recording"]["enable"]:
-            logger.info(
-                f"Planner Save File: {self.data_saver.get_file_path(self.SAVE_FOLDER, self.SAVE_FILE, False)}")
+  for obstacle in data.dynamic_obstacles:
+      pred = obstacle.prediction
+      path = getattr(pred, "path", None)
 
-        self.control_iteration = 0
-        self.iteration_at_last_reset = 0
-        self.experiment_counter = 0
+      # Fallback: constant velocity if no path
+      if path is None:
+          velocity = np.array([np.cos(obstacle.angle), np.sin(obstacle.angle)]) * speed
+          obstacle.prediction = get_constant_velocity_prediction(obstacle.position, velocity, dt, horizon)
+          continue
 
-    def update(self, state, solver, data):
-        logger.info("planning.util.save_data()")
+      total_length = path.s[-1]
 
-        if len(data.dynamic_obstacles) == 0:
-            logger.info("Not exporting data: Obstacles not yet received.")
-            return
+      # Initialize progress in arc length
+      if not hasattr(obstacle, "s"):
+          obstacle.s = 0.0
+      obstacle.s += speed * dt
 
-        # Save vehicle data
-        self.data_saver.add_data("vehicle_pose", state.get_pose())
-        self.data_saver.add_data("vehicle_orientation", state.get("psi"))
+      # If reached end of current path → generate new path
+      if obstacle.s >= total_length:
+          start = [path.x[-1], path.y[-1], path.z[-1] if hasattr(path, "z") else 0.0]
 
-        # Save planned trajectory
-        for k in range(CONFIG["horizon"]):
-            self.data_saver.add_data(f"vehicle_plan_{k}", solver.get_ego_prediction_position(k))
+          # Choose new goal
+          if hasattr(obstacle, "road_to_follow"):
+              road = obstacle.road_to_follow
+              s_offset = np.random.uniform(0, road.length)
+              x_center = road.x_spline(s_offset)
+              y_center = road.y_spline(s_offset)
 
-        # Save obstacle data
-        for v, obstacle in enumerate(data.dynamic_obstacles):
-            if obstacle.index is not None:
-                self.data_saver.add_data(f"obstacle_map_{v}", obstacle.index)
-                self.data_saver.add_data(f"obstacle_{v}_pose", obstacle.position)
-                self.data_saver.add_data(f"obstacle_{v}_orientation", obstacle.angle)
+              # Tangent & lateral offset to simulate lane variation
+              dx = road.x_spline(min(s_offset + 0.1, road.length)) - x_center
+              dy = road.y_spline(min(s_offset + 0.1, road.length)) - y_center
+              tangent = np.array([dx, dy]) / np.linalg.norm([dx, dy])
+              normal = np.array([-tangent[1], tangent[0]])
+              lateral_offset = np.random.uniform(-3.0, 3.0)
+              goal = [x_center + lateral_offset * normal[0], y_center + lateral_offset * normal[1], 0.0]
+          else:
+              goal = [
+                  np.random.uniform(start[0] - 20, start[0] + 20),
+                  np.random.uniform(start[1] - 20, start[1] + 20),
+                  0.0
+              ]
 
-            # Save disc obstacle (assume only one disc)
-            self.data_saver.add_data("disc_0_pose", obstacle.position)
-            self.data_saver.add_data("disc_0_radius", obstacle.radius)
-            self.data_saver.add_data("disc_0_obstacle", v)
+          # Generate new reference path
+          new_path = generate_reference_path(
+              start, goal, path_type=np.random.choice(["straight", "curved", "s-turn", "circle"]),
+              num_points=10
+          )
 
-        self.data_saver.add_data("max_intrusion", data.intrusion)
-        self.data_saver.add_data("metric_collisions", int(data.intrusion > 0.0))
+          obstacle.prediction.path = new_path
+          obstacle.s = 0.0
+          path = new_path
+          total_length = path.s[-1]
 
-        # Time keeping
-        self.data_saver.add_data("iteration", self.control_iteration)
-        self.control_iteration += 1
+      # ✅ Compute position using arc-length splines
+      s_now = min(obstacle.s, total_length)
+      x = path.x_spline(s_now)
+      y = path.y_spline(s_now)
+      z = path.z_spline(s_now) if path.z_spline else 0.0
+      obstacle.position = np.array([x, y, z])
 
-    def export_data(self):
-        # Use the class variables instead of requiring parameters
-        self.data_saver.save_data(self.SAVE_FOLDER, self.SAVE_FILE)
+      # ✅ Compute heading
+      ds = 0.1
+      s_next = min(s_now + ds, total_length)
+      dx = path.x_spline(s_next) - x
+      dy = path.y_spline(s_next) - y
+      obstacle.angle = np.arctan2(dy, dx)
 
-    def on_task_complete(self, objective_reached):
+      # ✅ Build prediction horizon
+      pred_steps = []
+      s_future = s_now
+      for _ in range(horizon):
+          s_future = min(s_future + speed * dt, total_length)
+          px = path.x_spline(s_future)
+          py = path.y_spline(s_future)
+          pz = path.z_spline(s_future) if path.z_spline else 0.0
 
-        self.data_saver.add_data("reset", self.control_iteration)
-        self.data_saver.add_data(
-            "metric_duration",
-            (self.control_iteration - self.iteration_at_last_reset) * (1.0 / float(CONFIG["control_frequency"]))
-        )
-        self.data_saver.add_data("metric_completed", int(objective_reached))
+          s_next = min(s_future + ds, total_length)
+          dx_f = path.x_spline(s_next) - px
+          dy_f = path.y_spline(s_next) - py
+          angle = np.arctan2(dy_f, dx_f)
 
-        self.iteration_at_last_reset = self.control_iteration  # Fixed: was using _control_iteration
-        self.experiment_counter += 1
+          pos = np.array([px, py, pz])
 
-        num_experiments = int(CONFIG["recording"]["num_experiments"])
-        if self.experiment_counter % num_experiments == 0 and self.experiment_counter > 0:
-            self.export_data()
+          # Add noise & uncertainty
+          if pred.type == PredictionType.GAUSSIAN:
+              pos += np.random.normal(0, sigma_pos, size=pos.shape)
+              major_r, minor_r = sigma_pos * 2, sigma_pos
+          elif pred.type == PredictionType.NONGAUSSIAN:
+              pos += np.random.standard_t(df=3, size=pos.shape) * sigma_pos
+              major_r, minor_r = sigma_pos * 3, sigma_pos * 1.5
+          else:
+              major_r, minor_r = 0.1, 0.1
 
-        if self.experiment_counter >= num_experiments:
-            logger.info(f"Completed {num_experiments} experiments.")
-        else:
-            logger.info(f"Starting experiment {self.experiment_counter + 1} / {num_experiments}")
+          pred_steps.append(PredictionStep(pos, angle, major_r, minor_r))
 
-        assert self.experiment_counter < num_experiments, "Stopping the planning."
+      pred.steps = pred_steps
 
-    def set_start_experiment(self, duration=1):
-        self.iteration_at_last_reset = self.control_iteration
-        self.set_timer(duration)
 
-    def set_timer(self, duration):
-        self.timer = Timer(duration)
+def remove_distant_obstacles(obstacles: list[DynamicObstacle], state: 'State') -> None:
+    """Remove obstacles that are far from the current state."""
+    nearby_obstacles = []
 
-    def start_timer(self):
-        self.timer.start()
+    pos = state.get_position()
+    for obstacle in obstacles:
+        if distance(pos, obstacle.position) < CONFIG["max_obstacle_distance"]:
+            nearby_obstacles.append(obstacle)
 
-    def stop_timer(self):
-        duration = self.timer.current_duration()
-        self.timer = Timer(1.0)
-        return duration
+    obstacles.clear()
+    obstacles.extend(nearby_obstacles)
 
-    def get_data_saver(self):
-        return self.data_saver
+def filter_distant_obstacles(obstacles: list[DynamicObstacle], state: 'State', distance_limit = None):
+    """Remove obstacles that are far from the current state."""
+    nearby_obstacles = []
+
+    dist = 0
+    if distance_limit is not None:
+        dist = distance_limit
+    else:
+        dist = CONFIG["max_obstacle_distance"]
+    pos = state.get_position()
+    for obstacle in obstacles:
+        if distance(pos, obstacle.position) < dist:
+            nearby_obstacles.append(obstacle)
+
+    return nearby_obstacles
+
+
+def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> None:
+    """Ensure that the number of obstacles matches the configured maximum."""
+    max_obstacles = CONFIG["max_obstacles"]
+    # Create an index list
+    indices = list(range(len(obstacles)))
+
+    # If more, we sort and retrieve the closest obstacles
+    if len(obstacles) > max_obstacles:
+        distances = []
+        logging.debug(f"Received {len(obstacles)} > {max_obstacles} obstacles. Keeping the closest.")
+
+        for obstacle in obstacles:
+            min_dist = 1e5
+            direction = np.array([np.cos(state.get("psi")), np.sin(state.get("psi"))])
+
+            for k in range(CONFIG["horizon"]):
+                # Linearly scaled
+                dist = (k + 1) * 0.6 * distance(
+                    obstacle.prediction.steps[k].position,
+                    state.get_position() + state.get("v") * k * direction
+                )
+
+                if dist < min_dist:
+                    min_dist = dist
+
+            distances.append(min_dist)
+
+        # Sort obstacles on distance
+        indices.sort(key=lambda j: distances[j])
+
+        # Keep the closest obstacles
+        processed_obstacles = []
+
+        for v in range(max_obstacles):
+            processed_obstacles.append(obstacles[indices[v]])
+
+        # Assign sequential IDs
+        for i in range(len(processed_obstacles)):
+            processed_obstacles[i].index = i
+
+        obstacles.clear()
+        obstacles.extend(processed_obstacles)
+
+    elif len(obstacles) < max_obstacles:
+        logging.debug(f"Received {len(obstacles)} < {max_obstacles} obstacles. Adding dummies.")
+
+        for cur_size in range(len(obstacles), max_obstacles):
+            dummy = get_dummy_obstacle(state)
+            dummy.prediction = get_constant_velocity_prediction(
+                dummy.position,
+                np.array([0., 0.]),
+                CONFIG["integrator_step"],
+                CONFIG["horizon"]
+            )
+            obstacles.append(dummy)
+
+    logging.debug(f"Obstacle size (after processing) is: {len(obstacles)}")
+
+
+def propagate_prediction_uncertainty(prediction: Prediction) -> None:
+    """Propagate uncertainty through the prediction steps."""
+    if prediction.type != PredictionType.GAUSSIAN:
+        return
+
+    dt = CONFIG["integrator_step"]
+    major = 0.
+    minor = 0.
+
+    for k in range(10):
+        major = np.sqrt(major ** 2 + (prediction.steps[k].major_radius * dt) ** 2)
+        minor = np.sqrt(minor ** 2 + (prediction.steps[k].minor_radius * dt) ** 2)
+        prediction.steps[k].major_radius += major # This was originally straight assignment not addition
+        prediction.steps[k].minor_radius += minor
+
+def propagate_prediction_uncertainty_for_obstacles(obstacles: list[DynamicObstacle]) -> None:
+    """Propagate uncertainty for all obstacles."""
+    for obstacle in obstacles:
+        propagate_prediction_uncertainty(obstacle.prediction)

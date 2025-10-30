@@ -1,9 +1,8 @@
 import copy
 
 from utils.const import CONSTRAINT, OBJECTIVE
-from utils.utils import LOG_DEBUG, read_config_file
-from utils.utils import print_value, print_header, CONFIG, get_config_dotted
-from utils.visualizer_compat import ROSLine
+from utils.utils import read_config_file
+from utils.utils import print_value, print_header
 
 
 class ModuleManager:
@@ -30,6 +29,30 @@ class ModuleManager:
                     )
         self.modules.append(module)
 
+    def add_modules(self, modules):
+        """Add a list of modules, preserving dependency checks."""
+        for module in modules:
+            self.add_module(module)
+
+    def check_dependencies(self):
+        """Verify that all declared dependencies are present among modules.
+
+        Returns:
+            bool: True if all dependencies satisfied, False otherwise.
+        """
+        available_names = {getattr(m, "name", None) for m in self.modules}
+        for module in self.modules:
+            deps = getattr(module, "dependencies", []) or []
+            for dep_name in deps:
+                if dep_name not in available_names:
+                    return False
+        return True
+
+    def get_objective_modules(self):
+        """Return the list of objective-type modules (or None if empty)."""
+        objs = [m for m in self.modules if getattr(m, "module_type", None) == OBJECTIVE]
+        return objs if objs else None
+
     def get_modules(self):
         return self.modules
 
@@ -45,43 +68,80 @@ class ModuleManager:
             if hasattr(module, "define_parameters"):
                 module.define_parameters(self, parameter_manager)
 
-    def objective(self, state, parameter_manager, stage_idx):
-        """Calculate objective value from all objective modules"""
-        objective_value = []
-        for module in self.modules:
-            if module.module_type == OBJECTIVE:
-                if hasattr(module, "get_value"):
-                    objective_value.append(module.get_value(state, parameter_manager, stage_idx))
-        return objective_value
+    def get_objectives(self, state, data, stage_idx):
+        """Collect objective contributions from all objective modules.
 
-    def constraints(self, state, param, stage_idx):
+        Supports both `get_objective` and legacy `get_value` method names.
+        Returns a flat list for the stage.
+        """
+        objectives = []
+        for module in self.modules:
+            if getattr(module, "module_type", None) == OBJECTIVE:
+                if hasattr(module, "get_objective"):
+                    val = module.get_objective(state, data, stage_idx)
+                    if isinstance(val, (list, tuple)):
+                        objectives.extend(val)
+                    elif val is not None:
+                        objectives.append(val)
+                elif hasattr(module, "get_value"):
+                    val = module.get_value(state, data, stage_idx)
+                    if isinstance(val, (list, tuple)):
+                        objectives.extend(val)
+                    elif val is not None:
+                        objectives.append(val)
+        return objectives
+
+    def get_constraints(self, state, data, stage_idx):
         """Calculate constraint values from all constraint modules"""
         constraint_values = []
         for module in self.modules:
             if module.module_type == CONSTRAINT:
                 if hasattr(module, "calculate_constraints"):
-                    constraint_values.extend(module.calculate_constraints(state, parameter_manager, stage_idx))
+                    constraint_values.extend(module.calculate_constraints(state, data, stage_idx))
         return constraint_values
 
-    def constraint_lower_bounds(self):
+    def get_constraint_lower_bounds(self, state, data, stage_idx):
         """Get lower bounds for all constraints"""
         bounds = []
         for module in self.modules:
             if module.module_type == CONSTRAINT:
                 if hasattr(module, "lower_bounds"):
-                    bounds.extend(module.lower_bounds())
+                    # Support signatures with or without args
+                    try:
+                        val = module.lower_bounds(state, data, stage_idx)
+                    except TypeError:
+                        val = module.lower_bounds()
+                    if isinstance(val, (list, tuple)):
+                        bounds.extend(val)
+                    elif val is not None:
+                        bounds.append(val)
         return bounds
 
-    def constraint_upper_bounds(self):
+    def get_constraint_upper_bounds(self, state, data, stage_idx):
         """Get upper bounds for all constraints"""
         bounds = []
         for module in self.modules:
             if module.module_type == CONSTRAINT:
                 if hasattr(module, "upper_bounds"):
-                    bounds.extend(module.upper_bounds())
+                    # Support signatures with or without args
+                    try:
+                        val = module.upper_bounds(state, data, stage_idx)
+                    except TypeError:
+                        val = module.upper_bounds()
+                    if isinstance(val, (list, tuple)):
+                        bounds.extend(val)
+                    elif val is not None:
+                        bounds.append(val)
         return bounds
 
-    def constraint_number(self):
+    # Planner compatibility helpers: names without the "constraint_" prefix
+    def get_lower_bounds(self, state, data, stage_idx):
+        return self.get_constraint_lower_bounds(state, data, stage_idx)
+
+    def get_upper_bounds(self, state, data, stage_idx):
+        return self.get_constraint_upper_bounds(state, data, stage_idx)
+
+    def get_constraint_number(self):
         """Get total number of constraints"""
         count = 0
         for module in self.modules:
@@ -95,7 +155,7 @@ class ModuleManager:
         for module in self.modules:
             module.update_parameters(parameter_manager)
 
-    def get_all_visualizers(self):
+    def get_all_visualizers(self, state, data, step):
         """Trigger visualization for all modules"""
         visualizers = []
         for module in self.modules:
@@ -104,7 +164,7 @@ class ModuleManager:
                 visualizers.append(module_visualizer)
         return visualizers
 
-    def check_objectives_reached(self, state, data):
+    def are_objectives_reached(self, state, data):
         """Check if all objectives have been reached"""
         objective_modules = []
         for module in self.modules:
@@ -181,9 +241,13 @@ class Module:
     def build_visualizer(self):
         pass
 
-    def is_data_ready(self, data, state):
-        """Check if required data is available"""
+    def is_data_ready(self, data, state=None):
+        """Check if required data is available. `state` is optional for planner compat."""
         return True
+
+    def update(self, state, data):
+        """Optional per-iteration module update."""
+        pass
 
     def on_data_received(self, data):
         """Process incoming data by type"""

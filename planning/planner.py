@@ -40,6 +40,21 @@ class Planner:
     else:
       raise ValueError("Solver not supported")
     self.solver.initialize(self.data)
+
+  
+  def solve(self):
+    solver_iterations = 0
+
+    while solver_iterations < self.config["solver_iterations"]:
+      mpc_output = self.solve_mpc()
+      self.output.control_history.append(mpc_output.control)
+      self.state = self.problem.get_state().propagate(mpc_output.control, self.solver.timestep)
+      self.data.update(self.state)
+      self.output.realized_trajectory.add_state(self.state)
+      solver_iterations += 1
+      if self.state.is_objective_reached(self.data):
+        break
+    return self.output
   
   def solve_mpc(self):
 
@@ -48,47 +63,26 @@ class Planner:
     if not is_data_ready:
       return self.output
 
-    self.solver.initialize_rollout(self.state)
+    self.solver.initialize_rollout(self.state, self.data)
 
-    propagate_obstacles(data, self.solver.timestep, self.solver.horizon)
+    propagate_obstacles(self.state, self.data, self.solver.timestep, self.solver.horizon)
 
     for module in self.solver.module_manager.get_modules():
-      module.update(self.state, data)
+      module.update(self.state, self.data)
 
-    LOG_DEBUG("Planner going to try to set parameters for all modules")
-
-    # Set parameters for all stages including final stage (horizon + 1 stages: 0 to horizon)
+    # Set data for all stages including final stage (horizon + 1 stages: 0 to horizon)
     for k in range(self.solver.horizon + 1):
       for module in self.solver.module_manager.get_modules():
-        module.set_parameters(self.solver.parameter_manager, data, k)
+        self.parameter_manager.set_parameters(module, self.data, k)
+    for k in range(self.solver.horizon + 1):
+      self.data.set_parameters(self.parameter_manager.get_all(k), k)
+      self.data.set_constraints(self.module_manager.get_constraints(self.state, self.data, k), k)
+      self.data.set_objectives(self.module_manager.get_objectives(self.state, self.data, k), k)
+      self.data.set_lower_bounds(self.module_manager.get_lower_bounds(self.state, self.data, k), k)
+      self.data.set_upper_bounds(self.module_manager.get_upper_bounds(self.state, self.data, k), k)
 
-    used_time = time.time() - data.planning_start_time
 
-    self.solver.parameter_manager.solver_timeout = 1.0 / CONFIG["control_frequency"] - used_time - 0.006
-    exit_flag = -1  # Default to failure
-    optimization_handled_by_module = False
-
-    # Check if any module has its own custom optimize method
-    for module in self.solver.module_manager.get_modules():
-      if hasattr(module, "optimize"):
-        LOG_INFO(f"Module '{module.get_name()}' is handling the optimization.")
-        exit_flag = module.optimize(self.state, data)
-        optimization_handled_by_module = True
-        break  # Assume only one module will handle optimization
-
-    # If no module handled optimization, run the standard solver
-    if not optimization_handled_by_module:
-      LOG_INFO("No module optimizer found. Running standard solver.")
-      exit_flag = self.solver.solve()
-
-    for module in self.solver.module_manager.get_modules():
-      if hasattr(module, "optimize"):
-        exit_flag = module.optimize(self.state, data)
-        if exit_flag != -1:
-          LOG_WARN("Exit flag: {}".format(exit_flag))
-          break
-
-    exit_flag = self.solver.solve()
+    exit_flag = self.solver.solve(self.state, self.data)
 
     if exit_flag != 1:
       self.output.success = False
