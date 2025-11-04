@@ -1,0 +1,219 @@
+2025-11-04 16:12:23,639 - INFO - Contouring objective detected: automatically switching to contouring-aware dynamics model
+2025-11-04 16:12:23,639 - INFO -   Converted 'unicycle' -> 'contouring_unicycle'
+2025-11-04 16:12:23,639 - INFO - Created vehicle dynamics model: ContouringSecondOrderUnicycleModel
+2025-11-04 16:12:23,639 - INFO - Creating objective module: contouring
+2025-11-04 16:12:23,647 - INFO - Objective module 'contouring' created: contouring_objective
+2025-11-04 16:12:23,647 - INFO - Creating 1 constraint module(s): ['contouring']
+2025-11-04 16:12:23,651 - INFO - Constraint module 'contouring' created: contouring_constraints
+2025-11-04 16:12:23,651 - INFO - Created 1 constraint module(s)
+2025-11-04 16:12:23,652 - WARNING - Error shaping obstacles: 'max_obstacles'
+2025-11-04 16:12:23,652 - WARNING - Error in on_data_received: 'Planner' object has no attribute 'on_data_received'
+2025-11-04 16:12:23,652 - INFO - Initial vehicle state (before spline): [0. 0. 0. 1.]
+2025-11-04 16:12:23,652 - INFO - Vehicle starting position: (0.00, 0.00)
+2025-11-04 16:12:23,653 - INFO - Reference path start: (0.00, 0.00)
+2025-11-04 16:12:23,653 - INFO - Reference path starts at vehicle position (requirement satisfied)
+2025-11-04 16:12:23,653 - INFO - Contouring-aware dynamics detected: initializing spline variable
+2025-11-04 16:12:23,653 - INFO - Added spline variable: 0.0
+2025-11-04 16:12:23,653 - INFO - Final initial state: [0. 0. 0. 1. 0.] (variables: ['x', 'y', 'psi', 'v', 'spline'])
+2025-11-04 16:12:23,653 - INFO - Step 0/200
+2025-11-04 16:12:23,653 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:23,662 - INFO - === Calling planner.solve_mpc() at step 0 ===
+2025-11-04 16:12:23,663 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:23,666 - INFO - Solver solve: module_manager has 2 modules: ['contouring_constraints', 'contouring_objective'], data=True
+2025-11-04 16:12:23,674 - INFO - Stage 0: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,674 - INFO - Stage 0: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,682 - INFO - Stage 1: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,682 - INFO - Stage 1: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,690 - INFO - Stage 2: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,690 - INFO - Stage 2: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,697 - INFO - Stage 3: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,698 - INFO - Stage 3: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,705 - INFO - Stage 4: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,705 - INFO - Stage 4: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,713 - INFO - Stage 5: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,713 - INFO - Stage 5: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,720 - INFO - Stage 6: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,721 - INFO - Stage 6: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,728 - INFO - Stage 7: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,729 - INFO - Stage 7: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,736 - INFO - Stage 8: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,736 - INFO - Stage 8: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,744 - INFO - Stage 9: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,745 - INFO - Stage 9: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:23,752 - INFO - Stage 10: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:23,752 - INFO - Stage 10: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,432 - WARNING - Step 0: MPC solve failed
+2025-11-04 16:12:30,607 - INFO - === Applying control at step 0 ===
+2025-11-04 16:12:30,607 - INFO -   Control dict from planner: {}
+2025-11-04 16:12:30,607 - INFO -   Expected input names: ['a', 'w']
+2025-11-04 16:12:30,607 - INFO -   Planner output success: False
+2025-11-04 16:12:30,607 - WARNING -   No control dict available! Checking if solve succeeded...
+2025-11-04 16:12:30,607 - WARNING -   MPC solve failed - no control to apply. Using fallback trajectory.
+2025-11-04 16:12:30,607 - INFO - Step 0 completed in 6.954s
+2025-11-04 16:12:30,621 - INFO - Step 1/200
+2025-11-04 16:12:30,622 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:30,624 - INFO - === Calling planner.solve_mpc() at step 1 ===
+2025-11-04 16:12:30,625 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:30,628 - INFO - Solver solve: module_manager has 2 modules: ['contouring_constraints', 'contouring_objective'], data=True
+2025-11-04 16:12:30,634 - INFO - Stage 0: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,634 - INFO - Stage 0: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,642 - INFO - Stage 1: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,642 - INFO - Stage 1: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,649 - INFO - Stage 2: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,649 - INFO - Stage 2: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,656 - INFO - Stage 3: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,657 - INFO - Stage 3: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,664 - INFO - Stage 4: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,664 - INFO - Stage 4: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,671 - INFO - Stage 5: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,671 - INFO - Stage 5: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,679 - INFO - Stage 6: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,679 - INFO - Stage 6: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,686 - INFO - Stage 7: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,686 - INFO - Stage 7: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,693 - INFO - Stage 8: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,693 - INFO - Stage 8: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,701 - INFO - Stage 9: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,701 - INFO - Stage 9: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:30,708 - INFO - Stage 10: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:30,708 - INFO - Stage 10: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,768 - WARNING - Step 1: MPC solve failed
+2025-11-04 16:12:35,770 - INFO - === Applying control at step 1 ===
+2025-11-04 16:12:35,770 - INFO -   Control dict from planner: {}
+2025-11-04 16:12:35,771 - INFO -   Expected input names: ['a', 'w']
+2025-11-04 16:12:35,771 - INFO -   Planner output success: False
+2025-11-04 16:12:35,771 - WARNING -   No control dict available! Checking if solve succeeded...
+2025-11-04 16:12:35,771 - WARNING -   MPC solve failed - no control to apply. Using fallback trajectory.
+2025-11-04 16:12:35,771 - INFO - Step 1 completed in 5.149s
+2025-11-04 16:12:35,785 - INFO - Step 2/200
+2025-11-04 16:12:35,786 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:35,788 - INFO - === Calling planner.solve_mpc() at step 2 ===
+2025-11-04 16:12:35,789 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:35,791 - INFO - Solver solve: module_manager has 2 modules: ['contouring_constraints', 'contouring_objective'], data=True
+2025-11-04 16:12:35,798 - INFO - Stage 0: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,798 - INFO - Stage 0: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,805 - INFO - Stage 1: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,805 - INFO - Stage 1: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,813 - INFO - Stage 2: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,813 - INFO - Stage 2: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,821 - INFO - Stage 3: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,821 - INFO - Stage 3: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,828 - INFO - Stage 4: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,828 - INFO - Stage 4: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,835 - INFO - Stage 5: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,835 - INFO - Stage 5: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,842 - INFO - Stage 6: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,842 - INFO - Stage 6: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,849 - INFO - Stage 7: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,850 - INFO - Stage 7: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,857 - INFO - Stage 8: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,857 - INFO - Stage 8: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,864 - INFO - Stage 9: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,864 - INFO - Stage 9: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:35,872 - INFO - Stage 10: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:35,872 - INFO - Stage 10: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,879 - WARNING - Step 2: MPC solve failed
+2025-11-04 16:12:40,882 - INFO - === Applying control at step 2 ===
+2025-11-04 16:12:40,882 - INFO -   Control dict from planner: {}
+2025-11-04 16:12:40,882 - INFO -   Expected input names: ['a', 'w']
+2025-11-04 16:12:40,882 - INFO -   Planner output success: False
+2025-11-04 16:12:40,882 - WARNING -   No control dict available! Checking if solve succeeded...
+2025-11-04 16:12:40,883 - WARNING -   MPC solve failed - no control to apply. Using fallback trajectory.
+2025-11-04 16:12:40,883 - INFO - Step 2 completed in 5.097s
+2025-11-04 16:12:40,899 - INFO - Step 3/200
+2025-11-04 16:12:40,900 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:40,902 - INFO - === Calling planner.solve_mpc() at step 3 ===
+2025-11-04 16:12:40,903 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:40,906 - INFO - Solver solve: module_manager has 2 modules: ['contouring_constraints', 'contouring_objective'], data=True
+2025-11-04 16:12:40,912 - INFO - Stage 0: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,912 - INFO - Stage 0: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,920 - INFO - Stage 1: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,920 - INFO - Stage 1: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,927 - INFO - Stage 2: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,927 - INFO - Stage 2: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,935 - INFO - Stage 3: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,935 - INFO - Stage 3: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,942 - INFO - Stage 4: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,942 - INFO - Stage 4: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,949 - INFO - Stage 5: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,949 - INFO - Stage 5: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,959 - INFO - Stage 6: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,959 - INFO - Stage 6: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,966 - INFO - Stage 7: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,967 - INFO - Stage 7: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,974 - INFO - Stage 8: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,974 - INFO - Stage 8: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,983 - INFO - Stage 9: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,983 - INFO - Stage 9: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:40,990 - INFO - Stage 10: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:40,990 - INFO - Stage 10: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:45,974 - WARNING - Step 3: MPC solve failed
+2025-11-04 16:12:45,976 - INFO - === Applying control at step 3 ===
+2025-11-04 16:12:45,976 - INFO -   Control dict from planner: {}
+2025-11-04 16:12:45,976 - INFO -   Expected input names: ['a', 'w']
+2025-11-04 16:12:45,977 - INFO -   Planner output success: False
+2025-11-04 16:12:45,977 - WARNING -   No control dict available! Checking if solve succeeded...
+2025-11-04 16:12:45,977 - WARNING -   MPC solve failed - no control to apply. Using fallback trajectory.
+2025-11-04 16:12:45,977 - INFO - Step 3 completed in 5.077s
+2025-11-04 16:12:45,990 - INFO - Step 4/200
+2025-11-04 16:12:45,990 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:45,992 - INFO - === Calling planner.solve_mpc() at step 4 ===
+2025-11-04 16:12:45,993 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:45,995 - INFO - Solver solve: module_manager has 2 modules: ['contouring_constraints', 'contouring_objective'], data=True
+2025-11-04 16:12:46,002 - INFO - Stage 0: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,002 - INFO - Stage 0: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,010 - INFO - Stage 1: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,010 - INFO - Stage 1: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,017 - INFO - Stage 2: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,017 - INFO - Stage 2: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,025 - INFO - Stage 3: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,025 - INFO - Stage 3: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,032 - INFO - Stage 4: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,032 - INFO - Stage 4: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,039 - INFO - Stage 5: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,039 - INFO - Stage 5: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,047 - INFO - Stage 6: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,047 - INFO - Stage 6: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,054 - INFO - Stage 7: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,054 - INFO - Stage 7: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,063 - INFO - Stage 8: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,063 - INFO - Stage 8: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,070 - INFO - Stage 9: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,070 - INFO - Stage 9: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:46,078 - INFO - Stage 10: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:46,078 - INFO - Stage 10: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,112 - WARNING - Step 4: MPC solve failed
+2025-11-04 16:12:51,115 - INFO - === Applying control at step 4 ===
+2025-11-04 16:12:51,115 - INFO -   Control dict from planner: {}
+2025-11-04 16:12:51,115 - INFO -   Expected input names: ['a', 'w']
+2025-11-04 16:12:51,115 - INFO -   Planner output success: False
+2025-11-04 16:12:51,115 - WARNING -   No control dict available! Checking if solve succeeded...
+2025-11-04 16:12:51,115 - WARNING -   MPC solve failed - no control to apply. Using fallback trajectory.
+2025-11-04 16:12:51,115 - INFO - Step 4 completed in 5.126s
+2025-11-04 16:12:51,133 - INFO - Step 5/200
+2025-11-04 16:12:51,133 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:51,135 - INFO - === Calling planner.solve_mpc() at step 5 ===
+2025-11-04 16:12:51,135 - INFO - ContouringObjective.update: reference_path=True, add_road_constraints=True
+2025-11-04 16:12:51,138 - INFO - Solver solve: module_manager has 2 modules: ['contouring_constraints', 'contouring_objective'], data=True
+2025-11-04 16:12:51,145 - INFO - Stage 0: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,145 - INFO - Stage 0: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,153 - INFO - Stage 1: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,153 - INFO - Stage 1: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,160 - INFO - Stage 2: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,160 - INFO - Stage 2: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,168 - INFO - Stage 3: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,168 - INFO - Stage 3: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,175 - INFO - Stage 4: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,175 - INFO - Stage 4: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,182 - INFO - Stage 5: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,183 - INFO - Stage 5: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,190 - INFO - Stage 6: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,190 - INFO - Stage 6: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,198 - INFO - Stage 7: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,198 - INFO - Stage 7: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,205 - INFO - Stage 8: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,205 - INFO - Stage 8: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,213 - INFO - Stage 9: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,213 - INFO - Stage 9: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]
+2025-11-04 16:12:51,220 - INFO - Stage 10: objectives count=1 keys=['contouring_lag_cost', 'contouring_contour_cost', 'contouring_velocity_cost', 'contouring_goal_cost', 'contouring_terminal_cost']
+2025-11-04 16:12:51,220 - INFO - Stage 10: constraints count=2 summary=[{'type': 'linear', 'lb': 'set', 'ub': 'set'}, {'type': 'linear', 'lb': 'set', 'ub': 'set'}]

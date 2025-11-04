@@ -116,8 +116,6 @@ class ModuleManager:
                 elif val is not None:
                     objectives.append(val)
                     LOG_DEBUG(f"    '{module_name}' returned 1 objective term")
-                else:
-                    LOG_DEBUG(f"    '{module_name}' returned None")
             elif hasattr(module, "get_value"):
                 val = module.get_value(state, data, stage_idx)
                 if isinstance(val, (list, tuple)):

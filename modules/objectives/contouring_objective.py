@@ -1021,6 +1021,8 @@ class ContouringObjective(BaseObjective):
 
 			# Left halfspace constraint: A·p <= b where A is normal pointing left
 			# The constraint A·p <= b means the point p must be on the "left" side of the boundary
+			# Boundary is at: path_point + A * (width_times * road_width_half - robot_radius)
+			# This accounts for road width and subtracts robot_radius so the disc center can be closer to the edge
 			A = dpath.copy()
 			boundary_left = path_point + A * (width_times * road_width_half - robot_radius)
 			b_left = np.dot(A, boundary_left)
@@ -1028,7 +1030,8 @@ class ContouringObjective(BaseObjective):
 
 			# Right halfspace constraint: -A·p <= b_right where -A points right
 			# The constraint -A·p <= b_right means A·p >= -b_right, so the point must be on the "right" side
-			boundary_right = path_point - A * (road_width_half - robot_radius)
+			# FIXED: Use width_times consistently for both left and right boundaries
+			boundary_right = path_point - A * (width_times * road_width_half - robot_radius)
 			b_right = np.dot(-A, boundary_right)
 			data.static_obstacles[k].add_halfspace(-A, b_right)
 			

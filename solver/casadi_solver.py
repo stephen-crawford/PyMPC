@@ -58,14 +58,29 @@ class CasADiSolver(BaseSolver):
 		LOG_DEBUG(f"  Dependent variables ({len(dependent_vars)}): {dependent_vars}")
 		LOG_DEBUG(f"  Input variables ({len(input_vars)}): {input_vars}")
 		
+		# Create state variables with bounds
 		for var_name in dependent_vars:
 			self.var_dict[var_name] = self.opti.variable(horizon + 1)
 			self.warmstart_values[var_name] = np.zeros(horizon + 1)
-			LOG_DEBUG(f"  Created variable '{var_name}': shape={horizon + 1}")
+			# Set bounds from dynamics model
+			try:
+				lb, ub, _ = dynamics.get_bounds(var_name)
+				self.opti.subject_to(self.opti.bounded(lb, self.var_dict[var_name], ub))
+				LOG_DEBUG(f"  Created variable '{var_name}': shape={horizon + 1}, bounds=[{lb}, {ub}]")
+			except Exception as e:
+				LOG_WARN(f"  Created variable '{var_name}': shape={horizon + 1}, no bounds (error: {e})")
+		
+		# Create input variables with bounds
 		for var_name in input_vars:
 			self.var_dict[var_name] = self.opti.variable(horizon)
 			self.warmstart_values[var_name] = np.zeros(horizon)
-			LOG_DEBUG(f"  Created input variable '{var_name}': shape={horizon}")
+			# Set bounds from dynamics model
+			try:
+				lb, ub, _ = dynamics.get_bounds(var_name)
+				self.opti.subject_to(self.opti.bounded(lb, self.var_dict[var_name], ub))
+				LOG_DEBUG(f"  Created input variable '{var_name}': shape={horizon}, bounds=[{lb}, {ub}]")
+			except Exception as e:
+				LOG_WARN(f"  Created input variable '{var_name}': shape={horizon}, no bounds (error: {e})")
 		opts = {
 			'ipopt.print_level': 0,
 			'print_time': 0,
@@ -169,34 +184,134 @@ class CasADiSolver(BaseSolver):
 		horizon_val = self.horizon if self.horizon is not None else 10
 		timestep_val = self.timestep if self.timestep is not None else 0.1
 
-		# Use constant velocity profile (more realistic than braking)
-		# Only apply light braking if velocity is high
-		if current_vel > 5.0:
-			v_profile = np.maximum(0.0, current_vel + DEFAULT_BRAKING * np.arange(horizon_val + 1) * timestep_val * 0.5)
-		else:
-			v_profile = np.full(horizon_val + 1, current_vel)
+		# CRITICAL FIX: Initialize warmstart to follow reference path if available
+		# This ensures the warmstart trajectory is feasible with road constraints
+		has_reference_path = (self.data is not None and 
+		                      hasattr(self.data, 'reference_path') and 
+		                      self.data.reference_path is not None and
+		                      hasattr(self.data.reference_path, 'x_spline') and
+		                      hasattr(self.data.reference_path, 'y_spline') and
+		                      self.data.reference_path.x_spline is not None)
 		
-		psi_profile = np.full(horizon_val + 1, current_psi)  # Assume constant heading for initial guess
+		if has_reference_path and 'spline' in self.dynamics_model.get_dependent_vars():
+			# Initialize warmstart to follow reference path
+			LOG_DEBUG("Initializing warmstart to follow reference path")
+			ref_path = self.data.reference_path
+			
+			# Get arc length bounds
+			s_arr = np.asarray(ref_path.s, dtype=float) if hasattr(ref_path, 's') and ref_path.s is not None else None
+			if s_arr is None or len(s_arr) == 0:
+				# Fallback: estimate arc length from path points
+				x_arr = np.asarray(ref_path.x, dtype=float)
+				y_arr = np.asarray(ref_path.y, dtype=float)
+				dx = np.diff(x_arr)
+				dy = np.diff(y_arr)
+				arc_lengths = np.sqrt(dx**2 + dy**2)
+				s_arr = np.concatenate([[0], np.cumsum(arc_lengths)])
+			
+			s_min = float(s_arr[0])
+			s_max = float(s_arr[-1])
+			
+			# Initialize spline variable: start at closest point on path
+			current_spline = state.get('spline')
+			if current_spline is None:
+				# Find closest point on path to current position
+				try:
+					# Sample path at discrete points
+					s_sample = np.linspace(s_min, s_max, min(100, len(s_arr)))
+					x_sample = np.array([float(ref_path.x_spline(s)) for s in s_sample])
+					y_sample = np.array([float(ref_path.y_spline(s)) for s in s_sample])
+					# Find closest point
+					distances = np.sqrt((x_sample - current_x)**2 + (y_sample - current_y)**2)
+					closest_idx = np.argmin(distances)
+					current_spline = float(s_sample[closest_idx])
+					LOG_DEBUG(f"  Initialized spline to {current_spline:.4f} (closest point on path)")
+				except Exception as e:
+					LOG_DEBUG(f"  Could not find closest point: {e}, using s_min={s_min}")
+					current_spline = s_min
+			else:
+				current_spline = float(current_spline)
+			
+			# Initialize spline profile: advance along path at current velocity
+			spline_profile = np.zeros(horizon_val + 1)
+			spline_profile[0] = current_spline
+			
+			# Use constant velocity profile
+			if current_vel > 5.0:
+				v_profile = np.maximum(0.0, current_vel + DEFAULT_BRAKING * np.arange(horizon_val + 1) * timestep_val * 0.5)
+			else:
+				v_profile = np.full(horizon_val + 1, current_vel)
+			
+			# Initialize position and heading by following reference path
+			x_pos = np.zeros(horizon_val + 1)
+			y_pos = np.zeros(horizon_val + 1)
+			psi_profile = np.zeros(horizon_val + 1)
+			
+			x_pos[0] = current_x
+			y_pos[0] = current_y
+			psi_profile[0] = current_psi
+			
+			for k in range(1, horizon_val + 1):
+				# Advance spline along path based on velocity
+				ds = v_profile[k - 1] * timestep_val
+				spline_profile[k] = min(s_max, spline_profile[k - 1] + ds)
+				
+				# Get position and heading from path at this spline value
+				try:
+					s_k = spline_profile[k]
+					x_pos[k] = float(ref_path.x_spline(s_k))
+					y_pos[k] = float(ref_path.y_spline(s_k))
+					# Get heading from path tangent
+					dx_path = float(ref_path.x_spline.derivative()(s_k))
+					dy_path = float(ref_path.y_spline.derivative()(s_k))
+					norm = np.sqrt(dx_path**2 + dy_path**2)
+					if norm > 1e-6:
+						psi_profile[k] = np.arctan2(dy_path, dx_path)
+					else:
+						psi_profile[k] = psi_profile[k - 1]
+				except Exception as e:
+					LOG_DEBUG(f"  Could not evaluate path at s={spline_profile[k]:.4f}: {e}, using previous values")
+					x_pos[k] = x_pos[k - 1]
+					y_pos[k] = y_pos[k - 1]
+					psi_profile[k] = psi_profile[k - 1]
+			
+			self.warmstart_values['x'] = x_pos
+			self.warmstart_values['y'] = y_pos
+			self.warmstart_values['v'] = v_profile
+			self.warmstart_values['psi'] = psi_profile
+			self.warmstart_values['spline'] = spline_profile
+			
+			LOG_DEBUG(f"  Warmstart initialized: spline range [{spline_profile[0]:.4f}, {spline_profile[-1]:.4f}], positions follow path")
+		else:
+			# Fallback: straight-line motion (original behavior)
+			LOG_DEBUG("Initializing warmstart with straight-line motion (no reference path available)")
+			# Use constant velocity profile
+			if current_vel > 5.0:
+				v_profile = np.maximum(0.0, current_vel + DEFAULT_BRAKING * np.arange(horizon_val + 1) * timestep_val * 0.5)
+			else:
+				v_profile = np.full(horizon_val + 1, current_vel)
+			
+			psi_profile = np.full(horizon_val + 1, current_psi)
 
-		self.warmstart_values['v'] = v_profile
-		self.warmstart_values['psi'] = psi_profile
+			self.warmstart_values['v'] = v_profile
+			self.warmstart_values['psi'] = psi_profile
 
-		# Integrate positions more accurately
-		x_pos = np.zeros(horizon_val + 1)
-		y_pos = np.zeros(horizon_val + 1)
-		x_pos[0] = current_x
-		y_pos[0] = current_y
+			# Integrate positions
+			x_pos = np.zeros(horizon_val + 1)
+			y_pos = np.zeros(horizon_val + 1)
+			x_pos[0] = current_x
+			y_pos[0] = current_y
 
-		for k in range(1, horizon_val + 1):
-			x_pos[k] = x_pos[k - 1] + v_profile[k - 1] * np.cos(psi_profile[k - 1]) * timestep_val
-			y_pos[k] = y_pos[k - 1] + v_profile[k - 1] * np.sin(psi_profile[k - 1]) * timestep_val
+			for k in range(1, horizon_val + 1):
+				x_pos[k] = x_pos[k - 1] + v_profile[k - 1] * np.cos(psi_profile[k - 1]) * timestep_val
+				y_pos[k] = y_pos[k - 1] + v_profile[k - 1] * np.sin(psi_profile[k - 1]) * timestep_val
 
-		self.warmstart_values['x'] = x_pos
-		self.warmstart_values['y'] = y_pos
+			self.warmstart_values['x'] = x_pos
+			self.warmstart_values['y'] = y_pos
 
 		# Initialize other state variables if they exist
 		for var_name in self.dynamics_model.get_dependent_vars():
-			if var_name not in ['x', 'y', 'v', 'psi']:
+			if var_name not in ['x', 'y', 'v', 'psi', 'spline']:
 				current_val = state.get(var_name)
 				if current_val is not None:
 					self.warmstart_values[var_name][:] = current_val
@@ -325,10 +440,15 @@ class CasADiSolver(BaseSolver):
 		except Exception:
 			pass
 
+		# CRITICAL: Loop over all stages (0 to horizon) to collect objectives and constraints
+		# State variables: k in [0, horizon] (horizon + 1 values)
+		# Input variables: k in [0, horizon-1] (horizon values)
+		LOG_INFO(f"Collecting objectives and constraints for {horizon_val + 1} stages (0 to {horizon_val})")
 		for stage_idx in range(horizon_val + 1):
+			# Create symbolic state for this stage
 			symbolic_state = State(self.dynamics_model)
 			for var_name in self.dynamics_model.get_all_vars():
-				if stage_idx < self.var_dict[var_name].shape[0]:
+				if var_name in self.var_dict and stage_idx < self.var_dict[var_name].shape[0]:
 					symbolic_state.set(var_name, self.var_dict[var_name][stage_idx])
 
 			objective_costs = self.get_objective_cost(symbolic_state, stage_idx)
@@ -446,6 +566,11 @@ class CasADiSolver(BaseSolver):
 					ub_mx = _to_mx(ub)
 
 					try:
+						# Log constraint details for stage 0 to diagnose issues
+						if stage_idx == 0 and total_constraints_added < 4:
+							if isinstance(c, dict):
+								LOG_DEBUG(f"  Stage 0 constraint {total_constraints_added}: a1={c.get('a1', 'N/A')}, a2={c.get('a2', 'N/A')}, b={c.get('b', 'N/A')}, disc_offset={c.get('disc_offset', 'N/A')}, lb={lb}, ub={ub}")
+						
 						if lb_mx is not None and ub_mx is not None:
 							self.opti.subject_to(self.opti.bounded(lb_mx, c_expr, ub_mx))
 						elif lb_mx is not None:
@@ -461,14 +586,16 @@ class CasADiSolver(BaseSolver):
 				# All costs should come from objective modules via BaseSolver.get_objective_cost
 
 		self.opti.minimize(total_objective)
-		LOG_DEBUG(f"Total constraints added: {total_constraints_added}")
+		LOG_INFO(f"Optimization problem setup complete: {total_objective.shape[0] if hasattr(total_objective, 'shape') else 'scalar'} objective, {total_constraints_added} constraints")
+		LOG_DEBUG(f"  Solving over horizon: {horizon_val} steps (states: 0 to {horizon_val}, controls: 0 to {horizon_val-1})")
 
 		try:
-			LOG_INFO("Attempting to solve optimization problem...")
+			LOG_INFO("Attempting to solve optimization problem over entire horizon...")
 			self.solution = self.opti.solve()
 			self.exit_flag = 1
 			self._update_warmstart_from_solution()
 			LOG_INFO("=== SOLUTION FOUND ===")
+			LOG_INFO(f"  Optimal trajectory computed for {horizon_val + 1} states and {horizon_val} control inputs")
 			
 			# Log solution details
 			if self.solution:
@@ -479,6 +606,11 @@ class CasADiSolver(BaseSolver):
 						if var_name in self.var_dict:
 							val0 = self.solution.value(self.var_dict[var_name][0])
 							LOG_DEBUG(f"  Solution[{var_name}][0] = {val0}")
+					# Log first control values
+					for var_name in self.dynamics_model.get_inputs():
+						if var_name in self.var_dict:
+							val0 = self.solution.value(self.var_dict[var_name][0])
+							LOG_INFO(f"  Solution u[{var_name}][0] = {val0} (first control input to apply)")
 				except Exception as e:
 					LOG_DEBUG(f"  Could not extract solution values: {e}")
 			
@@ -513,9 +645,33 @@ class CasADiSolver(BaseSolver):
 						if hasattr(self.opti, 'debug') and hasattr(self.opti.debug, 'g'):
 							constraint_violations = self.opti.debug.value(self.opti.debug.g)
 							if constraint_violations is not None:
-								violations = np.abs(constraint_violations)
-								max_violation = np.max(violations)
-								LOG_WARN(f"  Maximum constraint violation: {max_violation:.6f}")
+								# For constraints expr <= 0, violation means expr > 0
+								# For constraints lb <= expr <= ub, violation means expr < lb or expr > ub
+								# The debug.g values are the constraint expressions themselves
+								# We need to check against bounds to find actual violations
+								violations = []
+								constraints_with_bounds = []
+								for stage_idx_check in range(horizon_val + 1):
+									cons_list = self.get_constraints(stage_idx_check)
+									constraints_with_bounds.extend(cons_list)
+								
+								# Check each constraint against its bounds
+								if len(constraint_violations) == len(constraints_with_bounds):
+									for i, (c, lb, ub) in enumerate(constraints_with_bounds[:min(10, len(constraints_with_bounds))]):
+										expr_val = float(constraint_violations[i])
+										if lb is not None and expr_val < lb:
+											violations.append(lb - expr_val)
+										elif ub is not None and expr_val > ub:
+											violations.append(expr_val - ub)
+								
+								if violations:
+									max_violation = max(violations)
+									LOG_WARN(f"  Maximum constraint violation: {max_violation:.6f}")
+								else:
+									# Fallback: use absolute values (may not be accurate for all constraint types)
+									violations_abs = np.abs(constraint_violations)
+									max_violation = np.max(violations_abs)
+									LOG_WARN(f"  Maximum constraint value (abs): {max_violation:.6f}")
 								if max_violation > 1e-3:
 									LOG_WARN(f"  Problem likely infeasible - constraint violation too large")
 					except Exception as const_err:
@@ -551,24 +707,49 @@ class CasADiSolver(BaseSolver):
 								obs0 = self.data.static_obstacles[0]
 								if obs0 is not None and hasattr(obs0, 'halfspaces'):
 									# Check if point violates any halfspace
-									for halfspace in obs0.halfspaces:
+									for i, halfspace in enumerate(obs0.halfspaces):
 										if hasattr(halfspace, 'A') and hasattr(halfspace, 'b'):
-											A = halfspace.A
-											b = halfspace.b
+											A = np.array(halfspace.A).flatten()
+											b = float(halfspace.b)
 											violation = np.dot(A, [x0, y0]) - b
+											LOG_WARN(f"  Halfspace {i}: A={A}, b={b:.6f}, A·p={np.dot(A, [x0, y0]):.6f}, violation={violation:.6f}")
 											if violation > 1e-6:
-												LOG_WARN(f"  Initial position ({x0:.2f}, {y0:.2f}) violates road constraint: A·p - b = {violation:.6f}")
+												LOG_WARN(f"  Initial position ({x0:.2f}, {y0:.2f}) violates road constraint {i}: A·p - b = {violation:.6f}")
 					except Exception as check_err:
 						LOG_DEBUG(f"Could not check initial position against constraints: {check_err}")
 			
 			return -1
 
 	def get_output(self, k, var_name):
-		if self.solution and var_name in self.var_dict:
-			var = self.var_dict[var_name]
-			if k < var.shape[0]:
-				return self.solution.value(var[k])
-		return None
+		"""Get output value for variable at stage k.
+		
+		Args:
+			k: Stage index (0-based). For state variables: k in [0, horizon]. For input variables: k in [0, horizon-1]
+			var_name: Name of variable (state or input)
+		
+		Returns:
+			Value at stage k, or None if not available
+		"""
+		if not self.solution:
+			LOG_DEBUG(f"get_output({k}, {var_name}): No solution available")
+			return None
+		
+		if var_name not in self.var_dict:
+			LOG_DEBUG(f"get_output({k}, {var_name}): Variable not in var_dict")
+			return None
+		
+		var = self.var_dict[var_name]
+		if k >= var.shape[0]:
+			LOG_DEBUG(f"get_output({k}, {var_name}): k={k} >= var.shape[0]={var.shape[0]}")
+			return None
+		
+		try:
+			val = self.solution.value(var[k])
+			LOG_DEBUG(f"get_output({k}, {var_name}): {val}")
+			return val
+		except Exception as e:
+			LOG_WARN(f"get_output({k}, {var_name}): Error extracting value: {e}")
+			return None
 
 	def get_reference_trajectory(self):
 		if not self.solution:

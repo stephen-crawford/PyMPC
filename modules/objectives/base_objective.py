@@ -28,4 +28,4 @@ class BaseObjective(Module):
 
     @abstractmethod
     def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
-        pass
+    	pass

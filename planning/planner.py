@@ -361,17 +361,24 @@ class Planner:
         self.data.set(f'upper_bounds_{k}', ubs_k)
 
     LOG_INFO("Calling solver.solve()...")
+    LOG_DEBUG(f"  Solving MPC over horizon={horizon_val}, timestep={timestep_val}")
+    LOG_DEBUG(f"  Current state: x={self.state.get('x') if self.state.has('x') else 'N/A'}, y={self.state.get('y') if self.state.has('y') else 'N/A'}, v={self.state.get('v') if self.state.has('v') else 'N/A'}")
     exit_flag = self.solver.solve(self.state, self.data)
 
     if exit_flag != 1:
       self.output.success = False
       error_msg = self.solver.explain_exit_flag(exit_flag)
-      LOG_WARN(f"MPC failed: {error_msg}")
+      LOG_WARN(f"MPC solve failed: {error_msg}")
+      LOG_WARN("  No control extracted - solver did not find a solution")
       return self.output
 
     self.output.success = True
+    LOG_INFO("=== MPC SOLVE SUCCESSFUL ===")
+    LOG_INFO("  Solver found optimal trajectory over the horizon")
+    
+    # Get reference trajectory (optimal trajectory over horizon)
     reference_trajectory = self.solver.get_reference_trajectory()
-    LOG_INFO(f"MPC solve successful. Reference trajectory length: {len(reference_trajectory.get_states()) if hasattr(reference_trajectory, 'get_states') else 'unknown'}")
+    LOG_INFO(f"  Reference trajectory length: {len(reference_trajectory.get_states()) if hasattr(reference_trajectory, 'get_states') else 'unknown'}")
     
     # Log trajectory details for diagnosis
     if hasattr(reference_trajectory, 'get_states'):
@@ -383,9 +390,9 @@ class Planner:
         first_y = first_state.get('y') if first_state.has('y') else None
         last_x = last_state.get('x') if last_state.has('x') else None
         last_y = last_state.get('y') if last_state.has('y') else None
-        LOG_INFO(f"Trajectory: start=({first_x:.2f}, {first_y:.2f})" + 
+        LOG_INFO(f"  Trajectory: start=({first_x:.2f}, {first_y:.2f})" + 
                  (f", end=({last_x:.2f}, {last_y:.2f})" if last_x is not None and last_y is not None else ""))
-        LOG_DEBUG(f"Trajectory has {len(traj_states)} states")
+        LOG_DEBUG(f"  Trajectory has {len(traj_states)} states (horizon + 1)")
         # Log first few trajectory points
         for i in range(min(3, len(traj_states))):
           state_i = traj_states[i]
@@ -393,8 +400,16 @@ class Planner:
           y_i = state_i.get('y') if state_i.has('y') else None
           v_i = state_i.get('v') if state_i.has('v') else None
           spline_i = state_i.get('spline') if state_i.has('spline') else None
-          LOG_DEBUG(f"  Traj[{i}]: x={x_i:.2f}, y={y_i:.2f}, v={v_i:.2f}" + 
-                   (f", spline={spline_i:.3f}" if spline_i is not None else ""))
+          # Log control inputs for first state (k=0)
+          if i == 0:
+            u_a = state_i.get('a') if state_i.has('a') else None
+            u_w = state_i.get('w') if state_i.has('w') else None
+            LOG_DEBUG(f"  Traj[{i}]: x={x_i:.2f}, y={y_i:.2f}, v={v_i:.2f}" + 
+                     (f", spline={spline_i:.3f}" if spline_i is not None else "") +
+                     (f", u=(a={u_a:.3f}, w={u_w:.3f})" if u_a is not None and u_w is not None else ""))
+          else:
+            LOG_DEBUG(f"  Traj[{i}]: x={x_i:.2f}, y={y_i:.2f}, v={v_i:.2f}" + 
+                     (f", spline={spline_i:.3f}" if spline_i is not None else ""))
     
     self.output.trajectory_history.append(reference_trajectory)
 
@@ -403,25 +418,37 @@ class Planner:
       self.solver.print_if_bound_limited()
 
     # Extract first-step control from solver so caller can apply it
-    LOG_INFO("Extracting control from solver solution...")
+    # CRITICAL: This is the control input at k=0 (first time step) that should be applied
+    LOG_INFO("Extracting first control input (k=0) from optimal trajectory...")
     try:
       control_out = {}
       if hasattr(self.solver, 'dynamics_model') and self.solver.dynamics_model is not None:
         input_vars = self.solver.dynamics_model.get_inputs()
         LOG_DEBUG(f"  Looking for control inputs: {input_vars}")
+        LOG_DEBUG(f"  Extracting control at k=0 (first time step of horizon)")
         for u_name in input_vars:
+          # Get control input at k=0 (first time step)
+          # Input variables have shape [horizon], so k=0 is the first control
           val0 = self.solver.get_output(0, u_name)
           if val0 is not None:
             control_out[u_name] = float(val0)
-            LOG_DEBUG(f"  Extracted {u_name} = {float(val0):.4f}")
+            LOG_DEBUG(f"  Extracted u[{u_name}][0] = {float(val0):.4f}")
           else:
             LOG_WARN(f"  Could not extract {u_name} from solver (returned None)")
+            # Fallback: try to get from trajectory
+            if hasattr(reference_trajectory, 'get_states') and len(reference_trajectory.get_states()) > 0:
+              first_state = reference_trajectory.get_states()[0]
+              if first_state.has(u_name):
+                fallback_val = first_state.get(u_name)
+                control_out[u_name] = float(fallback_val)
+                LOG_DEBUG(f"  Fallback: extracted {u_name} from trajectory state: {float(fallback_val):.4f}")
       # Store on output if anything was found
       if control_out:
         self.output.control = control_out
-        LOG_INFO(f"Control extracted successfully: {control_out}")
+        LOG_INFO(f"  First control input extracted: {control_out}")
+        LOG_INFO(f"  This control will be applied to transition from current state to next state")
       else:
-        LOG_WARN("No control extracted from solver - all inputs returned None!")
+        LOG_WARN("  No control extracted from solver - all inputs returned None!")
     except Exception as e:
       LOG_WARN(f"Error extracting control: {e}")
       import traceback

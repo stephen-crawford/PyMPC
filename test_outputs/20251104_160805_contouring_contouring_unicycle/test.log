@@ -1,0 +1,17 @@
+2025-11-04 16:08:05,284 - INFO - Contouring objective detected: automatically switching to contouring-aware dynamics model
+2025-11-04 16:08:05,284 - INFO -   Converted 'unicycle' -> 'contouring_unicycle'
+2025-11-04 16:08:05,284 - INFO - Created vehicle dynamics model: ContouringSecondOrderUnicycleModel
+2025-11-04 16:08:05,284 - INFO - Creating objective module: contouring
+2025-11-04 16:08:05,288 - ERROR - Test failed: inconsistent use of tabs and spaces in indentation (base_objective.py, line 29)
+2025-11-04 16:08:05,289 - ERROR - Traceback: Traceback (most recent call last):
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/constraints/contouring/../../../../test/integration/integration_test_framework.py", line 304, in run_test
+    objective_module = self.create_objective_module(test_config.objective_module)
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/constraints/contouring/../../../../test/integration/integration_test_framework.py", line 155, in create_objective_module
+    from modules.objectives.contouring_objective import ContouringObjective
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/constraints/contouring/../../../../modules/objectives/contouring_objective.py", line 8, in <module>
+    from modules.objectives.base_objective import BaseObjective
+  File "/home/stephencrawford/PycharmProjects/PyMPC/test/integration/constraints/contouring/../../../../modules/objectives/base_objective.py", line 29
+    	@abstractmethod
+    ^
+TabError: inconsistent use of tabs and spaces in indentation
+
