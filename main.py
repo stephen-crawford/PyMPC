@@ -1,8 +1,8 @@
-from planning.src.planner import Planner
-from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
-from planner_modules.src.objectives.goal_objective import GoalObjective
-from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints
-from solver.src.casadi_solver import CasADiSolver
+from planning.planner import Planner
+from modules.constraints.contouring_constraints import ContouringConstraints
+from modules.objectives.goal_objective import GoalObjective
+from modules.constraints.guidance_constraints import GuidanceConstraints
+from solver.casadi_solver import CasADiSolver
 
 
 def main():

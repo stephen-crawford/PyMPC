@@ -1,43 +1,11 @@
-"""
-Obstacle Manager for Integration Tests
 
-This module provides obstacle management capabilities including:
-- Obstacle creation with specified dynamics
-- State integration for obstacles
-- Tracking obstacle states over time
-- Integration with the same dynamics models as vehicles
-"""
+from typing import Dict, Any, List, Optional, Tuple, TYPE_CHECKING
 import numpy as np
 import logging
-from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
-from planning.src.types import DynamicObstacle, PredictionType, PredictionStep
-from planning.src.dynamic_models import DynamicsModel, SecondOrderUnicycleModel, SecondOrderBicycleModel
-from utils.utils import LOG_DEBUG, LOG_WARN
 
-
-class PointMassModel(DynamicsModel):
-    """Simple point mass model for obstacles."""
-    
-    def __init__(self):
-        super().__init__()
-        self.nu = 2  # number of control variables (ax, ay)
-        self.state_dimension = 4  # number of states (x, y, vx, vy)
-        
-        self.dependent_vars = ["x", "y", "vx", "vy"]
-        self.inputs = ["ax", "ay"]
-        self.lower_bound = [-2.0, -2.0, -10.0, -10.0, -5.0, -5.0]
-        self.upper_bound = [2.0, 2.0, 10.0, 10.0, 5.0, 5.0]
-        
-    def continuous_model(self, x, u, p):
-        """Point mass dynamics: x' = vx, y' = vy, vx' = ax, vy' = ay"""
-        ax = u[0]
-        ay = u[1]
-        vx = x[2]
-        vy = x[3]
-        
-        return np.array([vx, vy, ax, ay])
-
+from planning.types import DynamicObstacle, PredictionType
+from planning.dynamic_models import DynamicsModel
 
 @dataclass
 class ObstacleConfig:
@@ -51,7 +19,6 @@ class ObstacleConfig:
     prediction_type: PredictionType = PredictionType.GAUSSIAN
     control_inputs: Optional[np.ndarray] = None
     uncertainty_params: Optional[Dict[str, float]] = None
-
 
 class ObstacleManager:
     """Manages obstacles for integration tests with state integration."""
@@ -72,7 +39,7 @@ class ObstacleManager:
             "uncertainty_growth": 0.02
         }
         
-    def create_obstacle(self, obstacle_config: ObstacleConfig) -> DynamicObstacle:
+    def create_obstacle(self, obstacle_config: 'ObstacleConfig') -> DynamicObstacle:
         """Create a new obstacle with specified dynamics."""
         self.logger.info(f"Creating obstacle {obstacle_config.obstacle_id} with {obstacle_config.dynamics_type} dynamics")
         
@@ -113,7 +80,7 @@ class ObstacleManager:
         else:
             raise ValueError(f"Unknown dynamics type: {dynamics_type}")
             
-    def _create_initial_state(self, obstacle_config: ObstacleConfig, dynamics_model: DynamicsModel) -> np.ndarray:
+    def _create_initial_state(self, obstacle_config: 'ObstacleConfig', dynamics_model: DynamicsModel) -> np.ndarray:
         """Create initial state vector for obstacle."""
         if obstacle_config.dynamics_type == "unicycle":
             # State: [x, y, psi, v]
@@ -150,7 +117,7 @@ class ObstacleManager:
             raise ValueError(f"Unknown dynamics type: {obstacle_config.dynamics_type}")
             
     def _generate_prediction_steps(self, obstacle: DynamicObstacle, dynamics_model: DynamicsModel, 
-                                  obstacle_config: ObstacleConfig):
+                                  obstacle_config: 'ObstacleConfig'):
         """Generate prediction steps for obstacle."""
         horizon_length = self.config.get("horizon", 10)
         timestep = self.config.get("timestep", 0.1)
@@ -300,7 +267,7 @@ class ObstacleManager:
                 return states[time_step]
         return None
         
-    def create_obstacles_from_config(self, obstacle_configs: List[ObstacleConfig]) -> List[DynamicObstacle]:
+    def create_obstacles_from_config(self, obstacle_configs: List['ObstacleConfig']) -> List[DynamicObstacle]:
         """Create multiple obstacles from configuration list."""
         obstacles = []
         for config in obstacle_configs:
@@ -424,3 +391,4 @@ def create_point_mass_obstacle(obstacle_id: int, position: np.ndarray, velocity:
         dynamics_type="point_mass",
         prediction_type=PredictionType.GAUSSIAN
     )
+

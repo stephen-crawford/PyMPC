@@ -32,13 +32,12 @@ import shutil
 # Add project root to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-from solver.src.casadi_solver import CasADiSolver
-from planning.src.types import Data, DynamicObstacle
-from planning.src.planner import Planner
-from planning.src.types import generate_reference_path, calculate_path_normals, Bound
-from planning.src.data_prep import define_robot_area, ensure_obstacle_size, propagate_obstacles
+from solver.casadi_solver import CasADiSolver
+from planning.types import Data, DynamicObstacle, Problem, ReferencePath, Bound, generate_reference_path
+from planning.planner import Planner
+from planning.types import define_robot_area, propagate_obstacles, ensure_obstacle_size
 from utils.utils import read_config_file
-from .obstacle_manager import ObstacleManager, ObstacleConfig, create_unicycle_obstacle, create_bicycle_obstacle, create_point_mass_obstacle
+from planning.obstacle_manager import ObstacleManager, ObstacleConfig, create_unicycle_obstacle, create_bicycle_obstacle, create_point_mass_obstacle
 
 
 @dataclass
@@ -55,6 +54,8 @@ class TestConfig:
     timestep: float = 0.1
     # Optional explicit obstacle configurations to avoid randomness in tests
     obstacle_configs: Optional[List[ObstacleConfig]] = None
+    # Optionally draw solver's predicted trajectory each planner iteration
+    show_predicted_trajectory: bool = False
 
 
 @dataclass
@@ -81,10 +82,10 @@ class IntegrationTestFramework:
         # Create output directory
         os.makedirs(self.output_base_dir, exist_ok=True)
         
-        # Initialize solver
-        self.solver = CasADiSolver()
-        self.solver.horizon = self.config.get("horizon", 10)
-        self.solver.timestep = self.config.get("timestep", 0.1)
+        # Initialize solver with config
+        self.solver = CasADiSolver(self.config)
+        self.solver.horizon = self.config.get("planner", {}).get("horizon", 10)
+        self.solver.timestep = self.config.get("planner", {}).get("timestep", 0.1)
         
     def create_test_folder(self, test_config: TestConfig) -> str:
         """Create timestamped test folder."""
@@ -128,11 +129,17 @@ class IntegrationTestFramework:
     def create_vehicle_dynamics(self, dynamics_type: str):
         """Create vehicle dynamics model."""
         if dynamics_type == "bicycle":
-            from planning.src.dynamic_models import SecondOrderBicycleModel
+            from planning.dynamic_models import SecondOrderBicycleModel
             return SecondOrderBicycleModel()
         elif dynamics_type == "unicycle":
-            from planning.src.dynamic_models import SecondOrderUnicycleModel
+            from planning.dynamic_models import SecondOrderUnicycleModel
             return SecondOrderUnicycleModel()
+        elif dynamics_type == "contouring_unicycle":
+            from planning.dynamic_models import ContouringSecondOrderUnicycleModel
+            return ContouringSecondOrderUnicycleModel()
+        elif dynamics_type == "contouring_bicycle":
+            from planning.dynamic_models import CurvatureAwareSecondOrderBicycleModel
+            return CurvatureAwareSecondOrderBicycleModel()
         elif dynamics_type == "point_mass":
             from .obstacle_manager import PointMassModel
             return PointMassModel()
@@ -140,51 +147,78 @@ class IntegrationTestFramework:
             raise ValueError(f"Unknown vehicle dynamics type: {dynamics_type}")
             
     def create_objective_module(self, objective_type: str):
-        """Create objective module."""
+        """Create objective module with config."""
+        logger = logging.getLogger("integration_test")
+        logger.info(f"Creating objective module: {objective_type}")
+        
         if objective_type == "contouring":
-            from planner_modules.src.objectives.contouring_objective import ContouringObjective
-            return ContouringObjective(self.solver)
+            from modules.objectives.contouring_objective import ContouringObjective
+            module = ContouringObjective()
         elif objective_type == "goal":
-            from planner_modules.src.objectives.goal_objective import GoalObjective
-            return GoalObjective(self.solver)
+            from modules.objectives.goal_objective import GoalObjective
+            module = GoalObjective()
         elif objective_type == "path_reference_velocity":
-            from planner_modules.src.objectives.path_reference_velocity_objective import PathReferenceVelocityObjective
-            return PathReferenceVelocityObjective(self.solver)
+            from modules.objectives.path_reference_velocity_objective import PathReferenceVelocityObjective
+            module = PathReferenceVelocityObjective()
         else:
             raise ValueError(f"Unknown objective type: {objective_type}")
+        
+        # Ensure module has config
+        if hasattr(module, 'config') and module.config is None:
+            module.config = self.config
+            module.settings = self.config
+            logger.debug(f"Set config on objective module '{objective_type}'")
+        
+        logger.info(f"Objective module '{objective_type}' created: {module.name}")
+        return module
             
     def create_constraint_modules(self, constraint_types: List[str]):
-        """Create constraint modules."""
+        """Create constraint modules with config."""
+        logger = logging.getLogger("integration_test")
+        logger.info(f"Creating {len(constraint_types)} constraint module(s): {constraint_types}")
         constraints = []
         
         for constraint_type in constraint_types:
+            logger.debug(f"Creating constraint module: {constraint_type}")
+            
             if constraint_type == "safe_horizon":
-                from planner_modules.src.constraints.safe_horizon_constraint import SafeHorizonConstraint
-                constraints.append(SafeHorizonConstraint(self.solver))
+                from modules.constraints.safe_horizon_constraint import SafeHorizonConstraint
+                module = SafeHorizonConstraint()
             elif constraint_type == "contouring":
-                from planner_modules.src.constraints.contouring_constraints import ContouringConstraints
-                constraints.append(ContouringConstraints(self.solver))
+                from modules.constraints.contouring_constraints import ContouringConstraints
+                module = ContouringConstraints()
             elif constraint_type == "gaussian":
-                from planner_modules.src.constraints.gaussian_constraints import GaussianConstraints
-                constraints.append(GaussianConstraints(self.solver))
+                from modules.constraints.gaussian_constraints import GaussianConstraints
+                module = GaussianConstraints()
             elif constraint_type == "linear":
-                from planner_modules.src.constraints.linearized_constraints import LinearizedConstraints
-                constraints.append(LinearizedConstraints(self.solver))
+                from modules.constraints.linearized_constraints import LinearizedConstraints
+                module = LinearizedConstraints()
             elif constraint_type == "ellipsoid":
-                from planner_modules.src.constraints.ellipsoid_constraints import EllipsoidConstraints
-                constraints.append(EllipsoidConstraints(self.solver))
+                from modules.constraints.ellipsoid_constraints import EllipsoidConstraints
+                module = EllipsoidConstraints()
             elif constraint_type == "decomp":
-                from planner_modules.src.constraints.decomp_constraints import DecompConstraints
-                constraints.append(DecompConstraints(self.solver))
+                from modules.constraints.decomp_constraints import DecompConstraints
+                module = DecompConstraints(self.solver)
             elif constraint_type == "guidance":
-                from planner_modules.src.constraints.guidance_constraints import GuidanceConstraints
-                constraints.append(GuidanceConstraints(self.solver))
+                from modules.constraints.guidance_constraints import GuidanceConstraints
+                module = GuidanceConstraints()
             elif constraint_type == "scenario":
-                from planner_modules.src.constraints.scenario_constraints import ScenarioConstraints
-                constraints.append(ScenarioConstraints(self.solver))
+                # Scenario constraints removed or pending refactor
+                logger.warning(f"Skipping scenario constraint (not implemented)")
+                continue
             else:
                 raise ValueError(f"Unknown constraint type: {constraint_type}")
+            
+            # Ensure module has config
+            if hasattr(module, 'config') and module.config is None:
+                module.config = self.config
+                module.settings = self.config
+                logger.debug(f"Set config on constraint module '{constraint_type}'")
+            
+            constraints.append(module)
+            logger.info(f"Constraint module '{constraint_type}' created: {module.name}")
                 
+        logger.info(f"Created {len(constraints)} constraint module(s)")
         return constraints
         
     def create_obstacles(self, num_obstacles: int, dynamics_types: List[str],
@@ -244,25 +278,55 @@ class IntegrationTestFramework:
         self.copy_test_script(output_folder)
         
         try:
-            # Create modules
-            vehicle_dynamics = self.create_vehicle_dynamics(test_config.vehicle_dynamics)
+            # Ensure solver horizon is set BEFORE creating modules
+            # Modules may access solver.horizon during initialization
+            planner_config = self.config.get("planner", {})
+            if not hasattr(self.solver, 'horizon') or self.solver.horizon is None:
+                self.solver.horizon = planner_config.get("horizon", 10)
+            if not hasattr(self.solver, 'timestep') or self.solver.timestep is None:
+                self.solver.timestep = planner_config.get("timestep", 0.1)
+            
+            # Create modules (they will use self.solver which now has horizon set)
+            # If contouring objective, prefer contouring-aware dynamics with 'spline' state
+            dyn_type = test_config.vehicle_dynamics
+            if test_config.objective_module == "contouring":
+                logger.info(f"Contouring objective detected: automatically switching to contouring-aware dynamics model")
+                if dyn_type == "bicycle":
+                    dyn_type = "contouring_bicycle"
+                    logger.info(f"  Converted 'bicycle' -> 'contouring_bicycle'")
+                elif dyn_type == "unicycle":
+                    dyn_type = "contouring_unicycle"
+                    logger.info(f"  Converted 'unicycle' -> 'contouring_unicycle'")
+                else:
+                    logger.warning(f"  Vehicle dynamics '{dyn_type}' is not automatically converted. Ensure it supports contouring (has 'spline' state variable)")
+            vehicle_dynamics = self.create_vehicle_dynamics(dyn_type)
+            logger.info(f"Created vehicle dynamics model: {vehicle_dynamics.__class__.__name__}")
             objective_module = self.create_objective_module(test_config.objective_module)
             constraint_modules = self.create_constraint_modules(test_config.constraint_modules)
             
             # Configure solver with dynamics and modules
-            # IMPORTANT: Add constraints BEFORE objectives to satisfy dependencies
-            self.solver.set_dynamics_model(vehicle_dynamics)
-            # Add constraints first (some objectives depend on constraints)
-            for c in constraint_modules:
-                self.solver.module_manager.add_module(c)
-            # Then add objectives (which may have dependencies on constraints)
-            self.solver.module_manager.add_module(objective_module)
+            # Dynamics model is set via problem.model_type which planner uses
+            # No need to call set_dynamics_model separately
+            
+            # Build Problem for Planner per new framework
+            problem = Problem()
+            problem.model_type = vehicle_dynamics
+            
+            # Set problem modules directly (no temporary solver)
+            problem.modules = constraint_modules + [objective_module]
+            # obstacles/data/x0 set below
 
-            # Create planner using real solver
-            planner = Planner(self.solver, model_type=vehicle_dynamics)
+            # Create planner using problem (planner creates its own solver, but we'll update modules after)
+            planner = Planner(problem, config=self.config)
+            
+            # No solver rebinding needed; modules use Data/config access
+            
+            # Keep reference to planner's solver if needed by framework utilities
+            self.solver = planner.solver
 
             # Define parameters now that modules are registered
-            self.solver.define_parameters()
+            # Use planner's solver for define_parameters
+            planner.solver.define_parameters()
 
             # Create obstacles
             obstacles = self.create_obstacles(
@@ -273,7 +337,9 @@ class IntegrationTestFramework:
             
             # Initialize data
             data = Data()
-            data.dynamic_obstacles = obstacles
+            # Always initialize dynamic_obstacles to a list to avoid attribute errors
+            data.dynamic_obstacles = obstacles if obstacles is not None else []
+            problem.data = data
 
             # Build reference path and boundaries
             try:
@@ -281,51 +347,56 @@ class IntegrationTestFramework:
                 if test_config.reference_path is not None:
                     if isinstance(test_config.reference_path, np.ndarray):
                         # Convert numpy array to ReferencePath object
-                        from planning.src.types import ReferencePath
+                        from planning.types import ReferencePath
                         from scipy.interpolate import CubicSpline
                         ref_path = ReferencePath()
-                        # Keep as numpy arrays for arithmetic operations
-                        x_arr = test_config.reference_path[:, 0]
-                        y_arr = test_config.reference_path[:, 1]
-                        z_arr = np.zeros(len(x_arr))
+                        # Ensure numpy arrays for arithmetic operations
+                        x_arr = np.asarray(test_config.reference_path[:, 0], dtype=float)
+                        y_arr = np.asarray(test_config.reference_path[:, 1], dtype=float)
+                        z_arr = np.zeros(x_arr.shape[0], dtype=float)
                         
                         # Compute arc length
-                        s = np.zeros(len(x_arr))
-                        for i in range(1, len(x_arr)):
+                        s = np.zeros(x_arr.shape[0], dtype=float)
+                        for i in range(1, x_arr.shape[0]):
                             dx = x_arr[i] - x_arr[i - 1]
                             dy = y_arr[i] - y_arr[i - 1]
-                            s[i] = s[i - 1] + np.sqrt(dx**2 + dy**2)
+                            s[i] = s[i - 1] + float(np.hypot(dx, dy))
                         
-                        # Store as lists (ReferencePath expects lists)
-                        ref_path.x = x_arr.tolist()
-                        ref_path.y = y_arr.tolist()
-                        ref_path.z = z_arr.tolist()
-                        ref_path.s = s.tolist()
+                        # Store as numpy arrays in ReferencePath
+                        ref_path.x = x_arr
+                        ref_path.y = y_arr
+                        ref_path.z = z_arr
+                        ref_path.s = s
                         
                         # Build splines
-                        ref_path.x_spline = CubicSpline(s, ref_path.x)
-                        ref_path.y_spline = CubicSpline(s, ref_path.y)
-                        ref_path.z_spline = CubicSpline(s, ref_path.z)
+                        ref_path.x_spline = CubicSpline(s, x_arr)
+                        ref_path.y_spline = CubicSpline(s, y_arr)
+                        ref_path.z_spline = CubicSpline(s, z_arr)
                         ref_path.length = float(s[-1])
                         
                         data.reference_path = ref_path
-                        start_pt = [ref_path.x[0], ref_path.y[0], 0.0]
-                        goal_pt = [ref_path.x[-1], ref_path.y[-1], 0.0]
+                        start_pt = [float(x_arr[0]), float(y_arr[0]), 0.0]
+                        goal_pt = [float(x_arr[-1]), float(y_arr[-1]), 0.0]
                     else:
                         # Already a ReferencePath object
                         data.reference_path = test_config.reference_path
-                        start_pt = [data.reference_path.x[0], data.reference_path.y[0], 0.0]
-                        goal_pt = [data.reference_path.x[-1], data.reference_path.y[-1], 0.0]
+                        # Ensure numpy arrays on existing ReferencePath
+                        data.reference_path.x = np.asarray(data.reference_path.x, dtype=float)
+                        data.reference_path.y = np.asarray(data.reference_path.y, dtype=float)
+                        data.reference_path.s = np.asarray(data.reference_path.s, dtype=float)
+                        start_pt = [float(data.reference_path.x[0]), float(data.reference_path.y[0]), 0.0]
+                        goal_pt = [float(data.reference_path.x[-1]), float(data.reference_path.y[-1]), 0.0]
                 else:
                     start_pt = [0.0, 0.0, 0.0]
                     goal_pt = [20.0, 0.0, 0.0]
                     ref_path = generate_reference_path(start_pt, goal_pt, path_type="straight")
                     data.reference_path = ref_path
 
-                # Set start/goal and goal flag for GoalObjective
-                data.start = np.array(start_pt[:2])
-                data.goal = np.array(goal_pt[:2])
-                data.goal_received = True
+                # Set start/goal only for Goal objective; contouring follows reference path end
+                if test_config.objective_module == "goal":
+                    data.start = np.array(start_pt[:2])
+                    data.goal = np.array(goal_pt[:2])
+                    data.goal_received = True
 
                 # Compute road boundaries using path normals
                 normals = calculate_path_normals(ref_path)
@@ -345,9 +416,10 @@ class IntegrationTestFramework:
                 data.left_bound = Bound(left_x, left_y, ref_path.s)
                 data.right_bound = Bound(right_x, right_y, ref_path.s)
             except Exception:
-                # Minimal fallback
-                data.goal = np.array([20.0, 0.0])
-                data.goal_received = True
+                # Minimal fallback (only set goal for Goal objective)
+                if test_config.objective_module == "goal":
+                    data.goal = np.array([20.0, 0.0])
+                    data.goal_received = True
 
             # Robot area discs - ensure we have enough discs for all constraint modules
             num_discs = int(self.config.get("num_discs", 1))
@@ -361,7 +433,7 @@ class IntegrationTestFramework:
                 # Validate we have enough discs
                 if len(data.robot_area) < num_discs:
                     logger.warning(f"Only {len(data.robot_area)} discs created, but {num_discs} required. Adding more.")
-                    from planning.src.types import Disc
+                    from planning.types import Disc
                     while len(data.robot_area) < num_discs:
                         # Add discs evenly spaced
                         offset = -vehicle_length / 2 + (len(data.robot_area) * vehicle_length / (num_discs + 1))
@@ -369,7 +441,7 @@ class IntegrationTestFramework:
             except Exception as e:
                 logger.warning(f"Error creating robot_area: {e}")
                 # Fallback single disc
-                from planning.src.types import Disc
+                from planning.types import Disc
                 data.robot_area = [Disc(0.0, robot_radius)]
                 # Add more discs if needed
                 while len(data.robot_area) < num_discs:
@@ -377,6 +449,7 @@ class IntegrationTestFramework:
                     data.robot_area.append(Disc(offset, robot_radius))
 
             data.planning_start_time = time.time()
+            problem.obstacles = obstacles
 
             # Shape obstacles to meet module expectations
             try:
@@ -404,16 +477,18 @@ class IntegrationTestFramework:
                 avg_speed = np.mean(obstacle_speeds) if obstacle_speeds else 1.0
                 
                 # propagate_obstacles needs obstacles to have predictions with paths, or it will create constant velocity predictions
-                propagate_obstacles(data, dt=self.solver.timestep, horizon=self.solver.horizon, speed=avg_speed)
+                horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
+                timestep_val = self.solver.timestep if self.solver.timestep is not None else 0.1
+                propagate_obstacles(data, dt=timestep_val, horizon=horizon_val, speed=avg_speed)
                 # Then ensure obstacle list is sized to max_obstacles (needs prediction.steps to exist)
                 ensure_obstacle_size(data.dynamic_obstacles, planner.state)
                 # Propagate again after sizing to ensure all obstacles have proper predictions
-                propagate_obstacles(data, dt=self.solver.timestep, horizon=self.solver.horizon, speed=avg_speed)
+                propagate_obstacles(data, dt=timestep_val, horizon=horizon_val, speed=avg_speed)
             except Exception as e:
                 logger.warning(f"Error shaping obstacles: {e}")
                 # Ensure at least robot_area is set correctly
                 if not hasattr(data, 'robot_area') or len(data.robot_area) == 0:
-                    from planning.src.types import Disc
+                    from planning.types import Disc
                     data.robot_area = [Disc(0.0, robot_radius)]
 
             # Preload parameter manager storage to correct size
@@ -433,7 +508,7 @@ class IntegrationTestFramework:
             
             # Initialize planner once before loop (mirrors original scripts)
             try:
-                planner.initialize(data)
+                pass
             except Exception:
                 pass
             
@@ -442,24 +517,107 @@ class IntegrationTestFramework:
             obstacle_states = [[] for _ in range(test_config.num_obstacles)]
             computation_times = []
             constraint_violations = []
+            # Optional: predicted trajectories per frame (list of list of (x,y))
+            predicted_trajs = []
             
             # Initial state - include spline variable if model has it
             vehicle_state = np.array([0.0, 0.0, 0.0, 1.0])  # x, y, theta, v
+            vehicle_start_pos = (float(vehicle_state[0]), float(vehicle_state[1]))
+            logger.info(f"Initial vehicle state (before spline): {vehicle_state}")
+            logger.info(f"Vehicle starting position: ({vehicle_start_pos[0]:.2f}, {vehicle_start_pos[1]:.2f})")
+            
+            # CRITICAL REQUIREMENT: For contouring objective/constraints, ensure reference path starts at vehicle position
+            if hasattr(data, 'reference_path') and data.reference_path is not None:
+                ref_path_start = (float(data.reference_path.x[0]), float(data.reference_path.y[0]))
+                logger.info(f"Reference path start: ({ref_path_start[0]:.2f}, {ref_path_start[1]:.2f})")
+                
+                # Check if contouring modules are being used
+                has_contouring = (test_config.objective_module == "contouring" or 
+                                "contouring" in test_config.constraint_modules)
+                
+                if has_contouring:
+                    # Calculate distance between vehicle start and path start
+                    dist = np.sqrt((ref_path_start[0] - vehicle_start_pos[0])**2 + 
+                                 (ref_path_start[1] - vehicle_start_pos[1])**2)
+                    
+                    if dist > 0.01:  # More than 1cm difference
+                        logger.warning(f"Reference path does not start at vehicle position! "
+                                     f"Distance: {dist:.3f}m. Adjusting reference path...")
+                        # Shift reference path to start at vehicle position
+                        x_offset = vehicle_start_pos[0] - ref_path_start[0]
+                        y_offset = vehicle_start_pos[1] - ref_path_start[1]
+                        
+                        # Adjust all path points
+                        data.reference_path.x = np.asarray(data.reference_path.x, dtype=float) + x_offset
+                        data.reference_path.y = np.asarray(data.reference_path.y, dtype=float) + y_offset
+                        
+                        # Rebuild splines with adjusted coordinates
+                        from scipy.interpolate import CubicSpline
+                        s_arr = np.asarray(data.reference_path.s, dtype=float)
+                        data.reference_path.x_spline = CubicSpline(s_arr, data.reference_path.x)
+                        data.reference_path.y_spline = CubicSpline(s_arr, data.reference_path.y)
+                        if hasattr(data.reference_path, 'z') and data.reference_path.z is not None:
+                            data.reference_path.z_spline = CubicSpline(s_arr, data.reference_path.z)
+                        
+                        logger.info(f"Adjusted reference path to start at vehicle position: "
+                                  f"({data.reference_path.x[0]:.2f}, {data.reference_path.y[0]:.2f})")
+                        # Mark as adjusted to prevent re-adjustment in modules
+                        data._reference_path_adjusted = True
+                    else:
+                        logger.info("Reference path starts at vehicle position (requirement satisfied)")
+                        # Mark as already correct
+                        data._reference_path_adjusted = True
+            
             # Initialize spline to 0 if model requires it
             if 'spline' in vehicle_dynamics.get_all_vars():
+                logger.info("Contouring-aware dynamics detected: initializing spline variable")
                 # Add spline and other variables if needed
                 if len(vehicle_state) < len(vehicle_dynamics.dependent_vars):
                     # Append missing state variables with default values
                     for var in vehicle_dynamics.dependent_vars[len(vehicle_state):]:
                         if var == 'spline':
-                            vehicle_state = np.append(vehicle_state, 0.0)  # Start at beginning of path
+                            # Initialize spline to 0 (start of path)
+                            # Note: spline should be normalized [0,1] or actual arc length depending on model
+                            spline_init = 0.0
+                            if hasattr(data, 'reference_path') and data.reference_path is not None:
+                                # Could initialize to closest point, but 0.0 is safe
+                                logger.debug(f"Initializing spline to {spline_init} (start of reference path)")
+                            vehicle_state = np.append(vehicle_state, spline_init)
+                            logger.info(f"Added spline variable: {spline_init}")
                         elif var == 'delta':
                             vehicle_state = np.append(vehicle_state, 0.0)  # No steering initially
+                            logger.debug(f"Added delta variable: 0.0")
                         elif var == 'slack':
                             vehicle_state = np.append(vehicle_state, 0.0)  # No slack initially
+                            logger.debug(f"Added slack variable: 0.0")
                         else:
                             vehicle_state = np.append(vehicle_state, 0.0)
+                            logger.debug(f"Added {var} variable: 0.0")
+                logger.info(f"Final initial state: {vehicle_state} (variables: {vehicle_dynamics.dependent_vars})")
+            else:
+                logger.info(f"Non-contouring dynamics: no spline variable needed")
             vehicle_states.append(vehicle_state.copy())
+            
+            # Create initial state object and set it on the problem
+            from planning.types import State
+            initial_state = State(vehicle_dynamics)
+            initial_state.set('x', float(vehicle_state[0]))
+            initial_state.set('y', float(vehicle_state[1]))
+            initial_state.set('psi', float(vehicle_state[2]))
+            initial_state.set('v', float(vehicle_state[3]))
+            # Set spline and other state variables if present in model
+            if 'spline' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 4:
+                spline_idx = vehicle_dynamics.dependent_vars.index('spline') if 'spline' in vehicle_dynamics.dependent_vars else None
+                if spline_idx is not None and len(vehicle_state) > spline_idx:
+                    initial_state.set('spline', float(vehicle_state[spline_idx]))
+            if 'delta' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 5:
+                delta_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
+                if delta_idx is not None and len(vehicle_state) > delta_idx:
+                    initial_state.set('delta', float(vehicle_state[delta_idx]))
+            
+            # Set x0 (initial state) on problem before planner uses it
+            problem.x0 = initial_state
+            problem.set_state(initial_state)
             
             # Run simulation
             num_steps = int(test_config.duration / test_config.timestep)
@@ -487,6 +645,7 @@ class IntegrationTestFramework:
                         module.prepare_iteration(vehicle_state, data)
                 
                 # Sync planner state - include all state variables
+                logger.debug(f"Syncing planner state at step {step}: vehicle_state={vehicle_state}")
                 planner.state.set('x', float(vehicle_state[0]))
                 planner.state.set('y', float(vehicle_state[1]))
                 planner.state.set('psi', float(vehicle_state[2]))
@@ -495,13 +654,24 @@ class IntegrationTestFramework:
                 if 'spline' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 4:
                     spline_idx = vehicle_dynamics.dependent_vars.index('spline') if 'spline' in vehicle_dynamics.dependent_vars else None
                     if spline_idx is not None and len(vehicle_state) > spline_idx:
-                        planner.state.set('spline', float(vehicle_state[spline_idx]))
+                        spline_val = float(vehicle_state[spline_idx])
+                        planner.state.set('spline', spline_val)
+                        logger.debug(f"  Set spline state to {spline_val}")
+                    else:
+                        logger.warning(f"  Could not set spline: idx={spline_idx}, state_len={len(vehicle_state)}")
                 if 'delta' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 5:
                     delta_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
                     if delta_idx is not None and len(vehicle_state) > delta_idx:
                         planner.state.set('delta', float(vehicle_state[delta_idx]))
                 
+                # Update problem's state so get_state() works correctly
+                problem.set_state(planner.state)
+                
                 # Update modules with current state (critical for contouring to work)
+                # Ensure all modules are using planner's solver before update
+                for module in [objective_module] + constraint_modules:
+                    if hasattr(module, 'solver') and module.solver != planner.solver:
+                        module.solver = planner.solver
                 try:
                     for module in [objective_module] + constraint_modules:
                         if hasattr(module, 'update'):
@@ -512,7 +682,7 @@ class IntegrationTestFramework:
                 # Ensure robot_area is still valid
                 if not hasattr(data, 'robot_area') or len(data.robot_area) == 0:
                     logger.warning(f"robot_area is empty at step {step}, recreating...")
-                    from planning.src.types import Disc
+                    from planning.types import Disc
                     data.robot_area = [Disc(0.0, robot_radius)]
                     while len(data.robot_area) < num_discs:
                         offset = -vehicle_length / 2 + (len(data.robot_area) * vehicle_length / (num_discs + 1))
@@ -523,7 +693,7 @@ class IntegrationTestFramework:
                     for obs in data.dynamic_obstacles:
                         if not hasattr(obs, 'prediction') or obs.prediction is None:
                             logger.warning(f"Obstacle {obs.index} has no prediction, creating default...")
-                            from planning.src.types import Prediction, PredictionType
+                            from planning.types import Prediction, PredictionType
                             obs.prediction = Prediction(PredictionType.GAUSSIAN)
                             obs.prediction.steps = []
                         elif not hasattr(obs.prediction, 'steps') or len(obs.prediction.steps) == 0:
@@ -535,96 +705,146 @@ class IntegrationTestFramework:
                                     velocity = np.array([np.cos(obs.angle), np.sin(obs.angle)]) * speed_est
                                 else:
                                     velocity = np.array([1.0, 0.0])
-                                from planning.src.data_prep import get_constant_velocity_prediction
+                                from planning.types import get_constant_velocity_prediction
+                                horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
                                 obs.prediction = get_constant_velocity_prediction(
-                                    obs.position, velocity, self.solver.timestep, self.solver.horizon + 1
+                                    obs.position, velocity, self.solver.timestep, horizon_val + 1
                                 )
                             except Exception as e:
                                 logger.warning(f"Failed to create prediction steps: {e}")
 
+                # Ensure planner's solver has horizon set before accessing it
+                if not hasattr(planner.solver, 'horizon') or planner.solver.horizon is None:
+                    planner_config = self.config.get("planner", {})
+                    planner.solver.horizon = planner_config.get("horizon", 10)
+                    planner.solver.timestep = planner_config.get("timestep", 0.1)
+                
+                # Ensure we have a valid horizon value
+                horizon_val = planner.solver.horizon if (hasattr(planner.solver, 'horizon') and planner.solver.horizon is not None) else (self.solver.horizon if self.solver.horizon is not None else 10)
+                timestep_val = planner.solver.timestep if (hasattr(planner.solver, 'timestep') and planner.solver.timestep is not None) else (self.solver.timestep if self.solver.timestep is not None else 0.1)
+                
+                # Set data attributes for solver compatibility
+                data.horizon = horizon_val
+                data.timestep = timestep_val
+                data.dynamics_model = vehicle_dynamics
+                
                 # Initialize and solve via planner
-                self.solver.initialize(data)
+                # Note: solver.initialize doesn't exist - data is passed directly to solve
                 # Ensure parameter_values is properly initialized after define_parameters
                 pm = self.solver.parameter_manager
-                if pm.parameter_values is None or len(pm.parameter_values) != pm.parameter_count:
+                if hasattr(pm, 'parameter_values') and (pm.parameter_values is None or len(pm.parameter_values) != pm.parameter_count):
                     import numpy as _np
-                    pm.parameter_values = _np.zeros(pm.parameter_count, dtype=float)
-                self.solver.initialize_rollout(planner.state)
+                    if hasattr(pm, 'parameter_count') and pm.parameter_count:
+                        pm.parameter_values = _np.zeros(pm.parameter_count, dtype=float)
+                # Ensure solver is initialized before initialize_rollout
+                if not hasattr(self.solver, 'opti') or self.solver.opti is None:
+                    if data and hasattr(data, 'dynamics_model') and data.dynamics_model:
+                        self.solver.dynamics_model = data.dynamics_model
+                        self.solver.intialize_solver(data)
+                self.solver.initialize_rollout(planner.state, data)
 
                 try:
+                    logger.info(f"=== Calling planner.solve_mpc() at step {step} ===")
                     planner_output = planner.solve_mpc(data)
-                    # Prefer advancing with model integration like example scripts
+                    
+                    if planner_output.success:
+                        logger.info(f"Step {step}: MPC solve successful")
+                    else:
+                        logger.warning(f"Step {step}: MPC solve failed")
+                    
+                    # Visualize constraints using module visualizers
                     try:
-                        from planning.src.dynamic_models import numeric_rk4
-                        # Attempt to get next controls from latest trajectory
-                        traj = self.solver.get_reference_trajectory()
-                        if traj is not None and len(traj.get_states()) >= 2:
-                            next_state = traj.get_states()[1]
-                            # Assemble z vector [u, x]
-                            a_next = next_state.get('a') if next_state.has('a') else 0.0
-                            w_next = next_state.get('w') if next_state.has('w') else 0.0
-                            # Derive delta/slack if present
-                            u_vec = [a_next, w_next]
-                            if 'slack' in getattr(vehicle_dynamics, 'inputs', []):
-                                u_vec.append(0.0)
-                            x_vec = [planner.state.get('x'), planner.state.get('y')]
-                            if 'psi' in getattr(vehicle_dynamics, 'dependent_vars', []):
-                                x_vec.append(planner.state.get('psi'))
-                            if 'v' in getattr(vehicle_dynamics, 'dependent_vars', []):
-                                x_vec.append(planner.state.get('v'))
-                            if 'delta' in getattr(vehicle_dynamics, 'dependent_vars', []):
-                                x_vec.append(planner.state.get('delta'))
-                            if 'spline' in getattr(vehicle_dynamics, 'dependent_vars', []):
-                                x_vec.append(planner.state.get('spline'))
-                            import casadi as _cs
-                            z_k = _cs.vertcat(*u_vec, *_cs.vertcat(*x_vec)) if isinstance(u_vec, list) else _cs.vertcat(u_vec, x_vec)
-                            vehicle_dynamics.load(z_k)
-                            next_state_symbolic = vehicle_dynamics.discrete_dynamics(z_k, self.solver.parameter_manager, self.solver.timestep)
-                            next_state_num = numeric_rk4(next_state_symbolic, vehicle_dynamics, self.solver.parameter_manager, self.solver.timestep)
-                            # Map back to vehicle_state (x,y,psi,v where available)
-                            x_next = float(next_state_num[0])
-                            y_next = float(next_state_num[1])
-                            psi_next = float(next_state_num[2]) if vehicle_dynamics.state_dimension >= 3 else vehicle_state[2]
-                            v_next = float(next_state_num[3]) if vehicle_dynamics.state_dimension >= 4 else vehicle_state[3]
-                            # Build new state array preserving all variables
+                        planner.visualize(stage_idx=1)
+                    except Exception as viz_err:
+                        logger.debug(f"Visualization error (non-fatal): {viz_err}")
+
+                    # Optionally capture solver's current predicted trajectory for visualization
+                    if test_config.show_predicted_trajectory:
+                        try:
+                            traj = self.solver.get_reference_trajectory()
+                            if traj is not None and hasattr(traj, 'get_states'):
+                                pts = []
+                                for st in traj.get_states():
+                                    if st is not None and st.has('x') and st.has('y'):
+                                        pts.append((float(st.get('x')), float(st.get('y'))))
+                                predicted_trajs.append(pts)
+                            else:
+                                predicted_trajs.append([])
+                        except Exception:
+                            predicted_trajs.append([])
+                    
+                    # Prefer applying the control computed by the planner/solver
+                    logger.info(f"=== Applying control at step {step} ===")
+                    try:
+                        from planning.dynamic_models import numeric_rk4 as _nrk4
+                        u_names = getattr(vehicle_dynamics, 'get_inputs', lambda: [])()
+                        control_dict = getattr(planner.output, 'control', {}) if hasattr(planner, 'output') else {}
+                        logger.info(f"  Control dict from planner: {control_dict}")
+                        logger.info(f"  Expected input names: {u_names}")
+                        logger.info(f"  Planner output success: {planner_output.success if hasattr(planner_output, 'success') else 'unknown'}")
+                        
+                        if not control_dict:
+                            logger.warning(f"  No control dict available! Checking if solve succeeded...")
+                            if not planner_output.success:
+                                logger.warning(f"  MPC solve failed - no control to apply. Using fallback trajectory.")
+                            else:
+                                logger.warning(f"  MPC solved but control dict is empty!")
+                        
+                        if control_dict and u_names:
+                            # Build control vector in model input order
+                            u_vec = [float(control_dict.get(u, 0.0)) for u in u_names]
+                            logger.info(f"  Control vector: {dict(zip(u_names, u_vec))}")
+                            # Build current state vector in model state order
+                            x_names = getattr(vehicle_dynamics, 'get_all_vars', lambda: [])()
+                            x_vec = []
+                            for name in x_names:
+                                val = planner.state.get(name) if planner.state.has(name) else 0.0
+                                x_vec.append(float(val))
+                            logger.debug(f"  Current state vector: {dict(zip(x_names, x_vec))}")
+                            # Integrate one step
+                            logger.debug(f"  Integrating with timestep={self.solver.timestep}")
+                            next_state_num = _nrk4(np.array(x_vec, dtype=float), np.array(u_vec, dtype=float), vehicle_dynamics, self.solver.timestep)
+                            logger.info(f"  Integration result: x={next_state_num[0]:.2f}, y={next_state_num[1]:.2f}, psi={next_state_num[2]:.2f}, v={next_state_num[3]:.2f}")
+                            # Map back to vehicle_state (x,y,psi,v and extras if present)
+                            x_next = float(next_state_num[0]) if len(next_state_num) > 0 else vehicle_state[0]
+                            y_next = float(next_state_num[1]) if len(next_state_num) > 1 else vehicle_state[1]
+                            psi_next = float(next_state_num[2]) if len(next_state_num) > 2 else vehicle_state[2]
+                            v_next = float(next_state_num[3]) if len(next_state_num) > 3 else vehicle_state[3]
                             new_state = np.array([x_next, y_next, psi_next, v_next])
-                            # Preserve additional state variables (delta, spline, etc.)
-                            if len(vehicle_state) > 4:
+                            # Preserve/extend remaining state components
+                            if len(next_state_num) > 4:
+                                for i in range(4, len(next_state_num)):
+                                    new_state = np.append(new_state, float(next_state_num[i]))
+                            elif len(vehicle_state) > 4:
                                 for i in range(4, len(vehicle_state)):
-                                    if i < len(next_state_num):
-                                        new_state = np.append(new_state, float(next_state_num[i]))
-                                    else:
-                                        new_state = np.append(new_state, vehicle_state[i])
+                                    new_state = np.append(new_state, vehicle_state[i])
                             vehicle_state = new_state
                         else:
-                            # minimal fallback integration
-                            dt = test_config.timestep
-                            vehicle_state[0] += vehicle_state[3] * np.cos(vehicle_state[2]) * dt
-                            vehicle_state[1] += vehicle_state[3] * np.sin(vehicle_state[2]) * dt
+                            # Fallback: use reference trajectory if available
+                            traj = self.solver.get_reference_trajectory()
+                            if traj is not None and len(traj.get_states()) >= 2:
+                                next_state = traj.get_states()[1]
+                                x_next = next_state.get('x')
+                                y_next = next_state.get('y')
+                                psi_next = next_state.get('psi') if next_state.has('psi') else vehicle_state[2]
+                                v_next = next_state.get('v') if next_state.has('v') else vehicle_state[3]
+                                new_state = np.array([float(x_next), float(y_next), float(psi_next), float(v_next)])
+                                if len(vehicle_state) > 4:
+                                    for i in range(4, len(vehicle_state)):
+                                        var_name = vehicle_dynamics.dependent_vars[i] if i < len(vehicle_dynamics.dependent_vars) else None
+                                        if var_name and next_state.has(var_name):
+                                            new_state = np.append(new_state, float(next_state.get(var_name)))
+                                        else:
+                                            new_state = np.append(new_state, vehicle_state[i])
+                                vehicle_state = new_state
+                            else:
+                                dt = test_config.timestep
+                                vehicle_state[0] += vehicle_state[3] * np.cos(vehicle_state[2]) * dt
+                                vehicle_state[1] += vehicle_state[3] * np.sin(vehicle_state[2]) * dt
                     except Exception:
-                        # fallback to reference trajectory mapping as before
-                        traj = self.solver.get_reference_trajectory()
-                        if traj is not None and len(traj.get_states()) >= 2:
-                            next_state = traj.get_states()[1]
-                            x_next = next_state.get('x')
-                            y_next = next_state.get('y')
-                            psi_next = next_state.get('psi') if next_state.has('psi') else vehicle_state[2]
-                            v_next = next_state.get('v') if next_state.has('v') else vehicle_state[3]
-                            # Build new state array preserving all variables
-                            new_state = np.array([float(x_next), float(y_next), float(psi_next), float(v_next)])
-                            # Preserve additional state variables (delta, spline, etc.)
-                            if len(vehicle_state) > 4:
-                                for i in range(4, len(vehicle_state)):
-                                    var_name = vehicle_dynamics.dependent_vars[i] if i < len(vehicle_dynamics.dependent_vars) else None
-                                    if var_name and next_state.has(var_name):
-                                        new_state = np.append(new_state, float(next_state.get(var_name)))
-                                    else:
-                                        new_state = np.append(new_state, vehicle_state[i])
-                            vehicle_state = new_state
-                        else:
-                            dt = test_config.timestep
-                            vehicle_state[0] += vehicle_state[3] * np.cos(vehicle_state[2]) * dt
-                            vehicle_state[1] += vehicle_state[3] * np.sin(vehicle_state[2]) * dt
+                        dt = test_config.timestep
+                        vehicle_state[0] += vehicle_state[3] * np.cos(vehicle_state[2]) * dt
+                        vehicle_state[1] += vehicle_state[3] * np.sin(vehicle_state[2]) * dt
  
                     # Update obstacle states using obstacle manager
                     if hasattr(self, 'obstacle_manager'):
@@ -717,7 +937,22 @@ class IntegrationTestFramework:
             self.save_state_history(output_folder, vehicle_states, obstacle_states)
             # Store data object for goal plotting in animation
             self.last_data = data
-            self.create_animation(output_folder, vehicle_states, obstacle_states, test_config, goal_reached_step)
+            self.create_animation(output_folder, vehicle_states, obstacle_states, test_config, goal_reached_step, predicted_trajs)
+            # Save framework summary for validation
+            try:
+                summary = {
+                    "objective_module": test_config.objective_module,
+                    "constraint_modules": test_config.constraint_modules,
+                    "vehicle_dynamics": test_config.vehicle_dynamics,
+                    "horizon": int(self.solver.horizon) if hasattr(self.solver, 'horizon') and self.solver.horizon is not None else None,
+                    "timestep": float(self.solver.timestep) if hasattr(self.solver, 'timestep') and self.solver.timestep is not None else None,
+                    "solver": "casadi",
+                }
+                import json as _json
+                with open(os.path.join(output_folder, "framework_summary.json"), 'w', encoding='utf-8') as f:
+                    _json.dump(summary, f, indent=2)
+            except Exception:
+                pass
             
             logger.info("Test completed successfully")
             
@@ -731,7 +966,9 @@ class IntegrationTestFramework:
             )
             
         except Exception as e:
+            import traceback as _tb
             logger.error(f"Test failed: {e}")
+            logger.error(f"Traceback: {_tb.format_exc()}")
             return TestResult(
                 success=False,
                 vehicle_states=[],
@@ -817,7 +1054,8 @@ class IntegrationTestFramework:
                     
     def create_animation(self, output_folder: str, vehicle_states: List[np.ndarray], 
                         obstacle_states: List[List[np.ndarray]], test_config: TestConfig, 
-                        goal_reached_step: Optional[int] = None):
+                        goal_reached_step: Optional[int] = None,
+                        predicted_trajs: Optional[List[List[tuple]]] = None):
         """Create GIF animation of the test showing full trajectory until goal is reached."""
         if not vehicle_states:
             logging.getLogger("integration_test").warning("No vehicle states to animate")
@@ -862,6 +1100,21 @@ class IntegrationTestFramework:
         if test_config.reference_path is not None:
             ax.plot(test_config.reference_path[:, 0], test_config.reference_path[:, 1], 
                    'k--', linewidth=2, label='Reference Path', alpha=0.7)
+
+        # Draw module-provided visualizations (e.g., road bounds) on this animation axes
+        try:
+            if hasattr(self, 'solver') and hasattr(self.solver, 'module_manager'):
+                import matplotlib.pyplot as _plt
+                _plt.sca(ax)
+                for module in self.solver.module_manager.get_modules():
+                    if hasattr(module, 'get_visualizer'):
+                        viz = module.get_visualizer()
+                        if viz is not None and hasattr(viz, 'visualize') and hasattr(self, 'last_data'):
+                            # Use a representative stage index
+                            viz.visualize(None, self.last_data, stage_idx=1)
+        except Exception:
+            # Visualization errors are non-fatal for animation
+            pass
         
         # Plot goal location if available
         try:
@@ -876,6 +1129,8 @@ class IntegrationTestFramework:
         # Initialize plot elements
         vehicle_plot, = ax.plot([], [], 'bo', markersize=8, label='Vehicle', zorder=5)
         vehicle_trail, = ax.plot([], [], 'b-', linewidth=1, alpha=0.3, label='Vehicle Trail')
+        # Predicted trajectory line (optional)
+        pred_line, = ax.plot([], [], 'g--', linewidth=1.5, alpha=0.7, label='Predicted Trajectory')
         obstacle_plots = []
         obstacle_trails = []
         for i in range(len(obstacle_states)):
@@ -929,7 +1184,16 @@ class IntegrationTestFramework:
                         obstacle_trail_y[i].append(obs_state[1])
                         obstacle_trails[i].set_data(obstacle_trail_x[i], obstacle_trail_y[i])
                         
-            return [vehicle_plot, vehicle_trail] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles
+                # Update predicted trajectory if requested
+                if predicted_trajs is not None and test_config.show_predicted_trajectory:
+                    pts = predicted_trajs[frame] if frame < len(predicted_trajs) else []
+                    if pts:
+                        px = [p[0] for p in pts]
+                        py = [p[1] for p in pts]
+                        pred_line.set_data(px, py)
+                    else:
+                        pred_line.set_data([], [])
+            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles
             
         # Create animation - use all frames to show complete trajectory
         total_frames = len(vehicle_states)

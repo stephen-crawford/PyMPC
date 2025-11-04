@@ -7,15 +7,17 @@ from utils.math_tools import rotation_matrix
 from utils.utils import LOG_DEBUG, LOG_WARN
 
 
+
 class LinearizedConstraints(BaseConstraint):
-	def __init__(self, solver):
+	def __init__(self):
 		super().__init__()
 		self.name = "linearized_constraints"
 
 		LOG_DEBUG("Initializing Linearized Constraints")
 
 		self.solver = solver
-		self.num_discs = int(self.get_config_value("num_discs"))
+		num_discs_val = self.get_config_value("num_discs")
+		self.num_discs = int(num_discs_val) if num_discs_val is not None else 1
 		self.num_other_halfspaces = self.get_config_value("linearized_constraints.add_halfspaces")
 		self.max_obstacles = self.get_config_value("max_obstacles")
 		self.filter_distant_obstacles = self.get_config_value("linearized_constraints.filter_distant_obstacles")
@@ -31,15 +33,29 @@ class LinearizedConstraints(BaseConstraint):
 
 		self.disc_radius = self.get_config_value("disc_radius", 1.0)
 
+		# Ensure solver horizon is set before using it
+		if solver and (not hasattr(solver, 'horizon') or solver.horizon is None):
+			# Try to get from config
+			from utils.utils import read_config_file
+			config = read_config_file()
+			if config:
+				planner_config = config.get("planner", {})
+				solver.horizon = planner_config.get("horizon", 10)
+				solver.timestep = planner_config.get("timestep", 0.1)
+
+		# Use horizon with fallback
+		horizon_val = (self.solver.horizon if (self.solver and hasattr(self.solver, 'horizon') and self.solver.horizon is not None) 
+		              else (self.get_config_value("planner.horizon", 10) if self.get_config_value("planner.horizon") else 10))
+
 		self._a1 = [None] * self.num_discs
 		self._a2 = [None] * self.num_discs
 		self._b = [None] * self.num_discs
 
 		for disc_id in range(self.num_discs):
-			self._a1[disc_id] = [None] * self.solver.horizon
-			self._a2[disc_id] = [None] * self.solver.horizon
-			self._b[disc_id] = [None] * self.solver.horizon
-			for step in range(self.solver.horizon):
+			self._a1[disc_id] = [None] * horizon_val
+			self._a2[disc_id] = [None] * horizon_val
+			self._b[disc_id] = [None] * horizon_val
+			for step in range(horizon_val):
 				self._a1[disc_id][step] = [None] * self.max_num_constraints
 				self._a2[disc_id][step] = [None] * self.max_num_constraints
 				self._b[disc_id][step] = [None] * self.max_num_constraints
@@ -71,7 +87,8 @@ class LinearizedConstraints(BaseConstraint):
 		ref_states = self.solver.get_reference_trajectory().get_states() # This gets a horizon length trajectory of the ego robot
 		LOG_DEBUG("fetched reference states: {}".format(ref_states))
 
-		for step in range(1, self.solver.horizon):
+		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
+		for step in range(1, horizon_val):
 
 			ego_position = np.array([
 				ref_states[step].get("x"),
@@ -119,8 +136,8 @@ class LinearizedConstraints(BaseConstraint):
 					target_obstacle_radius = 1e-3 if self.use_guidance else target_obstacle.radius
 
 					self._b[disc_id][step][obs_id] = (self._a1[disc_id][step][obs_id] * target_obstacle_pos[0] +
-														  self._a2[disc_id][step][obs_id] * target_obstacle_pos[1] -
-														  (target_obstacle_radius + self.disc_radius))
+													  self._a2[disc_id][step][obs_id] * target_obstacle_pos[1] -
+													  (target_obstacle_radius + self.disc_radius))
 
 					LOG_DEBUG(f"b for {obs_id} set to {self._b[disc_id][step][obs_id]}")
 
@@ -139,14 +156,15 @@ class LinearizedConstraints(BaseConstraint):
 
 	def project_to_safety(self, copied_obstacles, step, pos):
 		# Placeholder projection if needed; left as-is
-		return
+			return
 
 	def calculate_constraints(self, state: State, data: Data, stage_idx: int):
 		"""Return structured linear constraints for the solver to convert.
 		Each constraint is a dict: {a1,a2,b,disc_offset}.
 		"""
 		constraints = []
-		if stage_idx >= self.solver.horizon:
+		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
+		if stage_idx >= horizon_val:
 			return constraints
 
 		for disc_id in range(self.num_discs):
@@ -165,13 +183,15 @@ class LinearizedConstraints(BaseConstraint):
 				constraints.append({"a1": float(a1), "a2": float(a2), "b": float(b), "disc_offset": disc_offset})
 		return constraints
 
-	def lower_bounds(self):
-		# All constraints are of form a^T p - b >= 0 → lb = 0
-		return [0.0] * (self.num_active_obstacles + self.num_other_halfspaces)
+	def lower_bounds(self, state=None, data=None, stage_idx=None):
+		count = len(self.calculate_constraints(state, data, stage_idx)) if (data is not None and stage_idx is not None) else 0
+		lbs, _ = self._get_bounds_for_stage(stage_idx, count, default_lb=0.0, default_ub=np.inf)
+		return lbs
 
-	def upper_bounds(self):
-		# Upper bounds 0 for linearized constraints in this form
-		return [np.inf] * (self.num_active_obstacles + self.num_other_halfspaces)
+	def upper_bounds(self, state=None, data=None, stage_idx=None):
+		count = len(self.calculate_constraints(state, data, stage_idx)) if (data is not None and stage_idx is not None) else 0
+		_, ubs = self._get_bounds_for_stage(stage_idx, count, default_lb=0.0, default_ub=np.inf)
+		return ubs
 
 	def is_data_ready(self, data):
 		missing_data = ""
@@ -184,7 +204,8 @@ class LinearizedConstraints(BaseConstraint):
 		super().reset()
 		self.num_obstacles = 0
 		for d in range(self.num_discs):
-			for k in range(self.solver.horizon):
+			horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
+			for k in range(horizon_val):
 				for i in range(self.num_active_obstacles):
 					self._a1[d][k][i] = self._dummy_a1
 					self._a2[d][k][i] = self._dummy_a2

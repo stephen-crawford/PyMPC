@@ -8,10 +8,10 @@ from matplotlib import pyplot as plt
 from scipy.interpolate import CubicSpline
 from typing import List, Optional
 
-from planning.src.dynamic_models import DynamicsModel
+from planning.dynamic_models import DynamicsModel
 from utils.const import DETERMINISTIC, GAUSSIAN
-from utils.math_utils import Halfspace
-from utils.utils import LOG_DEBUG, LOG_WARN, CONFIG, DataSaver
+from utils.math_tools import Halfspace
+from utils.utils import LOG_DEBUG, LOG_WARN, CONFIG
 
 
 class State:
@@ -331,15 +331,17 @@ class SupportData:
     max_support: int = 0
 
     def __post_init__(self):
-        self.support_saver = DataSaver()
+        # DataSaver removed - not needed for new framework
+        pass
 
     def add(self, support: int):
-        self.support_saver.add_data("support", support)
+        # DataSaver removed - not needed for new framework
         self.n_collected += 1
         self.max_support = max(self.max_support, support)
 
     def save(self):
-        self.support_saver.save_data("./",f"{self.name}_support-data")
+        # DataSaver removed - not needed for new framework
+        pass
 
     def load(self) -> bool:
         return self.support_saver.load()
@@ -955,17 +957,98 @@ def define_robot_area(length: float, width: float, n_discs: int) -> list[Disc]:
 
 
 def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
-  if data.dynamic_obstacles is None:
+  """Propagate obstacle predictions over the horizon.
+
+  Prefers obstacle-provided dynamics models when available; otherwise falls back
+  to existing behavior (path-based or constant-velocity prediction).
+  """
+  # Guard: no obstacles to propagate
+  if not hasattr(data, 'dynamic_obstacles') or data.dynamic_obstacles is None or len(data.dynamic_obstacles) == 0:
       return
 
   for obstacle in data.dynamic_obstacles:
       pred = obstacle.prediction
       path = getattr(pred, "path", None)
 
-      # Fallback: constant velocity if no path
+      # Prefer dynamics model if obstacle provides one
+      dyn_model = getattr(obstacle, 'dynamics_model', None)
+      # If a dynamics_type string is provided but no model, instantiate from known vehicle models
+      if dyn_model is None and hasattr(obstacle, 'dynamics_type') and isinstance(obstacle.dynamics_type, str):
+          try:
+              from planning.dynamic_models import SecondOrderUnicycleModel, SecondOrderBicycleModel
+              dt_str = obstacle.dynamics_type.lower().strip()
+              if dt_str in ("unicycle", "second_order_unicycle", "secondorderunicycle"):
+                  dyn_model = SecondOrderUnicycleModel()
+              elif dt_str in ("bicycle", "second_order_bicycle", "secondorderbicycle"):
+                  dyn_model = SecondOrderBicycleModel()
+              if dyn_model is not None:
+                  setattr(obstacle, 'dynamics_model', dyn_model)
+          except Exception:
+              dyn_model = None
+      try:
+          if dyn_model is not None:
+              # Use the same numeric integrator as vehicle models if available
+              try:
+                  from planning.dynamic_models import numeric_rk4 as _nrk4
+              except Exception:
+                  _nrk4 = None
+
+              # Initialize steps list
+              steps = []
+              # Build initial state vector [x, y, ...] based on model variables
+              if hasattr(obstacle, 'state') and isinstance(obstacle.state, (list, tuple, np.ndarray)):
+                  # If obstacle provides a numeric state vector directly
+                  state_vec = np.array(obstacle.state, dtype=float)
+              else:
+                  # Minimal state from position/angle/velocity if present
+                  x0 = float(obstacle.position[0]) if hasattr(obstacle, 'position') else 0.0
+                  y0 = float(obstacle.position[1]) if hasattr(obstacle, 'position') else 0.0
+                  psi0 = float(getattr(obstacle, 'angle', 0.0))
+                  v0 = float(getattr(obstacle, 'speed', speed))
+                  state_vec = np.array([x0, y0, psi0, v0], dtype=float)
+
+              # Controls assumed zero if not specified
+              if hasattr(dyn_model, 'inputs') and isinstance(dyn_model.inputs, list):
+                  u = [0.0 for _ in dyn_model.inputs]
+              else:
+                  u = []
+
+              # Simulate forward over horizon
+              pred_steps = []
+              for k in range(int(horizon) + 1):
+                  pos = state_vec[:2] if state_vec.shape[0] >= 2 else np.array([0.0, 0.0])
+                  angle = float(state_vec[2]) if state_vec.shape[0] >= 3 else 0.0
+                  major_r = 0.1
+                  minor_r = 0.1
+                  pred_steps.append(PredictionStep(pos, angle, major_r, minor_r))
+                  if k == horizon:
+                      break
+                  # Advance one step with model if integrator available
+                  if _nrk4 is not None and hasattr(dyn_model, 'discrete_dynamics'):
+                      import casadi as _cs
+                      z_k = _cs.vertcat(*u, *_cs.vertcat(*state_vec)) if u else _cs.vertcat(*state_vec)
+                      dyn_model.load(z_k)
+                      next_symbolic = dyn_model.discrete_dynamics(z_k, None, dt)
+                      next_numeric = _nrk4(next_symbolic, dyn_model, None, dt)
+                      state_vec = np.array([float(v) for v in next_numeric]).reshape(-1)
+                  else:
+                      # Fallback: simple kinematic step if dynamics missing
+                      vx = (state_vec[3] * np.cos(state_vec[2])) if state_vec.shape[0] >= 4 else speed
+                      vy = (state_vec[3] * np.sin(state_vec[2])) if state_vec.shape[0] >= 4 else 0.0
+                      state_vec = state_vec.copy()
+                      state_vec[0] += vx * dt
+                      if state_vec.shape[0] >= 2:
+                          state_vec[1] += vy * dt
+              obstacle.prediction.steps = pred_steps
+              continue
+      except Exception:
+          # If any issue arises, fall back to legacy behavior
+          pass
+
+      # Fallback: constant velocity if no path and no usable dynamics model
       if path is None:
-          velocity = np.array([np.cos(obstacle.angle), np.sin(obstacle.angle)]) * speed
-          obstacle.prediction = get_constant_velocity_prediction(obstacle.position, velocity, dt, horizon)
+          velocity = np.array([np.cos(getattr(obstacle, 'angle', 0.0)), np.sin(getattr(obstacle, 'angle', 0.0))]) * speed
+          obstacle.prediction = get_constant_velocity_prediction(getattr(obstacle, 'position', np.array([0.0, 0.0])), velocity, dt, horizon)
           continue
 
       total_length = path.s[-1]
@@ -1054,6 +1137,39 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
           pred_steps.append(PredictionStep(pos, angle, major_r, minor_r))
 
       pred.steps = pred_steps
+
+
+def get_constant_velocity_prediction(position: np.ndarray, velocity: np.ndarray, dt: float, horizon: int) -> Prediction:
+    """Create a constant velocity prediction for an obstacle.
+    
+    Args:
+        position: Initial position [x, y]
+        velocity: Constant velocity [vx, vy]
+        dt: Time step
+        horizon: Number of prediction steps
+        
+    Returns:
+        Prediction object with constant velocity steps
+    """
+    pred = Prediction(PredictionType.DETERMINISTIC)
+    pred_steps = []
+    
+    current_pos = np.array(position[:2])  # Ensure 2D
+    vel = np.array(velocity[:2]) if len(velocity) >= 2 else np.array([velocity[0], 0.0])
+    
+    # Ensure horizon is not None
+    horizon_val = horizon if horizon is not None else 10
+    for i in range(horizon_val + 1):
+        # Compute position at time t = i * dt
+        pos = current_pos + vel * (i * dt)
+        angle = np.arctan2(vel[1], vel[0]) if np.linalg.norm(vel) > 1e-6 else 0.0
+        # Use small uncertainty for deterministic prediction
+        major_r = 0.1
+        minor_r = 0.1
+        pred_steps.append(PredictionStep(pos, angle, major_r, minor_r))
+    
+    pred.steps = pred_steps
+    return pred
 
 
 def remove_distant_obstacles(obstacles: list[DynamicObstacle], state: 'State') -> None:
@@ -1314,6 +1430,7 @@ class Problem:
         self.obstacles = []
         self.data = None
         self.x0 = None
+        self._state = None  # Current state for get_state()
 
     def get_model_type(self):
         return self.model_type
@@ -1329,3 +1446,19 @@ class Problem:
     
     def get_x0(self):
         return self.x0
+    
+    def get_state(self):
+        """Get the current state. Returns x0 if state not explicitly set."""
+        if self._state is not None:
+            return self._state
+        elif self.x0 is not None:
+            return self.x0
+        elif self.model_type is not None:
+            # Create default state from model_type
+            return State(self.model_type)
+        else:
+            raise ValueError("Problem has no state, x0, or model_type set")
+    
+    def set_state(self, state):
+        """Set the current state."""
+        self._state = state

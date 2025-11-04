@@ -1,13 +1,12 @@
 from scipy.interpolate import CubicSpline
 
-from planner_modules.src.objectives.base_objective import BaseObjective
+from modules.objectives.base_objective import BaseObjective
 from utils.utils import LOG_DEBUG
 
 class PathReferenceVelocityObjective(BaseObjective):
 
-    def __init__(self, solver):
-        super().__init__(solver)
-        self.solver = solver
+	def __init__(self):
+		super().__init__()
         self.name = 'path_reference_velocity'
         self.num_segments = self.get_config_value("contouring.get_num_segments")
         self.velocity_spline = None

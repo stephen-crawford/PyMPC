@@ -3,12 +3,12 @@ Main scenario module for safe horizon constraints.
 """
 import numpy as np
 from typing import List, Dict
-from planning.src.types import Data, Scenario, ScenarioStatus, ScenarioSolveStatus, SupportSubsample
-from planner_modules.src.constraints.scenario_utils.math_utils import (
+from planning.types import Data, Scenario, ScenarioStatus, ScenarioSolveStatus, SupportSubsample
+from modules.constraints.scenario_utils.math_utils import (
     Polytope, ScenarioConstraint, compute_sample_size, linearize_collision_constraint,
     construct_free_space_polytope, validate_polytope_feasibility
 )
-from planner_modules.src.constraints.scenario_utils.sampler import ScenarioSampler, MonteCarloValidator
+from modules.constraints.scenario_utils.sampler import ScenarioSampler, MonteCarloValidator
 from utils.utils import LOG_DEBUG, LOG_WARN
 
 

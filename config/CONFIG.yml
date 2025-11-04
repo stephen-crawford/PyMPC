@@ -1,23 +1,41 @@
-planner
+planner:
   horizon: 10
   max_constraints: 20
+  max_obstacles: 20
   timestep: 0.1
   integrator_step: 0.1
   visualization:
-  draw_every: 5
-  control_frequency: 20
+    draw_every: 5
+    control_frequency: 20
   debug_limits: true
   debug_output: false
   deceleration_at_infeasible: 10.0
   enable_output: true
+  # Default road settings (overridable)
+  road:
+    width: 7.0
   robot:
     radius: 0.5
-  recording:
-    enable: false
-    file: planner_test_output
-    folder: tests
-    num_experiments: 5
-    timestamp: true
+contouring:
+  num_segments: 10
+  add_road_constraints: true
+  dynamic_velocity_reference: false
+  goal_reaching_contouring: true
+  three_dimensional_contouring: false
+
+weights:
+  contour_weight: 1.0
+  contouring_lag_weight: 0.1
+  goal_weight: 10.0
+  goal_angle_weight: 1.0
+  goal_terminal_weight: 10.0
+  goal_terminal_angle: 1.0
+recording:
+  enable: false
+  file: planner_test_output
+  folder: tests
+  num_experiments: 5
+  timestamp: true
 solver:
   solver: casadi
   shift_previous_solution_forward: false

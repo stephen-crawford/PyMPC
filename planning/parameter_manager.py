@@ -56,3 +56,24 @@ class ParameterManager:
         return self._stage_to_params.get(stage_index, {})
 
     # --------- API for modules using push-style ---------
+    def add(self, param_name: str, **kwargs):
+        """Add a parameter name to be tracked. 
+        
+        This is called during define_parameters() phase by modules.
+        The actual parameter values are set later via set_parameters().
+        """
+        # For now, just track that the parameter was requested
+        # In a full implementation, this would register the parameter
+        # for later value assignment
+        if not hasattr(self, '_defined_params'):
+            self._defined_params = set()
+        self._defined_params.add(param_name)
+    
+    def set_parameter(self, name: str, value: Any, stage_index: Optional[int] = None):
+        """Set a parameter value for a specific stage (or all stages if stage_index is None)."""
+        if stage_index is not None:
+            self._stage_to_params[stage_index][name] = value
+        else:
+            # Set for all stages if no stage specified
+            for stage_idx in range(100):  # Assume reasonable max horizon
+                self._stage_to_params[stage_idx][name] = value

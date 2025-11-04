@@ -3,7 +3,7 @@ Scenario sampling utilities for safe horizon constraints.
 """
 import numpy as np
 from typing import List, Tuple
-from planning.src.types import DynamicObstacle, PredictionType, Scenario
+from planning.types import DynamicObstacle, PredictionType, Scenario
 from utils.utils import LOG_DEBUG, LOG_WARN
 
 
@@ -169,7 +169,7 @@ class ScenarioSampler:
             
             if not obstacle.prediction.steps:
                 # Create initial prediction step
-                from planning.src.types import PredictionStep
+                from planning.types import PredictionStep
                 initial_step = PredictionStep(
                     position=obstacle.position,
                     angle=obstacle.angle,

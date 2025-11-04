@@ -6,7 +6,7 @@ import numpy as np
 from planning.dynamic_models import DynamicsModel
 from planning.types import State, Trajectory
 from solver.base_solver import BaseSolver
-from utils.const import OBJECTIVE, CONSTRAINT
+from utils.const import OBJECTIVE, CONSTRAINT, DEFAULT_BRAKING
 from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO
 
 '''
@@ -16,28 +16,70 @@ Casadi solver used for trajectory optimization.
 class CasADiSolver(BaseSolver):
 	def __init__(self, config):
 		super().__init__(config)
+		# Extract horizon and timestep from config
+		planner_config = config.get("planner", {})
+		self.horizon = planner_config.get("horizon", 10)
+		self.timestep = planner_config.get("timestep", 0.1)
+		# Initialize solver components
+		self.opti = None
+		self.var_dict = {}
+		self.warmstart_values = {}
+		self.dynamics_model = None
+		self.solution = None
+		self.exit_flag = None
+		self.info = {}
+		self.forecast = []
 		LOG_INFO(f"{(id(self))} CasADiSolver: Initializing solver")
 		
 
 	def intialize_solver(self, data):
-		for var_name in data.dynamics_model.get_dependent_vars():
-			self.var_dict[var_name] = self.opti.variable(data.horizon + 1)
-			self.warmstart_values[var_name] = np.zeros(data.horizon + 1)
-		for var_name in self.dynamics_model.get_inputs():
-			self.var_dict[var_name] = self.opti.variable(data.horizon)
-			self.warmstart_values[var_name] = np.zeros(data.horizon)
+		"""Initialize solver variables based on dynamics model and horizon."""
+		LOG_INFO("=== CasADiSolver.intialize_solver() ===")
+		if data is None:
+			LOG_WARN("Cannot initialize solver: data is None")
+			return
+		
+		# Use self.horizon if data.horizon is not set
+		horizon = getattr(data, 'horizon', None) or self.horizon
+		dynamics = getattr(data, 'dynamics_model', None) or self.dynamics_model
+		LOG_DEBUG(f"Initializing solver: horizon={horizon}, dynamics_model={dynamics.__class__.__name__ if dynamics else 'None'}")
+		
+		if dynamics is None:
+			LOG_WARN("Cannot initialize solver: dynamics_model is None")
+			return
+		
+		if self.opti is None:
+			self.opti = cs.Opti()
+			LOG_DEBUG("Created new CasADi Opti instance")
+		
+		LOG_DEBUG("Creating optimization variables...")
+		dependent_vars = dynamics.get_dependent_vars()
+		input_vars = dynamics.get_inputs()
+		LOG_DEBUG(f"  Dependent variables ({len(dependent_vars)}): {dependent_vars}")
+		LOG_DEBUG(f"  Input variables ({len(input_vars)}): {input_vars}")
+		
+		for var_name in dependent_vars:
+			self.var_dict[var_name] = self.opti.variable(horizon + 1)
+			self.warmstart_values[var_name] = np.zeros(horizon + 1)
+			LOG_DEBUG(f"  Created variable '{var_name}': shape={horizon + 1}")
+		for var_name in input_vars:
+			self.var_dict[var_name] = self.opti.variable(horizon)
+			self.warmstart_values[var_name] = np.zeros(horizon)
+			LOG_DEBUG(f"  Created input variable '{var_name}': shape={horizon}")
 		opts = {
 			'ipopt.print_level': 0,
 			'print_time': 0,
 			'ipopt.sb': 'yes',
-			'ipopt.max_iter': 500,  # Reduced for faster convergence
+			'ipopt.max_iter': 2000,  # Increased for difficult problems
 			'ipopt.tol': 1e-3,  # Slightly relaxed for faster convergence
-			'ipopt.acceptable_tol': 1e-2,  # Accept suboptimal solutions if close enough
-			'ipopt.acceptable_iter': 15,  # Accept after 15 iterations if acceptable_tol met
-			'ipopt.constr_viol_tol': 1e-4,  # Constraint violation tolerance
+			'ipopt.acceptable_tol': 1e-1,  # More relaxed to accept suboptimal solutions
+			'ipopt.acceptable_iter': 10,  # Accept sooner if acceptable_tol met
+			'ipopt.constr_viol_tol': 1e-3,  # More relaxed constraint violation tolerance
 			'ipopt.mu_strategy': 'adaptive',
 			'ipopt.hessian_approximation': 'limited-memory',
 			'ipopt.warm_start_init_point': 'yes',
+			'ipopt.nlp_scaling_method': 'gradient-based',  # Better scaling for constraints
+			'ipopt.obj_scaling_factor': 1.0,  # No objective scaling
 		}
 		# Only set fast_step_computation if supported (may not be available in all IPOPT versions)
 		try:
@@ -45,15 +87,24 @@ class CasADiSolver(BaseSolver):
 		except:
 			pass
 
+		LOG_DEBUG("Configuring IPOPT solver...")
 		self.opti.solver('ipopt', opts)
-		for k in range(data.horizon):
-			x_k_list = [self.var_dict[var][k] for var in data.dynamics_model.get_dependent_vars()]
-			u_k_list = [self.var_dict[var][k] for var in data.dynamics_model.get_inputs()]
+		LOG_DEBUG("IPOPT solver configured")
+		
+		horizon = getattr(data, 'horizon', None) or self.horizon
+		dynamics = getattr(data, 'dynamics_model', None) or self.dynamics_model
+		timestep = getattr(data, 'timestep', None) or self.timestep
+		LOG_DEBUG(f"Adding dynamics constraints for {horizon} stages (timestep={timestep})...")
+		
+		for k in range(horizon):
+			x_k_list = [self.var_dict[var][k] for var in dynamics.get_dependent_vars()]
+			u_k_list = [self.var_dict[var][k] for var in dynamics.get_inputs()]
 
 			x_k = cs.vertcat(*x_k_list)
 			u_k = cs.vertcat(*u_k_list)
 
-			x_next_list = [self.var_dict[var][k + 1] for var in data.dynamics_model.get_dependent_vars()]
+			dynamics = getattr(data, 'dynamics_model', None) or self.dynamics_model
+			x_next_list = [self.var_dict[var][k + 1] for var in dynamics.get_dependent_vars()]
 			x_next = cs.vertcat(*x_next_list)
 
 			# Use the model's symbolic dynamics function with a callable parameter getter
@@ -70,13 +121,30 @@ class CasADiSolver(BaseSolver):
 					return data.parameters.get(key)
 				except Exception:
 					return defaults.get(key, 0.0)
-			x_next_pred = data.dynamics_model.symbolic_dynamics(x_k, u_k, _param_getter, data.timestep)
+			
+			x_next_pred = dynamics.symbolic_dynamics(x_k, u_k, _param_getter, timestep)
 
 			self.opti.subject_to(x_next == x_next_pred)
+			if k == 0 or k == horizon - 1:
+				LOG_DEBUG(f"  Added dynamics constraint for stage {k}")
+		
+		LOG_INFO(f"CasADiSolver initialized: {horizon} stages, {len(dependent_vars)} state vars, {len(input_vars)} input vars")
 
-	def initialize_rollout(self, state: State, shift_forward=True):
+	def initialize_rollout(self, state: State, data=None, shift_forward=True):
+		"""Initialize rollout for solving. Sets dynamics_model if provided via data."""
+		if data is not None and hasattr(data, 'dynamics_model') and data.dynamics_model:
+			self.dynamics_model = data.dynamics_model
+			self.data = data
+		if self.dynamics_model is None:
+			LOG_WARN("initialize_rollout called but dynamics_model is not set")
 		self._set_initial_state(state)
 		self._initialize_warmstart(state, shift_forward)
+
+	def get_objective_cost(self, state, stage_idx):
+		"""Fetch per-stage objective cost terms via BaseSolver (ModuleManager-backed)."""
+		from solver.base_solver import BaseSolver as _Base
+		# Delegate to BaseSolver implementation to keep a single source of truth
+		return _Base.get_objective_cost(self, state, stage_idx)
 
 	def _initialize_warmstart(self, state: State, shift_forward=True):
 		if self.solution is None or not shift_forward:
@@ -97,27 +165,31 @@ class CasADiSolver(BaseSolver):
 		current_x = state.get('x') if state.get('x') is not None else 0.0
 		current_y = state.get('y') if state.get('y') is not None else 0.0
 
+		# Ensure horizon and timestep are set
+		horizon_val = self.horizon if self.horizon is not None else 10
+		timestep_val = self.timestep if self.timestep is not None else 0.1
+
 		# Use constant velocity profile (more realistic than braking)
 		# Only apply light braking if velocity is high
 		if current_vel > 5.0:
-			v_profile = np.maximum(0.0, current_vel + DEFAULT_BRAKING * np.arange(self.horizon + 1) * self.timestep * 0.5)
+			v_profile = np.maximum(0.0, current_vel + DEFAULT_BRAKING * np.arange(horizon_val + 1) * timestep_val * 0.5)
 		else:
-			v_profile = np.full(self.horizon + 1, current_vel)
+			v_profile = np.full(horizon_val + 1, current_vel)
 		
-		psi_profile = np.full(self.horizon + 1, current_psi)  # Assume constant heading for initial guess
+		psi_profile = np.full(horizon_val + 1, current_psi)  # Assume constant heading for initial guess
 
 		self.warmstart_values['v'] = v_profile
 		self.warmstart_values['psi'] = psi_profile
 
 		# Integrate positions more accurately
-		x_pos = np.zeros(self.horizon + 1)
-		y_pos = np.zeros(self.horizon + 1)
+		x_pos = np.zeros(horizon_val + 1)
+		y_pos = np.zeros(horizon_val + 1)
 		x_pos[0] = current_x
 		y_pos[0] = current_y
 
-		for k in range(1, self.horizon + 1):
-			x_pos[k] = x_pos[k - 1] + v_profile[k - 1] * np.cos(psi_profile[k - 1]) * self.timestep
-			y_pos[k] = y_pos[k - 1] + v_profile[k - 1] * np.sin(psi_profile[k - 1]) * self.timestep
+		for k in range(1, horizon_val + 1):
+			x_pos[k] = x_pos[k - 1] + v_profile[k - 1] * np.cos(psi_profile[k - 1]) * timestep_val
+			y_pos[k] = y_pos[k - 1] + v_profile[k - 1] * np.sin(psi_profile[k - 1]) * timestep_val
 
 		self.warmstart_values['x'] = x_pos
 		self.warmstart_values['y'] = y_pos
@@ -155,12 +227,14 @@ class CasADiSolver(BaseSolver):
 				LOG_WARN(f"Could not update warmstart for {var_name}: {e}")
 
 	def _create_trajectory_from_warmstart(self):
-		traj = Trajectory(timestep=self.timestep, length=self.horizon + 1)
-		for k in range(self.horizon + 1):
+		horizon_val = self.horizon if self.horizon is not None else 10
+		timestep_val = self.timestep if self.timestep is not None else 0.1
+		traj = Trajectory(timestep=timestep_val, length=horizon_val + 1)
+		for k in range(horizon_val + 1):
 			state_k = State(model_type=self.dynamics_model)
 			for var_name in self.dynamics_model.get_dependent_vars():
 				state_k.set(var_name, self.warmstart_values[var_name][k])
-			if k < self.horizon:
+			if k < horizon_val:
 				for var_name in self.dynamics_model.get_inputs():
 					state_k.set(var_name, self.warmstart_values[var_name][k])
 			traj.add_state(state_k)
@@ -173,52 +247,320 @@ class CasADiSolver(BaseSolver):
 
 	def _set_initial_state(self, state: State):
 		self.initial_state = state
+		if self.dynamics_model is None:
+			LOG_WARN("_set_initial_state called but dynamics_model is not set")
+			return
 		for var_name in self.dynamics_model.get_dependent_vars():
 			value = state.get(var_name)
 			if value is not None:
 				self.opti.subject_to(self.var_dict[var_name][0] == value)
 				self.warmstart_values[var_name][0] = value
 
-	def solve(self):
+	def solve(self, state=None, data=None):
+		"""Solve the optimization problem.
+		
+		Args:
+			state: Current vehicle state (optional, can use self.state if set)
+			data: Data object with constraints/objectives (optional, uses self.data if set)
+		"""
+		LOG_INFO("=== CasADiSolver.solve() ===")
 		LOG_DEBUG("Attempting to solve in Casadi solver")
+		
+		# Use provided data or fallback to stored data
+		if data is not None:
+			self.data = data
+			# Ensure data has required attributes
+			if not hasattr(data, 'horizon') or data.horizon is None:
+				data.horizon = self.horizon
+			if not hasattr(data, 'timestep') or data.timestep is None:
+				data.timestep = self.timestep
+			if not hasattr(data, 'dynamics_model') or data.dynamics_model is None:
+				data.dynamics_model = self.dynamics_model
+		
+		# Initialize solver if not already initialized
+		if not hasattr(self, 'opti') or self.opti is None:
+			self.opti = cs.Opti()
+			if not self.var_dict:
+				self.var_dict = {}
+			if not self.warmstart_values:
+				self.warmstart_values = {}
+			
+			# Ensure we have dynamics_model set
+			if data and hasattr(data, 'dynamics_model') and data.dynamics_model:
+				self.dynamics_model = data.dynamics_model
+			elif self.data and hasattr(self.data, 'dynamics_model') and self.data.dynamics_model:
+				self.dynamics_model = self.data.dynamics_model
+			
+			if self.dynamics_model and self.data:
+				self.intialize_solver(self.data)
+		
 		total_objective = 0
+		total_constraints_added = 0
+		
+		# Ensure horizon is set
+		horizon_val = self.horizon if self.horizon is not None else 10
+		
+		# Log robot_area and disc information
+		if self.data is not None:
+			if hasattr(self.data, 'robot_area') and self.data.robot_area is not None:
+				disc_info = []
+				for i, disc in enumerate(self.data.robot_area):
+					if hasattr(disc, 'offset') and hasattr(disc, 'radius'):
+						disc_info.append(f"disc[{i}]: offset={disc.offset:.3f}, radius={disc.radius:.3f}")
+				LOG_INFO(f"  robot_area in data: {len(self.data.robot_area)} disc(s) - {', '.join(disc_info)}")
+			else:
+				LOG_WARN("  robot_area not found in data or is None")
+		
+		# Log module manager state
+		try:
+			import logging as _logging
+			_integ_logger = _logging.getLogger("integration_test")
+			modules_list = [m.name for m in (self.module_manager.get_modules() or [])]
+			msg_mod = f"Solver solve: module_manager has {len(modules_list)} modules: {modules_list}, data={self.data is not None}"
+			LOG_INFO(msg_mod)
+			try:
+				_integ_logger.info(msg_mod)
+			except Exception:
+				pass
+		except Exception:
+			pass
 
-		for stage_idx in range(self.horizon + 1):
+		for stage_idx in range(horizon_val + 1):
 			symbolic_state = State(self.dynamics_model)
 			for var_name in self.dynamics_model.get_all_vars():
 				if stage_idx < self.var_dict[var_name].shape[0]:
 					symbolic_state.set(var_name, self.var_dict[var_name][stage_idx])
 
 			objective_costs = self.get_objective_cost(symbolic_state, stage_idx)
+			# Log objectives BEFORE processing
+			try:
+				import logging as _logging
+				_integ_logger = _logging.getLogger("integration_test")
+				obj_keys = []
+				for item in (objective_costs or []):
+					if isinstance(item, dict):
+						obj_keys.extend(list(item.keys()))
+				msg_obj = f"Stage {stage_idx}: objectives count={len(objective_costs or [])} keys={obj_keys}"
+				LOG_INFO(msg_obj)
+				try:
+					_integ_logger.info(msg_obj)
+				except Exception:
+					pass
+			except Exception:
+				pass
 			for cost_dict in objective_costs:
 				for cost_val in cost_dict.values():
 					total_objective += cost_val
 
 			constraints = self.get_constraints(stage_idx)
+			# Log constraints BEFORE processing
+			try:
+				import logging as _logging
+				_integ_logger = _logging.getLogger("integration_test")
+				cons_summ = []
+				for (c, lb, ub) in (constraints or []):
+					ctype = None
+					if isinstance(c, dict):
+						ctype = c.get('type') or ('linear' if ('a1' in c and 'a2' in c) else 'dict')
+					else:
+						ctype = type(c).__name__
+					cons_summ.append({
+						"type": ctype,
+						"lb": None if lb is None else 'set',
+						"ub": None if ub is None else 'set',
+					})
+				msg_cons = f"Stage {stage_idx}: constraints count={len(constraints or [])} summary={cons_summ}"
+				LOG_INFO(msg_cons)
+				try:
+					_integ_logger.info(msg_cons)
+				except Exception:
+					pass
+			except Exception:
+				pass
 			if constraints:
 				for (c, lb, ub) in constraints:
-					self.opti.subject_to(self.opti.bounded(lb, c, ub))
+					# Robust bound handling with translation of structured constraints to CasADi
+					if c is None:
+						continue
 
-			# Collect penalty terms from modules using symbolic state
-			for module in self.module_manager.get_modules():
-				if hasattr(module, 'get_penalty'):
-					penalty = module.get_penalty(symbolic_state, self.parameter_manager, stage_idx)
-					if penalty is not None:
-						total_objective += penalty
+					def _to_mx(val):
+						if val is None:
+							return None
+						if isinstance(val, (int, float, np.floating)):
+							return cs.DM(val)
+						if isinstance(val, np.ndarray) and val.size == 1:
+							return cs.DM(float(val))
+						return val
+
+					def _translate_constraint(expr_or_dict):
+						# Accept already-built CasADi expressions
+						if not isinstance(expr_or_dict, dict):
+							return expr_or_dict
+						cdef = expr_or_dict
+						# Support common linearized halfspace: a1*x + a2*y <= b
+						if ('a1' in cdef and 'a2' in cdef) or cdef.get('type') == 'linear':
+							a1 = _to_mx(cdef.get('a1', 0.0))
+							a2 = _to_mx(cdef.get('a2', 0.0))
+							b = _to_mx(cdef.get('b', 0.0))
+							xk = self.var_dict.get('x')[stage_idx] if 'x' in self.var_dict else None
+							yk = self.var_dict.get('y')[stage_idx] if 'y' in self.var_dict else None
+							if xk is None or yk is None:
+								return None
+							
+							# CRITICAL FIX: Apply disc_offset to constraint
+							# Constraint should be applied to disc position: p_disc = p_robot + offset * [cos(psi), sin(psi)]
+							# For constraint a·p_disc <= b, we have:
+							#   a1*(x + offset*cos(psi)) + a2*(y + offset*sin(psi)) <= b
+							# Which expands to: a1*x + a2*y + offset*(a1*cos(psi) + a2*sin(psi)) <= b
+							# So: a1*x + a2*y <= b - offset*(a1*cos(psi) + a2*sin(psi))
+							disc_offset = cdef.get('disc_offset', 0.0)
+							if abs(float(disc_offset)) > 1e-9:
+								# Get orientation angle (psi or theta depending on model)
+								psi_k = None
+								for angle_var in ['psi', 'theta', 'heading']:
+									if angle_var in self.var_dict:
+										psi_k = self.var_dict[angle_var][stage_idx]
+										break
+								
+								if psi_k is not None:
+									# Apply disc offset: adjust b by offset*(a1*cos(psi) + a2*sin(psi))
+									offset_adjustment = disc_offset * (a1 * cs.cos(psi_k) + a2 * cs.sin(psi_k))
+									b_adjusted = b - offset_adjustment
+									LOG_DEBUG(f"  Stage {stage_idx}: Applied disc_offset={disc_offset:.3f}, b adjustment={float(offset_adjustment) if hasattr(offset_adjustment, '__float__') else 'symbolic'}")
+								else:
+									LOG_WARN(f"  Stage {stage_idx}: disc_offset={disc_offset:.3f} specified but no orientation angle variable found (psi/theta/heading)")
+									b_adjusted = b
+							else:
+								b_adjusted = b
+							
+							# Halfspace: a·p_disc <= b → expr := a·p_robot - b_adjusted <= 0
+							return a1 * xk + a2 * yk - b_adjusted
+						# Unknown structured type; skip
+						return None
+
+					c_expr = _translate_constraint(c)
+					if c_expr is None:
+						continue
+
+					lb_mx = _to_mx(lb)
+					ub_mx = _to_mx(ub)
+
+					try:
+						if lb_mx is not None and ub_mx is not None:
+							self.opti.subject_to(self.opti.bounded(lb_mx, c_expr, ub_mx))
+						elif lb_mx is not None:
+							self.opti.subject_to(lb_mx <= c_expr)
+						elif ub_mx is not None:
+							self.opti.subject_to(c_expr <= ub_mx)
+						else:
+							self.opti.subject_to(c_expr)
+						total_constraints_added += 1
+					except Exception as e:
+						LOG_WARN(f"Failed to add constraint at stage {stage_idx}: {e}")
+
+				# All costs should come from objective modules via BaseSolver.get_objective_cost
 
 		self.opti.minimize(total_objective)
+		LOG_DEBUG(f"Total constraints added: {total_constraints_added}")
 
 		try:
+			LOG_INFO("Attempting to solve optimization problem...")
 			self.solution = self.opti.solve()
 			self.exit_flag = 1
 			self._update_warmstart_from_solution()
 			LOG_INFO("=== SOLUTION FOUND ===")
+			
+			# Log solution details
+			if self.solution:
+				LOG_DEBUG("Extracting solution values...")
+				# Log first state values
+				try:
+					for var_name in self.dynamics_model.get_dependent_vars():
+						if var_name in self.var_dict:
+							val0 = self.solution.value(self.var_dict[var_name][0])
+							LOG_DEBUG(f"  Solution[{var_name}][0] = {val0}")
+				except Exception as e:
+					LOG_DEBUG(f"  Could not extract solution values: {e}")
+			
 			return 1
 		except RuntimeError as e:
 			LOG_WARN(f"[ERROR] CasADi solver failed: {e}")
 			self.exit_flag = -1
 			self.info["status"] = "failed"
 			self.info["error"] = str(e)
+			
+			# Try to diagnose infeasibility
+			LOG_WARN("Attempting to diagnose infeasibility...")
+			try:
+				# Check if we can get debug values
+				if hasattr(self.opti, 'debug'):
+					LOG_DEBUG("Checking opti.debug values...")
+					for var_name in list(self.var_dict.keys())[:5]:  # Check first few variables
+						try:
+							debug_val = self.opti.debug.value(self.var_dict[var_name])
+							if isinstance(debug_val, np.ndarray) and len(debug_val) > 0:
+								LOG_DEBUG(f"  Debug[{var_name}][0] = {debug_val[0]}")
+							else:
+								LOG_DEBUG(f"  Debug[{var_name}] = {debug_val}")
+						except Exception:
+							pass
+					
+					# Check constraint violations
+					try:
+						# Get constraint values
+						LOG_DEBUG("Checking constraint violations...")
+						# Try to get constraint info if available
+						if hasattr(self.opti, 'debug') and hasattr(self.opti.debug, 'g'):
+							constraint_violations = self.opti.debug.value(self.opti.debug.g)
+							if constraint_violations is not None:
+								violations = np.abs(constraint_violations)
+								max_violation = np.max(violations)
+								LOG_WARN(f"  Maximum constraint violation: {max_violation:.6f}")
+								if max_violation > 1e-3:
+									LOG_WARN(f"  Problem likely infeasible - constraint violation too large")
+					except Exception as const_err:
+						LOG_DEBUG(f"Could not check constraint violations: {const_err}")
+			except Exception as debug_err:
+				LOG_DEBUG(f"Could not get debug values: {debug_err}")
+			
+			# Log current state and data
+			if state and self.dynamics_model:
+				try:
+					state_vars = {}
+					for v in self.dynamics_model.get_all_vars():
+						if state.has(v):
+							state_vars[v] = state.get(v)
+					LOG_WARN(f"State at failure: {state_vars}")
+					# Check if initial state might violate constraints
+					if 'x' in state_vars and 'y' in state_vars:
+						LOG_DEBUG(f"  Initial position: ({state_vars['x']:.2f}, {state_vars['y']:.2f})")
+				except Exception as state_err:
+					LOG_DEBUG(f"Could not log state: {state_err}")
+			if self.data:
+				has_ref = hasattr(self.data, 'reference_path') and self.data.reference_path is not None
+				has_static = hasattr(self.data, 'static_obstacles') and self.data.static_obstacles is not None
+				LOG_WARN(f"Data at failure: reference_path={'present' if has_ref else 'missing'}, static_obstacles={'present' if has_static else 'missing'}")
+				# Check if initial state is within road bounds
+				if has_static and state and hasattr(state, 'get'):
+					try:
+						x0 = state.get('x')
+						y0 = state.get('y')
+						if x0 is not None and y0 is not None and hasattr(self.data, 'static_obstacles'):
+							# Check first stage obstacle
+							if self.data.static_obstacles and len(self.data.static_obstacles) > 0:
+								obs0 = self.data.static_obstacles[0]
+								if obs0 is not None and hasattr(obs0, 'halfspaces'):
+									# Check if point violates any halfspace
+									for halfspace in obs0.halfspaces:
+										if hasattr(halfspace, 'A') and hasattr(halfspace, 'b'):
+											A = halfspace.A
+											b = halfspace.b
+											violation = np.dot(A, [x0, y0]) - b
+											if violation > 1e-6:
+												LOG_WARN(f"  Initial position ({x0:.2f}, {y0:.2f}) violates road constraint: A·p - b = {violation:.6f}")
+					except Exception as check_err:
+						LOG_DEBUG(f"Could not check initial position against constraints: {check_err}")
+			
 			return -1
 
 	def get_output(self, k, var_name):
@@ -233,12 +575,14 @@ class CasADiSolver(BaseSolver):
 			LOG_WARN("No solution available. Returning trajectory from warmstart.")
 			return self._create_trajectory_from_warmstart()
 
-		traj = Trajectory(timestep=self.timestep, length=self.horizon + 1)
-		for k in range(self.horizon + 1):
+		horizon_val = self.horizon if self.horizon is not None else 10
+		timestep_val = self.timestep if self.timestep is not None else 0.1
+		traj = Trajectory(timestep=timestep_val, length=horizon_val + 1)
+		for k in range(horizon_val + 1):
 			state_k = State(model_type=self.dynamics_model)
 			for var_name in self.dynamics_model.get_dependent_vars():
 				state_k.set(var_name, self.solution.value(self.var_dict[var_name][k]))
-			if k < self.horizon:
+			if k < horizon_val:
 				for var_name in self.dynamics_model.get_inputs():
 					state_k.set(var_name, self.solution.value(self.var_dict[var_name][k]))
 			traj.add_state(state_k)
@@ -263,6 +607,13 @@ class CasADiSolver(BaseSolver):
 		}
 		return explanations.get(code_to_check, f"Unknown exit code: {code_to_check}")
 
+	def set_dynamics_model(self, model):
+		"""Set the dynamics model for the solver."""
+		self.dynamics_model = model
+		# If solver is already initialized, reinitialize with new model
+		if self.opti is not None and self.data:
+			self.intialize_solver(self.data)
+	
 	def reset(self):
 		LOG_DEBUG("Resetting CasADi solver.")
 		self.opti = cs.Opti()

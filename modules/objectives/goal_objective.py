@@ -1,16 +1,24 @@
 import numpy as np
 import casadi as cs
-from planner_modules.src.constraints.base_constraint import BaseConstraint
-from planner_modules.src.objectives.base_objective import BaseObjective
-from planning.src.types import State
+from modules.objectives.base_objective import BaseObjective
+from planning.types import State
 from utils.const import OBJECTIVE
-from utils.math_utils import distance
+from utils.math_tools import distance
 from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO
 
 class GoalObjective(BaseObjective):
 
-  def __init__(self, solver):
-    super().__init__(solver)
+  def __init__(self):
+    super().__init__()
+    # Ensure solver horizon is set before using it
+    if solver and (not hasattr(solver, 'horizon') or solver.horizon is None):
+      # Try to get from config
+      from utils.utils import read_config_file
+      config = read_config_file()
+      if config:
+        planner_config = config.get("planner", {})
+        solver.horizon = planner_config.get("horizon", 10)
+        solver.timestep = planner_config.get("timestep", 0.1)
     self.module_type = OBJECTIVE
     self.name = "goal_objective"
     LOG_INFO( "Initializing Goal Module")
@@ -61,7 +69,8 @@ class GoalObjective(BaseObjective):
     angle_error = cs.fmod(psi - theta_goal + cs.pi, 2 * cs.pi) - cs.pi
 
     # If at terminal stage, apply stronger penalty
-    if stage_idx == self.solver.horizon - 1:
+    horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
+    if stage_idx == horizon_val - 1:
       pos_cost = terminal_goal_weight * pos_error_sq
       angle_cost = terminal_angle_weight * angle_error ** 2
     else:

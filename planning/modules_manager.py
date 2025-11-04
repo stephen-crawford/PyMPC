@@ -2,7 +2,7 @@ import copy
 
 from utils.const import CONSTRAINT, OBJECTIVE
 from utils.utils import read_config_file
-from utils.utils import print_value, print_header
+from utils.utils import print_value, print_header, LOG_DEBUG, LOG_INFO, LOG_WARN
 
 
 class ModuleManager:
@@ -16,18 +16,31 @@ class ModuleManager:
 
     def add_module(self, module):
         """Add a module instance and check dependencies"""
+        module_name = getattr(module, 'name', 'Unknown')
+        module_type = getattr(module, 'module_type', 'Unknown')
+        LOG_DEBUG(f"ModuleManager.add_module: Adding '{module_name}' (type: {module_type})")
+        
         # Check if module has dependencies
         if hasattr(module, 'dependencies') and module.dependencies:
+            LOG_DEBUG(f"Module '{module_name}' has dependencies: {module.dependencies}")
             for dep_name in module.dependencies:
                 # Check if dependency exists in modules
                 dep_found = any(m.name == dep_name for m in self.modules)
                 if not dep_found:
-                    raise RuntimeError(
+                    error_msg = (
                         f"Module '{module.name}' requires dependency '{dep_name}' "
                         f"which is not present in the module manager. "
                         f"Please add '{dep_name}' before adding '{module.name}'."
                     )
+                    LOG_WARN(error_msg)
+                    raise RuntimeError(error_msg)
+                else:
+                    LOG_DEBUG(f"  Dependency '{dep_name}' satisfied")
+        else:
+            LOG_DEBUG(f"Module '{module_name}' has no dependencies")
+        
         self.modules.append(module)
+        LOG_INFO(f"Module '{module_name}' added successfully. Total modules: {len(self.modules)}")
 
     def add_modules(self, modules):
         """Add a list of modules, preserving dependency checks."""
@@ -57,16 +70,28 @@ class ModuleManager:
         return self.modules
 
     def is_data_ready(self, state, data):
+        LOG_DEBUG("ModuleManager.is_data_ready: Checking all modules...")
         for module in self.modules:
-            if not module.is_data_ready(state, data):
+            module_name = getattr(module, 'name', 'Unknown')
+            is_ready = module.is_data_ready(state, data)
+            LOG_DEBUG(f"  Module '{module_name}': data_ready={is_ready}")
+            if not is_ready:
+                LOG_WARN(f"Module '{module_name}' reports data is not ready")
                 return False
+        LOG_DEBUG("ModuleManager.is_data_ready: All modules report data is ready")
         return True
 
     def define_parameters(self, parameter_manager):
         """Define all module parameters for the solver"""
+        LOG_DEBUG("ModuleManager.define_parameters: Defining parameters for all modules...")
         for module in self.modules:
+            module_name = getattr(module, 'name', 'Unknown')
             if hasattr(module, "define_parameters"):
+                LOG_DEBUG(f"  Defining parameters for '{module_name}'...")
                 module.define_parameters(self, parameter_manager)
+                LOG_DEBUG(f"  Parameters defined for '{module_name}'")
+            else:
+                LOG_DEBUG(f"  Module '{module_name}' has no define_parameters method")
 
     def get_objectives(self, state, data, stage_idx):
         """Collect objective contributions from all objective modules.
@@ -74,31 +99,89 @@ class ModuleManager:
         Supports both `get_objective` and legacy `get_value` method names.
         Returns a flat list for the stage.
         """
+        LOG_DEBUG(f"ModuleManager.get_objectives: stage_idx={stage_idx}")
         objectives = []
-        for module in self.modules:
-            if getattr(module, "module_type", None) == OBJECTIVE:
-                if hasattr(module, "get_objective"):
-                    val = module.get_objective(state, data, stage_idx)
-                    if isinstance(val, (list, tuple)):
-                        objectives.extend(val)
-                    elif val is not None:
-                        objectives.append(val)
-                elif hasattr(module, "get_value"):
-                    val = module.get_value(state, data, stage_idx)
-                    if isinstance(val, (list, tuple)):
-                        objectives.extend(val)
-                    elif val is not None:
-                        objectives.append(val)
+        objective_modules = [m for m in self.modules if getattr(m, "module_type", None) == OBJECTIVE]
+        LOG_DEBUG(f"Found {len(objective_modules)} objective module(s) for stage {stage_idx}")
+        
+        for module in objective_modules:
+            module_name = getattr(module, 'name', 'Unknown')
+            LOG_DEBUG(f"  Getting objective from '{module_name}'...")
+            
+            if hasattr(module, "get_objective"):
+                val = module.get_objective(state, data, stage_idx)
+                if isinstance(val, (list, tuple)):
+                    objectives.extend(val)
+                    LOG_DEBUG(f"    '{module_name}' returned {len(val)} objective term(s)")
+                elif val is not None:
+                    objectives.append(val)
+                    LOG_DEBUG(f"    '{module_name}' returned 1 objective term")
+                else:
+                    LOG_DEBUG(f"    '{module_name}' returned None")
+            elif hasattr(module, "get_value"):
+                val = module.get_value(state, data, stage_idx)
+                if isinstance(val, (list, tuple)):
+                    objectives.extend(val)
+                    LOG_DEBUG(f"    '{module_name}' returned {len(val)} objective term(s) (legacy get_value)")
+                elif val is not None:
+                    objectives.append(val)
+                    LOG_DEBUG(f"    '{module_name}' returned 1 objective term (legacy get_value)")
+                else:
+                    LOG_DEBUG(f"    '{module_name}' returned None (legacy get_value)")
+            else:
+                LOG_WARN(f"    '{module_name}' has neither get_objective nor get_value method")
+        
+        LOG_DEBUG(f"ModuleManager.get_objectives: Returning {len(objectives)} total objective term(s) for stage {stage_idx}")
         return objectives
 
     def get_constraints(self, state, data, stage_idx):
         """Calculate constraint values from all constraint modules"""
+        LOG_DEBUG(f"ModuleManager.get_constraints: stage_idx={stage_idx}")
         constraint_values = []
-        for module in self.modules:
-            if module.module_type == CONSTRAINT:
-                if hasattr(module, "calculate_constraints"):
-                    constraint_values.extend(module.calculate_constraints(state, data, stage_idx))
+        constraint_modules = [m for m in self.modules if getattr(m, "module_type", None) == CONSTRAINT]
+        LOG_DEBUG(f"Found {len(constraint_modules)} constraint module(s) for stage {stage_idx}")
+        
+        for module in constraint_modules:
+            module_name = getattr(module, 'name', 'Unknown')
+            LOG_DEBUG(f"  Getting constraints from '{module_name}'...")
+            
+            if hasattr(module, "calculate_constraints"):
+                try:
+                    cons = module.calculate_constraints(state, data, stage_idx)
+                    if isinstance(cons, (list, tuple)):
+                        constraint_values.extend(cons)
+                        LOG_DEBUG(f"    '{module_name}' returned {len(cons)} constraint(s)")
+                    elif cons is not None:
+                        constraint_values.append(cons)
+                        LOG_DEBUG(f"    '{module_name}' returned 1 constraint")
+                    else:
+                        LOG_DEBUG(f"    '{module_name}' returned None")
+                except Exception as e:
+                    LOG_WARN(f"    '{module_name}.calculate_constraints' raised exception: {e}")
+            else:
+                LOG_DEBUG(f"    '{module_name}' has no calculate_constraints method")
+        
+        LOG_DEBUG(f"ModuleManager.get_constraints: Returning {len(constraint_values)} total constraint(s) for stage {stage_idx}")
         return constraint_values
+
+    def get_constraints_with_bounds(self, state, data, stage_idx):
+        """Return constraints paired with their lower/upper bounds for this stage.
+        Ensures alignment by zipping to the shortest list length.
+        """
+        cons = self.get_constraints(state, data, stage_idx) or []
+        lbs = self.get_constraint_lower_bounds(state, data, stage_idx) or []
+        ubs = self.get_constraint_upper_bounds(state, data, stage_idx) or []
+        n = min(len(cons), len(lbs), len(ubs))
+        paired = []
+        for i in range(n):
+            paired.append((cons[i], lbs[i], ubs[i]))
+        # If lengths differ, append remaining with None bounds to avoid index errors
+        if len(cons) > n:
+            for i in range(n, len(cons)):
+                lb = lbs[i] if i < len(lbs) else None
+                ub = ubs[i] if i < len(ubs) else None
+                paired.append((cons[i], lb, ub))
+        return paired
 
     def get_constraint_lower_bounds(self, state, data, stage_idx):
         """Get lower bounds for all constraints"""
@@ -222,11 +305,55 @@ class Module:
     def __init__(self):
         self.name = None
         self.settings = read_config_file()
+        self.config = self.settings  # Alias for compatibility
         self.module_type = None
         self.description = ""
 
         self.dependencies = []
         self.visualizer = None
+    
+    def get_config_value(self, dotted_key: str, default=None):
+        """Get a config value using dotted key notation (e.g., 'modules.constraints.contouring_constraints.num_discs').
+        
+        Args:
+            dotted_key: Dot-separated key path into config dict
+            default: Default value if key not found
+            
+        Returns:
+            Config value or default
+        """
+        if self.settings is None:
+            return default
+        
+        # Use get_config_dotted utility for consistent parsing
+        from utils.utils import get_config_dotted
+        return get_config_dotted(self.settings, dotted_key, default)
+
+    def get_horizon(self, data=None, default: int = 10) -> int:
+        """Resolve planning horizon using data first, then config, then default."""
+        try:
+            if data is not None and hasattr(data, 'horizon') and data.horizon is not None:
+                return int(data.horizon)
+        except Exception:
+            pass
+        cfg_h = self.get_config_value("planner.horizon", default)
+        try:
+            return int(cfg_h)
+        except Exception:
+            return default
+
+    def get_timestep(self, data=None, default: float = 0.1) -> float:
+        """Resolve timestep using data first, then config, then default."""
+        try:
+            if data is not None and hasattr(data, 'timestep') and data.timestep is not None:
+                return float(data.timestep)
+        except Exception:
+            pass
+        cfg_dt = self.get_config_value("planner.timestep", default)
+        try:
+            return float(cfg_dt)
+        except Exception:
+            return default
 
     def __str__(self):
         result = self.description
