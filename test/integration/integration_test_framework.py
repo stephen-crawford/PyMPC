@@ -38,6 +38,7 @@ from planning.planner import Planner
 from planning.types import define_robot_area, propagate_obstacles, ensure_obstacle_size
 from utils.utils import read_config_file
 from planning.obstacle_manager import ObstacleManager, ObstacleConfig, create_unicycle_obstacle, create_bicycle_obstacle, create_point_mass_obstacle
+from planning.types import PredictionType
 
 
 @dataclass
@@ -50,12 +51,18 @@ class TestConfig:
     num_obstacles: int
     obstacle_dynamics: List[str]
     test_name: str
+    # New: prediction type per obstacle ("deterministic" or "gaussian")
+    obstacle_prediction_types: Optional[List[str]] = None
     duration: float = 10.0
     timestep: float = 0.1
     # Optional explicit obstacle configurations to avoid randomness in tests
     obstacle_configs: Optional[List[ObstacleConfig]] = None
     # Optionally draw solver's predicted trajectory each planner iteration
     show_predicted_trajectory: bool = False
+    # Option: allow using fallback control if solver outputs None; default off
+    fallback_control_enabled: bool = False
+    # Optional: sequence of goal positions for moving goal tests (list of [x, y] or [x, y, z] tuples)
+    goal_sequence: Optional[List[List[float]]] = None
 
 
 @dataclass
@@ -141,7 +148,7 @@ class IntegrationTestFramework:
             from planning.dynamic_models import CurvatureAwareSecondOrderBicycleModel
             return CurvatureAwareSecondOrderBicycleModel()
         elif dynamics_type == "point_mass":
-            from .obstacle_manager import PointMassModel
+            from planning.dynamic_models import PointMassModel
             return PointMassModel()
         else:
             raise ValueError(f"Unknown vehicle dynamics type: {dynamics_type}")
@@ -222,7 +229,8 @@ class IntegrationTestFramework:
         return constraints
         
     def create_obstacles(self, num_obstacles: int, dynamics_types: List[str],
-                         obstacle_configs: Optional[List[ObstacleConfig]] = None) -> List[DynamicObstacle]:
+                         obstacle_configs: Optional[List[ObstacleConfig]] = None,
+                         prediction_types: Optional[List[str]] = None) -> List[DynamicObstacle]:
         """Create obstacles with specified dynamics using obstacle manager.
         If obstacle_configs is provided, it will be used directly for deterministic setups.
         """
@@ -233,6 +241,7 @@ class IntegrationTestFramework:
             obstacle_configs = []
             for i in range(num_obstacles):
                 dynamics_type = dynamics_types[i % len(dynamics_types)]
+                pred_type_str = (prediction_types[i % len(prediction_types)] if prediction_types else None)
                 
                 # Random initial position
                 x = np.random.uniform(0.0, 20.0)
@@ -251,6 +260,15 @@ class IntegrationTestFramework:
                     config = create_point_mass_obstacle(i, np.array([x, y]), velocity)
                 else:
                     raise ValueError(f"Unknown dynamics type: {dynamics_type}")
+
+                # Override prediction type if provided
+                if pred_type_str is not None:
+                    if pred_type_str.lower() in ("gaussian", "normal"):
+                        config.prediction_type = PredictionType.GAUSSIAN
+                    elif pred_type_str.lower() in ("deterministic", "det"):
+                        config.prediction_type = PredictionType.DETERMINISTIC
+                    else:
+                        raise ValueError(f"Unknown obstacle prediction type: {pred_type_str}")
                     
                 obstacle_configs.append(config)
             
@@ -287,6 +305,21 @@ class IntegrationTestFramework:
                 self.solver.timestep = planner_config.get("timestep", 0.1)
             
             # Create modules (they will use self.solver which now has horizon set)
+            # Apply runtime planner overrides
+            try:
+                self.config.setdefault("planner", {})
+                self.config["planner"].setdefault("fallback_control_enabled", bool(test_config.fallback_control_enabled))
+                # Emphasize contour following when using contouring objective
+                if test_config.objective_module == "contouring":
+                    self.config.setdefault("weights", {})
+                    # Boost contour weight; modest lag weight to reduce phase error
+                    self.config["weights"].setdefault("contour_weight", 5.0)
+                    self.config["weights"].setdefault("contouring_lag_weight", 0.2)
+                    # Prefer dynamic velocity handling if supported by module
+                    self.config.setdefault("contouring", {})
+                    self.config["contouring"].setdefault("dynamic_velocity_reference", True)
+            except Exception:
+                pass
             # If contouring objective, prefer contouring-aware dynamics with 'spline' state
             dyn_type = test_config.vehicle_dynamics
             if test_config.objective_module == "contouring":
@@ -332,7 +365,8 @@ class IntegrationTestFramework:
             obstacles = self.create_obstacles(
                 test_config.num_obstacles,
                 test_config.obstacle_dynamics,
-                test_config.obstacle_configs
+                test_config.obstacle_configs,
+                test_config.obstacle_prediction_types
             )
             
             # Initialize data
@@ -341,80 +375,116 @@ class IntegrationTestFramework:
             data.dynamic_obstacles = obstacles if obstacles is not None else []
             problem.data = data
 
-            # Build reference path and boundaries
+            # Build reference path ONLY for contouring-related objectives
             try:
-                # Handle reference_path: can be numpy array or already a ReferencePath object
-                if test_config.reference_path is not None:
-                    if isinstance(test_config.reference_path, np.ndarray):
-                        # Convert numpy array to ReferencePath object
-                        from planning.types import ReferencePath
-                        from scipy.interpolate import CubicSpline
-                        ref_path = ReferencePath()
-                        # Ensure numpy arrays for arithmetic operations
-                        x_arr = np.asarray(test_config.reference_path[:, 0], dtype=float)
-                        y_arr = np.asarray(test_config.reference_path[:, 1], dtype=float)
-                        z_arr = np.zeros(x_arr.shape[0], dtype=float)
-                        
-                        # Compute arc length
-                        s = np.zeros(x_arr.shape[0], dtype=float)
-                        for i in range(1, x_arr.shape[0]):
-                            dx = x_arr[i] - x_arr[i - 1]
-                            dy = y_arr[i] - y_arr[i - 1]
-                            s[i] = s[i - 1] + float(np.hypot(dx, dy))
-                        
-                        # Store as numpy arrays in ReferencePath
-                        ref_path.x = x_arr
-                        ref_path.y = y_arr
-                        ref_path.z = z_arr
-                        ref_path.s = s
-                        
-                        # Build splines
-                        ref_path.x_spline = CubicSpline(s, x_arr)
-                        ref_path.y_spline = CubicSpline(s, y_arr)
-                        ref_path.z_spline = CubicSpline(s, z_arr)
-                        ref_path.length = float(s[-1])
-                        
-                        data.reference_path = ref_path
-                        start_pt = [float(x_arr[0]), float(y_arr[0]), 0.0]
-                        goal_pt = [float(x_arr[-1]), float(y_arr[-1]), 0.0]
+                use_ref_path = test_config.objective_module in ("contouring", "path_reference_velocity")
+                if use_ref_path:
+                    # Handle reference_path: can be numpy array or already a ReferencePath object
+                    if test_config.reference_path is not None:
+                        if isinstance(test_config.reference_path, np.ndarray):
+                            # Convert numpy array to ReferencePath object
+                            from planning.types import ReferencePath
+                            from scipy.interpolate import CubicSpline
+                            ref_path = ReferencePath()
+                            # Ensure numpy arrays for arithmetic operations
+                            x_arr = np.asarray(test_config.reference_path[:, 0], dtype=float)
+                            y_arr = np.asarray(test_config.reference_path[:, 1], dtype=float)
+                            z_arr = np.zeros(x_arr.shape[0], dtype=float)
+                            # Compute arc length
+                            s = np.zeros(x_arr.shape[0], dtype=float)
+                            for i in range(1, x_arr.shape[0]):
+                                dx = x_arr[i] - x_arr[i - 1]
+                                dy = y_arr[i] - y_arr[i - 1]
+                                s[i] = s[i - 1] + float(np.hypot(dx, dy))
+                            # Store as numpy arrays in ReferencePath
+                            ref_path.x = x_arr
+                            ref_path.y = y_arr
+                            ref_path.z = z_arr
+                            ref_path.s = s
+                            # Build splines
+                            ref_path.x_spline = CubicSpline(s, x_arr)
+                            ref_path.y_spline = CubicSpline(s, y_arr)
+                            ref_path.z_spline = CubicSpline(s, z_arr)
+                            ref_path.length = float(s[-1])
+                            data.reference_path = ref_path
+                            start_pt = [float(x_arr[0]), float(y_arr[0]), 0.0]
+                            goal_pt = [float(x_arr[-1]), float(y_arr[-1]), 0.0]
+                        else:
+                            # Already a ReferencePath object
+                            data.reference_path = test_config.reference_path
+                            # Ensure numpy arrays on existing ReferencePath
+                            data.reference_path.x = np.asarray(data.reference_path.x, dtype=float)
+                            data.reference_path.y = np.asarray(data.reference_path.y, dtype=float)
+                            data.reference_path.s = np.asarray(data.reference_path.s, dtype=float)
+                            start_pt = [float(data.reference_path.x[0]), float(data.reference_path.y[0]), 0.0]
+                            goal_pt = [float(data.reference_path.x[-1]), float(data.reference_path.y[-1]), 0.0]
                     else:
-                        # Already a ReferencePath object
-                        data.reference_path = test_config.reference_path
-                        # Ensure numpy arrays on existing ReferencePath
-                        data.reference_path.x = np.asarray(data.reference_path.x, dtype=float)
-                        data.reference_path.y = np.asarray(data.reference_path.y, dtype=float)
-                        data.reference_path.s = np.asarray(data.reference_path.s, dtype=float)
-                        start_pt = [float(data.reference_path.x[0]), float(data.reference_path.y[0]), 0.0]
-                        goal_pt = [float(data.reference_path.x[-1]), float(data.reference_path.y[-1]), 0.0]
+                        # Generate a simple straight reference if not provided
+                        start_pt = [0.0, 0.0, 0.0]
+                        goal_pt = [20.0, 0.0, 0.0]
+                        ref_path = generate_reference_path(start_pt, goal_pt, path_type="straight")
+                        data.reference_path = ref_path
                 else:
+                    # Goal objective and others: DO NOT use reference path
+                    data.reference_path = None
                     start_pt = [0.0, 0.0, 0.0]
                     goal_pt = [20.0, 0.0, 0.0]
-                    ref_path = generate_reference_path(start_pt, goal_pt, path_type="straight")
-                    data.reference_path = ref_path
 
                 # Set start/goal only for Goal objective; contouring follows reference path end
                 if test_config.objective_module == "goal":
                     data.start = np.array(start_pt[:2])
-                    data.goal = np.array(goal_pt[:2])
+                    # Support multiple goals - if test_config has goal_sequence, use it, otherwise use single goal
+                    if hasattr(test_config, 'goal_sequence') and test_config.goal_sequence:
+                        data.goal_sequence = [np.array(g[:2]) for g in test_config.goal_sequence]
+                        data.current_goal_index = 0
+                        data.goal = data.goal_sequence[0]
+                    else:
+                        data.goal_sequence = None
+                        data.goal = np.array(goal_pt[:2])
                     data.goal_received = True
+                    data.reached_goals = []  # Track all reached goals
+                # Compute road boundaries using path normals (ONLY if using reference path)
+                if use_ref_path and data.reference_path is not None:
+                    def calculate_path_normals(_ref_path: ReferencePath):
+                        s_vals = _ref_path.s
+                        # Derivatives of splines
+                        dx = np.gradient(_ref_path.x)
+                        dy = np.gradient(_ref_path.y)
+                        # Normalize tangents
+                        tangents = []
+                        normals_local = []
+                        for i in range(len(s_vals)):
+                            tx = dx[i]
+                            ty = dy[i]
+                            norm = np.hypot(tx, ty)
+                            if norm < 1e-9:
+                                tangents.append((1.0, 0.0))
+                                nx, ny = 0.0, 1.0
+                            else:
+                                txn, tyn = tx / norm, ty / norm
+                                tangents.append((txn, tyn))
+                                # Left normal = (-ty, tx)
+                                nx, ny = -tyn, txn
+                            normals_local.append((nx, ny))
+                        return normals_local
 
-                # Compute road boundaries using path normals
-                normals = calculate_path_normals(ref_path)
-                road_width = float(self.config.get("road", {}).get("width", 7.0))
-                half_width = road_width / 2.0
-                left_x, left_y, right_x, right_y = [], [], [], []
-                for i in range(len(ref_path.x)):
-                    nx, ny = normals[i]
-                    left_x.append(ref_path.x[i] + nx * half_width)
-                    left_y.append(ref_path.y[i] + ny * half_width)
-                    right_x.append(ref_path.x[i] - nx * half_width)
-                    right_y.append(ref_path.y[i] - ny * half_width)
-                data.left_boundary_x = left_x
-                data.left_boundary_y = left_y
-                data.right_boundary_x = right_x
-                data.right_boundary_y = right_y
-                data.left_bound = Bound(left_x, left_y, ref_path.s)
-                data.right_bound = Bound(right_x, right_y, ref_path.s)
+                    ref_path = data.reference_path
+                    normals = calculate_path_normals(ref_path)
+                    road_width = float(self.config.get("road", {}).get("width", 7.0))
+                    half_width = road_width / 2.0
+                    left_x, left_y, right_x, right_y = [], [], []
+                    for i in range(len(ref_path.x)):
+                        nx, ny = normals[i]
+                        left_x.append(ref_path.x[i] + nx * half_width)
+                        left_y.append(ref_path.y[i] + ny * half_width)
+                        right_x.append(ref_path.x[i] - nx * half_width)
+                        right_y.append(ref_path.y[i] - ny * half_width)
+                    data.left_boundary_x = left_x
+                    data.left_boundary_y = left_y
+                    data.right_boundary_x = right_x
+                    data.right_boundary_y = right_y
+                    data.left_bound = Bound(left_x, left_y, ref_path.s)
+                    data.right_bound = Bound(right_x, right_y, ref_path.s)
             except Exception:
                 # Minimal fallback (only set goal for Goal objective)
                 if test_config.objective_module == "goal":
@@ -620,31 +690,32 @@ class IntegrationTestFramework:
             problem.set_state(initial_state)
             
             # Run simulation
-            num_steps = int(test_config.duration / test_config.timestep)
             goal_reached = False
             goal_reached_step = None
+            step = 0
+            # Track consecutive MPC failures when fallback is disabled
+            consecutive_solver_failures = 0
+            max_consecutive_failures = int(self.config.get("planner", {}).get("max_consecutive_solver_failures", 5))
+            # For contouring objective, run until end-of-path (spline reaches path length),
+            # otherwise cap by duration
+            is_contouring = (test_config.objective_module == "contouring")
+            max_steps_cap = int(self.config.get("planner", {}).get("max_steps", 2000))
+            num_steps = int(test_config.duration / test_config.timestep)
             
-            for step in range(num_steps):
-                logger.info(f"Step {step}/{num_steps}")
+            while True:
+                if is_contouring:
+                    logger.info(f"Step {step} (contouring until path end)")
+                else:
+                    logger.info(f"Step {step}/{num_steps}")
                 
                 start_time = time.time()
-                
-                # Check if goal is reached (check before solving to avoid unnecessary computation)
-                if not goal_reached and hasattr(planner, 'is_objective_reached'):
-                    try:
-                        goal_reached = planner.is_objective_reached(data)
-                        if goal_reached:
-                            goal_reached_step = step
-                            logger.info(f"Goal reached at step {step}!")
-                    except Exception as e:
-                        logger.debug(f"Could not check goal status: {e}")
                 
                 # Prepare iteration for modules that support it
                 for module in [objective_module] + constraint_modules:
                     if hasattr(module, 'prepare_iteration'):
                         module.prepare_iteration(vehicle_state, data)
                 
-                # Sync planner state - include all state variables
+                # Sync planner state - include all state variables (do this BEFORE checking goal)
                 logger.debug(f"Syncing planner state at step {step}: vehicle_state={vehicle_state}")
                 planner.state.set('x', float(vehicle_state[0]))
                 planner.state.set('y', float(vehicle_state[1]))
@@ -674,6 +745,12 @@ class IntegrationTestFramework:
                         module.solver = planner.solver
                 try:
                     for module in [objective_module] + constraint_modules:
+                        # Compatibility: some modules expect solver.get_initial_state()
+                        try:
+                            if not hasattr(self.solver, 'get_initial_state'):
+                                self.solver.get_initial_state = lambda: planner.state
+                        except Exception:
+                            pass
                         if hasattr(module, 'update'):
                             module.update(planner.state, data)
                 except Exception as e:
@@ -743,14 +820,51 @@ class IntegrationTestFramework:
                         self.solver.intialize_solver(data)
                 self.solver.initialize_rollout(planner.state, data)
 
+                # Check if goal is reached (AFTER syncing state so we use current position)
+                if hasattr(planner, 'is_objective_reached'):
+                    try:
+                        goal_reached = planner.is_objective_reached(data)
+                        if goal_reached:
+                            # Support moving goals - if goal_sequence exists, move to next goal
+                            if hasattr(data, 'goal_sequence') and data.goal_sequence is not None:
+                                if hasattr(data, 'reached_goals'):
+                                    data.reached_goals.append(np.array(data.goal))
+                                logger.info(f"Goal {data.current_goal_index + 1} reached at step {step}!")
+                                data.current_goal_index += 1
+                                if data.current_goal_index < len(data.goal_sequence):
+                                    data.goal = data.goal_sequence[data.current_goal_index]
+                                    logger.info(f"Moving to next goal: {data.goal}")
+                                    # Don't manually update parameters here - solve_mpc will call set_parameters
+                                    # which will read the updated data.goal
+                                    goal_reached = False  # Continue simulation
+                                else:
+                                    # All goals reached
+                                    goal_reached_step = step
+                                    logger.info(f"All goals reached at step {step}!")
+                                    break
+                            else:
+                                # Single goal - stop simulation
+                                goal_reached_step = step
+                                logger.info(f"Goal reached at step {step}!")
+                                break
+                    except Exception as e:
+                        logger.debug(f"Could not check goal status: {e}")
+
                 try:
                     logger.info(f"=== Calling planner.solve_mpc() at step {step} ===")
                     planner_output = planner.solve_mpc(data)
                     
                     if planner_output.success:
                         logger.info(f"Step {step}: MPC solve successful")
+                        consecutive_solver_failures = 0
                     else:
                         logger.warning(f"Step {step}: MPC solve failed")
+                        if not bool(self.config.get("planner", {}).get("fallback_control_enabled", False)):
+                            consecutive_solver_failures += 1
+                            logger.warning(f"  Consecutive MPC failures: {consecutive_solver_failures}")
+                            if consecutive_solver_failures >= max_consecutive_failures:
+                                logger.error(f"Max consecutive MPC failures ({max_consecutive_failures}) reached with fallback disabled. Terminating test early at step {step}.")
+                                break
                     
                     # Visualize constraints using module visualizers
                     try:
@@ -776,7 +890,6 @@ class IntegrationTestFramework:
                     # Prefer applying the control computed by the planner/solver
                     logger.info(f"=== Applying control at step {step} ===")
                     try:
-                        from planning.dynamic_models import numeric_rk4 as _nrk4
                         u_names = getattr(vehicle_dynamics, 'get_inputs', lambda: [])()
                         control_dict = getattr(planner.output, 'control', {}) if hasattr(planner, 'output') else {}
                         logger.info(f"  Control dict from planner: {control_dict}")
@@ -791,61 +904,74 @@ class IntegrationTestFramework:
                                 logger.warning(f"  MPC solved but control dict is empty!")
                         
                         if control_dict and u_names:
-                            # Build control vector in model input order
-                            u_vec = [float(control_dict.get(u, 0.0)) for u in u_names]
-                            logger.info(f"  Control vector: {dict(zip(u_names, u_vec))}")
-                            # Build current state vector in model state order
-                            x_names = getattr(vehicle_dynamics, 'get_all_vars', lambda: [])()
-                            x_vec = []
-                            for name in x_names:
-                                val = planner.state.get(name) if planner.state.has(name) else 0.0
-                                x_vec.append(float(val))
-                            logger.debug(f"  Current state vector: {dict(zip(x_names, x_vec))}")
-                            # Integrate one step
-                            logger.debug(f"  Integrating with timestep={self.solver.timestep}")
-                            next_state_num = _nrk4(np.array(x_vec, dtype=float), np.array(u_vec, dtype=float), vehicle_dynamics, self.solver.timestep)
-                            logger.info(f"  Integration result: x={next_state_num[0]:.2f}, y={next_state_num[1]:.2f}, psi={next_state_num[2]:.2f}, v={next_state_num[3]:.2f}")
-                            # Map back to vehicle_state (x,y,psi,v and extras if present)
-                            x_next = float(next_state_num[0]) if len(next_state_num) > 0 else vehicle_state[0]
-                            y_next = float(next_state_num[1]) if len(next_state_num) > 1 else vehicle_state[1]
-                            psi_next = float(next_state_num[2]) if len(next_state_num) > 2 else vehicle_state[2]
-                            v_next = float(next_state_num[3]) if len(next_state_num) > 3 else vehicle_state[3]
+                            # Build control in expected order and do simple Euler integration for known models
+                            a = float(control_dict.get('a', 0.0)) if 'a' in u_names else 0.0
+                            w = float(control_dict.get('w', 0.0)) if 'w' in u_names else 0.0
+                            dt = self.solver.timestep
+                            # Current state
+                            x = float(planner.state.get('x')) if planner.state.has('x') else vehicle_state[0]
+                            y = float(planner.state.get('y')) if planner.state.has('y') else vehicle_state[1]
+                            psi = float(planner.state.get('psi')) if planner.state.has('psi') else vehicle_state[2]
+                            v = float(planner.state.get('v')) if planner.state.has('v') else vehicle_state[3]
+                            # Euler step consistent with unicycle/bicycle front-axle models
+                            x_next = x + v * np.cos(psi) * dt
+                            y_next = y + v * np.sin(psi) * dt
+                            psi_next = psi + w * dt
+                            v_next = v + a * dt
                             new_state = np.array([x_next, y_next, psi_next, v_next])
-                            # Preserve/extend remaining state components
-                            if len(next_state_num) > 4:
-                                for i in range(4, len(next_state_num)):
-                                    new_state = np.append(new_state, float(next_state_num[i]))
-                            elif len(vehicle_state) > 4:
-                                for i in range(4, len(vehicle_state)):
-                                    new_state = np.append(new_state, vehicle_state[i])
+                            # Optional states
+                            if 'spline' in vehicle_dynamics.get_all_vars():
+                                s_val = float(planner.state.get('spline')) if planner.state.has('spline') else (vehicle_state[4] if len(vehicle_state) > 4 else 0.0)
+                                s_next = s_val + v * dt
+                                new_state = np.append(new_state, s_next)
+                            if 'delta' in vehicle_dynamics.get_all_vars():
+                                d_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
+                                d_val = float(planner.state.get('delta')) if planner.state.has('delta') else (vehicle_state[d_idx] if (d_idx is not None and len(vehicle_state) > d_idx) else 0.0)
+                                d_next = d_val + w * dt
+                                new_state = np.append(new_state, d_next)
                             vehicle_state = new_state
                         else:
-                            # Fallback: use reference trajectory if available
-                            traj = self.solver.get_reference_trajectory()
-                            if traj is not None and len(traj.get_states()) >= 2:
-                                next_state = traj.get_states()[1]
-                                x_next = next_state.get('x')
-                                y_next = next_state.get('y')
-                                psi_next = next_state.get('psi') if next_state.has('psi') else vehicle_state[2]
-                                v_next = next_state.get('v') if next_state.has('v') else vehicle_state[3]
-                                new_state = np.array([float(x_next), float(y_next), float(psi_next), float(v_next)])
-                                if len(vehicle_state) > 4:
-                                    for i in range(4, len(vehicle_state)):
-                                        var_name = vehicle_dynamics.dependent_vars[i] if i < len(vehicle_dynamics.dependent_vars) else None
-                                        if var_name and next_state.has(var_name):
-                                            new_state = np.append(new_state, float(next_state.get(var_name)))
-                                        else:
-                                            new_state = np.append(new_state, vehicle_state[i])
-                                vehicle_state = new_state
+                            # No MPC control available: if fallback disabled, hold state (no movement)
+                            if not bool(self.config.get("planner", {}).get("fallback_control_enabled", False)):
+                                logger.warning("  No MPC control available; holding current state (fallback disabled)")
                             else:
-                                dt = test_config.timestep
-                                vehicle_state[0] += vehicle_state[3] * np.cos(vehicle_state[2]) * dt
-                                vehicle_state[1] += vehicle_state[3] * np.sin(vehicle_state[2]) * dt
+                                # Fallbacks remain for explicit opt-in only
+                                traj = self.solver.get_reference_trajectory()
+                                if traj is not None and len(traj.get_states()) >= 2:
+                                    next_state = traj.get_states()[1]
+                                    x_next = next_state.get('x')
+                                    y_next = next_state.get('y')
+                                    psi_next = next_state.get('psi') if next_state.has('psi') else vehicle_state[2]
+                                    v_next = next_state.get('v') if next_state.has('v') else vehicle_state[3]
+                                    new_state = np.array([float(x_next), float(y_next), float(psi_next), float(v_next)])
+                                    if len(vehicle_state) > 4:
+                                        for i in range(4, len(vehicle_state)):
+                                            var_name = vehicle_dynamics.dependent_vars[i] if i < len(vehicle_dynamics.dependent_vars) else None
+                                            if var_name and next_state.has(var_name):
+                                                new_state = np.append(new_state, float(next_state.get(var_name)))
+                                            else:
+                                                new_state = np.append(new_state, vehicle_state[i])
+                                    vehicle_state = new_state
+                                else:
+                                    dt = test_config.timestep
+                                    vehicle_state[0] += vehicle_state[3] * np.cos(vehicle_state[2]) * dt
+                                    vehicle_state[1] += vehicle_state[3] * np.sin(vehicle_state[2]) * dt
                     except Exception:
                         dt = test_config.timestep
                         vehicle_state[0] += vehicle_state[3] * np.cos(vehicle_state[2]) * dt
                         vehicle_state[1] += vehicle_state[3] * np.sin(vehicle_state[2]) * dt
  
+                    # Early stop if contouring objective reached end of reference path
+                    try:
+                        if test_config.objective_module == 'contouring' and hasattr(data, 'reference_path') and hasattr(data.reference_path, 'length'):
+                            if 'spline' in vehicle_dynamics.get_all_vars() and len(vehicle_state) >= 5:
+                                s_val = float(vehicle_state[4])
+                                if s_val >= float(data.reference_path.length) - 1e-3:
+                                    logger.info(f"Reference path end reached at step {step} (s={s_val:.3f})")
+                                    break
+                    except Exception:
+                        pass
+
                     # Update obstacle states using obstacle manager
                     if hasattr(self, 'obstacle_manager'):
                         self.obstacle_manager.update_obstacle_states(test_config.timestep)
@@ -899,6 +1025,13 @@ class IntegrationTestFramework:
                     tb_str = traceback.format_exc()
                     logger.error(f"MPC solve failed at step {step}: {e}")
                     logger.error(f"Traceback: {tb_str}")
+                    # Count exception as a failure too when fallback disabled
+                    if not bool(self.config.get("planner", {}).get("fallback_control_enabled", False)):
+                        consecutive_solver_failures += 1
+                        logger.warning(f"  Consecutive MPC failures (exception): {consecutive_solver_failures}")
+                        if consecutive_solver_failures >= max_consecutive_failures:
+                            logger.error(f"Max consecutive MPC failures ({max_consecutive_failures}) reached due to exceptions with fallback disabled. Terminating test early at step {step}.")
+                            break
                     # Log state of critical data structures
                     logger.error(f"robot_area length: {len(data.robot_area) if hasattr(data, 'robot_area') and data.robot_area else 0}")
                     logger.error(f"dynamic_obstacles count: {len(data.dynamic_obstacles) if hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles else 0}")
@@ -932,6 +1065,16 @@ class IntegrationTestFramework:
                         computation_times.append(0.0)
                     logger.info(f"Goal reached at step {goal_reached_step}, added {3} extra frames for visualization")
                     break
+                
+                # Increment step and check stopping criteria
+                step += 1
+                if not is_contouring and step >= num_steps:
+                    break
+                if is_contouring:
+                    # Hard safety cap to avoid infinite loops in degenerate cases
+                    if step >= max_steps_cap:
+                        logger.info(f"Reached safety cap of {max_steps_cap} steps before path end; stopping")
+                        break
                     
             # Save results
             self.save_state_history(output_folder, vehicle_states, obstacle_states)
@@ -1096,10 +1239,20 @@ class IntegrationTestFramework:
         ax.grid(True, alpha=0.3)
         ax.set_aspect('equal')
         
-        # Plot reference path
-        if test_config.reference_path is not None:
-            ax.plot(test_config.reference_path[:, 0], test_config.reference_path[:, 1], 
-                   'k--', linewidth=2, label='Reference Path', alpha=0.7)
+        # Plot reference path and denote end ONLY if data.reference_path exists (contouring cases)
+        try:
+            if hasattr(self, 'last_data') and hasattr(self.last_data, 'reference_path') and self.last_data.reference_path is not None:
+                rp = self.last_data.reference_path
+                ax.plot(np.asarray(rp.x, dtype=float), np.asarray(rp.y, dtype=float),
+                        'k--', linewidth=2, label='Reference Path', alpha=0.7)
+                try:
+                    end_x = float(rp.x[-1])
+                    end_y = float(rp.y[-1])
+                    ax.plot(end_x, end_y, 'rx', markersize=10, mew=2, label='Path End')
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
         # Draw module-provided visualizations (e.g., road bounds) on this animation axes
         try:
@@ -1116,15 +1269,43 @@ class IntegrationTestFramework:
             # Visualization errors are non-fatal for animation
             pass
         
-        # Plot goal location if available
+        # Build dynamic goal artists if a goal sequence exists
+        goal_sequence = None
+        current_goal_plot = None
+        reached_goal_plots = []
         try:
-            # Try to get goal from data object (stored during test setup)
-            if hasattr(self, 'last_data') and hasattr(self.last_data, 'goal'):
-                goal = self.last_data.goal
-                if goal is not None and len(goal) >= 2:
-                    ax.plot(goal[0], goal[1], 'g*', markersize=15, label='Goal', zorder=10)
+            if hasattr(self, 'last_data') and hasattr(self.last_data, 'goal_sequence') and self.last_data.goal_sequence:
+                goal_sequence = [np.array(g) for g in self.last_data.goal_sequence]
         except Exception:
-            pass
+            goal_sequence = None
+        if goal_sequence is not None:
+            # Draw static crosses for all goals
+            for i, seq_goal in enumerate(goal_sequence):
+                label = 'Goal Sequence' if i == 0 else ''
+                ax.plot(float(seq_goal[0]), float(seq_goal[1]), 'gx', markersize=10, markeredgewidth=2, label=label, zorder=7)
+            # Create dynamic artists
+            current_goal_plot, = ax.plot([], [], 'g*', markersize=14, label='Current Goal', zorder=10)
+            reached_goal_plots = [ax.plot([], [], 'go', markersize=8, markeredgecolor='darkgreen', markeredgewidth=2, zorder=9)[0]
+                                   for _ in goal_sequence]
+            # Precompute which goal is current at each frame using distance threshold
+            thresh = 1.0
+            current_idx_by_frame = []
+            idx = 0
+            for f in range(len(vehicle_states)):
+                px, py = float(vehicle_states[f][0]), float(vehicle_states[f][1])
+                if idx < len(goal_sequence):
+                    gx, gy = float(goal_sequence[idx][0]), float(goal_sequence[idx][1])
+                    if (px - gx) ** 2 + (py - gy) ** 2 <= thresh ** 2:
+                        idx = min(idx + 1, len(goal_sequence) - 1)
+                current_idx_by_frame.append(idx)
+        else:
+            # Fallback single-goal marker
+            try:
+                if hasattr(self, 'last_data') and hasattr(self.last_data, 'goal') and self.last_data.goal is not None:
+                    g = self.last_data.goal
+                    ax.plot(float(g[0]), float(g[1]), 'g*', markersize=14, label='Goal', zorder=10)
+            except Exception:
+                pass
         
         # Initialize plot elements
         vehicle_plot, = ax.plot([], [], 'bo', markersize=8, label='Vehicle', zorder=5)
@@ -1152,7 +1333,13 @@ class IntegrationTestFramework:
             obstacle_circles.append(circle)
             ax.add_patch(circle)
         
-        ax.legend(loc='upper right')
+        # Deduplicate legend entries
+        handles, labels = ax.get_legend_handles_labels()
+        uniq = {}
+        for h, l in zip(handles, labels):
+            if l and l not in uniq:
+                uniq[l] = h
+        ax.legend(uniq.values(), uniq.keys(), loc='upper right')
         
         # Track trails
         vehicle_trail_x = []
@@ -1193,7 +1380,22 @@ class IntegrationTestFramework:
                         pred_line.set_data(px, py)
                     else:
                         pred_line.set_data([], [])
-            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles
+                # Goals update
+                artists_extra = []
+                if goal_sequence is not None and current_goal_plot is not None:
+                    cur_idx = current_idx_by_frame[frame] if frame < len(current_idx_by_frame) else len(goal_sequence) - 1
+                    # Reached goals
+                    for i, plot in enumerate(reached_goal_plots):
+                        if i < cur_idx:
+                            plot.set_data([float(goal_sequence[i][0])], [float(goal_sequence[i][1])])
+                            artists_extra.append(plot)
+                        else:
+                            plot.set_data([], [])
+                    # Current goal
+                    cg = goal_sequence[cur_idx]
+                    current_goal_plot.set_data([float(cg[0])], [float(cg[1])])
+                    artists_extra.append(current_goal_plot)
+            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles + ([current_goal_plot] if current_goal_plot is not None else []) + reached_goal_plots
             
         # Create animation - use all frames to show complete trajectory
         total_frames = len(vehicle_states)
@@ -1358,6 +1560,7 @@ def run_multi_objective_test():
         vehicle_dynamics="bicycle",
         num_obstacles=3,
         obstacle_dynamics=["unicycle", "unicycle", "unicycle"],
+        obstacle_prediction_types=["gaussian", "gaussian", "gaussian"],
         test_name="Path Reference Velocity Integration Test",
         duration=10.0,
         timestep=0.1

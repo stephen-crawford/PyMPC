@@ -15,12 +15,13 @@ class LinearizedConstraints(BaseConstraint):
 
 		LOG_DEBUG("Initializing Linearized Constraints")
 
-		self.solver = solver
+		# Solver will be set by framework later
+		self.solver = None
 		num_discs_val = self.get_config_value("num_discs")
 		self.num_discs = int(num_discs_val) if num_discs_val is not None else 1
-		self.num_other_halfspaces = self.get_config_value("linearized_constraints.add_halfspaces")
-		self.max_obstacles = self.get_config_value("max_obstacles")
-		self.filter_distant_obstacles = self.get_config_value("linearized_constraints.filter_distant_obstacles")
+		self.num_other_halfspaces = self.get_config_value("linearized_constraints.add_halfspaces") or 0
+		self.max_obstacles = self.get_config_value("max_obstacles") or 10
+		self.filter_distant_obstacles = self.get_config_value("linearized_constraints.filter_distant_obstacles") or False
 		self.max_num_constraints = self.max_obstacles + self.num_other_halfspaces
 
 		self.use_guidance = False
@@ -33,19 +34,8 @@ class LinearizedConstraints(BaseConstraint):
 
 		self.disc_radius = self.get_config_value("disc_radius", 1.0)
 
-		# Ensure solver horizon is set before using it
-		if solver and (not hasattr(solver, 'horizon') or solver.horizon is None):
-			# Try to get from config
-			from utils.utils import read_config_file
-			config = read_config_file()
-			if config:
-				planner_config = config.get("planner", {})
-				solver.horizon = planner_config.get("horizon", 10)
-				solver.timestep = planner_config.get("timestep", 0.1)
-
-		# Use horizon with fallback
-		horizon_val = (self.solver.horizon if (self.solver and hasattr(self.solver, 'horizon') and self.solver.horizon is not None) 
-		              else (self.get_config_value("planner.horizon", 10) if self.get_config_value("planner.horizon") else 10))
+		# Use horizon with fallback - solver will be set later by framework
+		horizon_val = 10  # Default, will be updated when solver is set
 
 		self._a1 = [None] * self.num_discs
 		self._a2 = [None] * self.num_discs
@@ -184,14 +174,14 @@ class LinearizedConstraints(BaseConstraint):
 		return constraints
 
 	def lower_bounds(self, state=None, data=None, stage_idx=None):
+		# For linearized constraints: expr >= 0, so lower bound is 0
 		count = len(self.calculate_constraints(state, data, stage_idx)) if (data is not None and stage_idx is not None) else 0
-		lbs, _ = self._get_bounds_for_stage(stage_idx, count, default_lb=0.0, default_ub=np.inf)
-		return lbs
+		return [0.0] * count
 
 	def upper_bounds(self, state=None, data=None, stage_idx=None):
+		# For linearized constraints: expr >= 0, so upper bound is inf
 		count = len(self.calculate_constraints(state, data, stage_idx)) if (data is not None and stage_idx is not None) else 0
-		_, ubs = self._get_bounds_for_stage(stage_idx, count, default_lb=0.0, default_ub=np.inf)
-		return ubs
+		return [np.inf] * count
 
 	def is_data_ready(self, data):
 		missing_data = ""

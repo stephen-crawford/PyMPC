@@ -1,1 +1,0 @@
-2025-10-29 12:20:05,636 - ERROR - Test failed: Module 'contouring_objective' requires dependency 'contouring_constraints' which is not present in the module manager. Please add 'contouring_constraints' before adding 'contouring_objective'.

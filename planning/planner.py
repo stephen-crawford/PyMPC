@@ -165,10 +165,15 @@ class Planner:
     # Set dynamics model on solver
     if hasattr(self.solver, 'set_dynamics_model'):
       self.solver.set_dynamics_model(self.model_type)
-      LOG_DEBUG("Dynamics model set via set_dynamics_model method")
+      LOG_DEBUG("Dynamics model set via set_dynamics_model method (should be in data)")
     else:
-      self.solver.dynamics_model = self.model_type
-      LOG_DEBUG("Dynamics model set directly")
+      # DO NOT set solver.dynamics_model directly - it should only come from data
+      # Ensure data has dynamics_model set instead
+      if self.data and hasattr(self.data, 'dynamics_model'):
+        self.data.dynamics_model = self.model_type
+        LOG_DEBUG("Dynamics model set in data.dynamics_model")
+      else:
+        LOG_WARN("Cannot set dynamics_model: data is None or has no dynamics_model attribute")
     
     # Ensure data has horizon and dynamics_model for solver compatibility
     if self.data:
@@ -261,6 +266,17 @@ class Planner:
     else:
       LOG_DEBUG("Using existing self.data")
     
+    # Ensure state is set in data - data is the single source of truth
+    if self.data is not None:
+      if not hasattr(self.data, 'state') or self.data.state is None:
+        if self.state is not None:
+          self.data.state = self.state
+          LOG_DEBUG("Set data.state from planner.state")
+      else:
+        # Update planner.state to match data.state (data is authoritative)
+        self.state = self.data.state
+        LOG_DEBUG("Updated planner.state from data.state")
+    
     # Ensure solver horizon and timestep are set
     if not hasattr(self.solver, 'horizon') or self.solver.horizon is None:
       planner_config = self.config.get("planner", {})
@@ -287,11 +303,16 @@ class Planner:
     else:
       LOG_INFO("All modules report data is ready")
 
+    # Ensure state is in data before passing to solver
+    if self.data is not None and (not hasattr(self.data, 'state') or self.data.state is None):
+      self.data.state = self.state
+      LOG_DEBUG("Set data.state from planner.state before solver initialization")
+
     # Ensure solver is initialized before calling initialize_rollout
     if not hasattr(self.solver, 'opti') or self.solver.opti is None:
       LOG_DEBUG("Initializing solver (opti is None)")
       if self.data and hasattr(self.data, 'dynamics_model') and self.data.dynamics_model:
-        self.solver.dynamics_model = self.data.dynamics_model
+        # DO NOT set solver.dynamics_model - it should only come from data
         self.solver.intialize_solver(self.data)
         LOG_DEBUG("Solver initialized with dynamics model from data")
       else:
@@ -300,6 +321,8 @@ class Planner:
       LOG_DEBUG("Solver already initialized")
     
     LOG_INFO("Initializing rollout...")
+    # Pass state via data - solver will get it from data.state
+    # Still pass state parameter for backward compatibility, but data.state is authoritative
     self.solver.initialize_rollout(self.state, self.data)
 
     # Ensure horizon is set for propagate_obstacles
@@ -334,6 +357,19 @@ class Planner:
       ubs_k = self.module_manager.get_upper_bounds(self.state, self.data, k)
       
       LOG_DEBUG(f"Stage {k}: {len(cons_k) if cons_k else 0} constraints, {len(objs_k) if objs_k else 0} objectives, {len(lbs_k) if lbs_k else 0} lower bounds, {len(ubs_k) if ubs_k else 0} upper bounds")
+      # Dump concise summary for stage 0 constraints to diagnose infeasibility
+      if k == 0 and cons_k:
+        try:
+          LOG_INFO(f"Stage 0 constraints count: {len(cons_k)}")
+          for i in range(min(2, len(cons_k))):
+            c = cons_k[i]
+            a1 = c.get('a1', None); a2 = c.get('a2', None); b = c.get('b', None)
+            LOG_INFO(f"  c[{i}]: a=({a1},{a2}), b={b}")
+          # Show first few bounds too
+          if lbs_k and ubs_k:
+            LOG_INFO(f"  bounds[0..2]: lb={lbs_k[:min(2,len(lbs_k))]}, ub={ubs_k[:min(2,len(ubs_k))]}")
+        except Exception:
+          pass
 
       if hasattr(self.data, 'set_parameters') and callable(getattr(self.data, 'set_parameters', None)):
         self.data.set_parameters(params_k, k)
@@ -435,13 +471,14 @@ class Planner:
             LOG_DEBUG(f"  Extracted u[{u_name}][0] = {float(val0):.4f}")
           else:
             LOG_WARN(f"  Could not extract {u_name} from solver (returned None)")
-            # Fallback: try to get from trajectory
-            if hasattr(reference_trajectory, 'get_states') and len(reference_trajectory.get_states()) > 0:
-              first_state = reference_trajectory.get_states()[0]
-              if first_state.has(u_name):
-                fallback_val = first_state.get(u_name)
-                control_out[u_name] = float(fallback_val)
-                LOG_DEBUG(f"  Fallback: extracted {u_name} from trajectory state: {float(fallback_val):.4f}")
+            # Optional fallback: extract from trajectory if enabled in config
+            if self.config.get("planner", {}).get("fallback_control_enabled", False):
+              if hasattr(reference_trajectory, 'get_states') and len(reference_trajectory.get_states()) > 0:
+                first_state = reference_trajectory.get_states()[0]
+                if first_state.has(u_name):
+                  fallback_val = first_state.get(u_name)
+                  control_out[u_name] = float(fallback_val)
+                  LOG_DEBUG(f"  Fallback: extracted {u_name} from trajectory state: {float(fallback_val):.4f}")
       # Store on output if anything was found
       if control_out:
         self.output.control = control_out
@@ -456,6 +493,55 @@ class Planner:
 
     LOG_INFO("Planner.solve_mpc() completed successfully")
     return self.output
+
+  def get_symbolic_dynamics(self, dynamics_model, x, u, timestep, data=None):
+    """
+    Provide symbolic next-state for the solver.
+    - If the model exposes symbolic_dynamics(x,u,p,timestep), use it.
+    - Otherwise, default to Euler: x_next = x + dt * f(x,u,p), where f comes from continuous_model.
+    The parameter accessor p is provided as a callable if data has parameters.
+    """
+    # Parameter getter callable (modules expect callable get)
+    def _param_getter(key):
+      try:
+        if data is not None and hasattr(data, 'parameters'):
+          return data.parameters.get(key)
+      except Exception:
+        pass
+      return 0.0
+
+    # Prefer model-provided symbolic dynamics if available
+    if hasattr(dynamics_model, 'symbolic_dynamics') and callable(getattr(dynamics_model, 'symbolic_dynamics')):
+      try:
+        return dynamics_model.symbolic_dynamics(x, u, _param_getter, timestep)
+      except Exception:
+        # Fall back to Euler if model symbolic fails
+        pass
+
+    # Default Euler step using model's continuous dynamics
+    f = dynamics_model.continuous_model(x, u, _param_getter)
+    try:
+      # x and f are casadi symbols; ensure same shape
+      return x + timestep * f
+    except Exception:
+      # As last resort, return x (no motion) to avoid crash
+      return x
+
+  def get_numeric_dynamics(self, dynamics_model, x, u, timestep, data=None):
+    """Numeric next-state using Euler: x_next = x + dt * f(x,u,p)."""
+    def _param_getter(key):
+      try:
+        if data is not None and hasattr(data, 'parameters'):
+          return data.parameters.get(key)
+      except Exception:
+        pass
+      return 0.0
+    try:
+      f = dynamics_model.continuous_model(x, u, _param_getter)
+      return x + timestep * f
+    except Exception as e:
+      LOG_DEBUG(f"get_numeric_dynamics failed: {e}")
+      return x
 
   def reset(self):
 

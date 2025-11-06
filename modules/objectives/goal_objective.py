@@ -10,15 +10,6 @@ class GoalObjective(BaseObjective):
 
   def __init__(self):
     super().__init__()
-    # Ensure solver horizon is set before using it
-    if solver and (not hasattr(solver, 'horizon') or solver.horizon is None):
-      # Try to get from config
-      from utils.utils import read_config_file
-      config = read_config_file()
-      if config:
-        planner_config = config.get("planner", {})
-        solver.horizon = planner_config.get("horizon", 10)
-        solver.timestep = planner_config.get("timestep", 0.1)
     self.module_type = OBJECTIVE
     self.name = "goal_objective"
     LOG_INFO( "Initializing Goal Module")
@@ -40,19 +31,41 @@ class GoalObjective(BaseObjective):
     params.add("goal_x")
     params.add("goal_y")
 
-  def get_value(self, state, params, stage_idx):
+  def get_value(self, state, data, stage_idx):
 
     pos_x = state.get("x")
     pos_y = state.get("y")
     psi = state.get("psi")
 
-    goal_x = params.get("goal_x")
-    goal_y = params.get("goal_y")
+    # Get parameters from data.parameters
+    goal_x = None
+    goal_y = None
+    if data and hasattr(data, 'parameters') and data.parameters is not None:
+        goal_x = data.parameters.get("goal_x")
+        goal_y = data.parameters.get("goal_y")
 
-    goal_weight = params.get("goal_weight")
-    angle_weight = params.get("goal_angle_weight")
-    terminal_goal_weight = params.get("goal_terminal_weight")
-    terminal_angle_weight = params.get("goal_terminal_angle_weight")
+    # If goal parameters not set, try to get from data.goal directly
+    if goal_x is None or goal_y is None:
+        if data and hasattr(data, 'goal') and data.goal is not None:
+            goal_x = float(data.goal[0]) if len(data.goal) > 0 else None
+            goal_y = float(data.goal[1]) if len(data.goal) > 1 else None
+
+    # If still None, return zero cost (can't compute goal error without goal)
+    if goal_x is None or goal_y is None:
+        LOG_WARN(f"GoalObjective: goal_x={goal_x}, goal_y={goal_y} - returning zero cost")
+        return {"goal_pos_cost": 0.0, "goal_angle_cost": 0.0}
+
+    # Get weights with safe defaults
+    if data and hasattr(data, 'parameters') and data.parameters is not None:
+        goal_weight = data.parameters.get("goal_weight", 1.0)
+        angle_weight = data.parameters.get("goal_angle_weight", 10.0)
+        terminal_goal_weight = data.parameters.get("goal_terminal_weight", 10.0)
+        terminal_angle_weight = data.parameters.get("goal_terminal_angle_weight", 1.0)
+    else:
+        goal_weight = 1.0
+        angle_weight = 10.0
+        terminal_goal_weight = 10.0
+        terminal_angle_weight = 1.0
 
     LOG_DEBUG("pos x : " + str(pos_x))
     LOG_DEBUG("pos y : " + str(pos_y))
@@ -69,7 +82,12 @@ class GoalObjective(BaseObjective):
     angle_error = cs.fmod(psi - theta_goal + cs.pi, 2 * cs.pi) - cs.pi
 
     # If at terminal stage, apply stronger penalty
-    horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
+    # Get horizon from data or use default
+    horizon_val = 10
+    if hasattr(self, 'solver') and hasattr(self.solver, 'horizon') and self.solver.horizon is not None:
+      horizon_val = self.solver.horizon
+    elif data and hasattr(data, 'horizon') and data.horizon is not None:
+      horizon_val = data.horizon
     if stage_idx == horizon_val - 1:
       pos_cost = terminal_goal_weight * pos_error_sq
       angle_cost = terminal_angle_weight * angle_error ** 2

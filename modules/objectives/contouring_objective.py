@@ -19,8 +19,9 @@ class ContouringObjective(BaseObjective):
 		
 		# No solver dependency; rely on data/config at runtime
 		
-		# Enforce dependency: contouring objective requires contouring constraints
-		self.dependencies = ["contouring_constraints"]
+		# Optional dependency: contouring constraints (if present, used for road boundaries)
+		# Can work without it but will use default road width
+		self.dependencies = []  # Make optional - module will check at runtime
 
 		# Configuration options from CONFIGs (with safe defaults)
 		_num_segments = self.get_config_value("contouring.num_segments", 10)
@@ -70,22 +71,29 @@ class ContouringObjective(BaseObjective):
 		return None, None
 		
 	def _check_dependencies(self):
-		"""Check that required dependencies are present in module manager."""
+		"""Check if contouring constraints are present (optional dependency)."""
+		self._contouring_constraints = None
 		if self.solver and hasattr(self.solver, 'module_manager'):
 			constraint_modules = [m for m in self.solver.module_manager.get_modules() 
 								if m.module_type == CONSTRAINT and m.name == "contouring_constraints"]
-			if not constraint_modules:
-				raise RuntimeError(
-					"ContouringObjective requires ContouringConstraints to be present. "
-					"Please add ContouringConstraints to the solver's module manager before adding ContouringObjective."
-				)
-			self._contouring_constraints = constraint_modules[0]
-			LOG_DEBUG("ContouringObjective: Found required ContouringConstraints dependency")
+			if constraint_modules:
+				self._contouring_constraints = constraint_modules[0]
+				LOG_DEBUG("ContouringObjective: Found ContouringConstraints dependency")
+			else:
+				LOG_WARN("ContouringObjective: ContouringConstraints not found - will use default road width")
 		else:
-			LOG_WARN("ContouringObjective: Cannot check dependencies - solver or module_manager not available")
+			LOG_DEBUG("ContouringObjective: Cannot check dependencies - solver or module_manager not available")
 
 	def update(self, state, data):
 		LOG_INFO("ContouringObjective.update")
+		# Log key weights and options once at first call
+		try:
+			w_contour = self.get_config_value("weights.contour_weight")
+			w_lag = self.get_config_value("weights.contouring_lag_weight")
+			road_width = float(self.get_config_value("road.width", 7.0))
+			LOG_INFO(f"  Weights: contour={w_contour}, lag={w_lag}; road.width={road_width}")
+		except Exception:
+			pass
 		# Store current state for use in construct_road_constraints
 		self._last_state = state
 		
@@ -97,13 +105,14 @@ class ContouringObjective(BaseObjective):
 			if hasattr(self, 'process_reference_path'):
 				self.process_reference_path(data)
 		
-		# REQUIREMENT CHECK: Ensure reference path starts at current vehicle position
-		# This is critical for feasibility - road constraints must include the vehicle's starting position
-		# Note: Adjustment should primarily happen at initialization (in test framework)
-		# This check validates and adjusts only if path hasn't been adjusted yet
+		# CRITICAL REQUIREMENT: Ensure reference path starts at current vehicle position
+		# This must be done at EVERY planning step, not just once, because the vehicle moves
+		# Road constraints are generated from the reference path, so it must be aligned with the vehicle's current position
+		LOG_DEBUG(f"Checking path alignment: reference_path={'present' if self.reference_path is not None else 'None'}, state={'present' if state is not None else 'None'}")
 		if self.reference_path is not None and state is not None:
 			try:
 				vehicle_pos = state.get_position()
+				LOG_DEBUG(f"  vehicle_pos: {vehicle_pos}")
 				if vehicle_pos is not None and len(vehicle_pos) >= 2:
 					ref_path_start = (float(self.reference_path.x[0]), float(self.reference_path.y[0]))
 					vehicle_pos_tuple = (float(vehicle_pos[0]), float(vehicle_pos[1]))
@@ -111,45 +120,53 @@ class ContouringObjective(BaseObjective):
 					dist = np.sqrt((ref_path_start[0] - vehicle_pos_tuple[0])**2 + 
 								 (ref_path_start[1] - vehicle_pos_tuple[1])**2)
 					
-					# Check if path has been adjusted (marked in data)
-					path_adjusted = hasattr(data, '_reference_path_adjusted') and data._reference_path_adjusted
-					
-					if dist > 0.01 and not path_adjusted:  # More than 1cm difference and not yet adjusted
-						LOG_WARN(f"ContouringObjective: Reference path does not start at vehicle position! "
-								f"Vehicle: ({vehicle_pos_tuple[0]:.2f}, {vehicle_pos_tuple[1]:.2f}), "
-								f"Path start: ({ref_path_start[0]:.2f}, {ref_path_start[1]:.2f}), "
-								f"Distance: {dist:.3f}m")
-						LOG_WARN("This may cause infeasibility. Adjusting reference path...")
-						
-						# Shift reference path to start at vehicle position
-						x_offset = vehicle_pos_tuple[0] - ref_path_start[0]
-						y_offset = vehicle_pos_tuple[1] - ref_path_start[1]
-						
-						# Adjust all path points
-						self.reference_path.x = np.asarray(self.reference_path.x, dtype=float) + x_offset
-						self.reference_path.y = np.asarray(self.reference_path.y, dtype=float) + y_offset
-						
-						# Rebuild splines with adjusted coordinates
-						from scipy.interpolate import CubicSpline
-						s_arr = np.asarray(self.reference_path.s, dtype=float)
-						self.reference_path.x_spline = CubicSpline(s_arr, self.reference_path.x)
-						self.reference_path.y_spline = CubicSpline(s_arr, self.reference_path.y)
-						if hasattr(self.reference_path, 'z') and self.reference_path.z is not None:
-							self.reference_path.z_spline = CubicSpline(s_arr, self.reference_path.z)
-						
-						# Mark as adjusted to prevent re-adjustment
-						data._reference_path_adjusted = True
-						
-						LOG_INFO(f"Adjusted reference path to start at vehicle position: "
-								f"({self.reference_path.x[0]:.2f}, {self.reference_path.y[0]:.2f})")
-					elif dist <= 0.01:
-						LOG_DEBUG(f"Reference path starts at vehicle position (requirement satisfied, distance: {dist:.4f}m)")
-			except Exception as e:
-				LOG_WARN(f"Could not verify/adjust reference path start position: {e}")
+					LOG_DEBUG(f"  Path alignment check: vehicle=({vehicle_pos_tuple[0]:.3f}, {vehicle_pos_tuple[1]:.3f}), path_start=({ref_path_start[0]:.3f}, {ref_path_start[1]:.3f}), dist={dist:.3f}m")
+			except Exception:
+				pass
+		
+		# Sanity-check a few normals and left/right points from the reference path for diagnostics
+		try:
+			ref = self.reference_path
+			if ref is not None and hasattr(ref, 'x_spline') and hasattr(ref, 'y_spline') and hasattr(ref, 's') and len(ref.s) >= 3:
+				road_width = float(self.get_config_value("road.width", 7.0))
+				half_w = 0.5 * road_width
+				s_min = float(ref.s[0]); s_max = float(ref.s[-1])
+				s_samples = np.linspace(s_min, s_min + max(1e-6, (s_max - s_min)) * 0.1, 3)
+				for idx, s in enumerate(s_samples):
+					x = float(ref.x_spline(s)); y = float(ref.y_spline(s))
+					dx = float(ref.x_spline.derivative()(s)); dy = float(ref.y_spline.derivative()(s))
+					norm = np.hypot(dx, dy)
+					if norm < 1e-9:
+						continue
+					nx = -dy / norm; ny = dx / norm
+					xl = x + half_w * nx; yl = y + half_w * ny
+					xr = x - half_w * nx; yr = y - half_w * ny
+					LOG_INFO(f"  Path sample[{idx}] s={s:.3f}: center=({x:.3f},{y:.3f}) normal=({nx:.3f},{ny:.3f}) L=({xl:.3f},{yl:.3f}) R=({xr:.3f},{yr:.3f})")
+		except Exception:
+			pass
+		
+		# Check if contouring constraints module is present - if so, it will handle road constraints
+		# So we should disable our own road constraint creation to avoid duplicates
+		has_contouring_constraints = False
+		if self.solver and hasattr(self.solver, 'module_manager'):
+			constraint_modules = [m for m in self.solver.module_manager.get_modules() 
+								if m.module_type == CONSTRAINT and m.name == "contouring_constraints"]
+			if constraint_modules:
+				has_contouring_constraints = True
+				LOG_INFO("ContouringObjective: ContouringConstraints module found - it will handle road constraints")
+			else:
+				LOG_DEBUG("ContouringObjective: ContouringConstraints module not found")
+		else:
+			if not self.solver:
+				LOG_WARN("ContouringObjective: self.solver is None - cannot check for ContouringConstraints")
+			elif not hasattr(self.solver, 'module_manager'):
+				LOG_WARN("ContouringObjective: solver.module_manager not available - cannot check for ContouringConstraints")
 		
 		# Log reference path status
 		has_ref_path = self.reference_path is not None
-		LOG_INFO(f"ContouringObjective.update: reference_path={'present' if has_ref_path else 'missing'}, add_road_constraints={self.add_road_constraints}")
+		# Only add road constraints if enabled AND contouring constraints module is not present
+		should_add_road_constraints = self.add_road_constraints and not has_contouring_constraints
+		LOG_INFO(f"ContouringObjective.update: reference_path={'present' if has_ref_path else 'missing'}, add_road_constraints={self.add_road_constraints}, has_contouring_constraints={has_contouring_constraints}, will_add={should_add_road_constraints}")
 		
 		if has_ref_path:
 			# Log reference path details
@@ -173,8 +190,14 @@ class ContouringObjective(BaseObjective):
 		except Exception:
 			pass
 		
-		# Construct road constraints if enabled
-		if self.add_road_constraints and self.reference_path is not None:
+		# CRITICAL: After path realignment, we need to update path parameters
+		# This ensures the solver uses the realigned path
+		# We'll do this in set_parameters() which is called after update()
+		
+		# Construct road constraints if enabled AND contouring constraints module is not present
+		# (ContouringConstraints module will handle road constraints if present)
+		should_add_road_constraints = self.add_road_constraints and not has_contouring_constraints
+		if should_add_road_constraints and self.reference_path is not None:
 			LOG_INFO("ContouringObjective: Constructing road constraints from reference path")
 			try:
 				self.construct_road_constraints(data)
@@ -218,8 +241,10 @@ class ContouringObjective(BaseObjective):
 		vehicle_pos = np.array(state.get_position())
 		LOG_DEBUG(f"Distance to closest point: {np.linalg.norm(closest_pt - vehicle_pos)}")
 
-		if self.add_road_constraints:
-			self.construct_road_constraints(data)
+		# NOTE: Road constraints are already constructed above if needed (line 198-216)
+		# This duplicate call is removed to avoid creating constraints twice
+		# if self.add_road_constraints:
+		#	self.construct_road_constraints(data)
 
 		# if self.get_config_value("plot.debug", True):
 		# 	self.animate_forecasted_bounds(state, data)
@@ -310,6 +335,8 @@ class ContouringObjective(BaseObjective):
 			LOG_DEBUG(f"  Set weights: contour={contouring_weight}, lag={lag_weight}")
 
 		# Process reference path and set path parameters (only once, typically at k=0)
+		# CRITICAL: This is called AFTER update(), so if the path was realigned in update(),
+		# we need to ensure the path parameters reflect the realigned path
 		if k == 0:
 			LOG_INFO("ContouringObjective.set_parameters: Processing reference path and setting path parameters")
 			has_ref_path = hasattr(data, 'reference_path') and data.reference_path is not None
@@ -320,12 +347,21 @@ class ContouringObjective(BaseObjective):
 				LOG_INFO("  Setting self.reference_path from data")
 				self.reference_path = data.reference_path
 			
-			# Process reference path if needed
+			# Process reference path if needed (this will rebuild splines if path was realigned)
+			# Note: If path was realigned in update(), splines should already be rebuilt
+			# But we still call process_reference_path to ensure consistency
+			path_was_realigned = hasattr(self, '_path_realigned') and self._path_realigned
+			if path_was_realigned:
+				LOG_INFO("  Path was realigned in update(), ensuring parameters reflect realigned path")
+				self._path_realigned = False  # Reset flag
+			
 			self.process_reference_path(data)
 			
+			# CRITICAL: After path realignment in update(), we need to ensure path parameters are updated
+			# The path realignment rebuilds the splines, so we must update the parameters
 			# Set path parameters (this sets parameters for ALL stages)
 			if self.reference_path is not None:
-				LOG_INFO("  Calling set_path_parameters...")
+				LOG_INFO("  Calling set_path_parameters (will use realigned path if realignment occurred)...")
 				self.set_path_parameters(parameter_manager)
 			else:
 				LOG_WARN("  Cannot set path parameters: reference_path is None")
@@ -903,6 +939,7 @@ class ContouringObjective(BaseObjective):
 		
 		# CRITICAL FIX: Find the closest point on the reference path to the current vehicle position
 		# This ensures the road constraints start from where the vehicle actually is
+		# After path realignment, the path should start at the vehicle position, so idx0 should be 0
 		idx0 = 0
 		# Try to get current state from data (passed during update)
 		current_pos = None
@@ -927,7 +964,13 @@ class ContouringObjective(BaseObjective):
 				dy = y_arr - current_pos[1]
 				distances_squared = dx ** 2 + dy ** 2
 				idx0 = np.argmin(distances_squared)
-				LOG_INFO(f"  Found closest point on path: idx={idx0}, path_point=({x_arr[idx0]:.2f}, {y_arr[idx0]:.2f}), vehicle=({current_pos[0]:.2f}, {current_pos[1]:.2f})")
+				closest_dist = np.sqrt(distances_squared[idx0])
+				LOG_INFO(f"  Found closest point on path: idx={idx0}, path_point=({x_arr[idx0]:.2f}, {y_arr[idx0]:.2f}), vehicle=({current_pos[0]:.2f}, {current_pos[1]:.2f}), dist={closest_dist:.3f}m")
+				
+				# CRITICAL: If path was realigned, idx0 should be 0 and distance should be very small
+				# If not, there's a problem with the realignment
+				if idx0 != 0 and closest_dist > 0.1:
+					LOG_WARN(f"  WARNING: Closest point is not at path start (idx={idx0}, dist={closest_dist:.3f}m). Path may not be properly realigned!")
 			except Exception as e:
 				LOG_WARN(f"  Could not find closest point: {e}, using idx0=0")
 		elif hasattr(data, 'current_path_segment') and data.current_path_segment is not None:

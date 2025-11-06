@@ -24,7 +24,7 @@ contouring:
   three_dimensional_contouring: false
 
 weights:
-  contour_weight: 1.0
+  contour_weight: 10.0  # Increased to force better path following
   contouring_lag_weight: 0.1
   goal_weight: 10.0
   goal_angle_weight: 1.0

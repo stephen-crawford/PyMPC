@@ -14,6 +14,7 @@ class BaseSolver(ABC):
         self.module_manager = ModuleManager()
         self.parameter_manager = ParameterManager()
         self.data = None
+        self.planner = None
 
     def initialize_solver(self, data):
         pass
@@ -23,6 +24,58 @@ class BaseSolver(ABC):
 
     def _initialize_base_rollout(self, state, data):
         pass
+
+    def set_planner(self, planner):
+        """Attach a planner so the solver can delegate symbolic/numeric dynamics construction."""
+        self.planner = planner
+
+    def _compute_next_state(self, dynamics_model, x_k, u_k, timestep, data=None, symbolic=True):
+        """
+        Compute x_{k+1} from (x_k, u_k) using either symbolic or numeric integration.
+        - If symbolic: prefer planner.get_symbolic_dynamics; fallback to model's symbolic_dynamics; else Euler on continuous_model.
+        - If numeric: prefer planner.get_numeric_dynamics; fallback to Euler on continuous_model (assuming numeric arrays).
+        """
+        # Parameter getter callable for models expecting callable p
+        def _param_getter(key):
+            try:
+                if data is not None and hasattr(data, 'parameters'):
+                    return data.parameters.get(key)
+            except Exception:
+                pass
+            return 0.0
+
+        if symbolic:
+            # Planner hook
+            if self.planner is not None and hasattr(self.planner, 'get_symbolic_dynamics'):
+                try:
+                    return self.planner.get_symbolic_dynamics(dynamics_model, x_k, u_k, timestep, data)
+                except Exception:
+                    pass
+            # Model-provided symbolic
+            if hasattr(dynamics_model, 'symbolic_dynamics') and callable(getattr(dynamics_model, 'symbolic_dynamics')):
+                try:
+                    return dynamics_model.symbolic_dynamics(x_k, u_k, _param_getter, timestep)
+                except Exception:
+                    pass
+            # Fallback Euler symbolic
+            f_k = dynamics_model.continuous_model(x_k, u_k, _param_getter)
+            try:
+                return x_k + timestep * f_k
+            except Exception:
+                return x_k
+        else:
+            # Numeric path
+            if self.planner is not None and hasattr(self.planner, 'get_numeric_dynamics'):
+                try:
+                    return self.planner.get_numeric_dynamics(dynamics_model, x_k, u_k, timestep, data)
+                except Exception:
+                    pass
+            # Fallback simple Euler numeric; assumes x_k,u_k are numpy-like
+            try:
+                f_k = dynamics_model.continuous_model(x_k, u_k, _param_getter)
+                return x_k + timestep * f_k
+            except Exception:
+                return x_k
 
     @abstractmethod
     def reset(self):
@@ -50,14 +103,23 @@ class BaseSolver(ABC):
     def get_objective_cost(self, state, stage_idx):
         """Return a list of objective term dicts for the given stage.
         This delegates to ModuleManager to aggregate module-provided costs.
+        Gets state from data if available - data is the single source of truth.
         """
+        # Get state from data - this is the authoritative source
+        if self.data is not None and hasattr(self.data, 'state') and self.data.state is not None:
+            state = self.data.state
         return self.module_manager.get_objectives(state, self.data, stage_idx) or []
 
     def get_constraints(self, stage_idx):
         """Return a list of (constraint, lb, ub) tuples for the given stage.
         ModuleManager supplies constraints and bounds; solver subclasses convert them as needed.
+        Gets state from data if available - data is the single source of truth.
         """
+        # Get state from data - this is the authoritative source
         state = None
+        if self.data is not None and hasattr(self.data, 'state') and self.data.state is not None:
+            state = self.data.state
+        
         if hasattr(self.module_manager, 'get_constraints_with_bounds'):
             return self.module_manager.get_constraints_with_bounds(state, self.data, stage_idx)
         cons = self.module_manager.get_constraints(state, self.data, stage_idx) or []

@@ -17,16 +17,27 @@ from test.integration.integration_test_framework import IntegrationTestFramework
 
 def create_test_config(args) -> TestConfig:
     """Create test configuration from command line arguments."""
+    # Default path type depends on objective: contouring -> curve, else straight
+    default_path_type = "curve" if args.objective == "contouring" else "straight"
+    path_type = args.path_type if args.path_type is not None else default_path_type
+    
+    # Handle "none" or empty constraints list
+    constraint_modules = args.constraints if args.constraints else []
+    if constraint_modules == ["none"] or (len(constraint_modules) == 1 and constraint_modules[0] == "none"):
+        constraint_modules = []
+    
     return TestConfig(
-        reference_path=create_reference_path(args.path_type, args.path_length),
+        reference_path=create_reference_path(path_type, args.path_length),
         objective_module=args.objective,
-        constraint_modules=args.constraints,
+        constraint_modules=constraint_modules,
         vehicle_dynamics=args.vehicle,
         num_obstacles=args.obstacles,
         obstacle_dynamics=[args.obstacle_dynamics] * args.obstacles,
+        obstacle_prediction_types=[args.obstacle_prediction] * args.obstacles,
         test_name=args.name,
         duration=args.duration,
-        timestep=args.timestep
+        timestep=args.timestep,
+        fallback_control_enabled=bool(args.fallback_control)
     )
 
 
@@ -41,7 +52,8 @@ def run_predefined_test(test_name: str):
             constraint_modules=["safe_horizon", "contouring"],
             vehicle_dynamics="bicycle",
             num_obstacles=3,
-            obstacle_dynamics=["gaussian", "gaussian", "gaussian"],
+            obstacle_dynamics=["unicycle", "unicycle", "unicycle"],
+            obstacle_prediction_types=["gaussian", "gaussian", "gaussian"],
             test_name="Safe Horizon Basic Test",
             duration=10.0,
             timestep=0.1
@@ -53,7 +65,8 @@ def run_predefined_test(test_name: str):
             constraint_modules=["safe_horizon", "contouring", "gaussian"],
             vehicle_dynamics="bicycle",
             num_obstacles=4,
-            obstacle_dynamics=["gaussian", "gaussian", "deterministic", "gaussian"],
+            obstacle_dynamics=["unicycle", "unicycle", "unicycle", "unicycle"],
+            obstacle_prediction_types=["gaussian", "gaussian", "deterministic", "gaussian"],
             test_name="Safe Horizon Advanced Test",
             duration=15.0,
             timestep=0.1
@@ -65,7 +78,8 @@ def run_predefined_test(test_name: str):
             constraint_modules=["gaussian", "contouring"],
             vehicle_dynamics="unicycle",
             num_obstacles=2,
-            obstacle_dynamics=["gaussian", "deterministic"],
+            obstacle_dynamics=["unicycle", "unicycle"],
+            obstacle_prediction_types=["gaussian", "deterministic"],
             test_name="Gaussian Constraints Test",
             duration=8.0,
             timestep=0.1
@@ -77,7 +91,8 @@ def run_predefined_test(test_name: str):
             constraint_modules=["safe_horizon", "gaussian", "contouring", "linear"],
             vehicle_dynamics="bicycle",
             num_obstacles=5,
-            obstacle_dynamics=["gaussian", "gaussian", "deterministic", "gaussian", "gaussian"],
+            obstacle_dynamics=["unicycle", "unicycle", "unicycle", "unicycle", "unicycle"],
+            obstacle_prediction_types=["gaussian", "gaussian", "deterministic", "gaussian", "gaussian"],
             test_name="Multi-Constraint Test",
             duration=12.0,
             timestep=0.1
@@ -89,7 +104,8 @@ def run_predefined_test(test_name: str):
             constraint_modules=["safe_horizon", "contouring"],
             vehicle_dynamics="bicycle",
             num_obstacles=3,
-            obstacle_dynamics=["gaussian", "gaussian", "gaussian"],
+            obstacle_dynamics=["unicycle", "unicycle", "unicycle"],
+            obstacle_prediction_types=["gaussian", "gaussian", "gaussian"],
             test_name="Safe Horizon Comparison Test",
             duration=10.0,
             timestep=0.1
@@ -126,20 +142,23 @@ def main():
     parser.add_argument("--objective", "-o", type=str, default="contouring",
                        choices=["contouring", "goal"],
                        help="Objective module type")
-    parser.add_argument("--constraints", "-c", nargs="+", default=["safe_horizon", "contouring"],
-                       choices=["safe_horizon", "contouring", "gaussian", "linear", "ellipsoid"],
-                       help="Constraint module types")
+    parser.add_argument("--constraints", "-c", nargs="*", default=["safe_horizon", "contouring"],
+                       choices=["safe_horizon", "contouring", "gaussian", "linear", "ellipsoid", "none"],
+                       help="Constraint module types (use 'none' or empty list for no constraints)")
     parser.add_argument("--vehicle", "-v", type=str, default="bicycle",
-                       choices=["bicycle", "unicycle"],
+                       choices=["bicycle", "unicycle", "point_mass"],
                        help="Vehicle dynamics model")
     parser.add_argument("--obstacles", type=int, default=3,
                        help="Number of obstacles")
-    parser.add_argument("--obstacle-dynamics", type=str, default="gaussian",
+    parser.add_argument("--obstacle-dynamics", type=str, default="unicycle",
+                       choices=["unicycle", "bicycle", "point_mass"],
+                       help="Obstacle dynamics model for obstacles")
+    parser.add_argument("--obstacle-prediction", type=str, default="gaussian",
                        choices=["gaussian", "deterministic"],
-                       help="Obstacle dynamics type")
+                       help="Obstacle prediction type")
     
     # Path parameters
-    parser.add_argument("--path-type", type=str, default="straight",
+    parser.add_argument("--path-type", type=str, default=None,
                        choices=["straight", "curve", "s_curve"],
                        help="Reference path type")
     parser.add_argument("--path-length", type=float, default=20.0,
@@ -150,6 +169,8 @@ def main():
                        help="Simulation duration (seconds)")
     parser.add_argument("--timestep", type=float, default=0.1,
                        help="Simulation timestep (seconds)")
+    parser.add_argument("--fallback-control", action="store_true",
+                       help="Enable fallback control extraction if solver outputs None (default: off)")
     
     # Output options
     parser.add_argument("--verbose", action="store_true",
@@ -194,7 +215,12 @@ def main():
     print(f"  Objective: {config.objective_module}")
     print(f"  Constraints: {', '.join(config.constraint_modules)}")
     print(f"  Vehicle: {config.vehicle_dynamics}")
-    print(f"  Obstacles: {config.num_obstacles} ({config.obstacle_dynamics[0]})")
+    if config.num_obstacles > 0 and len(config.obstacle_dynamics) > 0:
+        odyn = config.obstacle_dynamics[0]
+        opred = (config.obstacle_prediction_types[0] if config.obstacle_prediction_types else 'gaussian')
+        print(f"  Obstacles: {config.num_obstacles} (dyn={odyn}, pred={opred})")
+    else:
+        print(f"  Obstacles: {config.num_obstacles}")
     print(f"  Path: {args.path_type} ({args.path_length}m)")
     print(f"  Duration: {config.duration}s")
     print()

@@ -4,8 +4,8 @@ import numpy as np
 import logging
 from dataclasses import dataclass
 
-from planning.types import DynamicObstacle, PredictionType
-from planning.dynamic_models import DynamicsModel
+from planning.types import DynamicObstacle, PredictionType, PredictionStep
+from planning.dynamic_models import DynamicsModel, SecondOrderUnicycleModel, SecondOrderBicycleModel, PointMassModel
 
 @dataclass
 class ObstacleConfig:
@@ -150,14 +150,22 @@ class ObstacleManager:
             position = next_state[:2]  # x, y
             angle = next_state[2] if len(next_state) > 2 else 0.0
             
-            # Add uncertainty
-            uncertainty_std = uncertainty_params["position_std"] + step * uncertainty_params["uncertainty_growth"]
+            # Add uncertainty depending on prediction type
+            if obstacle.prediction.type == PredictionType.GAUSSIAN:
+                uncertainty_std = uncertainty_params["position_std"] + step * uncertainty_params["uncertainty_growth"]
+                major_r = obstacle.radius + uncertainty_std
+                minor_r = obstacle.radius + uncertainty_std
+            else:
+                # Deterministic (and any non-gaussian default): no growth
+                uncertainty_std = 0.0
+                major_r = obstacle.radius
+                minor_r = obstacle.radius
             
             prediction_step = PredictionStep(
                 position=position,
                 angle=angle,
-                major_radius=obstacle.radius + uncertainty_std,
-                minor_radius=obstacle.radius + uncertainty_std
+                major_radius=major_r,
+                minor_radius=minor_r
             )
             
             obstacle.prediction.steps.append(prediction_step)
@@ -357,7 +365,7 @@ def create_unicycle_obstacle(obstacle_id: int, position: np.ndarray, velocity: n
         initial_angle=angle,
         radius=radius,
         dynamics_type="unicycle",
-        prediction_type=PredictionType.GAUSSIAN
+        prediction_type=PredictionType.DETERMINISTIC
     )
 
 
@@ -373,7 +381,7 @@ def create_bicycle_obstacle(obstacle_id: int, position: np.ndarray, velocity: np
         initial_angle=angle,
         radius=radius,
         dynamics_type="bicycle",
-        prediction_type=PredictionType.GAUSSIAN
+        prediction_type=PredictionType.DETERMINISTIC
     )
 
 
@@ -389,6 +397,6 @@ def create_point_mass_obstacle(obstacle_id: int, position: np.ndarray, velocity:
         initial_angle=0.0,
         radius=radius,
         dynamics_type="point_mass",
-        prediction_type=PredictionType.GAUSSIAN
+        prediction_type=PredictionType.DETERMINISTIC
     )
 

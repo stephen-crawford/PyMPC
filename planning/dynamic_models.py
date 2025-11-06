@@ -426,6 +426,21 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
 
         return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a, v)
 
+    def symbolic_dynamics(self, x, u, p, timestep):
+        """
+        Symbolic dynamics for contouring unicycle: integrates x,y,psi,v with Euler, and spline = v*dt.
+        Explicitly returns 5D vector to avoid shape issues.
+        """
+        a = u[0]
+        w = u[1]
+        psi = x[2]
+        v = x[3]
+        s = x[4] if x.size1() > 4 else 0.0  # spline
+        
+        # Euler integration for all 5 states
+        x_next = x + timestep * cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a, v)
+        return x_next
+
 class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
 
     def __init__(self):
@@ -797,3 +812,29 @@ class CurvatureAwareSecondOrderBicycleModel(DynamicsModel):
         new_s = cd.fmin(cd.fmax(s + R * theta, 0.0), 0.999)
 
         return cd.vertcat(integrated_states, new_s)
+
+
+class PointMassModel(DynamicsModel):
+
+    def __init__(self):
+        super().__init__()
+        # Controls: accelerations in x and y
+        self.nu = 2
+        # States: position and velocity in x and y
+        self.state_dimension = 4
+
+        self.dependent_vars = ["x", "y", "vx", "vy"]
+        self.inputs = ["ax", "ay"]
+
+        # Reasonable bounds for positions, velocities, and accelerations
+        # Order: [u then x] in combined vectors; lower/upper arrays should match nu + nx
+        self.lower_bound = [-5.0, -5.0,  -1.0e6, -1.0e6, -1.0e3, -1.0e3]
+        self.upper_bound = [ 5.0,  5.0,   1.0e6,  1.0e6,  1.0e3,  1.0e3]
+
+    def continuous_model(self, x, u, p):
+        # x = [x, y, vx, vy], u = [ax, ay]
+        vx = x[2]
+        vy = x[3]
+        ax = u[0]
+        ay = u[1]
+        return cd.vertcat(vx, vy, ax, ay)
