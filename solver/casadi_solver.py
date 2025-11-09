@@ -899,12 +899,17 @@ class CasADiSolver(BaseSolver):
 							if xk is None or yk is None:
 								return None
 							
-							# CRITICAL FIX: Apply disc_offset to constraint
+							# Apply disc_offset to constraint (matching reference implementation)
 							# Constraint should be applied to disc position: p_disc = p_robot + offset * [cos(psi), sin(psi)]
 							# For constraint a·p_disc <= b, we have:
 							#   a1*(x + offset*cos(psi)) + a2*(y + offset*sin(psi)) <= b
 							# Which expands to: a1*x + a2*y + offset*(a1*cos(psi) + a2*sin(psi)) <= b
 							# So: a1*x + a2*y <= b - offset*(a1*cos(psi) + a2*sin(psi))
+							# For the expression a1*x + a2*y - b, we need to adjust b:
+							#   a1*x + a2*y - b_adjusted <= 0
+							#   a1*(x + offset*cos(psi)) + a2*(y + offset*sin(psi)) - b_adjusted <= 0
+							#   a1*x + a2*y + offset*(a1*cos(psi) + a2*sin(psi)) - b_adjusted <= 0
+							#   b_adjusted = b - offset*(a1*cos(psi) + a2*sin(psi))
 							disc_offset = cdef.get('disc_offset', 0.0)
 							if abs(float(disc_offset)) > 1e-9:
 								# Get orientation angle (psi or theta depending on model)
@@ -925,8 +930,13 @@ class CasADiSolver(BaseSolver):
 							else:
 								b_adjusted = b
 							
-							# Halfspace: a·p_disc <= b → expr := a·p_robot - b_adjusted <= 0
-							return a1 * xk + a2 * yk - b_adjusted
+							# Halfspace constraint for obstacle avoidance (matching reference implementation):
+							# The normal vector (a1, a2) points FROM vehicle TO obstacle
+							# To keep vehicle AWAY from obstacle, we need: a·p_vehicle <= b
+							# Reference uses: constraint_expr = a1*x + a2*y - (b + slack)
+							# With bounds: lb=-inf, ub=0, this enforces: a1*x + a2*y - b <= 0
+							# So the constraint expression is: (a1*x + a2*y) - b_adjusted
+							return (a1 * xk + a2 * yk) - b_adjusted
 						# Unknown structured type; skip
 						return None
 
@@ -939,9 +949,26 @@ class CasADiSolver(BaseSolver):
 
 					try:
 						# Log constraint details for stage 0 to diagnose issues
-						if stage_idx == 0 and total_constraints_added < 4:
+						if stage_idx == 0 and total_constraints_added < 10:
 							if isinstance(c, dict):
-								LOG_DEBUG(f"  Stage 0 constraint {total_constraints_added}: a1={c.get('a1', 'N/A')}, a2={c.get('a2', 'N/A')}, b={c.get('b', 'N/A')}, disc_offset={c.get('disc_offset', 'N/A')}, lb={lb}, ub={ub}")
+								# Log constraint expression value for debugging
+								try:
+									if 'a1' in c and 'a2' in c:
+										# This is a linearized constraint
+										a1_val = float(c.get('a1', 0.0))
+										a2_val = float(c.get('a2', 0.0))
+										b_val = float(c.get('b', 0.0))
+										# Get current state values for constraint evaluation
+										if hasattr(self, 'data') and self.data is not None:
+											if hasattr(self.data, 'state') and self.data.state is not None:
+												x_val = float(self.data.state.get('x', 0.0))
+												y_val = float(self.data.state.get('y', 0.0))
+												constraint_val = a1_val * x_val + a2_val * y_val
+												constraint_satisfied = constraint_val <= b_val
+												LOG_DEBUG(f"  Stage 0 linearized constraint {total_constraints_added}: a1={a1_val:.3f}, a2={a2_val:.3f}, b={b_val:.3f}, "
+												         f"at vehicle ({x_val:.2f}, {y_val:.2f}): {constraint_val:.3f} <= {b_val:.3f}? {constraint_satisfied}")
+								except Exception as e:
+									LOG_DEBUG(f"  Stage 0 constraint {total_constraints_added}: a1={c.get('a1', 'N/A')}, a2={c.get('a2', 'N/A')}, b={c.get('b', 'N/A')}, disc_offset={c.get('disc_offset', 'N/A')}, lb={lb}, ub={ub}, error={e}")
 						
 						if lb_mx is not None and ub_mx is not None:
 							self.opti.subject_to(self.opti.bounded(lb_mx, c_expr, ub_mx))

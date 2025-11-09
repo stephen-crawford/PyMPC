@@ -78,14 +78,34 @@ class LinearizedConstraints(BaseConstraint):
 		LOG_DEBUG("fetched reference states: {}".format(ref_states))
 
 		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
-		for step in range(1, horizon_val):
-
-			ego_position = np.array([
-				ref_states[step].get("x"),
-				ref_states[step].get("y")
-			])
-
-			ego_psi = ref_states[step].get("psi")
+		
+		# Compute constraints for all stages including stage 0 (current vehicle position)
+		# C++ code only does k >= 1, but we need constraints at stage 0 to prevent the vehicle from
+		# violating halfspaces at its current position
+		for step in range(0, horizon_val):
+			# For stage 0, use current state position; for stage >= 1, use reference trajectory
+			if step == 0:
+				# Use current vehicle position from state (matching C++: state.get("x"))
+				ego_position = np.array([
+					state.get("x"),
+					state.get("y")
+				])
+				ego_psi = state.get("psi")
+			else:
+				# Use reference trajectory position (matching C++: _solver->getEgoPrediction(k, "x"))
+				if step < len(ref_states):
+					ego_position = np.array([
+						ref_states[step].get("x"),
+						ref_states[step].get("y")
+					])
+					ego_psi = ref_states[step].get("psi")
+				else:
+					# Fallback to state if reference trajectory is not long enough
+					ego_position = np.array([
+						state.get("x"),
+						state.get("y")
+					])
+					ego_psi = state.get("psi")
 
 			for disc_id in range(self.num_discs):
 
@@ -102,45 +122,111 @@ class LinearizedConstraints(BaseConstraint):
 				else:  # Use the robot position
 					self.project_to_safety(copied_dynamic_obstacles, step, ego_position)
 
-				# For all obstacles
+				# For all obstacles (matching C++ implementation)
 				for obs_id in range(len(copied_dynamic_obstacles)):
 					target_obstacle = copied_dynamic_obstacles[obs_id]
-					LOG_DEBUG("copied obstacle step prediction: {}".format(target_obstacle.prediction.steps))
+					
+					# Get obstacle position
+					# For stage 0, use current obstacle position (step 0)
+					# For stage >= 1, use predicted position at step k-1 (C++: obstacle.prediction.modes[0][k-1].position)
+					if step == 0:
+						# Use current obstacle position
+						if len(target_obstacle.prediction.steps) > 0:
+							target_obstacle_pos = np.array([
+								target_obstacle.prediction.steps[0].position[0],
+								target_obstacle.prediction.steps[0].position[1]
+							])
+						else:
+							# Fallback to obstacle's initial position
+							target_obstacle_pos = np.array([
+								target_obstacle.position[0],
+								target_obstacle.position[1]
+							])
+					else:
+						# Use predicted position at step k-1
+						if step - 1 < len(target_obstacle.prediction.steps):
+							target_obstacle_pos = np.array([
+								target_obstacle.prediction.steps[step - 1].position[0],
+								target_obstacle.prediction.steps[step - 1].position[1]
+							])
+						else:
+							# Fallback to last available prediction
+							if len(target_obstacle.prediction.steps) > 0:
+								last_step = len(target_obstacle.prediction.steps) - 1
+								target_obstacle_pos = np.array([
+									target_obstacle.prediction.steps[last_step].position[0],
+									target_obstacle.prediction.steps[last_step].position[1]
+								])
+							else:
+								target_obstacle_pos = np.array([
+									target_obstacle.position[0],
+									target_obstacle.position[1]
+								])
 
-					target_obstacle_pos = np.array([
-						target_obstacle.prediction.steps[step - 1].position[0],
-						target_obstacle.prediction.steps[step - 1].position[1]
-					])
-
-					LOG_DEBUG("Obstacle position is: {}".format(target_obstacle_pos))
-
-					# Normal vector points FROM ego TO obstacle
+					# Compute difference vector FROM ego TO obstacle (C++: diff_x = obstacle_pos(0) - pos(0))
 					diff_x = target_obstacle_pos[0] - ego_position[0]
 					diff_y = target_obstacle_pos[1] - ego_position[1]
+					
+					# Compute distance (C++: dist = (obstacle_pos - pos).norm())
 					dist = np.linalg.norm(target_obstacle_pos - ego_position)
+					
+					# Normalize direction vector (C++: _a1[d][k](obs_id) = diff_x / dist)
 					if dist < 1e-6:
-						dist = 1e-6
+						# Avoid division by zero - use arbitrary direction
+						diff_x, diff_y = 1.0, 0.0
+						dist = 1.0
+					
 					self._a1[disc_id][step][obs_id] = float(diff_x / dist)
 					self._a2[disc_id][step][obs_id] = float(diff_y / dist)
 
+					# Get obstacle radius (C++: radius = _use_guidance ? 1e-3 : obstacle.radius)
 					target_obstacle_radius = 1e-3 if self.use_guidance else target_obstacle.radius
+					
+					# Get robot radius from config (C++: CONFIG["robot_radius"])
+					robot_radius = self.get_config_value("robot_radius", 0.5)
+					if robot_radius is None:
+						robot_radius = self.disc_radius  # Fallback to disc_radius
+					else:
+						robot_radius = float(robot_radius)
 
+					# Compute b value (C++: _b[d][k](obs_id) = _a1[d][k](obs_id) * obstacle_pos(0) + 
+					#                                    _a2[d][k](obs_id) * obstacle_pos(1) - 
+					#                                    (radius + CONFIG["robot_radius"]))
 					self._b[disc_id][step][obs_id] = (self._a1[disc_id][step][obs_id] * target_obstacle_pos[0] +
 													  self._a2[disc_id][step][obs_id] * target_obstacle_pos[1] -
-													  (target_obstacle_radius + self.disc_radius))
+													  (target_obstacle_radius + robot_radius))
 
 					LOG_DEBUG(f"b for {obs_id} set to {self._b[disc_id][step][obs_id]}")
 
+				# Handle static obstacles (matching C++: module_data.static_obstacles[k])
+				# In Python, data.static_obstacles is a list of StaticObstacle objects, one per stage
+				# Each StaticObstacle has a halfspaces attribute which is a list of Halfspace objects
 				if data.has("static_obstacles") and data.static_obstacles is not None:
-
-						max_num_halfspaces = min(len(data.static_obstacles), self.num_other_halfspaces)
-
-						for halfspace_id in range(max_num_halfspaces):
-							target_obs_id = len(copied_dynamic_obstacles) + halfspace_id
-							if target_obs_id < self.max_num_constraints:
-								self._a1[disc_id][step][target_obs_id] = float(data.static_obstacles[halfspace_id].A[0])
-								self._a2[disc_id][step][target_obs_id] = float(data.static_obstacles[halfspace_id].A[1])
-								self._b[disc_id][step][target_obs_id] = float(data.static_obstacles[halfspace_id].b)
+					# Get static obstacle for this stage (C++: module_data.static_obstacles[k])
+					if step < len(data.static_obstacles) and data.static_obstacles[step] is not None:
+						static_obstacle = data.static_obstacles[step]
+						
+						# Get halfspaces for this stage (C++: module_data.static_obstacles[k].size())
+						if hasattr(static_obstacle, 'halfspaces') and static_obstacle.halfspaces is not None:
+							num_halfspaces = min(len(static_obstacle.halfspaces), self.num_other_halfspaces)
+							
+							# Process each halfspace (C++: for (int h = 0; h < num_halfspaces; h++))
+							for halfspace_id in range(num_halfspaces):
+								target_obs_id = len(copied_dynamic_obstacles) + halfspace_id
+								if target_obs_id < self.max_num_constraints:
+									halfspace = static_obstacle.halfspaces[halfspace_id]
+									# Extract A and b from halfspace (C++: module_data.static_obstacles[k][h].A(0), etc.)
+									if hasattr(halfspace, 'A') and hasattr(halfspace, 'b'):
+										A = halfspace.A
+										if isinstance(A, np.ndarray) and A.size >= 2:
+											self._a1[disc_id][step][target_obs_id] = float(A[0])
+											self._a2[disc_id][step][target_obs_id] = float(A[1])
+											self._b[disc_id][step][target_obs_id] = float(halfspace.b)
+										elif hasattr(halfspace, 'a1') and hasattr(halfspace, 'a2'):
+											# Alternative format: halfspace has a1, a2, b attributes
+											self._a1[disc_id][step][target_obs_id] = float(halfspace.a1)
+											self._a2[disc_id][step][target_obs_id] = float(halfspace.a2)
+											self._b[disc_id][step][target_obs_id] = float(halfspace.b)
 
 		LOG_DEBUG("LinearizedConstraints.update done")
 
@@ -174,14 +260,18 @@ class LinearizedConstraints(BaseConstraint):
 		return constraints
 
 	def lower_bounds(self, state=None, data=None, stage_idx=None):
-		# For linearized constraints: expr >= 0, so lower bound is 0
+		# For linearized constraints: expr = a1*x + a2*y - b
+		# Matching reference implementation: lower_bound = -inf, upper_bound = 0.0
+		# This enforces: a1*x + a2*y - b <= 0, i.e., a1*x + a2*y <= b
 		count = len(self.calculate_constraints(state, data, stage_idx)) if (data is not None and stage_idx is not None) else 0
-		return [0.0] * count
+		return [-np.inf] * count
 
 	def upper_bounds(self, state=None, data=None, stage_idx=None):
-		# For linearized constraints: expr >= 0, so upper bound is inf
+		# For linearized constraints: expr = a1*x + a2*y - b
+		# Matching reference implementation: lower_bound = -inf, upper_bound = 0.0
+		# This enforces: a1*x + a2*y - b <= 0, i.e., a1*x + a2*y <= b
 		count = len(self.calculate_constraints(state, data, stage_idx)) if (data is not None and stage_idx is not None) else 0
-		return [np.inf] * count
+		return [0.0] * count
 
 	def is_data_ready(self, data):
 		missing_data = ""

@@ -589,7 +589,8 @@ class IntegrationTestFramework:
             constraint_violations = []
             # Optional: predicted trajectories per frame (list of list of (x,y))
             predicted_trajs = []
-            halfspaces_per_step = []  # Capture halfspaces for visualization
+            halfspaces_per_step = []  # Capture contouring constraint halfspaces for visualization
+            linearized_halfspaces_per_step = []  # Capture linearized constraint halfspaces for visualization
             
             # Initial state - include spline variable if model has it
             vehicle_state = np.array([0.0, 0.0, 0.0, 1.0])  # x, y, theta, v
@@ -1002,6 +1003,49 @@ class IntegrationTestFramework:
                         logger.debug(f"Could not capture contouring constraints halfspaces: {e}")
                         halfspaces_per_step.append([])
                     
+                    # Capture linearized constraints halfspaces for visualization (stage 0 only)
+                    try:
+                        # Find the linearized constraints module
+                        linearized_module = None
+                        if hasattr(planner, 'module_manager') and hasattr(planner.module_manager, 'modules'):
+                            for module in planner.module_manager.modules:
+                                if hasattr(module, 'name') and module.name == 'linearized_constraints':
+                                    linearized_module = module
+                                    break
+                        
+                        if linearized_module is not None:
+                            # Get constraints for stage 1 (first predicted state) since linearized constraints
+                            # are only generated for stages >= 1 (see linearized_constraints.py update method)
+                            constraints = linearized_module.calculate_constraints(planner.state, data, 1)
+                            
+                            # Extract halfspace information from constraint dictionaries
+                            step_linearized_halfspaces = []
+                            if constraints:
+                                for const_dict in constraints:
+                                    a1 = float(const_dict.get('a1', 0.0))
+                                    a2 = float(const_dict.get('a2', 0.0))
+                                    b = float(const_dict.get('b', 0.0))
+                                    disc_offset = float(const_dict.get('disc_offset', 0.0))
+                                    
+                                    # Check if constraint is valid (non-zero normal)
+                                    norm = np.sqrt(a1**2 + a2**2)
+                                    if norm > 1e-6:
+                                        A = np.array([a1, a2])
+                                        # Store as (A, b) tuple (no is_left flag for obstacle constraints)
+                                        step_linearized_halfspaces.append((A, b))
+                            
+                            if step == 0 and len(step_linearized_halfspaces) > 0:
+                                logger.debug(f"Captured {len(step_linearized_halfspaces)} linearized constraint halfspaces at step {step}")
+                            
+                            linearized_halfspaces_per_step.append(step_linearized_halfspaces)
+                        else:
+                            if step == 0:
+                                logger.debug(f"Linearized constraints module not found at step {step}")
+                            linearized_halfspaces_per_step.append([])
+                    except Exception as e:
+                        logger.debug(f"Could not capture linearized constraints halfspaces: {e}")
+                        linearized_halfspaces_per_step.append([])
+                    
                     # Prefer applying the control computed by the planner/solver
                     logger.info(f"=== Applying control at step {step} ===")
                     try:
@@ -1195,8 +1239,8 @@ class IntegrationTestFramework:
             self.save_state_history(output_folder, vehicle_states, obstacle_states)
             # Store data object for goal plotting in animation
             self.last_data = data
-            # halfspaces_per_step is already captured in the loop above
-            self.create_animation(output_folder, vehicle_states, obstacle_states, test_config, goal_reached_step, predicted_trajs, halfspaces_per_step)
+            # halfspaces_per_step and linearized_halfspaces_per_step are already captured in the loop above
+            self.create_animation(output_folder, vehicle_states, obstacle_states, test_config, goal_reached_step, predicted_trajs, halfspaces_per_step, linearized_halfspaces_per_step)
             # Save framework summary for validation
             try:
                 summary = {
@@ -1315,7 +1359,8 @@ class IntegrationTestFramework:
                         obstacle_states: List[List[np.ndarray]], test_config: TestConfig, 
                         goal_reached_step: Optional[int] = None,
                         predicted_trajs: Optional[List[List[tuple]]] = None,
-                        halfspaces_per_step: Optional[List[List[tuple]]] = None):
+                        halfspaces_per_step: Optional[List[List[tuple]]] = None,
+                        linearized_halfspaces_per_step: Optional[List[List[tuple]]] = None):
         """Create GIF animation of the test showing full trajectory until goal is reached."""
         if not vehicle_states:
             logging.getLogger("integration_test").warning("No vehicle states to animate")
@@ -1571,6 +1616,7 @@ class IntegrationTestFramework:
         
         # Initialize halfspace constraint lines (will be updated dynamically)
         halfspace_lines = []
+        linearized_halfspace_lines = []  # For linearized constraint halfspaces
         
         def animate(frame):
             if frame < len(vehicle_states):
@@ -1764,6 +1810,83 @@ class IntegrationTestFramework:
                                                             lw=2.5, alpha=alpha, zorder=2))
                             halfspace_lines.append(arrow)
                 
+                # Update linearized constraint halfspaces visualization (obstacle avoidance)
+                # Remove old linearized halfspace lines
+                for artist in linearized_halfspace_lines:
+                    try:
+                        artist.remove()
+                    except Exception:
+                        pass
+                linearized_halfspace_lines.clear()
+                
+                # Draw new linearized constraint halfspaces for this frame
+                if linearized_halfspaces_per_step is not None and frame < len(linearized_halfspaces_per_step):
+                    frame_linearized_halfspaces = linearized_halfspaces_per_step[frame]
+                    if frame_linearized_halfspaces and len(frame_linearized_halfspaces) > 0:
+                        # Get plot bounds for line extension
+                        xlim = ax.get_xlim()
+                        ylim = ax.get_ylim()
+                        plot_size = max(xlim[1] - xlim[0], ylim[1] - ylim[0])
+                        
+                        for idx, (A, b) in enumerate(frame_linearized_halfspaces):
+                            color = 'red'  # Red for obstacle avoidance constraints
+                            alpha = 0.5
+                            
+                            a1, a2 = float(A[0]), float(A[1])
+                            norm = np.sqrt(a1**2 + a2**2)
+                            if norm < 1e-6:
+                                continue
+                            
+                            # Normalize A
+                            a1_norm = a1 / norm
+                            a2_norm = a2 / norm
+                            b_norm = b / norm
+                            
+                            # Calculate line segment that spans the plot
+                            center_x = (xlim[0] + xlim[1]) / 2
+                            center_y = (ylim[0] + ylim[1]) / 2
+                            
+                            # Project center onto line
+                            dist_to_line = (a1_norm * center_x + a2_norm * center_y - b_norm)
+                            
+                            # Point on line closest to center
+                            line_center_x = center_x - dist_to_line * a1_norm
+                            line_center_y = center_y - dist_to_line * a2_norm
+                            
+                            # Direction along the line (perpendicular to A)
+                            dir_x = -a2_norm
+                            dir_y = a1_norm
+                            
+                            # Extend line to span plot
+                            line_length = plot_size * 1.2
+                            x1 = line_center_x - dir_x * line_length
+                            y1 = line_center_y - dir_y * line_length
+                            x2 = line_center_x + dir_x * line_length
+                            y2 = line_center_y + dir_y * line_length
+                            
+                            # Draw constraint line
+                            # Only label the first linearized constraint
+                            label = 'Obstacle Constraint' if idx == 0 else ''
+                            line, = ax.plot([x1, x2], [y1, y2], 
+                                           color=color, linestyle=':', 
+                                           linewidth=1.5, alpha=alpha, zorder=1,
+                                           label=label)
+                            linearized_halfspace_lines.append(line)
+                            
+                            # Add arrow showing restriction direction (away from obstacle)
+                            # Arrow points in direction -A (toward allowed region, away from obstacle)
+                            arrow_length = plot_size * 0.06
+                            arrow_mid_x = (x1 + x2) / 2
+                            arrow_mid_y = (y1 + y2) / 2
+                            arrow_dx = -a1_norm * arrow_length
+                            arrow_dy = -a2_norm * arrow_length
+                            
+                            arrow = ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
+                                              xytext=(arrow_mid_x, arrow_mid_y),
+                                              arrowprops=dict(arrowstyle='->', color=color, 
+                                                            lw=2.0, alpha=alpha, zorder=2))
+                            linearized_halfspace_lines.append(arrow)
+                
                 # Goals update
                 artists_extra = []
                 if goal_sequence is not None and current_goal_plot is not None:
@@ -1779,7 +1902,7 @@ class IntegrationTestFramework:
                     cg = goal_sequence[cur_idx]
                     current_goal_plot.set_data([float(cg[0])], [float(cg[1])])
                     artists_extra.append(current_goal_plot)
-            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles + ([current_goal_plot] if current_goal_plot is not None else []) + reached_goal_plots + halfspace_lines
+            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles + ([current_goal_plot] if current_goal_plot is not None else []) + reached_goal_plots + halfspace_lines + linearized_halfspace_lines
             
         # Create animation - use all frames to show complete trajectory
         total_frames = len(vehicle_states)
