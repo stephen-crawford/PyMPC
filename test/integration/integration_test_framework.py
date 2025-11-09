@@ -63,6 +63,12 @@ class TestConfig:
     fallback_control_enabled: bool = False
     # Optional: sequence of goal positions for moving goal tests (list of [x, y] or [x, y, z] tuples)
     goal_sequence: Optional[List[List[float]]] = None
+    # Optional: temperature setting (0.0-1.0) for obstacle direction change frequency. Default: 0.5
+    obstacle_temperature: float = 0.5
+    # Optional: maximum test duration in seconds. Default: 60.0 seconds. Set to None to disable timeout.
+    timeout_seconds: Optional[float] = 60.0
+    # Optional: maximum consecutive MPC solve failures before early termination. Default: 5.
+    max_consecutive_failures: int = 5
 
 
 @dataclass
@@ -231,14 +237,16 @@ class IntegrationTestFramework:
     def create_obstacles(self, num_obstacles: int, dynamics_types: List[str],
                          obstacle_configs: Optional[List[ObstacleConfig]] = None,
                          prediction_types: Optional[List[str]] = None,
-                         plot_bounds: Optional[Tuple[float, float, float, float]] = None) -> List[DynamicObstacle]:
+                         plot_bounds: Optional[Tuple[float, float, float, float]] = None,
+                         temperature: float = 0.5) -> List[DynamicObstacle]:
         """Create obstacles with specified dynamics using obstacle manager.
         If obstacle_configs is provided, it will be used directly for deterministic setups.
         
         Args:
             plot_bounds: Optional (x_min, x_max, y_min, y_max) for bouncing behavior
+            temperature: Temperature setting (0.0-1.0) for direction change frequency. Default: 0.5
         """
-        obstacle_manager = ObstacleManager(self.config, plot_bounds=plot_bounds)
+        obstacle_manager = ObstacleManager(self.config, plot_bounds=plot_bounds, temperature=temperature)
         
         # If not provided, create random obstacle configurations
         if obstacle_configs is None:
@@ -398,7 +406,8 @@ class IntegrationTestFramework:
                 test_config.obstacle_dynamics,
                 test_config.obstacle_configs,
                 test_config.obstacle_prediction_types,
-                plot_bounds=plot_bounds_estimate
+                plot_bounds=plot_bounds_estimate,
+                temperature=getattr(test_config, 'obstacle_temperature', 0.5)
             )
             
             # Initialize data
@@ -517,6 +526,15 @@ class IntegrationTestFramework:
                     data.right_boundary_y = right_y
                     data.left_bound = Bound(left_x, left_y, ref_path.s)
                     data.right_bound = Bound(right_x, right_y, ref_path.s)
+                    
+                    # Create boundary splines for obstacle path_intersect behavior
+                    from scipy.interpolate import CubicSpline
+                    s_arr = np.asarray(ref_path.s, dtype=float)
+                    data.left_spline_x = CubicSpline(s_arr, np.array(left_x))
+                    data.left_spline_y = CubicSpline(s_arr, np.array(left_y))
+                    data.right_spline_x = CubicSpline(s_arr, np.array(right_x))
+                    data.right_spline_y = CubicSpline(s_arr, np.array(right_y))
+                    logger.debug(f"Created boundary splines for path_intersect behavior")
             except Exception:
                 # Minimal fallback (only set goal for Goal objective)
                 if test_config.objective_module == "goal":
@@ -727,9 +745,13 @@ class IntegrationTestFramework:
             goal_reached = False
             goal_reached_step = None
             step = 0
-            # Track consecutive MPC failures when fallback is disabled
+            # Track consecutive MPC failures (reset on success)
             consecutive_solver_failures = 0
-            max_consecutive_failures = int(self.config.get("planner", {}).get("max_consecutive_solver_failures", 5))
+            max_consecutive_failures = test_config.max_consecutive_failures
+            # Initialize timeout tracking
+            test_start_time = time.time()
+            timeout_seconds = test_config.timeout_seconds
+            
             # For contouring objective, run until end-of-path (spline reaches path length),
             # otherwise cap by duration
             is_contouring = (test_config.objective_module == "contouring")
@@ -737,6 +759,12 @@ class IntegrationTestFramework:
             num_steps = int(test_config.duration / test_config.timestep)
             
             while True:
+                # Check timeout
+                if timeout_seconds is not None:
+                    elapsed_time = time.time() - test_start_time
+                    if elapsed_time >= timeout_seconds:
+                        logger.warning(f"Test timeout reached ({timeout_seconds:.1f}s) at step {step}. Terminating test early.")
+                        break
                 if is_contouring:
                     logger.info(f"Step {step} (contouring until path end)")
                 else:
@@ -771,6 +799,70 @@ class IntegrationTestFramework:
                 
                 # Update problem's state so get_state() works correctly
                 problem.set_state(planner.state)
+                
+                # Update obstacle states BEFORE module updates and solver solve
+                # This ensures constraints are computed with current obstacle positions
+                if hasattr(self, 'obstacle_manager') and hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles:
+                    # Prepare vehicle state for obstacle behaviors
+                    vehicle_state_vec = None
+                    if hasattr(planner, 'state') and planner.state is not None:
+                        try:
+                            vehicle_x = float(planner.state.get('x', 0.0))
+                            vehicle_y = float(planner.state.get('y', 0.0))
+                            vehicle_psi = float(planner.state.get('psi', 0.0))
+                            vehicle_v = float(planner.state.get('v', 1.0))
+                            vehicle_state_vec = np.array([vehicle_x, vehicle_y, vehicle_psi, vehicle_v])
+                        except:
+                            pass
+                    
+                    # Get goal for obstacle behaviors
+                    goal_pos = None
+                    if hasattr(data, 'goal') and data.goal is not None:
+                        try:
+                            goal_pos = np.array(data.goal[:2])
+                        except:
+                            pass
+                    
+                    # Update obstacle states with behavior context
+                    self.obstacle_manager.update_obstacle_states(
+                        test_config.timestep,
+                        vehicle_state=vehicle_state_vec,
+                        reference_path=data.reference_path if hasattr(data, 'reference_path') else None,
+                        goal=goal_pos,
+                        data=data  # Pass data object to provide boundary information
+                    )
+                    
+                    # Get updated obstacle states and update obstacle positions in data object
+                    # This must happen BEFORE module.update() so constraints use current positions
+                    obstacles = data.dynamic_obstacles
+                    for i, obstacle in enumerate(obstacles):
+                        if i < len(obstacle_states):
+                            obstacle_state = self.obstacle_manager.get_obstacle_at_time(i, len(obstacle_states[i]))
+                            if obstacle_state is not None:
+                                # Update obstacle position in data object to match actual current position
+                                # This ensures linearized constraints use actual positions
+                                obstacle.position = np.array([obstacle_state[0], obstacle_state[1]])
+                                
+                                # Update obstacle velocity if available in state
+                                if len(obstacle_state) > 3:
+                                    # Compute velocity from state (for unicycle: v*cos(psi), v*sin(psi))
+                                    if len(obstacle_state) >= 4:
+                                        v = obstacle_state[3]
+                                        psi = obstacle_state[2] if len(obstacle_state) > 2 else 0.0
+                                        obstacle.velocity = np.array([v * np.cos(psi), v * np.sin(psi)])
+                                
+                                obstacle_states[i].append(obstacle_state[:2].copy())  # Only position
+                            else:
+                                # Fallback to prediction steps
+                                if step < len(obstacle.prediction.steps):
+                                    obstacle_state = obstacle.prediction.steps[step].position
+                                    obstacle.position = obstacle_state.copy()  # Update position
+                                    obstacle_states[i].append(obstacle_state.copy())
+                                else:
+                                    # Extrapolate
+                                    last_state = obstacle_states[i][-1] if obstacle_states[i] else obstacle.position
+                                    obstacle.position = last_state.copy()  # Update position
+                                    obstacle_states[i].append(last_state.copy())
                 
                 # Update modules with current state (critical for contouring to work)
                 # Ensure all modules are using planner's solver before update
@@ -890,15 +982,16 @@ class IntegrationTestFramework:
                     
                     if planner_output.success:
                         logger.info(f"Step {step}: MPC solve successful")
-                        consecutive_solver_failures = 0
+                        consecutive_solver_failures = 0  # Reset on success
                     else:
                         logger.warning(f"Step {step}: MPC solve failed")
-                        if not bool(self.config.get("planner", {}).get("fallback_control_enabled", False)):
-                            consecutive_solver_failures += 1
-                            logger.warning(f"  Consecutive MPC failures: {consecutive_solver_failures}")
-                            if consecutive_solver_failures >= max_consecutive_failures:
-                                logger.error(f"Max consecutive MPC failures ({max_consecutive_failures}) reached with fallback disabled. Terminating test early at step {step}.")
-                                break
+                        consecutive_solver_failures += 1
+                        logger.warning(f"  Consecutive MPC failures: {consecutive_solver_failures}/{max_consecutive_failures}")
+                        if consecutive_solver_failures >= max_consecutive_failures:
+                            logger.error(f"Max consecutive MPC failures ({max_consecutive_failures}) reached. "
+                                       f"No successful solve in last {max_consecutive_failures} attempts. "
+                                       f"Terminating test early at step {step}.")
+                            break
                     
                     # Visualize constraints using module visualizers
                     try:
@@ -951,8 +1044,9 @@ class IntegrationTestFramework:
                                         pass
                                 
                                 # Extract halfspace information from constraint dictionaries
-                                # Each constraint dict has: {a1, a2, b, disc_offset, is_left}
+                                # Each constraint dict has: {a1, a2, b, disc_offset, is_left, spline_s}
                                 # Group by (a1, a2, is_left) to get unique halfspaces, keeping left and right separate
+                                # Store spline_s for each constraint to visualize the spline segment
                                 seen_halfspaces = {}
                                 for const_dict in constraints:
                                     a1 = float(const_dict.get('a1', 0.0))
@@ -960,6 +1054,7 @@ class IntegrationTestFramework:
                                     b = float(const_dict.get('b', 0.0))
                                     disc_offset = float(const_dict.get('disc_offset', 0.0))
                                     is_left = const_dict.get('is_left', None)
+                                    spline_s = const_dict.get('spline_s', cur_s)  # Get spline_s from constraint, fallback to cur_s
                                     
                                     # Use is_left from constraint if available, otherwise infer
                                     if is_left is None:
@@ -978,19 +1073,22 @@ class IntegrationTestFramework:
                                             A = np.array([a1, a2])
                                             A_norm = A / norm
                                             
+                                            # Use spline_s from constraint if available, otherwise use cur_s
+                                            constraint_s = spline_s if spline_s is not None else cur_s
+                                            
                                             # Compute visualization b value: actual road boundary
                                             # The constraint b includes slack and vehicle width, but for visualization
                                             # we want to show the actual road boundary at road_width_half distance
-                                            if ref_path is not None and cur_s is not None and road_width_half is not None:
+                                            if ref_path is not None and constraint_s is not None and road_width_half is not None:
                                                 try:
-                                                    # Get path point at current s
-                                                    path_point_x = ref_path.x_spline(cur_s)
-                                                    path_point_y = ref_path.y_spline(cur_s)
+                                                    # Get path point at constraint s
+                                                    path_point_x = ref_path.x_spline(constraint_s)
+                                                    path_point_y = ref_path.y_spline(constraint_s)
                                                     path_point = np.array([float(path_point_x), float(path_point_y)])
                                                     
                                                     # Get path tangent to determine left/right direction
-                                                    path_dx = float(ref_path.x_spline.derivative()(cur_s))
-                                                    path_dy = float(ref_path.y_spline.derivative()(cur_s))
+                                                    path_dx = float(ref_path.x_spline.derivative()(constraint_s))
+                                                    path_dy = float(ref_path.y_spline.derivative()(constraint_s))
                                                     path_norm = np.sqrt(path_dx**2 + path_dy**2)
                                                     if path_norm > 1e-6:
                                                         path_dx_norm = path_dx / path_norm
@@ -1016,16 +1114,17 @@ class IntegrationTestFramework:
                                                     
                                                     # Compute b for visualization: A·boundary_point
                                                     b_vis = np.dot(A, boundary_point)
-                                                    seen_halfspaces[key] = (A, b_vis, bool(is_left))
+                                                    # Store with spline_s for visualization
+                                                    seen_halfspaces[key] = (A, b_vis, bool(is_left), float(constraint_s))
                                                 except Exception as e:
                                                     # Fallback to using original b value
                                                     logger.debug(f"Could not compute visualization boundary: {e}, using original b")
-                                                    seen_halfspaces[key] = (A, b, bool(is_left))
+                                                    seen_halfspaces[key] = (A, b, bool(is_left), float(constraint_s) if constraint_s is not None else 0.0)
                                             else:
                                                 # Fallback: use original b value
-                                                seen_halfspaces[key] = (A, b, bool(is_left))
+                                                seen_halfspaces[key] = (A, b, bool(is_left), float(constraint_s) if constraint_s is not None else 0.0)
                                 
-                                # Convert to list of tuples
+                                # Convert to list of tuples (A, b, is_left, spline_s)
                                 step_halfspaces = list(seen_halfspaces.values())
                             
                             halfspaces_per_step.append(step_halfspaces)
@@ -1046,13 +1145,29 @@ class IntegrationTestFramework:
                                     break
                         
                         if linearized_module is not None:
-                            # Get constraints for stage 1 (first predicted state) since linearized constraints
-                            # are only generated for stages >= 1 (see linearized_constraints.py update method)
-                            constraints = linearized_module.calculate_constraints(planner.state, data, 1)
+                            # Get constraints for stage 0 (current vehicle position) to show active constraints
+                            # Constraints are computed for all stages including stage 0 in update()
+                            constraints = linearized_module.calculate_constraints(planner.state, data, 0)
                             
                             # Extract halfspace information from constraint dictionaries
+                            # Also track which obstacle each constraint belongs to
                             step_linearized_halfspaces = []
                             if constraints:
+                                # Get obstacle information to map constraints to obstacles
+                                obstacle_positions = []
+                                if hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles is not None:
+                                    for obs in data.dynamic_obstacles:
+                                        if hasattr(obs, 'position') and obs.position is not None:
+                                            obstacle_positions.append(np.array([obs.position[0], obs.position[1]]))
+                                
+                                # Group constraints by obstacle
+                                # Constraints are organized as: [disc0_obs0, disc0_obs1, ..., disc0_obsN, disc1_obs0, disc1_obs1, ...]
+                                num_discs = getattr(linearized_module, 'num_discs', 1)
+                                num_active_obstacles = getattr(linearized_module, 'num_active_obstacles', 0)
+                                num_other_halfspaces = getattr(linearized_module, 'num_other_halfspaces', 0)
+                                constraints_per_disc = num_active_obstacles + num_other_halfspaces
+                                
+                                constraint_idx = 0
                                 for const_dict in constraints:
                                     a1 = float(const_dict.get('a1', 0.0))
                                     a2 = float(const_dict.get('a2', 0.0))
@@ -1063,8 +1178,23 @@ class IntegrationTestFramework:
                                     norm = np.sqrt(a1**2 + a2**2)
                                     if norm > 1e-6:
                                         A = np.array([a1, a2])
-                                        # Store as (A, b) tuple (no is_left flag for obstacle constraints)
-                                        step_linearized_halfspaces.append((A, b))
+                                        
+                                        # Determine which obstacle this constraint belongs to
+                                        # constraint_idx maps to: disc_id = idx // constraints_per_disc, obs_idx = idx % constraints_per_disc
+                                        if constraints_per_disc > 0:
+                                            obs_idx = constraint_idx % constraints_per_disc
+                                            # Only map to obstacle if it's within active obstacles (not other_halfspaces)
+                                            if obs_idx < num_active_obstacles:
+                                                obstacle_id = obs_idx
+                                            else:
+                                                # This is an "other_halfspace" constraint, assign to obstacle 0 for visualization
+                                                obstacle_id = 0
+                                        else:
+                                            obstacle_id = 0
+                                        
+                                        # Store as (A, b, obstacle_id) tuple for visualization
+                                        step_linearized_halfspaces.append((A, b, obstacle_id))
+                                    constraint_idx += 1
                             
                             if step == 0 and len(step_linearized_halfspaces) > 0:
                                 logger.debug(f"Captured {len(step_linearized_halfspaces)} linearized constraint halfspaces at step {step}")
@@ -1178,27 +1308,20 @@ class IntegrationTestFramework:
                             # Update obstacle manager with current bounds
                             self.obstacle_manager.plot_bounds = (x_min, x_max, y_min, y_max)
                     
-                    # Update obstacle states using obstacle manager
+                    # Note: Obstacle states are now updated BEFORE module.update() and solver solve
+                    # (see code around line 803) to ensure constraints use current positions.
+                    # We still need to append obstacle states for visualization tracking.
+                    # Obstacle positions in data object are already updated, so we just track them.
                     if hasattr(self, 'obstacle_manager'):
-                        self.obstacle_manager.update_obstacle_states(test_config.timestep)
-                        
-                        # Get updated obstacle states
+                        # Obstacle states were already appended during the pre-update phase
+                        # Just ensure all obstacles have states tracked
                         for i, obstacle in enumerate(obstacles):
-                            if i < len(obstacle_states):
-                                obstacle_state = self.obstacle_manager.get_obstacle_at_time(i, len(obstacle_states[i]))
-                                if obstacle_state is not None:
-                                    obstacle_states[i].append(obstacle_state[:2].copy())  # Only position
-                                else:
-                                    # Fallback to prediction steps
-                                    if step < len(obstacle.prediction.steps):
-                                        obstacle_state = obstacle.prediction.steps[step].position
-                                        obstacle_states[i].append(obstacle_state.copy())
-                                    else:
-                                        # Extrapolate
-                                        last_state = obstacle_states[i][-1] if obstacle_states[i] else obstacle.position
-                                        obstacle_states[i].append(last_state.copy())
+                            if i < len(obstacle_states) and len(obstacle_states[i]) == step:
+                                # State wasn't appended yet, append current position
+                                if hasattr(obstacle, 'position') and obstacle.position is not None:
+                                    obstacle_states[i].append(obstacle.position[:2].copy())
                     else:
-                        # Fallback to original method
+                        # Fallback to original method (shouldn't happen if obstacle_manager exists)
                         for i, obstacle in enumerate(obstacles):
                             if i < len(obstacle_states):
                                 if step < len(obstacle.prediction.steps):
@@ -1231,13 +1354,14 @@ class IntegrationTestFramework:
                     tb_str = traceback.format_exc()
                     logger.error(f"MPC solve failed at step {step}: {e}")
                     logger.error(f"Traceback: {tb_str}")
-                    # Count exception as a failure too when fallback disabled
-                    if not bool(self.config.get("planner", {}).get("fallback_control_enabled", False)):
-                        consecutive_solver_failures += 1
-                        logger.warning(f"  Consecutive MPC failures (exception): {consecutive_solver_failures}")
-                        if consecutive_solver_failures >= max_consecutive_failures:
-                            logger.error(f"Max consecutive MPC failures ({max_consecutive_failures}) reached due to exceptions with fallback disabled. Terminating test early at step {step}.")
-                            break
+                    # Count exception as a failure
+                    consecutive_solver_failures += 1
+                    logger.warning(f"  Consecutive MPC failures (exception): {consecutive_solver_failures}/{max_consecutive_failures}")
+                    if consecutive_solver_failures >= max_consecutive_failures:
+                        logger.error(f"Max consecutive MPC failures ({max_consecutive_failures}) reached due to exceptions. "
+                                   f"No successful solve in last {max_consecutive_failures} attempts. "
+                                   f"Terminating test early at step {step}.")
+                        break
                     # Log state of critical data structures
                     logger.error(f"robot_area length: {len(data.robot_area) if hasattr(data, 'robot_area') and data.robot_area else 0}")
                     logger.error(f"dynamic_obstacles count: {len(data.dynamic_obstacles) if hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles else 0}")
@@ -1738,17 +1862,28 @@ class IntegrationTestFramework:
                         plot_size = max(xlim[1] - xlim[0], ylim[1] - ylim[0])
                         
                         # Collect left and right boundaries separately for better visualization
+                        # Store with spline_s for segment visualization
                         left_halfspaces = []
                         right_halfspaces = []
                         
+                        # Get reference path for spline segment visualization
+                        ref_path = None
+                        if hasattr(self, 'last_data') and self.last_data is not None:
+                            if hasattr(self.last_data, 'reference_path') and self.last_data.reference_path is not None:
+                                ref_path = self.last_data.reference_path
+                        
                         for constraint_tuple in frame_halfspaces:
-                            # Unpack constraint tuple (A, b, is_left)
-                            if len(constraint_tuple) >= 3:
+                            # Unpack constraint tuple (A, b, is_left, spline_s) or (A, b, is_left) for backward compatibility
+                            if len(constraint_tuple) >= 4:
+                                A, b, is_left, spline_s = constraint_tuple[:4]
+                            elif len(constraint_tuple) >= 3:
                                 A, b, is_left = constraint_tuple[:3]
+                                spline_s = None
                             else:
                                 # Fallback for old format
                                 A, b = constraint_tuple[:2]
                                 is_left = None
+                                spline_s = None
                             
                             a1, a2 = float(A[0]), float(A[1])
                             norm = np.sqrt(a1**2 + a2**2)
@@ -1766,116 +1901,311 @@ class IntegrationTestFramework:
                                 # Fallback heuristic: check dot product with reference path tangent
                                 is_left_constraint = a1_norm < 0
                             
-                            # Store for grouped visualization
+                            # Store with spline_s for visualization
                             if is_left_constraint:
-                                left_halfspaces.append((a1_norm, a2_norm, b / norm))
+                                left_halfspaces.append((a1_norm, a2_norm, b / norm, spline_s))
                             else:
-                                right_halfspaces.append((a1_norm, a2_norm, b / norm))
+                                right_halfspaces.append((a1_norm, a2_norm, b / norm, spline_s))
                         
-                        # Draw left boundary constraints (orange) - line on right side of reference path
+                        # Draw left boundary constraints (orange) - show spline segment
                         # Left boundary constraint restricts vehicle to stay on the left side (away from right boundary)
-                        for idx, (a1_norm, a2_norm, b_norm) in enumerate(left_halfspaces):
+                        for idx, constraint_data in enumerate(left_halfspaces):
+                            if len(constraint_data) >= 4:
+                                a1_norm, a2_norm, b_norm, spline_s = constraint_data
+                            else:
+                                a1_norm, a2_norm, b_norm = constraint_data[:3]
+                                spline_s = None
+                            
                             color = 'orange'
                             alpha = 0.7
                             
-                            # Calculate line segment that spans the plot
-                            # Line: A·p = b, so a1*x + a2*y = b
-                            center_x = (xlim[0] + xlim[1]) / 2
-                            center_y = (ylim[0] + ylim[1]) / 2
+                            # Track if we successfully drew a spline segment
+                            segment_drawn = False
                             
-                            # Project center onto line: distance from center to line
-                            dist_to_line = (a1_norm * center_x + a2_norm * center_y - b_norm)
+                            # Draw spline segment if we have spline_s and reference path
+                            if ref_path is not None and spline_s is not None and hasattr(ref_path, 'x_spline') and hasattr(ref_path, 'y_spline'):
+                                try:
+                                    # Draw a segment of the reference path around the constraint s value
+                                    s_arr = np.asarray(ref_path.s, dtype=float)
+                                    if len(s_arr) > 0:
+                                        s_min = float(s_arr[0])
+                                        s_max = float(s_arr[-1])
+                                        constraint_s = float(spline_s)
+                                        
+                                        # Clamp to valid range
+                                        constraint_s = max(s_min, min(s_max, constraint_s))
+                                        
+                                        # Define segment length (e.g., 2 meters along the path)
+                                        segment_length = 2.0
+                                        
+                                        # Estimate ds from path derivatives
+                                        try:
+                                            dx = float(ref_path.x_spline.derivative()(constraint_s))
+                                            dy = float(ref_path.y_spline.derivative()(constraint_s))
+                                            ds_per_meter = 1.0 / (np.sqrt(dx**2 + dy**2) + 1e-6)
+                                            ds_segment = segment_length * ds_per_meter
+                                        except:
+                                            # Fallback: use fixed fraction of path
+                                            ds_segment = (s_max - s_min) * 0.1
+                                        
+                                        # Sample segment around constraint_s
+                                        s_start = max(s_min, constraint_s - ds_segment / 2)
+                                        s_end = min(s_max, constraint_s + ds_segment / 2)
+                                        s_segment = np.linspace(s_start, s_end, 20)
+                                        
+                                        # Get path points along segment
+                                        x_segment = [float(ref_path.x_spline(s)) for s in s_segment]
+                                        y_segment = [float(ref_path.y_spline(s)) for s in s_segment]
+                                        
+                                        # Get path point and normal at constraint_s
+                                        path_x = float(ref_path.x_spline(constraint_s))
+                                        path_y = float(ref_path.y_spline(constraint_s))
+                                        path_dx = float(ref_path.x_spline.derivative()(constraint_s))
+                                        path_dy = float(ref_path.y_spline.derivative()(constraint_s))
+                                        path_norm = np.sqrt(path_dx**2 + path_dy**2)
+                                        
+                                        if path_norm > 1e-6:
+                                            path_dx_norm = path_dx / path_norm
+                                            path_dy_norm = path_dy / path_norm
+                                            # Normal pointing left: [path_dy_norm, -path_dx_norm]
+                                            normal_left = np.array([path_dy_norm, -path_dx_norm])
+                                            
+                                            # Get road width for boundary visualization
+                                            road_width_half = 3.5  # Default
+                                            if hasattr(self, 'last_data') and self.last_data is not None:
+                                                if hasattr(self.last_data, 'left_boundary_x') and hasattr(self.last_data, 'right_boundary_x'):
+                                                    # Estimate width from boundaries
+                                                    try:
+                                                        left_x = self.last_data.left_boundary_x
+                                                        right_x = self.last_data.right_boundary_x
+                                                        if len(left_x) > 0 and len(right_x) > 0:
+                                                            # Find closest index to constraint_s
+                                                            s_arr = np.asarray(ref_path.s, dtype=float)
+                                                            closest_idx = np.argmin(np.abs(s_arr - constraint_s))
+                                                            if closest_idx < len(left_x) and closest_idx < len(right_x):
+                                                                center_x = ref_path.x[closest_idx] if hasattr(ref_path, 'x') and closest_idx < len(ref_path.x) else path_x
+                                                                center_y = ref_path.y[closest_idx] if hasattr(ref_path, 'y') and closest_idx < len(ref_path.y) else path_y
+                                                                left_bound_x = left_x[closest_idx]
+                                                                left_bound_y = self.last_data.left_boundary_y[closest_idx]
+                                                                right_bound_x = right_x[closest_idx]
+                                                                right_bound_y = self.last_data.right_boundary_y[closest_idx]
+                                                                width_left = np.sqrt((left_bound_x - center_x)**2 + (left_bound_y - center_y)**2)
+                                                                width_right = np.sqrt((right_bound_x - center_x)**2 + (right_bound_y - center_y)**2)
+                                                                road_width_half = max(width_left, width_right)
+                                                    except:
+                                                        pass
+                                            
+                                            # Compute boundary point (left boundary is on right side of path)
+                                            boundary_point = np.array([path_x, path_y]) - normal_left * road_width_half
+                                            
+                                            # Draw constraint line segment along the boundary
+                                            # Project spline segment points onto the constraint line
+                                            segment_points_x = []
+                                            segment_points_y = []
+                                            
+                                            for s_val in s_segment:
+                                                seg_x = float(ref_path.x_spline(s_val))
+                                                seg_y = float(ref_path.y_spline(s_val))
+                                                
+                                                # Get normal at this point
+                                                seg_dx = float(ref_path.x_spline.derivative()(s_val))
+                                                seg_dy = float(ref_path.y_spline.derivative()(s_val))
+                                                seg_norm = np.sqrt(seg_dx**2 + seg_dy**2)
+                                                if seg_norm > 1e-6:
+                                                    seg_dx_norm = seg_dx / seg_norm
+                                                    seg_dy_norm = seg_dy / seg_norm
+                                                    seg_normal = np.array([seg_dy_norm, -seg_dx_norm])
+                                                    
+                                                    # Compute boundary point at this s
+                                                    seg_boundary = np.array([seg_x, seg_y]) - seg_normal * road_width_half
+                                                    segment_points_x.append(seg_boundary[0])
+                                                    segment_points_y.append(seg_boundary[1])
+                                            
+                                            # Draw spline segment on boundary
+                                            if len(segment_points_x) > 0:
+                                                label = 'Left Boundary' if idx == 0 else ''
+                                                line, = ax.plot(segment_points_x, segment_points_y, 
+                                                               color=color, linestyle='-', 
+                                                               linewidth=3.0, alpha=alpha, zorder=1,
+                                                               label=label)
+                                                halfspace_lines.append(line)
+                                                segment_drawn = True
+                                except Exception as e:
+                                    logger.debug(f"Error drawing spline segment for left boundary: {e}")
+                                    # Fallback to full line if spline segment fails
+                                    segment_drawn = False
                             
-                            # Point on line closest to center
-                            line_center_x = center_x - dist_to_line * a1_norm
-                            line_center_y = center_y - dist_to_line * a2_norm
-                            
-                            # Direction along the line (perpendicular to A)
-                            dir_x = -a2_norm
-                            dir_y = a1_norm
-                            
-                            # Extend line to span plot
-                            line_length = plot_size * 1.2  # Slightly longer to ensure full coverage
-                            x1 = line_center_x - dir_x * line_length
-                            y1 = line_center_y - dir_y * line_length
-                            x2 = line_center_x + dir_x * line_length
-                            y2 = line_center_y + dir_y * line_length
-                            
-                            # Draw constraint line
-                            # Only label the first left boundary
-                            label = 'Left Boundary' if idx == 0 else ''
-                            line, = ax.plot([x1, x2], [y1, y2], 
-                                           color=color, linestyle='--', 
-                                           linewidth=2.0, alpha=alpha, zorder=1,
-                                           label=label)
-                            halfspace_lines.append(line)
-                            
-                            # Add arrow showing restriction direction
-                            # Left boundary: A points right, constraint restricts to left (opposite to A)
-                            # Arrow should point in direction -A (toward allowed region)
-                            arrow_length = plot_size * 0.08
-                            arrow_mid_x = (x1 + x2) / 2
-                            arrow_mid_y = (y1 + y2) / 2
-                            arrow_dx = -a1_norm * arrow_length  # Opposite to A (toward allowed region)
-                            arrow_dy = -a2_norm * arrow_length
-                            
-                            arrow = ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
-                                              xytext=(arrow_mid_x, arrow_mid_y),
-                                              arrowprops=dict(arrowstyle='->', color=color, 
-                                                            lw=2.5, alpha=alpha, zorder=2))
-                            halfspace_lines.append(arrow)
+                            # Fallback: draw full halfspace line if spline segment not available
+                            if not segment_drawn:
+                                # Calculate line segment that spans the plot
+                                center_x = (xlim[0] + xlim[1]) / 2
+                                center_y = (ylim[0] + ylim[1]) / 2
+                                dist_to_line = (a1_norm * center_x + a2_norm * center_y - b_norm)
+                                line_center_x = center_x - dist_to_line * a1_norm
+                                line_center_y = center_y - dist_to_line * a2_norm
+                                dir_x = -a2_norm
+                                dir_y = a1_norm
+                                line_length = plot_size * 1.2
+                                x1 = line_center_x - dir_x * line_length
+                                y1 = line_center_y - dir_y * line_length
+                                x2 = line_center_x + dir_x * line_length
+                                y2 = line_center_y + dir_y * line_length
+                                label = 'Left Boundary' if idx == 0 else ''
+                                line, = ax.plot([x1, x2], [y1, y2], 
+                                               color=color, linestyle='--', 
+                                               linewidth=2.0, alpha=alpha, zorder=1,
+                                               label=label)
+                                halfspace_lines.append(line)
                         
-                        # Draw right boundary constraints (cyan) - line on left side of reference path
+                        # Draw right boundary constraints (cyan) - show spline segment
                         # Right boundary constraint restricts vehicle to stay on the right side (away from left boundary)
-                        for idx, (a1_norm, a2_norm, b_norm) in enumerate(right_halfspaces):
+                        for idx, constraint_data in enumerate(right_halfspaces):
+                            if len(constraint_data) >= 4:
+                                a1_norm, a2_norm, b_norm, spline_s = constraint_data
+                            else:
+                                a1_norm, a2_norm, b_norm = constraint_data[:3]
+                                spline_s = None
+                            
                             color = 'cyan'
                             alpha = 0.7
                             
-                            # Calculate line segment that spans the plot
-                            center_x = (xlim[0] + xlim[1]) / 2
-                            center_y = (ylim[0] + ylim[1]) / 2
+                            # Track if we successfully drew a spline segment
+                            segment_drawn = False
                             
-                            # Project center onto line
-                            dist_to_line = (a1_norm * center_x + a2_norm * center_y - b_norm)
+                            # Draw spline segment if we have spline_s and reference path
+                            if ref_path is not None and spline_s is not None and hasattr(ref_path, 'x_spline') and hasattr(ref_path, 'y_spline'):
+                                try:
+                                    # Draw a segment of the reference path around the constraint s value
+                                    s_arr = np.asarray(ref_path.s, dtype=float)
+                                    if len(s_arr) > 0:
+                                        s_min = float(s_arr[0])
+                                        s_max = float(s_arr[-1])
+                                        constraint_s = float(spline_s)
+                                        
+                                        # Clamp to valid range
+                                        constraint_s = max(s_min, min(s_max, constraint_s))
+                                        
+                                        # Define segment length (e.g., 2 meters along the path)
+                                        segment_length = 2.0
+                                        
+                                        # Estimate ds from path derivatives
+                                        try:
+                                            dx = float(ref_path.x_spline.derivative()(constraint_s))
+                                            dy = float(ref_path.y_spline.derivative()(constraint_s))
+                                            ds_per_meter = 1.0 / (np.sqrt(dx**2 + dy**2) + 1e-6)
+                                            ds_segment = segment_length * ds_per_meter
+                                        except:
+                                            # Fallback: use fixed fraction of path
+                                            ds_segment = (s_max - s_min) * 0.1
+                                        
+                                        # Sample segment around constraint_s
+                                        s_start = max(s_min, constraint_s - ds_segment / 2)
+                                        s_end = min(s_max, constraint_s + ds_segment / 2)
+                                        s_segment = np.linspace(s_start, s_end, 20)
+                                        
+                                        # Get path points along segment
+                                        x_segment = [float(ref_path.x_spline(s)) for s in s_segment]
+                                        y_segment = [float(ref_path.y_spline(s)) for s in s_segment]
+                                        
+                                        # Get path point and normal at constraint_s
+                                        path_x = float(ref_path.x_spline(constraint_s))
+                                        path_y = float(ref_path.y_spline(constraint_s))
+                                        path_dx = float(ref_path.x_spline.derivative()(constraint_s))
+                                        path_dy = float(ref_path.y_spline.derivative()(constraint_s))
+                                        path_norm = np.sqrt(path_dx**2 + path_dy**2)
+                                        
+                                        if path_norm > 1e-6:
+                                            path_dx_norm = path_dx / path_norm
+                                            path_dy_norm = path_dy / path_norm
+                                            # Normal pointing left: [path_dy_norm, -path_dx_norm]
+                                            normal_left = np.array([path_dy_norm, -path_dx_norm])
+                                            
+                                            # Get road width for boundary visualization
+                                            road_width_half = 3.5  # Default
+                                            if hasattr(self, 'last_data') and self.last_data is not None:
+                                                if hasattr(self.last_data, 'left_boundary_x') and hasattr(self.last_data, 'right_boundary_x'):
+                                                    # Estimate width from boundaries
+                                                    try:
+                                                        left_x = self.last_data.left_boundary_x
+                                                        right_x = self.last_data.right_boundary_x
+                                                        if len(left_x) > 0 and len(right_x) > 0:
+                                                            # Find closest index to constraint_s
+                                                            s_arr = np.asarray(ref_path.s, dtype=float)
+                                                            closest_idx = np.argmin(np.abs(s_arr - constraint_s))
+                                                            if closest_idx < len(left_x) and closest_idx < len(right_x):
+                                                                center_x = ref_path.x[closest_idx] if hasattr(ref_path, 'x') and closest_idx < len(ref_path.x) else path_x
+                                                                center_y = ref_path.y[closest_idx] if hasattr(ref_path, 'y') and closest_idx < len(ref_path.y) else path_y
+                                                                left_bound_x = left_x[closest_idx]
+                                                                left_bound_y = self.last_data.left_boundary_y[closest_idx]
+                                                                right_bound_x = right_x[closest_idx]
+                                                                right_bound_y = self.last_data.right_boundary_y[closest_idx]
+                                                                width_left = np.sqrt((left_bound_x - center_x)**2 + (left_bound_y - center_y)**2)
+                                                                width_right = np.sqrt((right_bound_x - center_x)**2 + (right_bound_y - center_y)**2)
+                                                                road_width_half = max(width_left, width_right)
+                                                    except:
+                                                        pass
+                                            
+                                            # Compute boundary point (right boundary is on left side of path)
+                                            boundary_point = np.array([path_x, path_y]) + normal_left * road_width_half
+                                            
+                                            # Draw constraint line segment along the boundary
+                                            # Project spline segment points onto the constraint line
+                                            segment_points_x = []
+                                            segment_points_y = []
+                                            
+                                            for s_val in s_segment:
+                                                seg_x = float(ref_path.x_spline(s_val))
+                                                seg_y = float(ref_path.y_spline(s_val))
+                                                
+                                                # Get normal at this point
+                                                seg_dx = float(ref_path.x_spline.derivative()(s_val))
+                                                seg_dy = float(ref_path.y_spline.derivative()(s_val))
+                                                seg_norm = np.sqrt(seg_dx**2 + seg_dy**2)
+                                                if seg_norm > 1e-6:
+                                                    seg_dx_norm = seg_dx / seg_norm
+                                                    seg_dy_norm = seg_dy / seg_norm
+                                                    seg_normal = np.array([seg_dy_norm, -seg_dx_norm])
+                                                    
+                                                    # Compute boundary point at this s
+                                                    seg_boundary = np.array([seg_x, seg_y]) + seg_normal * road_width_half
+                                                    segment_points_x.append(seg_boundary[0])
+                                                    segment_points_y.append(seg_boundary[1])
+                                            
+                                            # Draw spline segment on boundary
+                                            if len(segment_points_x) > 0:
+                                                label = 'Right Boundary' if idx == 0 else ''
+                                                line, = ax.plot(segment_points_x, segment_points_y, 
+                                                               color=color, linestyle='-', 
+                                                               linewidth=3.0, alpha=alpha, zorder=1,
+                                                               label=label)
+                                                halfspace_lines.append(line)
+                                                segment_drawn = True
+                                except Exception as e:
+                                    logger.debug(f"Error drawing spline segment for right boundary: {e}")
+                                    # Fallback to full line if spline segment fails
+                                    segment_drawn = False
                             
-                            # Point on line closest to center
-                            line_center_x = center_x - dist_to_line * a1_norm
-                            line_center_y = center_y - dist_to_line * a2_norm
-                            
-                            # Direction along the line (perpendicular to A)
-                            dir_x = -a2_norm
-                            dir_y = a1_norm
-                            
-                            # Extend line to span plot
-                            line_length = plot_size * 1.2
-                            x1 = line_center_x - dir_x * line_length
-                            y1 = line_center_y - dir_y * line_length
-                            x2 = line_center_x + dir_x * line_length
-                            y2 = line_center_y + dir_y * line_length
-                            
-                            # Draw constraint line
-                            # Only label the first right boundary
-                            label = 'Right Boundary' if idx == 0 else ''
-                            line, = ax.plot([x1, x2], [y1, y2], 
-                                           color=color, linestyle='--', 
-                                           linewidth=2.0, alpha=alpha, zorder=1,
-                                           label=label)
-                            halfspace_lines.append(line)
-                            
-                            # Add arrow showing restriction direction
-                            # Right boundary: A points left, constraint restricts to right (opposite to A)
-                            # Arrow should point in direction -A (toward allowed region)
-                            arrow_length = plot_size * 0.08
-                            arrow_mid_x = (x1 + x2) / 2
-                            arrow_mid_y = (y1 + y2) / 2
-                            arrow_dx = -a1_norm * arrow_length  # Opposite to A (toward allowed region)
-                            arrow_dy = -a2_norm * arrow_length
-                            
-                            arrow = ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
-                                              xytext=(arrow_mid_x, arrow_mid_y),
-                                              arrowprops=dict(arrowstyle='->', color=color, 
-                                                            lw=2.5, alpha=alpha, zorder=2))
-                            halfspace_lines.append(arrow)
+                            # Fallback: draw full halfspace line if spline segment not available
+                            if not segment_drawn:
+                                # Calculate line segment that spans the plot
+                                center_x = (xlim[0] + xlim[1]) / 2
+                                center_y = (ylim[0] + ylim[1]) / 2
+                                dist_to_line = (a1_norm * center_x + a2_norm * center_y - b_norm)
+                                line_center_x = center_x - dist_to_line * a1_norm
+                                line_center_y = center_y - dist_to_line * a2_norm
+                                dir_x = -a2_norm
+                                dir_y = a1_norm
+                                line_length = plot_size * 1.2
+                                x1 = line_center_x - dir_x * line_length
+                                y1 = line_center_y - dir_y * line_length
+                                x2 = line_center_x + dir_x * line_length
+                                y2 = line_center_y + dir_y * line_length
+                                label = 'Right Boundary' if idx == 0 else ''
+                                line, = ax.plot([x1, x2], [y1, y2], 
+                                               color=color, linestyle='--', 
+                                               linewidth=2.0, alpha=alpha, zorder=1,
+                                               label=label)
+                                halfspace_lines.append(line)
                 
                 # Update linearized constraint halfspaces visualization (obstacle avoidance)
                 # Remove old linearized halfspace lines
@@ -1890,69 +2220,155 @@ class IntegrationTestFramework:
                 if linearized_halfspaces_per_step is not None and frame < len(linearized_halfspaces_per_step):
                     frame_linearized_halfspaces = linearized_halfspaces_per_step[frame]
                     if frame_linearized_halfspaces and len(frame_linearized_halfspaces) > 0:
-                        # Get plot bounds for line extension
-                        xlim = ax.get_xlim()
-                        ylim = ax.get_ylim()
-                        plot_size = max(xlim[1] - xlim[0], ylim[1] - ylim[0])
+                        # Get current vehicle position for shorter line segments
+                        if frame < len(vehicle_states):
+                            vehicle_pos = vehicle_states[frame]
+                            vehicle_x, vehicle_y = vehicle_pos[0], vehicle_pos[1]
+                        else:
+                            vehicle_x, vehicle_y = 0.0, 0.0
                         
-                        for idx, (A, b) in enumerate(frame_linearized_halfspaces):
-                            color = 'red'  # Red for obstacle avoidance constraints
-                            alpha = 0.5
+                        # Color palette for different obstacles
+                        obstacle_colors = ['red', 'orange', 'purple', 'brown', 'pink', 'cyan', 'magenta', 'yellow']
+                        
+                        # Group constraints by obstacle
+                        obstacle_constraints = {}
+                        for constraint_data in frame_linearized_halfspaces:
+                            if len(constraint_data) >= 3:
+                                A, b, obstacle_id = constraint_data[0], constraint_data[1], constraint_data[2]
+                            else:
+                                # Fallback for old format
+                                A, b = constraint_data[0], constraint_data[1]
+                                obstacle_id = 0
                             
-                            a1, a2 = float(A[0]), float(A[1])
-                            norm = np.sqrt(a1**2 + a2**2)
-                            if norm < 1e-6:
-                                continue
+                            if obstacle_id not in obstacle_constraints:
+                                obstacle_constraints[obstacle_id] = []
+                            obstacle_constraints[obstacle_id].append((A, b))
+                        
+                        # Draw constraints for each obstacle with distinct colors
+                        for obstacle_id, constraints_list in obstacle_constraints.items():
+                            color = obstacle_colors[obstacle_id % len(obstacle_colors)]
+                            alpha = 0.6
                             
-                            # Normalize A
-                            a1_norm = a1 / norm
-                            a2_norm = a2 / norm
-                            b_norm = b / norm
+                            # Get obstacle position for shorter line segments and connection line
+                            obstacle_pos = None
+                            if frame < len(obstacle_states) and obstacle_id < len(obstacle_states):
+                                if frame < len(obstacle_states[obstacle_id]):
+                                    obs_state = obstacle_states[obstacle_id][frame]
+                                    obstacle_pos = np.array([obs_state[0], obs_state[1]])
                             
-                            # Calculate line segment that spans the plot
-                            center_x = (xlim[0] + xlim[1]) / 2
-                            center_y = (ylim[0] + ylim[1]) / 2
-                            
-                            # Project center onto line
-                            dist_to_line = (a1_norm * center_x + a2_norm * center_y - b_norm)
-                            
-                            # Point on line closest to center
-                            line_center_x = center_x - dist_to_line * a1_norm
-                            line_center_y = center_y - dist_to_line * a2_norm
-                            
-                            # Direction along the line (perpendicular to A)
-                            dir_x = -a2_norm
-                            dir_y = a1_norm
-                            
-                            # Extend line to span plot
-                            line_length = plot_size * 1.2
-                            x1 = line_center_x - dir_x * line_length
-                            y1 = line_center_y - dir_y * line_length
-                            x2 = line_center_x + dir_x * line_length
-                            y2 = line_center_y + dir_y * line_length
-                            
-                            # Draw constraint line
-                            # Only label the first linearized constraint
-                            label = 'Obstacle Constraint' if idx == 0 else ''
-                            line, = ax.plot([x1, x2], [y1, y2], 
-                                           color=color, linestyle=':', 
-                                           linewidth=1.5, alpha=alpha, zorder=1,
-                                           label=label)
-                            linearized_halfspace_lines.append(line)
-                            
-                            # Add arrow showing restriction direction (away from obstacle)
-                            # Arrow points in direction -A (toward allowed region, away from obstacle)
-                            arrow_length = plot_size * 0.06
-                            arrow_mid_x = (x1 + x2) / 2
-                            arrow_mid_y = (y1 + y2) / 2
-                            arrow_dx = -a1_norm * arrow_length
-                            arrow_dy = -a2_norm * arrow_length
-                            
-                            arrow = ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
-                                              xytext=(arrow_mid_x, arrow_mid_y),
-                                              arrowprops=dict(arrowstyle='->', color=color, 
-                                                            lw=2.0, alpha=alpha, zorder=2))
-                            linearized_halfspace_lines.append(arrow)
+                            for idx, (A, b) in enumerate(constraints_list):
+                                a1, a2 = float(A[0]), float(A[1])
+                                norm = np.sqrt(a1**2 + a2**2)
+                                if norm < 1e-6:
+                                    continue
+                                
+                                # Normalize A
+                                a1_norm = a1 / norm
+                                a2_norm = a2 / norm
+                                b_norm = b / norm
+                                
+                                # Calculate constraint line position
+                                # The constraint is: A·p <= b, where A points from vehicle to obstacle
+                                # From linearized_constraints.py: b = A·obstacle_pos - (obstacle_radius + robot_radius)
+                                # The constraint line A·p = b is perpendicular to A
+                                # Following the reference implementation, the constraint line should pass through
+                                # a point that's at the safety distance from the obstacle along the vehicle-to-obstacle direction
+                                if obstacle_pos is not None:
+                                    # Vehicle position
+                                    vehicle_pos = np.array([vehicle_x, vehicle_y])
+                                    
+                                    # Vehicle-to-obstacle vector
+                                    vehicle_to_obstacle = obstacle_pos - vehicle_pos
+                                    vehicle_to_obstacle_dist = np.linalg.norm(vehicle_to_obstacle)
+                                    
+                                    if vehicle_to_obstacle_dist > 1e-6:
+                                        # Normalized vehicle-to-obstacle direction (should match A direction)
+                                        vehicle_to_obstacle_dir = vehicle_to_obstacle / vehicle_to_obstacle_dist
+                                        
+                                        # The constraint line A·p = b is perpendicular to A
+                                        # Find where this line intersects the vehicle-to-obstacle line
+                                        # Since A is the normalized direction from vehicle to obstacle,
+                                        # the vehicle-to-obstacle line is: p(t) = vehicle_pos + t * A, t >= 0
+                                        # The constraint line is: A·p = b
+                                        # Intersection: A·(vehicle_pos + t * A) = b
+                                        # A·vehicle_pos + t * (A·A) = b
+                                        # Since A is normalized, A·A = 1, so: t = b - A·vehicle_pos
+                                        
+                                        A_dot_vehicle = a1_norm * vehicle_x + a2_norm * vehicle_y
+                                        t = b_norm - A_dot_vehicle
+                                        
+                                        # The intersection point on the vehicle-to-obstacle line
+                                        # This is the point where the constraint line (perpendicular to A) passes
+                                        # through the vehicle-to-obstacle line
+                                        line_center_point = vehicle_pos + t * np.array([a1_norm, a2_norm])
+                                        
+                                        line_center_x = line_center_point[0]
+                                        line_center_y = line_center_point[1]
+                                        
+                                        # Line length: proportional to distance between vehicle and obstacle
+                                        line_length = max(3.0, vehicle_to_obstacle_dist * 0.6)  # At least 3m, or 60% of distance
+                                    else:
+                                        # Vehicle and obstacle are at same position, use obstacle position
+                                        line_center_x = obstacle_pos[0]
+                                        line_center_y = obstacle_pos[1]
+                                        line_length = 3.0
+                                else:
+                                    # Fallback: use plot center
+                                    xlim = ax.get_xlim()
+                                    ylim = ax.get_ylim()
+                                    mid_x = (xlim[0] + xlim[1]) / 2
+                                    mid_y = (ylim[0] + ylim[1]) / 2
+                                    
+                                    # Project onto line
+                                    dist_to_line = (a1_norm * mid_x + a2_norm * mid_y - b_norm)
+                                    line_center_x = mid_x - dist_to_line * a1_norm
+                                    line_center_y = mid_y - dist_to_line * a2_norm
+                                    line_length = 5.0  # Default line length
+                                
+                                # Direction along the line (perpendicular to A)
+                                dir_x = -a2_norm
+                                dir_y = a1_norm
+                                
+                                # Draw line segment centered at line_center
+                                x1 = line_center_x - dir_x * line_length / 2
+                                y1 = line_center_y - dir_y * line_length / 2
+                                x2 = line_center_x + dir_x * line_length / 2
+                                y2 = line_center_y + dir_y * line_length / 2
+                                
+                                # Draw constraint line with obstacle-specific color
+                                line, = ax.plot([x1, x2], [y1, y2], 
+                                               color=color, linestyle='--', 
+                                               linewidth=1.0, alpha=alpha, zorder=1)
+                                linearized_halfspace_lines.append(line)
+                                
+                                # Add smaller arrow showing restriction direction (away from obstacle)
+                                # Arrow points in direction -A (away from obstacle, toward allowed region)
+                                arrow_length = 1.0  # Smaller arrow
+                                arrow_mid_x = line_center_x
+                                arrow_mid_y = line_center_y
+                                arrow_dx = -a1_norm * arrow_length
+                                arrow_dy = -a2_norm * arrow_length
+                                
+                                arrow = ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
+                                                  xytext=(arrow_mid_x, arrow_mid_y),
+                                                  arrowprops=dict(arrowstyle='->', color=color, 
+                                                                lw=1.5, alpha=alpha, zorder=2))
+                                linearized_halfspace_lines.append(arrow)
+                                
+                                # Add connecting line from constraint to obstacle
+                                if obstacle_pos is not None:
+                                    # Find closest point on constraint line to obstacle
+                                    # Project obstacle position onto constraint line
+                                    obstacle_to_line_dist = (a1_norm * obstacle_pos[0] + a2_norm * obstacle_pos[1] - b_norm)
+                                    closest_point_x = obstacle_pos[0] - obstacle_to_line_dist * a1_norm
+                                    closest_point_y = obstacle_pos[1] - obstacle_to_line_dist * a2_norm
+                                    
+                                    # Draw connecting line from obstacle to closest point on constraint line
+                                    connection_line, = ax.plot([obstacle_pos[0], closest_point_x], 
+                                                              [obstacle_pos[1], closest_point_y],
+                                                              color=color, linestyle=':', 
+                                                              linewidth=0.8, alpha=alpha * 0.7, zorder=0)
+                                    linearized_halfspace_lines.append(connection_line)
                 
                 # Goals update
                 artists_extra = []

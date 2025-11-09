@@ -15,12 +15,14 @@ class ContouringConstraints(BaseConstraint):
 		self.num_discs = int(self.get_config_value("num_discs", 1))
 		# Get slack parameter (adaptive slack increases with horizon)
 		self.slack = float(self.get_config_value("contouring.slack", 1.0))
+		# Number of spline segments to use per boundary at each step (default 5)
+		self.num_segments_per_boundary = int(self.get_config_value("contouring.num_segments_per_boundary", 5))
 		# Store reference path data for dynamic constraint computation
 		self._reference_path = None
 		self._road_width_half = None
 		self._width_left_spline = None  # Spline for left width (distance from centerline to left boundary)
 		self._width_right_spline = None  # Spline for right width (distance from centerline to right boundary)
-		LOG_DEBUG("ContouringConstraints initialized")
+		LOG_DEBUG(f"ContouringConstraints initialized with {self.num_segments_per_boundary} segments per boundary")
 
 	def update(self, state, data):
 		"""Prepare reference path data for dynamic constraint computation.
@@ -94,14 +96,56 @@ class ContouringConstraints(BaseConstraint):
 				if (left_x is not None and left_y is not None and 
 					right_x is not None and right_y is not None and
 					len(left_x) == len(ref_path.x) and len(right_x) == len(ref_path.x)):
-					# Compute distances from centerline to boundaries
+					# Compute signed distances from centerline to boundaries along the normal vector
+					# This is the correct way to compute widths for contouring constraints
 					for i in range(len(ref_path.x)):
 						center = np.array([float(ref_path.x[i]), float(ref_path.y[i])])
 						left_point = np.array([float(left_x[i]), float(left_y[i])])
 						right_point = np.array([float(right_x[i]), float(right_y[i])])
 						
-						width_left = np.linalg.norm(center - left_point)
-						width_right = np.linalg.norm(center - right_point)
+						# Get path tangent at this point (for computing normal)
+						# Use spline derivative if available, otherwise estimate from neighbors
+						try:
+							s_val = float(s_arr[i])
+							path_dx = float(ref_path.x_spline.derivative()(s_val))
+							path_dy = float(ref_path.y_spline.derivative()(s_val))
+						except Exception:
+							# Fallback: estimate tangent from neighbors
+							if i > 0 and i < len(ref_path.x) - 1:
+								path_dx = float(ref_path.x[i+1] - ref_path.x[i-1])
+								path_dy = float(ref_path.y[i+1] - ref_path.y[i-1])
+							elif i > 0:
+								path_dx = float(ref_path.x[i] - ref_path.x[i-1])
+								path_dy = float(ref_path.y[i] - ref_path.y[i-1])
+							else:
+								path_dx = float(ref_path.x[i+1] - ref_path.x[i])
+								path_dy = float(ref_path.y[i+1] - ref_path.y[i])
+						
+						# Normalize tangent
+						norm = safe_norm(path_dx, path_dy)
+						if norm < 1e-6:
+							# Fallback to Euclidean distance if tangent is invalid
+							width_left = np.linalg.norm(center - left_point)
+							width_right = np.linalg.norm(center - right_point)
+						else:
+							path_dx_norm = path_dx / norm
+							path_dy_norm = path_dy / norm
+							
+							# Normal vector pointing left: A = [path_dy_norm, -path_dx_norm]
+							normal = np.array([path_dy_norm, -path_dx_norm])
+							
+							# Compute signed distances along normal
+							# Positive = left of path, negative = right of path
+							left_vec = left_point - center
+							right_vec = right_point - center
+							
+							# Signed distance = dot product with normal
+							width_left = np.dot(normal, left_vec)  # Should be positive (left is in +normal direction)
+							width_right = -np.dot(normal, right_vec)  # Should be positive (right is in -normal direction)
+							
+							# Ensure widths are positive (take absolute value if needed)
+							width_left = abs(width_left)
+							width_right = abs(width_right)
 						
 						widths_left.append(width_left)
 						widths_right.append(width_right)
@@ -186,10 +230,6 @@ class ContouringConstraints(BaseConstraint):
 					except (TypeError, ValueError):
 						pass
 		
-		# Adaptive slack increases with horizon (like reference implementation)
-		horizon_factor = 1.0 + (stage_idx * 0.2)
-		adaptive_slack = self.slack * horizon_factor
-		
 		# Calculate effective vehicle width for constraint (w_cur in C++ code)
 		w_cur_estimate = robot_radius
 		
@@ -208,13 +248,21 @@ class ContouringConstraints(BaseConstraint):
 			width_right = self._road_width_half if self._road_width_half is not None else 3.5
 			width_left = self._road_width_half if self._road_width_half is not None else 3.5
 		
-		# Right boundary constraint: contour_error <= width_right - w_cur + slack
-		# A·p <= A·path_point + width_right - w_cur + slack
-		b_right = np.dot(A, path_point) + width_right - w_cur_estimate + adaptive_slack
+		# Strict boundary constraints: vehicle must stay within road bounds
+		# Right boundary constraint: contour_error <= width_right - w_cur
+		# A·p <= A·path_point + width_right - w_cur
+		# This enforces: A·(p - path_point) <= width_right - w_cur
+		# Since A points left, this limits how far left the vehicle can go (right boundary)
+		b_right = np.dot(A, path_point) + width_right - w_cur_estimate
 		
-		# Left boundary constraint: -contour_error <= width_left - w_cur + slack
-		# -A·p <= -A·path_point + width_left - w_cur + slack
-		b_left = np.dot(-A, path_point) + width_left - w_cur_estimate + adaptive_slack
+		# Left boundary constraint: -contour_error <= width_left - w_cur
+		# -A·p <= -A·path_point + width_left - w_cur
+		# This enforces: -A·(p - path_point) <= width_left - w_cur
+		# Since -A points right, this limits how far right the vehicle can go (left boundary)
+		b_left = np.dot(-A, path_point) + width_left - w_cur_estimate
+		
+		# Note: Slack is removed to strictly enforce road boundaries
+		# If slack is needed for feasibility, it should be handled separately
 		
 		# Return constraints as (A, b, is_left) tuples
 		constraints = [
@@ -307,41 +355,93 @@ class ContouringConstraints(BaseConstraint):
 				LOG_WARN(f"  Stage {stage_idx}: Cannot determine spline value, skipping constraints")
 				return []
 		
-		# Compute constraints for this spline value (analogous to C++ evaluating width_left/width_right at cur_s)
-		constraint_tuples = self._compute_constraint_for_s(cur_s, stage_idx, state)
+		# Compute constraints for multiple spline segments around cur_s
+		# Generate spline segment values around cur_s
+		s_arr = np.asarray(self._reference_path.s, dtype=float)
+		s_min = float(s_arr[0])
+		s_max = float(s_arr[-1])
 		
-		if not constraint_tuples:
-			return []
+		# Determine segment spacing based on path length and number of segments
+		# Use a fixed distance along the path (e.g., 1 meter per segment)
+		segment_spacing = 1.0  # meters
 		
-		# Convert to structured constraint format for solver
+		# Estimate ds from path derivatives at cur_s
+		try:
+			dx = float(self._reference_path.x_spline.derivative()(cur_s))
+			dy = float(self._reference_path.y_spline.derivative()(cur_s))
+			ds_per_meter = 1.0 / (np.sqrt(dx**2 + dy**2) + 1e-6)
+			ds_segment = segment_spacing * ds_per_meter
+		except:
+			# Fallback: use fixed fraction of path
+			ds_segment = (s_max - s_min) * 0.1
+		
+		# Generate segment s values centered around cur_s
+		# For num_segments_per_boundary segments, distribute them around cur_s
+		segment_s_values = []
+		if self.num_segments_per_boundary == 1:
+			# Single segment at cur_s
+			segment_s_values = [cur_s]
+		else:
+			# Multiple segments: distribute evenly around cur_s
+			# Total span: (num_segments - 1) * ds_segment
+			total_span = (self.num_segments_per_boundary - 1) * ds_segment
+			s_start = max(s_min, cur_s - total_span / 2)
+			s_end = min(s_max, cur_s + total_span / 2)
+			
+			# If we hit boundaries, adjust to keep cur_s centered if possible
+			if s_start == s_min and s_end < s_max:
+				s_end = min(s_max, s_start + total_span)
+			elif s_end == s_max and s_start > s_min:
+				s_start = max(s_min, s_end - total_span)
+			
+			# Generate evenly spaced segments
+			if self.num_segments_per_boundary > 1:
+				segment_s_values = np.linspace(s_start, s_end, self.num_segments_per_boundary)
+			else:
+				segment_s_values = [cur_s]
+		
+		# Clamp all segment values to valid range
+		segment_s_values = [max(s_min, min(s_max, float(s))) for s in segment_s_values]
+		
+		# Compute constraints for each segment
 		constraints = []
 		halfspace_count = 0
 		
-		for A, b, is_left in constraint_tuples:
-			halfspace_count += 1
-			# Apply constraint for each disc (solver handles disc_offset)
-			for disc_id in range(self.num_discs):
-				disc_offset = 0.0
-				disc_radius = 0.5
-				if hasattr(data, "robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
-					disc_offset = float(data.robot_area[disc_id].offset)
-					disc_radius = float(data.robot_area[disc_id].radius)
-				
-				constraints.append({
-					"type": "linear",
-					"a1": float(A[0]),
-					"a2": float(A[1]),
-					"b": float(b),
-					"disc_offset": disc_offset,
-					"is_left": is_left,  # Store is_left flag for visualization
-				})
+		for segment_s in segment_s_values:
+			constraint_tuples = self._compute_constraint_for_s(segment_s, stage_idx, state)
+			
+			if not constraint_tuples:
+				continue
+			
+			# Convert to structured constraint format for solver
+			for A, b, is_left in constraint_tuples:
+				halfspace_count += 1
+				# Apply constraint for each disc (solver handles disc_offset)
+				for disc_id in range(self.num_discs):
+					disc_offset = 0.0
+					disc_radius = 0.5
+					if hasattr(data, "robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
+						disc_offset = float(data.robot_area[disc_id].offset)
+						disc_radius = float(data.robot_area[disc_id].radius)
+					
+					constraints.append({
+						"type": "linear",
+						"a1": float(A[0]),
+						"a2": float(A[1]),
+						"b": float(b),
+						"disc_offset": disc_offset,
+						"is_left": is_left,  # Store is_left flag for visualization
+						"spline_s": float(segment_s),  # Store spline parameter for visualization
+					})
 		
 		LOG_DEBUG(f"ContouringConstraints.calculate_constraints: stage_idx={stage_idx}, cur_s={cur_s:.3f}, "
-		         f"returning {len(constraints)} constraint(s) ({halfspace_count} halfspace(s) × {self.num_discs} disc(s))")
+		         f"segments={len(segment_s_values)}, returning {len(constraints)} constraint(s) "
+		         f"({halfspace_count} halfspace(s) × {self.num_discs} disc(s))")
 		
 		if stage_idx <= 2 and constraints:
 			first_const = constraints[0]
-			LOG_INFO(f"  Stage {stage_idx}: cur_s={cur_s:.3f}, first constraint: a1={first_const.get('a1', 'N/A'):.6f}, "
+			LOG_INFO(f"  Stage {stage_idx}: cur_s={cur_s:.3f}, segments={len(segment_s_values)}, "
+			        f"first constraint: a1={first_const.get('a1', 'N/A'):.6f}, "
 			        f"a2={first_const.get('a2', 'N/A'):.6f}, b={first_const.get('b', 'N/A'):.6f}")
 		
 		return constraints
@@ -351,8 +451,8 @@ class ContouringConstraints(BaseConstraint):
 		# For A·p <= b, expr = A·p - b ≤ 0 → lb = -inf per constraint
 		count = 0
 		if data is not None and stage_idx is not None:
-			# Estimate constraint count (2 halfspaces × num_discs)
-			count = 2 * self.num_discs
+			# Estimate constraint count: (2 boundaries × num_segments_per_boundary) × num_discs
+			count = 2 * self.num_segments_per_boundary * self.num_discs
 		return [-np.inf] * count
 
 	def upper_bounds(self, state=None, data=None, stage_idx=None):
@@ -360,8 +460,8 @@ class ContouringConstraints(BaseConstraint):
 		# Upper bound 0 per constraint for A·p <= b
 		count = 0
 		if data is not None and stage_idx is not None:
-			# Estimate constraint count (2 halfspaces × num_discs)
-			count = 2 * self.num_discs
+			# Estimate constraint count: (2 boundaries × num_segments_per_boundary) × num_discs
+			count = 2 * self.num_segments_per_boundary * self.num_discs
 		return [0.0] * count
 
 	def get_visualizer(self):

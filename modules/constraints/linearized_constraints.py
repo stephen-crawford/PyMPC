@@ -149,48 +149,87 @@ class LinearizedConstraints(BaseConstraint):
 						])
 						LOG_DEBUG(f"  Static obstacle {obs_id} at step {step}: using fixed position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
 					else:
-						# For dynamic obstacles, use predicted position at step k-1 (matching C++: obstacle.prediction.modes[0][k-1].position)
-						# For step 0, use current position (step 0)
-						# For step >= 1, use predicted position at step k-1
+						# For dynamic obstacles, prioritize actual current position for stage 0
+						# For future stages, use predicted positions but ensure they're reasonable
 						if step == 0:
-							# Use current obstacle position (step 0)
-							if len(target_obstacle.prediction.steps) > 0:
-								target_obstacle_pos = np.array([
-									target_obstacle.prediction.steps[0].position[0],
-									target_obstacle.prediction.steps[0].position[1]
-								])
-								LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: using prediction step 0 position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
-							else:
-								# Fallback to obstacle's initial position
-								target_obstacle_pos = np.array([
-									target_obstacle.position[0],
-									target_obstacle.position[1]
-								])
-								LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: no prediction steps, using initial position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+							# For stage 0, always use actual current obstacle position
+							# This ensures constraints remain accurate even when obstacles turn rapidly
+							target_obstacle_pos = np.array([
+								target_obstacle.position[0],
+								target_obstacle.position[1]
+							])
+							LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: using actual current position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
 						else:
-							# Use predicted position at step k-1 (C++: obstacle.prediction.modes[0][k-1].position)
-							# This is the obstacle's predicted position at the time when the vehicle reaches step k
+							# For future stages, use predicted position at step k-1
+							# But validate that prediction is reasonable (not too far from current position)
+							current_obstacle_pos = np.array([
+								target_obstacle.position[0],
+								target_obstacle.position[1]
+							])
+							
+							# Try to get predicted position
+							predicted_pos = None
 							if step - 1 < len(target_obstacle.prediction.steps):
-								target_obstacle_pos = np.array([
+								predicted_pos = np.array([
 									target_obstacle.prediction.steps[step - 1].position[0],
 									target_obstacle.prediction.steps[step - 1].position[1]
 								])
-								LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: using prediction step {step-1} position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
-							else:
-								# Fallback to last available prediction
-								if len(target_obstacle.prediction.steps) > 0:
-									last_step = len(target_obstacle.prediction.steps) - 1
-									target_obstacle_pos = np.array([
-										target_obstacle.prediction.steps[last_step].position[0],
-										target_obstacle.prediction.steps[last_step].position[1]
-									])
-									LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: prediction step {step-1} not available, using last step {last_step} position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+							elif len(target_obstacle.prediction.steps) > 0:
+								# Use last available prediction
+								last_step = len(target_obstacle.prediction.steps) - 1
+								predicted_pos = np.array([
+									target_obstacle.prediction.steps[last_step].position[0],
+									target_obstacle.prediction.steps[last_step].position[1]
+								])
+							
+							# Validate prediction is reasonable (not moving faster than solver can handle)
+							# Maximum reasonable distance: max_velocity * timestep * step
+							# Use conservative estimate: 3 m/s * 0.1s * step = 0.3 * step meters
+							if predicted_pos is not None:
+								prediction_distance = np.linalg.norm(predicted_pos - current_obstacle_pos)
+								max_reasonable_distance = 0.3 * step  # Conservative: 3 m/s * 0.1s * step
+								
+								if prediction_distance > max_reasonable_distance:
+									# Prediction seems unreasonable (obstacle moving too fast)
+									# Use extrapolated position based on current velocity instead
+									if hasattr(target_obstacle, 'velocity') and target_obstacle.velocity is not None:
+										# Limit velocity to reasonable maximum (3 m/s)
+										vel = np.array(target_obstacle.velocity)
+										vel_norm = np.linalg.norm(vel)
+										if vel_norm > 3.0:
+											vel = vel / vel_norm * 3.0
+										
+										# Extrapolate position: current_pos + velocity * timestep * step
+										timestep = 0.1  # Default timestep (should match solver timestep)
+										if hasattr(self.solver, 'timestep') and self.solver.timestep is not None:
+											timestep = float(self.solver.timestep)
+										target_obstacle_pos = current_obstacle_pos + vel * timestep * step
+										LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: prediction distance {prediction_distance:.2f}m > max {max_reasonable_distance:.2f}m, using velocity-extrapolated position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+									else:
+										# No velocity available, use current position
+										target_obstacle_pos = current_obstacle_pos
+										LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: prediction unreasonable, no velocity available, using current position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
 								else:
-									target_obstacle_pos = np.array([
-										target_obstacle.position[0],
-										target_obstacle.position[1]
-									])
-									LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: no prediction steps available, using initial position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+									# Prediction is reasonable, use it
+									target_obstacle_pos = predicted_pos
+									LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: using validated prediction step {step-1} position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+							else:
+								# No prediction available, extrapolate from current position and velocity
+								if hasattr(target_obstacle, 'velocity') and target_obstacle.velocity is not None:
+									vel = np.array(target_obstacle.velocity)
+									vel_norm = np.linalg.norm(vel)
+									if vel_norm > 3.0:
+										vel = vel / vel_norm * 3.0
+									
+									timestep = 0.1
+									if hasattr(self.solver, 'timestep') and self.solver.timestep is not None:
+										timestep = float(self.solver.timestep)
+									target_obstacle_pos = current_obstacle_pos + vel * timestep * step
+									LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: no prediction available, using velocity-extrapolated position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+								else:
+									# No velocity available, use current position
+									target_obstacle_pos = current_obstacle_pos
+									LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: no prediction or velocity, using current position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
 
 					# Compute difference vector FROM ego TO obstacle (C++: diff_x = obstacle_pos(0) - pos(0))
 					diff_x = target_obstacle_pos[0] - ego_position[0]
@@ -282,10 +321,16 @@ class LinearizedConstraints(BaseConstraint):
 				a1 = self._a1[disc_id][stage_idx][index] if self._a1[disc_id][stage_idx][index] is not None else self._dummy_a1
 				a2 = self._a2[disc_id][stage_idx][index] if self._a2[disc_id][stage_idx][index] is not None else self._dummy_a2
 				b = self._b[disc_id][stage_idx][index] if self._b[disc_id][stage_idx][index] is not None else self._dummy_b
-				# Skip degenerate
+				# Skip degenerate constraints (dummy constraints have a1=0, a2=0)
 				if abs(a1) < 1e-9 and abs(a2) < 1e-9:
 					continue
+				# Add constraint - ensure it's for a valid obstacle index
+				# For actual obstacles (index < num_active_obstacles), always add
+				# For other halfspaces (index >= num_active_obstacles), also add
 				constraints.append({"a1": float(a1), "a2": float(a2), "b": float(b), "disc_offset": disc_offset})
+				# Log constraint details for stage 0 to help diagnose issues
+				if stage_idx == 0 and index < self.num_active_obstacles:
+					LOG_DEBUG(f"Linearized constraint stage 0, disc {disc_id}, obstacle {index}: a1={a1:.4f}, a2={a2:.4f}, b={b:.4f}, disc_offset={disc_offset:.4f}")
 		return constraints
 
 	def lower_bounds(self, state=None, data=None, stage_idx=None):

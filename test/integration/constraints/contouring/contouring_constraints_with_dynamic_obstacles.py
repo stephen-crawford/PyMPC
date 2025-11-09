@@ -127,12 +127,14 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
                 y_obs = y_pos
             
             # Create dynamic obstacle using the same dynamics model as the vehicle
+            # Use path_intersect behavior for this test
             if vehicle_dynamics == "unicycle":
                 obstacle_config = create_unicycle_obstacle(
                     obstacle_id=i,
                     position=np.array([x_obs, y_obs]),
                     velocity=velocity,
-                    angle=angle
+                    angle=angle,
+                    behavior="path_intersect"  # Use path_intersect behavior
                 )
                 obstacle_dynamics_list.append("unicycle")
             elif vehicle_dynamics == "bicycle":
@@ -140,7 +142,8 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
                     obstacle_id=i,
                     position=np.array([x_obs, y_obs]),
                     velocity=velocity,
-                    angle=angle
+                    angle=angle,
+                    behavior="path_intersect"  # Use path_intersect behavior
                 )
                 obstacle_dynamics_list.append("bicycle")
             else:
@@ -148,7 +151,8 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
                 obstacle_config = create_point_mass_obstacle(
                     obstacle_id=i,
                     position=np.array([x_obs, y_obs]),
-                    velocity=velocity
+                    velocity=velocity,
+                    behavior="path_intersect"  # Use path_intersect behavior
                 )
                 obstacle_dynamics_list.append("point_mass")
             
