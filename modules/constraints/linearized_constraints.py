@@ -127,41 +127,70 @@ class LinearizedConstraints(BaseConstraint):
 					target_obstacle = copied_dynamic_obstacles[obs_id]
 					
 					# Get obstacle position
-					# For stage 0, use current obstacle position (step 0)
-					# For stage >= 1, use predicted position at step k-1 (C++: obstacle.prediction.modes[0][k-1].position)
-					if step == 0:
-						# Use current obstacle position
-						if len(target_obstacle.prediction.steps) > 0:
-							target_obstacle_pos = np.array([
-								target_obstacle.prediction.steps[0].position[0],
-								target_obstacle.prediction.steps[0].position[1]
-							])
-						else:
-							# Fallback to obstacle's initial position
-							target_obstacle_pos = np.array([
-								target_obstacle.position[0],
-								target_obstacle.position[1]
-							])
+					# For static obstacles (zero velocity), always use the initial position
+					# For dynamic obstacles, use predicted position at step k-1 (C++: obstacle.prediction.modes[0][k-1].position)
+					# Check if obstacle is static by checking if velocity is zero or if all prediction steps have the same position
+					is_static = False
+					if hasattr(target_obstacle, 'velocity') and target_obstacle.velocity is not None:
+						vel_norm = np.linalg.norm(target_obstacle.velocity)
+						is_static = vel_norm < 1e-3
+					elif len(target_obstacle.prediction.steps) > 1:
+						# Check if all prediction steps have the same position (static obstacle)
+						first_pos = target_obstacle.prediction.steps[0].position
+						all_same = all(np.linalg.norm(step.position - first_pos) < 1e-3 
+						                for step in target_obstacle.prediction.steps[1:])
+						is_static = all_same
+					
+					if is_static:
+						# For static obstacles, always use the initial position (obstacle doesn't move)
+						target_obstacle_pos = np.array([
+							target_obstacle.position[0],
+							target_obstacle.position[1]
+						])
+						LOG_DEBUG(f"  Static obstacle {obs_id} at step {step}: using fixed position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
 					else:
-						# Use predicted position at step k-1
-						if step - 1 < len(target_obstacle.prediction.steps):
-							target_obstacle_pos = np.array([
-								target_obstacle.prediction.steps[step - 1].position[0],
-								target_obstacle.prediction.steps[step - 1].position[1]
-							])
-						else:
-							# Fallback to last available prediction
+						# For dynamic obstacles, use predicted position at step k-1 (matching C++: obstacle.prediction.modes[0][k-1].position)
+						# For step 0, use current position (step 0)
+						# For step >= 1, use predicted position at step k-1
+						if step == 0:
+							# Use current obstacle position (step 0)
 							if len(target_obstacle.prediction.steps) > 0:
-								last_step = len(target_obstacle.prediction.steps) - 1
 								target_obstacle_pos = np.array([
-									target_obstacle.prediction.steps[last_step].position[0],
-									target_obstacle.prediction.steps[last_step].position[1]
+									target_obstacle.prediction.steps[0].position[0],
+									target_obstacle.prediction.steps[0].position[1]
 								])
+								LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: using prediction step 0 position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
 							else:
+								# Fallback to obstacle's initial position
 								target_obstacle_pos = np.array([
 									target_obstacle.position[0],
 									target_obstacle.position[1]
 								])
+								LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: no prediction steps, using initial position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+						else:
+							# Use predicted position at step k-1 (C++: obstacle.prediction.modes[0][k-1].position)
+							# This is the obstacle's predicted position at the time when the vehicle reaches step k
+							if step - 1 < len(target_obstacle.prediction.steps):
+								target_obstacle_pos = np.array([
+									target_obstacle.prediction.steps[step - 1].position[0],
+									target_obstacle.prediction.steps[step - 1].position[1]
+								])
+								LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: using prediction step {step-1} position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+							else:
+								# Fallback to last available prediction
+								if len(target_obstacle.prediction.steps) > 0:
+									last_step = len(target_obstacle.prediction.steps) - 1
+									target_obstacle_pos = np.array([
+										target_obstacle.prediction.steps[last_step].position[0],
+										target_obstacle.prediction.steps[last_step].position[1]
+									])
+									LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: prediction step {step-1} not available, using last step {last_step} position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
+								else:
+									target_obstacle_pos = np.array([
+										target_obstacle.position[0],
+										target_obstacle.position[1]
+									])
+									LOG_DEBUG(f"  Dynamic obstacle {obs_id} at step {step}: no prediction steps available, using initial position ({target_obstacle_pos[0]:.2f}, {target_obstacle_pos[1]:.2f})")
 
 					# Compute difference vector FROM ego TO obstacle (C++: diff_x = obstacle_pos(0) - pos(0))
 					diff_x = target_obstacle_pos[0] - ego_position[0]

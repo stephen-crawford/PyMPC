@@ -18,6 +18,8 @@ class ContouringConstraints(BaseConstraint):
 		# Store reference path data for dynamic constraint computation
 		self._reference_path = None
 		self._road_width_half = None
+		self._width_left_spline = None  # Spline for left width (distance from centerline to left boundary)
+		self._width_right_spline = None  # Spline for right width (distance from centerline to right boundary)
 		LOG_DEBUG("ContouringConstraints initialized")
 
 	def update(self, state, data):
@@ -47,9 +49,75 @@ class ContouringConstraints(BaseConstraint):
 		# Store reference path data for dynamic constraint computation (analogous to C++ onDataReceived)
 		if hasattr(data, 'reference_path') and data.reference_path is not None:
 			self._reference_path = data.reference_path
-			# Get road width (analogous to C++ width_left and width_right)
-			self._road_width_half = float(self.get_config_value("road.width", 7.0)) / 2.0
-			LOG_DEBUG("ContouringConstraints: Stored reference path data for dynamic constraint computation")
+			
+			# Compute width splines from actual road boundaries (analogous to C++ onDataReceived)
+			# C++ computes: widths_left[i] = distance(center, left), widths_right[i] = distance(center, right)
+			# Then creates splines: _width_left->set_points(s, widths_left), _width_right->set_points(s, widths_right)
+			self._width_left_spline = None
+			self._width_right_spline = None
+			
+			# Check if we have left and right boundaries
+			has_boundaries = False
+			left_bound = None
+			right_bound = None
+			
+			# Try to get boundaries from data object
+			if hasattr(data, 'left_bound') and data.left_bound is not None:
+				left_bound = data.left_bound
+				has_boundaries = True
+			if hasattr(data, 'right_bound') and data.right_bound is not None:
+				right_bound = data.right_bound
+				has_boundaries = True
+			
+			if has_boundaries and left_bound is not None and right_bound is not None:
+				# Compute widths as distances from centerline to boundaries
+				ref_path = data.reference_path
+				s_arr = np.asarray(ref_path.s, dtype=float)
+				
+				widths_left = []
+				widths_right = []
+				
+				# Get boundary points (as arrays or from Bound objects)
+				left_x = np.asarray(left_bound.x, dtype=float) if hasattr(left_bound, 'x') else None
+				left_y = np.asarray(left_bound.y, dtype=float) if hasattr(left_bound, 'y') else None
+				right_x = np.asarray(right_bound.x, dtype=float) if hasattr(right_bound, 'x') else None
+				right_y = np.asarray(right_bound.y, dtype=float) if hasattr(right_bound, 'y') else None
+				
+				# Also check for array-based boundaries
+				if left_x is None and hasattr(data, 'left_boundary_x') and hasattr(data, 'left_boundary_y'):
+					left_x = np.asarray(data.left_boundary_x, dtype=float)
+					left_y = np.asarray(data.left_boundary_y, dtype=float)
+				if right_x is None and hasattr(data, 'right_boundary_x') and hasattr(data, 'right_boundary_y'):
+					right_x = np.asarray(data.right_boundary_x, dtype=float)
+					right_y = np.asarray(data.right_boundary_y, dtype=float)
+				
+				if (left_x is not None and left_y is not None and 
+					right_x is not None and right_y is not None and
+					len(left_x) == len(ref_path.x) and len(right_x) == len(ref_path.x)):
+					# Compute distances from centerline to boundaries
+					for i in range(len(ref_path.x)):
+						center = np.array([float(ref_path.x[i]), float(ref_path.y[i])])
+						left_point = np.array([float(left_x[i]), float(left_y[i])])
+						right_point = np.array([float(right_x[i]), float(right_y[i])])
+						
+						width_left = np.linalg.norm(center - left_point)
+						width_right = np.linalg.norm(center - right_point)
+						
+						widths_left.append(width_left)
+						widths_right.append(width_right)
+					
+					# Create splines for widths (analogous to C++ _width_left->set_points(s, widths_left))
+					if len(widths_left) > 0 and len(widths_right) > 0:
+						self._width_left_spline = CubicSpline(s_arr, np.array(widths_left))
+						self._width_right_spline = CubicSpline(s_arr, np.array(widths_right))
+						LOG_DEBUG(f"ContouringConstraints: Created width splines from road boundaries ({len(widths_left)} points)")
+			
+			# Fallback to fixed width if boundaries not available
+			if self._width_left_spline is None or self._width_right_spline is None:
+				self._road_width_half = float(self.get_config_value("road.width", 7.0)) / 2.0
+				LOG_DEBUG(f"ContouringConstraints: Using fixed road width half={self._road_width_half:.3f}m (boundaries not available)")
+			else:
+				LOG_DEBUG("ContouringConstraints: Stored reference path data with width splines for dynamic constraint computation")
 		
 		return
 	
@@ -122,12 +190,23 @@ class ContouringConstraints(BaseConstraint):
 		horizon_factor = 1.0 + (stage_idx * 0.2)
 		adaptive_slack = self.slack * horizon_factor
 		
-		# Calculate effective vehicle width for constraint
+		# Calculate effective vehicle width for constraint (w_cur in C++ code)
 		w_cur_estimate = robot_radius
 		
 		# Compute width_right and width_left (analogous to C++ _width_right->operator()(cur_s) and _width_left->operator()(cur_s))
-		width_right = self._road_width_half
-		width_left = self._road_width_half
+		if self._width_right_spline is not None and self._width_left_spline is not None:
+			# Use width splines computed from actual road boundaries
+			try:
+				width_right = float(self._width_right_spline(cur_s))
+				width_left = float(self._width_left_spline(cur_s))
+			except Exception as e:
+				LOG_DEBUG(f"  Stage {stage_idx}: Failed to evaluate width splines at s={cur_s:.3f}: {e}, using fallback")
+				width_right = self._road_width_half if self._road_width_half is not None else 3.5
+				width_left = self._road_width_half if self._road_width_half is not None else 3.5
+		else:
+			# Fallback to fixed width if splines not available
+			width_right = self._road_width_half if self._road_width_half is not None else 3.5
+			width_left = self._road_width_half if self._road_width_half is not None else 3.5
 		
 		# Right boundary constraint: contour_error <= width_right - w_cur + slack
 		# A·p <= A·path_point + width_right - w_cur + slack

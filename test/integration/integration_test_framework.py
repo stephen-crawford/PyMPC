@@ -24,7 +24,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from dataclasses import dataclass
 # yaml not used
 import shutil
@@ -230,11 +230,15 @@ class IntegrationTestFramework:
         
     def create_obstacles(self, num_obstacles: int, dynamics_types: List[str],
                          obstacle_configs: Optional[List[ObstacleConfig]] = None,
-                         prediction_types: Optional[List[str]] = None) -> List[DynamicObstacle]:
+                         prediction_types: Optional[List[str]] = None,
+                         plot_bounds: Optional[Tuple[float, float, float, float]] = None) -> List[DynamicObstacle]:
         """Create obstacles with specified dynamics using obstacle manager.
         If obstacle_configs is provided, it will be used directly for deterministic setups.
+        
+        Args:
+            plot_bounds: Optional (x_min, x_max, y_min, y_max) for bouncing behavior
         """
-        obstacle_manager = ObstacleManager(self.config)
+        obstacle_manager = ObstacleManager(self.config, plot_bounds=plot_bounds)
         
         # If not provided, create random obstacle configurations
         if obstacle_configs is None:
@@ -312,9 +316,21 @@ class IntegrationTestFramework:
                 # Emphasize contour following when using contouring objective
                 if test_config.objective_module == "contouring":
                     self.config.setdefault("weights", {})
-                    # Boost contour weight; modest lag weight to reduce phase error
-                    self.config["weights"].setdefault("contour_weight", 5.0)
-                    self.config["weights"].setdefault("contouring_lag_weight", 0.2)
+                    # Check if we have obstacles - if so, allow more deviation and encourage progress
+                    has_obstacles = (test_config.num_obstacles > 0 or 
+                                    (hasattr(test_config, 'obstacle_configs') and 
+                                     test_config.obstacle_configs is not None and 
+                                     len(test_config.obstacle_configs) > 0))
+                    
+                    if has_obstacles:
+                        # For obstacle avoidance: lower contour weight to allow deviation,
+                        # significantly higher lag weight to strongly encourage progress and prevent vehicle from sitting still
+                        self.config["weights"].setdefault("contour_weight", 1.0)  # Lower to allow deviation
+                        self.config["weights"].setdefault("contouring_lag_weight", 5.0)  # Much higher to strongly encourage progress
+                    else:
+                        # Boost contour weight; modest lag weight to reduce phase error
+                        self.config["weights"].setdefault("contour_weight", 5.0)
+                        self.config["weights"].setdefault("contouring_lag_weight", 0.2)
                     # Prefer dynamic velocity handling if supported by module
                     self.config.setdefault("contouring", {})
                     self.config["contouring"].setdefault("dynamic_velocity_reference", True)
@@ -361,12 +377,28 @@ class IntegrationTestFramework:
             # Use planner's solver for define_parameters
             planner.solver.define_parameters()
 
+            # Calculate plot bounds early so we can pass them to obstacle manager for bouncing
+            # We'll recalculate them in create_animation, but this gives us an initial estimate
+            plot_bounds_estimate = None
+            if test_config.reference_path is not None:
+                if isinstance(test_config.reference_path, np.ndarray):
+                    ref_x = test_config.reference_path[:, 0]
+                    ref_y = test_config.reference_path[:, 1]
+                    margin = 10.0
+                    plot_bounds_estimate = (
+                        float(np.min(ref_x) - margin),
+                        float(np.max(ref_x) + margin),
+                        float(np.min(ref_y) - margin),
+                        float(np.max(ref_y) + margin)
+                    )
+            
             # Create obstacles
             obstacles = self.create_obstacles(
                 test_config.num_obstacles,
                 test_config.obstacle_dynamics,
                 test_config.obstacle_configs,
-                test_config.obstacle_prediction_types
+                test_config.obstacle_prediction_types,
+                plot_bounds=plot_bounds_estimate
             )
             
             # Initialize data
@@ -1131,6 +1163,21 @@ class IntegrationTestFramework:
                     except Exception:
                         pass
 
+                    # Update plot bounds for obstacle manager (for bouncing behavior)
+                    # Calculate bounds from reference path and current vehicle/obstacle positions
+                    if hasattr(self, 'obstacle_manager') and self.obstacle_manager is not None:
+                        # Calculate current plot bounds
+                        margin = 10.0
+                        if test_config.reference_path is not None and isinstance(test_config.reference_path, np.ndarray):
+                            ref_x = test_config.reference_path[:, 0]
+                            ref_y = test_config.reference_path[:, 1]
+                            x_min = float(np.min(ref_x) - margin)
+                            x_max = float(np.max(ref_x) + margin)
+                            y_min = float(np.min(ref_y) - margin)
+                            y_max = float(np.max(ref_y) + margin)
+                            # Update obstacle manager with current bounds
+                            self.obstacle_manager.plot_bounds = (x_min, x_max, y_min, y_max)
+                    
                     # Update obstacle states using obstacle manager
                     if hasattr(self, 'obstacle_manager'):
                         self.obstacle_manager.update_obstacle_states(test_config.timestep)
@@ -1368,34 +1415,28 @@ class IntegrationTestFramework:
             
         fig, ax = plt.subplots(figsize=(12, 8))
         
-        # Determine plot bounds from actual trajectory data
-        all_x = [state[0] for state in vehicle_states]
-        all_y = [state[1] for state in vehicle_states]
+        # Determine plot bounds with 10 meter margin on all sides of reference path bounds
+        # First, collect reference path bounds (centerline + left/right boundaries)
+        ref_path_x_list = []
+        ref_path_y_list = []
         
-        # Add obstacle positions for bounds calculation
-        for obs_states in obstacle_states:
-            if obs_states:
-                all_x.extend([obs[0] for obs in obs_states])
-                all_y.extend([obs[1] for obs in obs_states])
-        
-        # Add reference path points for bounds (from both test_config and data)
+        # Add reference path centerline points
         if test_config.reference_path is not None:
             if isinstance(test_config.reference_path, np.ndarray):
-                all_x.extend(test_config.reference_path[:, 0])
-                all_y.extend(test_config.reference_path[:, 1])
+                ref_path_x_list.extend(test_config.reference_path[:, 0].tolist())
+                ref_path_y_list.extend(test_config.reference_path[:, 1].tolist())
         
         # Add reference path from data object (more complete, includes spline points)
         try:
             if hasattr(self, 'last_data') and hasattr(self.last_data, 'reference_path') and self.last_data.reference_path is not None:
                 rp = self.last_data.reference_path
                 if hasattr(rp, 'x') and hasattr(rp, 'y'):
-                    all_x.extend(np.asarray(rp.x, dtype=float).tolist())
-                    all_y.extend(np.asarray(rp.y, dtype=float).tolist())
+                    ref_path_x_list.extend(np.asarray(rp.x, dtype=float).tolist())
+                    ref_path_y_list.extend(np.asarray(rp.y, dtype=float).tolist())
         except Exception:
             pass
         
-        # Add reference path boundary points (left and right bounds) to ensure they're fully visible
-        # This is CRITICAL to ensure the complete reference path bounds are shown in the plot
+        # Add reference path boundary points (left and right bounds) - these define the actual path bounds
         boundary_points_added = False
         try:
             if hasattr(self, 'last_data') and self.last_data is not None:
@@ -1418,8 +1459,8 @@ class IntegrationTestFramework:
                         boundary_points_added = True
                 
                 if left_x_list is not None and left_y_list is not None:
-                    all_x.extend(left_x_list.tolist())
-                    all_y.extend(left_y_list.tolist())
+                    ref_path_x_list.extend(left_x_list.tolist())
+                    ref_path_y_list.extend(left_y_list.tolist())
                 
                 # Add right boundary points (check both array and Bound object formats)
                 right_x_list = None
@@ -1440,32 +1481,58 @@ class IntegrationTestFramework:
                         boundary_points_added = True
                 
                 if right_x_list is not None and right_y_list is not None:
-                    all_x.extend(right_x_list.tolist())
-                    all_y.extend(right_y_list.tolist())
+                    ref_path_x_list.extend(right_x_list.tolist())
+                    ref_path_y_list.extend(right_y_list.tolist())
                 
                 if boundary_points_added:
                     logging.getLogger("integration_test").debug(f"Added {len(left_x_list) if left_x_list is not None else 0} left and {len(right_x_list) if right_x_list is not None else 0} right boundary points to plot bounds")
         except Exception as e:
             logging.getLogger("integration_test").warning(f"Could not add boundary points to bounds: {e}")
         
-        # Ensure we have valid bounds (handle empty case)
-        if not all_x or not all_y:
-            all_x = [0.0]
-            all_y = [0.0]
-        
-        # Set up plot with dynamic bounds and adequate margin
-        # Use percentage-based margin (10% of range) plus fixed margin for better scaling
-        x_range = max(all_x) - min(all_x) if len(all_x) > 1 else 20.0
-        y_range = max(all_y) - min(all_y) if len(all_y) > 1 else 20.0
-        margin_x = max(2.0, x_range * 0.1)  # At least 2m or 10% of range
-        margin_y = max(2.0, y_range * 0.1)  # At least 2m or 10% of range
-        x_min, x_max = min(all_x) - margin_x, max(all_x) + margin_x
-        y_min, y_max = min(all_y) - margin_y, max(all_y) + margin_y
+        # Calculate bounds from reference path bounds (centerline + left/right boundaries)
+        # Add 10 meter margin on all sides
+        margin = 10.0
+        if ref_path_x_list and ref_path_y_list:
+            # Use reference path bounds as base
+            ref_path_x_min = min(ref_path_x_list)
+            ref_path_x_max = max(ref_path_x_list)
+            ref_path_y_min = min(ref_path_y_list)
+            ref_path_y_max = max(ref_path_y_list)
+            
+            x_min = ref_path_x_min - margin
+            x_max = ref_path_x_max + margin
+            y_min = ref_path_y_min - margin
+            y_max = ref_path_y_max + margin
+        else:
+            # Fallback: use all trajectory data if no reference path bounds available
+            all_x = [state[0] for state in vehicle_states]
+            all_y = [state[1] for state in vehicle_states]
+            
+            # Add obstacle positions for bounds calculation
+            for obs_states in obstacle_states:
+                if obs_states:
+                    all_x.extend([obs[0] for obs in obs_states])
+                    all_y.extend([obs[1] for obs in obs_states])
+            
+            if not all_x or not all_y:
+                all_x = [0.0]
+                all_y = [0.0]
+            
+            x_range = max(all_x) - min(all_x) if len(all_x) > 1 else 20.0
+            y_range = max(all_y) - min(all_y) if len(all_y) > 1 else 20.0
+            margin_x = max(margin, x_range * 0.1)  # At least 10m or 10% of range
+            margin_y = max(margin, y_range * 0.1)  # At least 10m or 10% of range
+            x_min, x_max = min(all_x) - margin_x, max(all_x) + margin_x
+            y_min, y_max = min(all_y) - margin_y, max(all_y) + margin_y
         
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(y_min, y_max)
         ax.set_xlabel('X (m)')
         ax.set_ylabel('Y (m)')
+        
+        # Update obstacle manager with actual plot bounds for bouncing behavior
+        if hasattr(self, 'obstacle_manager') and self.obstacle_manager is not None:
+            self.obstacle_manager.plot_bounds = (x_min, x_max, y_min, y_max)
         
         # Add goal reached info to title
         title = f'Integration Test: {test_config.test_name}'

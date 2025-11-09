@@ -23,13 +23,21 @@ class ObstacleConfig:
 class ObstacleManager:
     """Manages obstacles for integration tests with state integration."""
     
-    def __init__(self, config: Dict[str, Any]):
-        """Initialize obstacle manager."""
+    def __init__(self, config: Dict[str, Any], plot_bounds: Optional[Tuple[float, float, float, float]] = None):
+        """Initialize obstacle manager.
+        
+        Args:
+            config: Configuration dictionary
+            plot_bounds: Optional (x_min, x_max, y_min, y_max) for bouncing behavior
+        """
         self.config = config
         self.obstacles: List[DynamicObstacle] = []
         self.obstacle_states: List[List[np.ndarray]] = []
         self.obstacle_dynamics: List[DynamicsModel] = []
         self.logger = logging.getLogger("obstacle_manager")
+        
+        # Plot bounds for bouncing behavior (x_min, x_max, y_min, y_max)
+        self.plot_bounds = plot_bounds
         
         # Default uncertainty parameters
         self.default_uncertainty = {
@@ -38,6 +46,10 @@ class ObstacleManager:
             "angle_std": 0.1,
             "uncertainty_growth": 0.02
         }
+        
+        # Track heading change timing for each obstacle (for arbitrary heading changes)
+        self.obstacle_heading_change_times = []  # Time steps until next heading change
+        self.obstacle_heading_change_periods = []  # Period between heading changes
         
     def create_obstacle(self, obstacle_config: 'ObstacleConfig') -> DynamicObstacle:
         """Create a new obstacle with specified dynamics."""
@@ -62,6 +74,12 @@ class ObstacleManager:
         # Initialize state
         initial_state = self._create_initial_state(obstacle_config, dynamics_model)
         self.obstacle_states.append([initial_state.copy()])
+        
+        # Initialize heading change tracking for this obstacle
+        import random
+        heading_change_period = random.randint(5, 15)
+        self.obstacle_heading_change_times.append(heading_change_period)
+        self.obstacle_heading_change_periods.append(heading_change_period)
         
         # Generate prediction steps
         self._generate_prediction_steps(obstacle, dynamics_model, obstacle_config)
@@ -134,7 +152,9 @@ class ObstacleManager:
             if obstacle_config.control_inputs is not None:
                 control_input = obstacle_config.control_inputs[step] if step < len(obstacle_config.control_inputs) else np.zeros(dynamics_model.nu)
             else:
-                control_input = self._generate_control_input(dynamics_model, current_state, step)
+                # Get obstacle index (last obstacle in list)
+                obstacle_idx = len(self.obstacles) - 1 if len(self.obstacles) > 0 else 0
+                control_input = self._generate_control_input(dynamics_model, current_state, step, obstacle_idx)
             
             # Integrate state
             next_state = self._integrate_state(dynamics_model, current_state, control_input, timestep)
@@ -170,14 +190,57 @@ class ObstacleManager:
             
             obstacle.prediction.steps.append(prediction_step)
             
-    def _generate_control_input(self, dynamics_model: DynamicsModel, current_state: np.ndarray, step: int) -> np.ndarray:
-        """Generate control input for obstacle."""
-        if dynamics_model.nu == 2:  # Unicycle: [a, w]
-            # Simple control: maintain speed, slight turning
-            return np.array([0.0, 0.1 * np.sin(step * 0.1)])
-        elif dynamics_model.nu == 3:  # Bicycle: [a, w, slack]
-            return np.array([0.0, 0.1 * np.sin(step * 0.1), 0.0])
+    def _generate_control_input(self, dynamics_model: DynamicsModel, current_state: np.ndarray, step: int, obstacle_idx: int = None) -> np.ndarray:
+        """Generate control input for obstacle with arbitrary heading changes.
+        
+        Allows obstacles to change heading arbitrarily by generating random angular velocities.
+        
+        Args:
+            dynamics_model: Dynamics model for the obstacle
+            current_state: Current state vector
+            step: Current time step
+            obstacle_idx: Optional obstacle index for consistent period per obstacle
+        """
+        import random
+        
+        # Periodically apply stronger heading changes
+        # Use a fixed period per obstacle for consistency
+        if obstacle_idx is not None and obstacle_idx < len(self.obstacle_heading_change_periods):
+            period = self.obstacle_heading_change_periods[obstacle_idx]
+            apply_strong_turn = (step % period == 0) if step > 0 and period > 0 else False
         else:
+            # Fallback: random period
+            apply_strong_turn = (step % random.randint(5, 15) == 0) if step > 0 else False
+        
+        # Generate more varied angular velocities to prevent all obstacles moving in same direction
+        if dynamics_model.nu == 2:  # Unicycle: [a, w]
+            if apply_strong_turn:
+                # Strong turn for noticeable direction change
+                angular_vel = random.uniform(-1.5, 1.5)  # Stronger turn rate
+            else:
+                # Random angular velocity for arbitrary heading changes
+                # Use wider range to allow more direction changes
+                angular_vel = random.uniform(-0.5, 0.5)  # Moderate turn rate
+            return np.array([0.0, angular_vel])
+        elif dynamics_model.nu == 3:  # Bicycle: [a, w, slack]
+            if apply_strong_turn:
+                angular_vel = random.uniform(-1.5, 1.5)
+            else:
+                angular_vel = random.uniform(-0.5, 0.5)
+            return np.array([0.0, angular_vel, 0.0])
+        else:
+            # For other models, try to find angular velocity input
+            if hasattr(dynamics_model, 'inputs') and isinstance(dynamics_model.inputs, list):
+                control = np.zeros(dynamics_model.nu)
+                # Find angular velocity input index
+                for i, name in enumerate(dynamics_model.inputs):
+                    if 'w' in name.lower() or 'omega' in name.lower() or 'angular' in name.lower():
+                        if apply_strong_turn:
+                            control[i] = random.uniform(-1.5, 1.5)
+                        else:
+                            control[i] = random.uniform(-0.5, 0.5)
+                        break
+                return control
             return np.zeros(dynamics_model.nu)
             
     def _integrate_state(self, dynamics_model: DynamicsModel, current_state: np.ndarray, 
@@ -238,16 +301,119 @@ class ObstacleManager:
             return current_state.copy()
             
     def update_obstacle_states(self, timestep: float):
-        """Update all obstacle states for one timestep."""
+        """Update all obstacle states for one timestep with bouncing and arbitrary heading changes."""
+        # Debug: log plot bounds status
+        if self.plot_bounds is None:
+            self.logger.debug("Plot bounds not set - bouncing disabled")
+        else:
+            self.logger.debug(f"Plot bounds: x=[{self.plot_bounds[0]:.2f}, {self.plot_bounds[1]:.2f}], y=[{self.plot_bounds[2]:.2f}, {self.plot_bounds[3]:.2f}]")
+        
         for i, (obstacle, dynamics_model) in enumerate(zip(self.obstacles, self.obstacle_dynamics)):
             if i < len(self.obstacle_states) and len(self.obstacle_states[i]) > 0:
                 current_state = self.obstacle_states[i][-1]
                 
-                # Generate control input
-                control_input = self._generate_control_input(dynamics_model, current_state, len(self.obstacle_states[i]))
+                # Generate control input (with arbitrary heading changes)
+                control_input = self._generate_control_input(dynamics_model, current_state, len(self.obstacle_states[i]), i)
                 
                 # Integrate state
                 next_state = self._integrate_state(dynamics_model, current_state, control_input, timestep)
+                
+                # Apply bouncing behavior if plot bounds are set
+                if self.plot_bounds is not None:
+                    x_min, x_max, y_min, y_max = self.plot_bounds
+                    x, y = next_state[0], next_state[1]
+                    bounced = False
+                    
+                    # Check x bounds and bounce
+                    if x < x_min:
+                        next_state[0] = x_min
+                        # Reverse x velocity component
+                        if dynamics_model.__class__.__name__ == "PointMassModel" and len(next_state) >= 4:
+                            next_state[2] = abs(next_state[2])  # Ensure positive vx (moving right)
+                        elif len(next_state) >= 3:
+                            # For unicycle/bicycle: reflect heading about vertical axis
+                            # If heading is pointing left, reflect it to point right
+                            psi = next_state[2]
+                            # Normalize psi to [0, 2*pi)
+                            psi = psi % (2 * np.pi)
+                            # Reflect: if moving left (cos(psi) < 0), flip to right
+                            if np.cos(psi) < 0:  # Moving left
+                                next_state[2] = np.pi - psi  # Reflect about vertical
+                            else:
+                                # Already moving right, but hit left boundary - reverse
+                                next_state[2] = (np.pi - psi) % (2 * np.pi)
+                        bounced = True
+                        self.logger.info(f"Obstacle {i} bounced off left boundary (x={x_min:.2f}), new heading={np.degrees(next_state[2]):.1f}°")
+                    elif x > x_max:
+                        next_state[0] = x_max
+                        # Reverse x velocity component
+                        if dynamics_model.__class__.__name__ == "PointMassModel" and len(next_state) >= 4:
+                            next_state[2] = -abs(next_state[2])  # Ensure negative vx (moving left)
+                        elif len(next_state) >= 3:
+                            # For unicycle/bicycle: reflect heading about vertical axis
+                            psi = next_state[2]
+                            # Normalize psi to [0, 2*pi)
+                            psi = psi % (2 * np.pi)
+                            # Reflect: if moving right (cos(psi) > 0), flip to left
+                            if np.cos(psi) > 0:  # Moving right
+                                next_state[2] = np.pi - psi  # Reflect about vertical
+                            else:
+                                # Already moving left, but hit right boundary - reverse
+                                next_state[2] = (np.pi - psi) % (2 * np.pi)
+                        bounced = True
+                        self.logger.info(f"Obstacle {i} bounced off right boundary (x={x_max:.2f}), new heading={np.degrees(next_state[2]):.1f}°")
+                    
+                    # Check y bounds and bounce
+                    if y < y_min:
+                        next_state[1] = y_min
+                        # Reverse y velocity component
+                        if dynamics_model.__class__.__name__ == "PointMassModel" and len(next_state) >= 4:
+                            next_state[3] = abs(next_state[3])  # Ensure positive vy (moving up)
+                        elif len(next_state) >= 3:
+                            # For unicycle/bicycle: reflect heading about horizontal axis
+                            psi = next_state[2]
+                            # Normalize psi to [0, 2*pi)
+                            psi = psi % (2 * np.pi)
+                            # Reflect: if moving down (sin(psi) < 0), flip to up
+                            if np.sin(psi) < 0:  # Moving down
+                                next_state[2] = -psi % (2 * np.pi)  # Reflect about horizontal
+                            else:
+                                # Already moving up, but hit bottom boundary - reverse
+                                next_state[2] = (-psi) % (2 * np.pi)
+                        bounced = True
+                        self.logger.info(f"Obstacle {i} bounced off bottom boundary (y={y_min:.2f}), new heading={np.degrees(next_state[2]):.1f}°")
+                    elif y > y_max:
+                        next_state[1] = y_max
+                        # Reverse y velocity component
+                        if dynamics_model.__class__.__name__ == "PointMassModel" and len(next_state) >= 4:
+                            next_state[3] = -abs(next_state[3])  # Ensure negative vy (moving down)
+                        elif len(next_state) >= 3:
+                            # For unicycle/bicycle: reflect heading about horizontal axis
+                            psi = next_state[2]
+                            # Normalize psi to [0, 2*pi)
+                            psi = psi % (2 * np.pi)
+                            # Reflect: if moving up (sin(psi) > 0), flip to down
+                            if np.sin(psi) > 0:  # Moving up
+                                next_state[2] = (-psi) % (2 * np.pi)  # Reflect about horizontal
+                            else:
+                                # Already moving down, but hit top boundary - reverse
+                                next_state[2] = (-psi) % (2 * np.pi)
+                        bounced = True
+                        self.logger.info(f"Obstacle {i} bounced off top boundary (y={y_max:.2f}), new heading={np.degrees(next_state[2]):.1f}°")
+                
+                # Apply arbitrary heading changes periodically (less frequently to avoid overriding bouncing)
+                if i < len(self.obstacle_heading_change_times):
+                    self.obstacle_heading_change_times[i] -= 1
+                    if self.obstacle_heading_change_times[i] <= 0 and not bounced:
+                        # Time for a heading change (but don't override bouncing)
+                        import random
+                        # Random new heading (0 to 2*pi)
+                        if len(next_state) >= 3:
+                            new_heading = random.uniform(0, 2 * np.pi)
+                            next_state[2] = new_heading
+                            self.logger.info(f"Obstacle {i} changed heading to {np.degrees(new_heading):.1f}°")
+                        # Reset timer with new random period
+                        self.obstacle_heading_change_times[i] = random.randint(10, 20)  # Longer period
                 
                 # Store new state
                 self.obstacle_states[i].append(next_state.copy())
