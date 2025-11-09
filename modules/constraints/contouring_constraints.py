@@ -14,11 +14,18 @@ class ContouringConstraints(BaseConstraint):
 		# use robot discs if provided in Data
 		self.num_discs = int(self.get_config_value("num_discs", 1))
 		# Get slack parameter (adaptive slack increases with horizon)
-		# Increased default slack to ensure feasibility - can be tuned down later
 		self.slack = float(self.get_config_value("contouring.slack", 1.0))
+		# Store reference path data for dynamic constraint computation
+		self._reference_path = None
+		self._road_width_half = None
 		LOG_DEBUG("ContouringConstraints initialized")
 
 	def update(self, state, data):
+		"""Prepare reference path data for dynamic constraint computation.
+		
+		Analogous to C++ onDataReceived: stores reference path and width information.
+		Constraints are computed dynamically in calculate_constraints based on predicted spline values.
+		"""
 		# REQUIREMENT CHECK: Ensure reference path starts at current vehicle position
 		if hasattr(data, 'reference_path') and data.reference_path is not None and state is not None:
 			try:
@@ -37,86 +44,37 @@ class ContouringConstraints(BaseConstraint):
 			except Exception as e:
 				LOG_DEBUG(f"Could not verify reference path start position: {e}")
 		
-		# Create road constraints if they don't exist
-		# ContouringObjective won't create them if ContouringConstraints exists, so we must create them here
+		# Store reference path data for dynamic constraint computation (analogous to C++ onDataReceived)
 		if hasattr(data, 'reference_path') and data.reference_path is not None:
-			needs_constraints = False
-			if not hasattr(data, 'static_obstacles') or data.static_obstacles is None:
-				needs_constraints = True
-			else:
-				has_halfspaces = False
-				for obs in data.static_obstacles:
-					if obs is not None and hasattr(obs, 'halfspaces') and len(obs.halfspaces) > 0:
-						has_halfspaces = True
-						break
-				if not has_halfspaces:
-					needs_constraints = True
-			
-			if needs_constraints:
-				LOG_INFO("ContouringConstraints: Creating road constraints from reference path")
-				self._create_road_constraints_from_centerline(data, state)
+			self._reference_path = data.reference_path
+			# Get road width (analogous to C++ width_left and width_right)
+			self._road_width_half = float(self.get_config_value("road.width", 7.0)) / 2.0
+			LOG_DEBUG("ContouringConstraints: Stored reference path data for dynamic constraint computation")
 		
 		return
 	
-	def _create_road_constraints_from_centerline(self, data, state):
-		"""Create road constraints based on reference path centerline and width.
+	def _compute_constraint_for_s(self, cur_s, stage_idx, state=None):
+		"""Compute road boundary constraints for a given arc length s.
 		
-		Uses contour error formulation similar to reference implementation:
-		- contour_error = path_dy_norm * (x - path_x) - path_dx_norm * (y - path_y)
-		- Right constraint: contour_error <= width_right - w_cur + slack
-		- Left constraint: -contour_error <= width_left - w_cur + slack
-		
-		Converted to halfspace form: A·p <= b where:
-		- A = [path_dy_norm, -path_dx_norm] (normal pointing left)
-		- b = A·path_point + width_right - w_cur + slack (for right boundary)
+		Analogous to C++ setParameters: computes constraints based on the predicted spline value.
+		This is called dynamically in calculate_constraints for each stage.
 		"""
-		from planning.types import StaticObstacle
+		if self._reference_path is None:
+			return []
 		
-		# Get horizon using base class method
-		horizon_val = self.get_horizon(data, default=10)
-		
-		LOG_DEBUG(f"ContouringConstraints: Creating {horizon_val + 1} road constraint obstacles")
-		data.set("static_obstacles", [None] * (horizon_val + 1))
-		
-		# Get road width
-		road_width_half = float(self.get_config_value("road.width", 7.0)) / 2.0
-		
-		# Get reference path
-		ref_path = data.reference_path
+		ref_path = self._reference_path
 		s_arr = np.asarray(ref_path.s, dtype=float)
 		if s_arr.size < 2:
-			LOG_WARN("ContouringConstraints: Reference path has insufficient points")
-			return
+			return []
 		
-		# Get robot parameters
-		robot_radius = 0.5
-		vehicle_width = 2.0  # Default vehicle width
-		lr = 1.0  # Default rear axle distance
-		if hasattr(data, 'robot_area') and data.robot_area and len(data.robot_area) > 0:
-			robot_radius = float(data.robot_area[0].radius)
-		# Try to get vehicle width from data if available
-		if hasattr(data, 'vehicle_width') and data.vehicle_width is not None:
-			try:
-				vehicle_width = float(data.vehicle_width)
-			except (TypeError, ValueError):
-				pass
-		if hasattr(data, 'lr') and data.lr is not None:
-			try:
-				lr = float(data.lr)
-			except (TypeError, ValueError):
-				pass
-		
-		# Determine starting arc length
 		s0 = float(s_arr[0])
 		s_end = float(s_arr[-1])
-		step_s = (s_end - s0) / float(max(1, horizon_val))
 		
-		# Create constraints for each stage
-		for k in range(horizon_val + 1):
-			data.static_obstacles[k] = StaticObstacle()
-			cur_s = min(s_end, s0 + k * step_s)
-			
-			# Get path point and derivatives
+		# Clamp s to valid range
+		cur_s = max(s0, min(s_end, float(cur_s)))
+		
+		# Get path point and derivatives (analogous to C++ module_data.path->getPoint(cur_s) and getOrthogonal(cur_s))
+		try:
 			path_point_x = ref_path.x_spline(cur_s)
 			path_point_y = ref_path.y_spline(cur_s)
 			path_point = np.array([float(path_point_x), float(path_point_y)])
@@ -127,118 +85,168 @@ class ContouringConstraints(BaseConstraint):
 			
 			norm = safe_norm(path_dx, path_dy)
 			if norm < 1e-6:
-				LOG_DEBUG(f"  Stage {k}: Skipping (norm too small: {norm})")
-				continue
+				return []
 			path_dx_norm = path_dx / norm
 			path_dy_norm = path_dy / norm
-			
-			# Normal vector pointing left: A = [-path_dy_norm, path_dx_norm]
-			# Contour error = path_dy_norm * (x - path_x) - path_dx_norm * (y - path_y)
-			# = [path_dy_norm, -path_dx_norm] · [x - path_x, y - path_y]
-			# So A = [path_dy_norm, -path_dx_norm] points LEFT (positive contour_error = left of path)
-			A = np.array([path_dy_norm, -path_dx_norm])  # Normal pointing left
-			
-			# Adaptive slack increases with horizon (like reference implementation)
-			# Use larger slack to ensure feasibility - the reference uses this to handle uncertainty
-			horizon_factor = 1.0 + (k * 0.2)  # Looser constraints further ahead (increased from 0.1)
-			adaptive_slack = self.slack * horizon_factor
-			
-			# For stage 0, ensure constraints accommodate current vehicle position
-			stage_road_width_half = road_width_half
-			if k == 0 and state is not None:
-				try:
-					current_pos = state.get_position()
-					if current_pos is not None and len(current_pos) >= 2:
-						vehicle_pos = np.array([float(current_pos[0]), float(current_pos[1])])
-						dist_to_path = np.linalg.norm(vehicle_pos - path_point)
-						
-						# Calculate effective vehicle width (worst case: perpendicular to path)
-						# w_cur_max = vehicle_width/2 + lr (when delta_psi = 90 degrees)
-						w_cur_max = vehicle_width / 2.0 + lr
-						road_edge_dist = stage_road_width_half - w_cur_max
-						
-						if dist_to_path > road_edge_dist:
-							required_edge_dist = dist_to_path + w_cur_max + 1.0  # 1.0m margin
-							required_width_half = required_edge_dist
-							LOG_INFO(f"  Stage 0: Vehicle at ({current_pos[0]:.2f}, {current_pos[1]:.2f}) is {dist_to_path:.2f}m from path")
-							LOG_INFO(f"  Stage 0: Expanding road width from {stage_road_width_half * 2:.2f}m to {required_width_half * 2:.2f}m")
-							stage_road_width_half = required_width_half
-				except Exception as e:
-					LOG_DEBUG(f"  Could not adjust road width for stage 0: {e}")
-			
-			# Calculate effective vehicle width for constraint
-			# In the reference: w_cur = vehicle_width/2 * cos(delta_psi) + lr * sin(|delta_psi|)
-			# For constraint creation, use a conservative estimate that accounts for vehicle orientation
-			# Use robot_radius as a simpler approximation (accounts for disc size)
-			# The w_cur term in reference accounts for vehicle width when oriented, but we use disc_offset in solver
-			# So we just need to account for the disc radius here
-			w_cur_estimate = robot_radius  # Use robot radius as conservative estimate
-			
-			# Reference implementation constraints (from GitHub):
-			# c1 = contour_error + w_cur - width_right - slack <= 0  (right boundary - limits leftward deviation)
-			# c2 = -contour_error + w_cur - width_left - slack <= 0  (left boundary - limits rightward deviation)
-			# Where contour_error = A·(p - path_point) with A = [path_dy_norm, -path_dx_norm] pointing LEFT
-			# 
-			# Converting to halfspace form A·p <= b:
-			# Right boundary (c1): contour_error <= width_right - w_cur + slack
-			#                     A·(p - path_point) <= width_right - w_cur + slack
-			#                     A·p <= A·path_point + width_right - w_cur + slack
-			width_right = stage_road_width_half
-			b_right = np.dot(A, path_point) + width_right - w_cur_estimate + adaptive_slack
-			data.static_obstacles[k].add_halfspace(A, b_right)
-			
-			# Left boundary (c2): -contour_error <= width_left - w_cur + slack
-			#                    -A·(p - path_point) <= width_left - w_cur + slack
-			#                    A·(p - path_point) >= -width_left + w_cur - slack
-			#                    A·p >= A·path_point - width_left + w_cur - slack
-			#                    -A·p <= -A·path_point + width_left - w_cur + slack
-			width_left = stage_road_width_half
-			b_left = np.dot(-A, path_point) + width_left - w_cur_estimate + adaptive_slack
-			data.static_obstacles[k].add_halfspace(-A, b_left)
-			
-			if k <= 2:
-				LOG_DEBUG(f"  Stage {k}: Created 2 halfspaces, path_point=({path_point[0]:.2f}, {path_point[1]:.2f}), "
-				         f"width_half={stage_road_width_half:.2f}, w_cur={w_cur_estimate:.2f}, slack={adaptive_slack:.3f}")
+		except Exception as e:
+			LOG_DEBUG(f"  Stage {stage_idx}: Failed to evaluate path at s={cur_s:.3f}: {e}")
+			return []
 		
-		LOG_INFO(f"ContouringConstraints: Created road constraints for {horizon_val + 1} stages")
-
-	def _iter_halfspaces(self, data, stage_idx):
-		"""Yield (A, b) pairs for halfspaces at given stage from Data."""
-		if not hasattr(data, "static_obstacles") or data.static_obstacles is None:
-			return
-		if stage_idx >= len(data.static_obstacles):
-			return
-		obstacle = data.static_obstacles[stage_idx]
-		if obstacle is None or not hasattr(obstacle, "halfspaces"):
-			return
-		for hs in obstacle.halfspaces:
-			# Expect hs.A as [a1, a2] and hs.b as scalar defining A·p <= b
-			yield np.array(hs.A).flatten(), float(hs.b)
+		# Normal vector pointing left: A = [path_dy_norm, -path_dx_norm]
+		# Contour error = path_dy_norm * (x - path_x) - path_dx_norm * (y - path_y)
+		# = [path_dy_norm, -path_dx_norm] · [x - path_x, y - path_y]
+		# So A = [path_dy_norm, -path_dx_norm] points LEFT (positive contour_error = left of path)
+		A = np.array([path_dy_norm, -path_dx_norm])  # Normal pointing left
+		
+		# Get robot parameters
+		robot_radius = 0.5
+		vehicle_width = 2.0
+		lr = 1.0
+		if hasattr(self, 'solver') and self.solver is not None:
+			if hasattr(self.solver, 'data') and self.solver.data is not None:
+				data = self.solver.data
+				if hasattr(data, 'robot_area') and data.robot_area and len(data.robot_area) > 0:
+					robot_radius = float(data.robot_area[0].radius)
+				if hasattr(data, 'vehicle_width') and data.vehicle_width is not None:
+					try:
+						vehicle_width = float(data.vehicle_width)
+					except (TypeError, ValueError):
+						pass
+				if hasattr(data, 'lr') and data.lr is not None:
+					try:
+						lr = float(data.lr)
+					except (TypeError, ValueError):
+						pass
+		
+		# Adaptive slack increases with horizon (like reference implementation)
+		horizon_factor = 1.0 + (stage_idx * 0.2)
+		adaptive_slack = self.slack * horizon_factor
+		
+		# Calculate effective vehicle width for constraint
+		w_cur_estimate = robot_radius
+		
+		# Compute width_right and width_left (analogous to C++ _width_right->operator()(cur_s) and _width_left->operator()(cur_s))
+		width_right = self._road_width_half
+		width_left = self._road_width_half
+		
+		# Right boundary constraint: contour_error <= width_right - w_cur + slack
+		# A·p <= A·path_point + width_right - w_cur + slack
+		b_right = np.dot(A, path_point) + width_right - w_cur_estimate + adaptive_slack
+		
+		# Left boundary constraint: -contour_error <= width_left - w_cur + slack
+		# -A·p <= -A·path_point + width_left - w_cur + slack
+		b_left = np.dot(-A, path_point) + width_left - w_cur_estimate + adaptive_slack
+		
+		# Return constraints as (A, b, is_left) tuples
+		constraints = [
+			(A, b_right, False),  # Right boundary (is_left=False)
+			(-A, b_left, True),   # Left boundary (is_left=True)
+		]
+		
+		return constraints
 
 	def calculate_constraints(self, state, data, stage_idx):
-		"""Return linear halfspace constraints A·(p_disc) <= b as dicts {a1,a2,b,disc_offset}.
-		Solver reconstructs expr = a1*x_disc + a2*y_disc - (b - disc_offset) and applies ub=0.
+		"""Return linear halfspace constraints computed dynamically based on predicted spline value.
+		
+		Analogous to C++ setParameters + solver constraint evaluation:
+		- Gets predicted spline value from state (may be symbolic)
+		- Computes constraints for that spline value
+		- Returns constraints for all discs
 		"""
 		LOG_DEBUG(f"ContouringConstraints.calculate_constraints: stage_idx={stage_idx}")
+		
+		if self._reference_path is None:
+			LOG_DEBUG("  No reference path stored, skipping constraints")
+			return []
+		
+		# Get predicted spline value for this stage (analogous to C++ _solver->getOutput(k, "spline"))
+		spline_val = None
+		if state is not None and hasattr(state, 'get') and state.has('spline'):
+			try:
+				spline_val = state.get('spline')
+			except Exception as e:
+				LOG_DEBUG(f"  Could not get spline from state: {e}")
+		
+		# If spline is symbolic, we need to handle it differently
+		# For now, try to get a numeric estimate from warmstart or current state
+		cur_s = None
+		is_symbolic = False
+		
+		if spline_val is not None:
+			try:
+				import casadi as cd
+				if isinstance(spline_val, (cd.MX, cd.SX)):
+					# Symbolic spline - try to get numeric estimate from warmstart
+					is_symbolic = True
+					if hasattr(self, 'solver') and self.solver is not None:
+						if hasattr(self.solver, 'warmstart') and self.solver.warmstart is not None:
+							try:
+								# Try to get warmstart value for spline at this stage
+								warmstart = self.solver.warmstart
+								if hasattr(warmstart, 'get') and warmstart.has('spline'):
+									cur_s = float(warmstart.get('spline'))
+								elif isinstance(warmstart, dict) and 'spline' in warmstart:
+									if isinstance(warmstart['spline'], (list, np.ndarray)):
+										if stage_idx < len(warmstart['spline']):
+											cur_s = float(warmstart['spline'][stage_idx])
+									else:
+										cur_s = float(warmstart['spline'])
+							except Exception as e:
+								LOG_DEBUG(f"  Could not get warmstart spline: {e}")
+					
+					# Fallback: estimate from current state if available
+					if cur_s is None and stage_idx == 0:
+						if hasattr(self, 'solver') and self.solver is not None:
+							if hasattr(self.solver, 'data') and self.solver.data is not None:
+								data = self.solver.data
+								if hasattr(data, 'state') and data.state is not None:
+									try:
+										if data.state.has('spline'):
+											cur_s = float(data.state.get('spline'))
+									except Exception:
+										pass
+					
+					if cur_s is None:
+						# Last resort: use path start
+						s_arr = np.asarray(self._reference_path.s, dtype=float)
+						if s_arr.size > 0:
+							cur_s = float(s_arr[0])
+							LOG_DEBUG(f"  Using path start s0={cur_s:.3f} as fallback for symbolic spline")
+				else:
+					# Numeric spline value
+					cur_s = float(spline_val)
+			except Exception as e:
+				LOG_DEBUG(f"  Error processing spline value: {e}")
+		
+		# Fallback if we still don't have cur_s
+		if cur_s is None:
+			s_arr = np.asarray(self._reference_path.s, dtype=float)
+			if s_arr.size > 0:
+				cur_s = float(s_arr[0])
+				LOG_DEBUG(f"  Using path start s0={cur_s:.3f} as final fallback")
+			else:
+				LOG_WARN(f"  Stage {stage_idx}: Cannot determine spline value, skipping constraints")
+				return []
+		
+		# Compute constraints for this spline value (analogous to C++ evaluating width_left/width_right at cur_s)
+		constraint_tuples = self._compute_constraint_for_s(cur_s, stage_idx, state)
+		
+		if not constraint_tuples:
+			return []
+		
+		# Convert to structured constraint format for solver
 		constraints = []
-		has_static_obs = hasattr(data, "static_obstacles") and data.static_obstacles is not None
-		obs_len = len(data.static_obstacles) if has_static_obs else 0
-		LOG_DEBUG(f"  has_static_obstacles={has_static_obs}, len={obs_len}")
-		
-		if stage_idx <= 2:
-			LOG_INFO(f"ContouringConstraints stage {stage_idx}: checking static_obstacles")
-		
 		halfspace_count = 0
-		for A, b in self._iter_halfspaces(data, stage_idx) or []:
+		
+		for A, b, is_left in constraint_tuples:
 			halfspace_count += 1
+			# Apply constraint for each disc (solver handles disc_offset)
 			for disc_id in range(self.num_discs):
 				disc_offset = 0.0
-				disc_radius = 0.5  # Default
+				disc_radius = 0.5
 				if hasattr(data, "robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
 					disc_offset = float(data.robot_area[disc_id].offset)
 					disc_radius = float(data.robot_area[disc_id].radius)
-				elif stage_idx <= 2:
-					LOG_WARN(f"  Stage {stage_idx}, disc_id {disc_id}: robot_area not available")
 				
 				constraints.append({
 					"type": "linear",
@@ -246,47 +254,35 @@ class ContouringConstraints(BaseConstraint):
 					"a2": float(A[1]),
 					"b": float(b),
 					"disc_offset": disc_offset,
+					"is_left": is_left,  # Store is_left flag for visualization
 				})
-				
-				if stage_idx <= 2 and disc_id == 0:
-					LOG_DEBUG(f"  Stage {stage_idx}, disc_id {disc_id}: disc_offset={disc_offset:.3f}, disc_radius={disc_radius:.3f}")
-					# Diagnose feasibility at current state
-					try:
-						if state is not None and hasattr(state, 'get'):
-							x = float(state.get('x')) if state.has('x') else None
-							y = float(state.get('y')) if state.has('y') else None
-							psi = float(state.get('psi')) if state.has('psi') else 0.0
-							if x is not None and y is not None:
-								xd = x + disc_offset * np.cos(psi)
-								yd = y + disc_offset * np.sin(psi)
-								lhs = float(A[0] * xd + A[1] * yd)
-								violation = lhs - float(b)
-								LOG_INFO(f"    Halfspace[{halfspace_count}] A=({A[0]:.6f},{A[1]:.6f}) b={float(b):.6f} at p_disc=({xd:.3f},{yd:.3f}) ⇒ A·p−b={violation:.6f}")
-					except Exception as _e:
-						LOG_DEBUG(f"    Feasibility diagnostic failed: {_e}")
 		
-		LOG_DEBUG(f"ContouringConstraints.calculate_constraints: Returning {len(constraints)} constraint(s) ({halfspace_count} halfspace(s) × {self.num_discs} disc(s))")
+		LOG_DEBUG(f"ContouringConstraints.calculate_constraints: stage_idx={stage_idx}, cur_s={cur_s:.3f}, "
+		         f"returning {len(constraints)} constraint(s) ({halfspace_count} halfspace(s) × {self.num_discs} disc(s))")
 		
 		if stage_idx <= 2 and constraints:
 			first_const = constraints[0]
-			LOG_INFO(f"  First constraint: a1={first_const.get('a1', 'N/A')}, a2={first_const.get('a2', 'N/A')}, b={first_const.get('b', 'N/A')}")
+			LOG_INFO(f"  Stage {stage_idx}: cur_s={cur_s:.3f}, first constraint: a1={first_const.get('a1', 'N/A'):.6f}, "
+			        f"a2={first_const.get('a2', 'N/A'):.6f}, b={first_const.get('b', 'N/A'):.6f}")
 		
 		return constraints
 
 	def lower_bounds(self, state=None, data=None, stage_idx=None):
+		"""Return lower bounds for constraints (all -inf for halfspace constraints A·p <= b)."""
 		# For A·p <= b, expr = A·p - b ≤ 0 → lb = -inf per constraint
 		count = 0
 		if data is not None and stage_idx is not None:
-			for _ in self._iter_halfspaces(data, stage_idx) or []:
-				count += self.num_discs
+			# Estimate constraint count (2 halfspaces × num_discs)
+			count = 2 * self.num_discs
 		return [-np.inf] * count
 
 	def upper_bounds(self, state=None, data=None, stage_idx=None):
+		"""Return upper bounds for constraints (all 0 for halfspace constraints A·p <= b)."""
 		# Upper bound 0 per constraint for A·p <= b
 		count = 0
 		if data is not None and stage_idx is not None:
-			for _ in self._iter_halfspaces(data, stage_idx) or []:
-				count += self.num_discs
+			# Estimate constraint count (2 halfspaces × num_discs)
+			count = 2 * self.num_discs
 		return [0.0] * count
 
 	def get_visualizer(self):

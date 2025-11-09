@@ -589,6 +589,7 @@ class IntegrationTestFramework:
             constraint_violations = []
             # Optional: predicted trajectories per frame (list of list of (x,y))
             predicted_trajs = []
+            halfspaces_per_step = []  # Capture halfspaces for visualization
             
             # Initial state - include spline variable if model has it
             vehicle_state = np.array([0.0, 0.0, 0.0, 1.0])  # x, y, theta, v
@@ -887,6 +888,120 @@ class IntegrationTestFramework:
                         except Exception:
                             predicted_trajs.append([])
                     
+                    # Capture contouring constraints halfspaces for visualization (stage 0 only)
+                    try:
+                        # Find the contouring constraints module
+                        contouring_module = None
+                        if hasattr(planner, 'module_manager') and hasattr(planner.module_manager, 'modules'):
+                            for module in planner.module_manager.modules:
+                                if hasattr(module, 'name') and module.name == 'contouring_constraints':
+                                    contouring_module = module
+                                    break
+                        
+                        if contouring_module is not None:
+                            # Get constraints for stage 0 (current vehicle position)
+                            constraints = contouring_module.calculate_constraints(planner.state, data, 0)
+                            
+                            # Extract halfspace information from constraint dictionaries
+                            step_halfspaces = []
+                            if constraints:
+                                # Get the reference path and road width for accurate visualization
+                                ref_path = getattr(contouring_module, '_reference_path', None)
+                                road_width_half = getattr(contouring_module, '_road_width_half', None)
+                                
+                                # Get current spline value to compute path point
+                                cur_s = None
+                                if planner.state is not None and planner.state.has('spline'):
+                                    try:
+                                        cur_s = float(planner.state.get('spline'))
+                                    except Exception:
+                                        pass
+                                
+                                # Extract halfspace information from constraint dictionaries
+                                # Each constraint dict has: {a1, a2, b, disc_offset, is_left}
+                                # Group by (a1, a2, is_left) to get unique halfspaces, keeping left and right separate
+                                seen_halfspaces = {}
+                                for const_dict in constraints:
+                                    a1 = float(const_dict.get('a1', 0.0))
+                                    a2 = float(const_dict.get('a2', 0.0))
+                                    b = float(const_dict.get('b', 0.0))
+                                    disc_offset = float(const_dict.get('disc_offset', 0.0))
+                                    is_left = const_dict.get('is_left', None)
+                                    
+                                    # Use is_left from constraint if available, otherwise infer
+                                    if is_left is None:
+                                        # Fallback heuristic
+                                        is_left = (a1 < 0) if abs(a1) > abs(a2) else (a2 > 0)
+                                    
+                                    # Create a key based on normalized direction AND is_left flag
+                                    # This ensures left and right boundaries are kept separate
+                                    norm = np.sqrt(a1**2 + a2**2)
+                                    if norm > 1e-6:
+                                        # Include is_left in key to keep left and right boundaries separate
+                                        key = (round(a1/norm, 6), round(a2/norm, 6), bool(is_left))
+                                        # For visualization, compute b value that represents actual road boundary
+                                        # (without slack and vehicle width adjustments)
+                                        if key not in seen_halfspaces:
+                                            A = np.array([a1, a2])
+                                            A_norm = A / norm
+                                            
+                                            # Compute visualization b value: actual road boundary
+                                            # The constraint b includes slack and vehicle width, but for visualization
+                                            # we want to show the actual road boundary at road_width_half distance
+                                            if ref_path is not None and cur_s is not None and road_width_half is not None:
+                                                try:
+                                                    # Get path point at current s
+                                                    path_point_x = ref_path.x_spline(cur_s)
+                                                    path_point_y = ref_path.y_spline(cur_s)
+                                                    path_point = np.array([float(path_point_x), float(path_point_y)])
+                                                    
+                                                    # Get path tangent to determine left/right direction
+                                                    path_dx = float(ref_path.x_spline.derivative()(cur_s))
+                                                    path_dy = float(ref_path.y_spline.derivative()(cur_s))
+                                                    path_norm = np.sqrt(path_dx**2 + path_dy**2)
+                                                    if path_norm > 1e-6:
+                                                        path_dx_norm = path_dx / path_norm
+                                                        path_dy_norm = path_dy / path_norm
+                                                        # Normal pointing left: [path_dy_norm, -path_dx_norm]
+                                                        normal_left = np.array([path_dy_norm, -path_dx_norm])
+                                                        
+                                                        # Compute boundary point based on is_left flag
+                                                        if is_left:
+                                                            # Left boundary: boundary is on right side of path
+                                                            # Use normal pointing right (opposite to normal_left)
+                                                            boundary_point = path_point - normal_left * road_width_half
+                                                        else:
+                                                            # Right boundary: boundary is on left side of path
+                                                            # Use normal pointing left
+                                                            boundary_point = path_point + normal_left * road_width_half
+                                                    else:
+                                                        # Fallback: use A direction
+                                                        if is_left:
+                                                            boundary_point = path_point + A_norm * road_width_half
+                                                        else:
+                                                            boundary_point = path_point - A_norm * road_width_half
+                                                    
+                                                    # Compute b for visualization: A·boundary_point
+                                                    b_vis = np.dot(A, boundary_point)
+                                                    seen_halfspaces[key] = (A, b_vis, bool(is_left))
+                                                except Exception as e:
+                                                    # Fallback to using original b value
+                                                    logger.debug(f"Could not compute visualization boundary: {e}, using original b")
+                                                    seen_halfspaces[key] = (A, b, bool(is_left))
+                                            else:
+                                                # Fallback: use original b value
+                                                seen_halfspaces[key] = (A, b, bool(is_left))
+                                
+                                # Convert to list of tuples
+                                step_halfspaces = list(seen_halfspaces.values())
+                            
+                            halfspaces_per_step.append(step_halfspaces)
+                        else:
+                            halfspaces_per_step.append([])
+                    except Exception as e:
+                        logger.debug(f"Could not capture contouring constraints halfspaces: {e}")
+                        halfspaces_per_step.append([])
+                    
                     # Prefer applying the control computed by the planner/solver
                     logger.info(f"=== Applying control at step {step} ===")
                     try:
@@ -1080,7 +1195,8 @@ class IntegrationTestFramework:
             self.save_state_history(output_folder, vehicle_states, obstacle_states)
             # Store data object for goal plotting in animation
             self.last_data = data
-            self.create_animation(output_folder, vehicle_states, obstacle_states, test_config, goal_reached_step, predicted_trajs)
+            # halfspaces_per_step is already captured in the loop above
+            self.create_animation(output_folder, vehicle_states, obstacle_states, test_config, goal_reached_step, predicted_trajs, halfspaces_per_step)
             # Save framework summary for validation
             try:
                 summary = {
@@ -1198,7 +1314,8 @@ class IntegrationTestFramework:
     def create_animation(self, output_folder: str, vehicle_states: List[np.ndarray], 
                         obstacle_states: List[List[np.ndarray]], test_config: TestConfig, 
                         goal_reached_step: Optional[int] = None,
-                        predicted_trajs: Optional[List[List[tuple]]] = None):
+                        predicted_trajs: Optional[List[List[tuple]]] = None,
+                        halfspaces_per_step: Optional[List[List[tuple]]] = None):
         """Create GIF animation of the test showing full trajectory until goal is reached."""
         if not vehicle_states:
             logging.getLogger("integration_test").warning("No vehicle states to animate")
@@ -1216,15 +1333,89 @@ class IntegrationTestFramework:
                 all_x.extend([obs[0] for obs in obs_states])
                 all_y.extend([obs[1] for obs in obs_states])
         
-        # Add reference path points for bounds
+        # Add reference path points for bounds (from both test_config and data)
         if test_config.reference_path is not None:
-            all_x.extend(test_config.reference_path[:, 0])
-            all_y.extend(test_config.reference_path[:, 1])
+            if isinstance(test_config.reference_path, np.ndarray):
+                all_x.extend(test_config.reference_path[:, 0])
+                all_y.extend(test_config.reference_path[:, 1])
         
-        # Set up plot with dynamic bounds
-        margin = 2.0
-        x_min, x_max = min(all_x) - margin, max(all_x) + margin
-        y_min, y_max = min(all_y) - margin, max(all_y) + margin
+        # Add reference path from data object (more complete, includes spline points)
+        try:
+            if hasattr(self, 'last_data') and hasattr(self.last_data, 'reference_path') and self.last_data.reference_path is not None:
+                rp = self.last_data.reference_path
+                if hasattr(rp, 'x') and hasattr(rp, 'y'):
+                    all_x.extend(np.asarray(rp.x, dtype=float).tolist())
+                    all_y.extend(np.asarray(rp.y, dtype=float).tolist())
+        except Exception:
+            pass
+        
+        # Add reference path boundary points (left and right bounds) to ensure they're fully visible
+        # This is CRITICAL to ensure the complete reference path bounds are shown in the plot
+        boundary_points_added = False
+        try:
+            if hasattr(self, 'last_data') and self.last_data is not None:
+                # Add left boundary points (check both array and Bound object formats)
+                left_x_list = None
+                left_y_list = None
+                
+                if hasattr(self.last_data, 'left_boundary_x') and hasattr(self.last_data, 'left_boundary_y'):
+                    if (self.last_data.left_boundary_x is not None and self.last_data.left_boundary_y is not None and
+                        len(self.last_data.left_boundary_x) > 0 and len(self.last_data.left_boundary_y) > 0):
+                        left_x_list = np.asarray(self.last_data.left_boundary_x, dtype=float)
+                        left_y_list = np.asarray(self.last_data.left_boundary_y, dtype=float)
+                        boundary_points_added = True
+                
+                # Also check Bound objects if arrays weren't available
+                if not boundary_points_added and hasattr(self.last_data, 'left_bound') and self.last_data.left_bound is not None:
+                    if hasattr(self.last_data.left_bound, 'x') and hasattr(self.last_data.left_bound, 'y'):
+                        left_x_list = np.asarray(self.last_data.left_bound.x, dtype=float)
+                        left_y_list = np.asarray(self.last_data.left_bound.y, dtype=float)
+                        boundary_points_added = True
+                
+                if left_x_list is not None and left_y_list is not None:
+                    all_x.extend(left_x_list.tolist())
+                    all_y.extend(left_y_list.tolist())
+                
+                # Add right boundary points (check both array and Bound object formats)
+                right_x_list = None
+                right_y_list = None
+                
+                if hasattr(self.last_data, 'right_boundary_x') and hasattr(self.last_data, 'right_boundary_y'):
+                    if (self.last_data.right_boundary_x is not None and self.last_data.right_boundary_y is not None and
+                        len(self.last_data.right_boundary_x) > 0 and len(self.last_data.right_boundary_y) > 0):
+                        right_x_list = np.asarray(self.last_data.right_boundary_x, dtype=float)
+                        right_y_list = np.asarray(self.last_data.right_boundary_y, dtype=float)
+                        boundary_points_added = True
+                
+                # Also check Bound objects if arrays weren't available
+                if hasattr(self.last_data, 'right_bound') and self.last_data.right_bound is not None:
+                    if hasattr(self.last_data.right_bound, 'x') and hasattr(self.last_data.right_bound, 'y'):
+                        right_x_list = np.asarray(self.last_data.right_bound.x, dtype=float)
+                        right_y_list = np.asarray(self.last_data.right_bound.y, dtype=float)
+                        boundary_points_added = True
+                
+                if right_x_list is not None and right_y_list is not None:
+                    all_x.extend(right_x_list.tolist())
+                    all_y.extend(right_y_list.tolist())
+                
+                if boundary_points_added:
+                    logging.getLogger("integration_test").debug(f"Added {len(left_x_list) if left_x_list is not None else 0} left and {len(right_x_list) if right_x_list is not None else 0} right boundary points to plot bounds")
+        except Exception as e:
+            logging.getLogger("integration_test").warning(f"Could not add boundary points to bounds: {e}")
+        
+        # Ensure we have valid bounds (handle empty case)
+        if not all_x or not all_y:
+            all_x = [0.0]
+            all_y = [0.0]
+        
+        # Set up plot with dynamic bounds and adequate margin
+        # Use percentage-based margin (10% of range) plus fixed margin for better scaling
+        x_range = max(all_x) - min(all_x) if len(all_x) > 1 else 20.0
+        y_range = max(all_y) - min(all_y) if len(all_y) > 1 else 20.0
+        margin_x = max(2.0, x_range * 0.1)  # At least 2m or 10% of range
+        margin_y = max(2.0, y_range * 0.1)  # At least 2m or 10% of range
+        x_min, x_max = min(all_x) - margin_x, max(all_x) + margin_x
+        y_min, y_max = min(all_y) - margin_y, max(all_y) + margin_y
         
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(y_min, y_max)
@@ -1253,6 +1444,37 @@ class IntegrationTestFramework:
                     pass
         except Exception:
             pass
+        
+        # Plot reference path boundaries (left and right bounds) if they exist
+        try:
+            if hasattr(self, 'last_data') and self.last_data is not None:
+                # Plot left boundary
+                if hasattr(self.last_data, 'left_boundary_x') and hasattr(self.last_data, 'left_boundary_y'):
+                    if (self.last_data.left_boundary_x is not None and self.last_data.left_boundary_y is not None and
+                        len(self.last_data.left_boundary_x) > 0 and len(self.last_data.left_boundary_y) > 0):
+                        ax.plot(np.asarray(self.last_data.left_boundary_x, dtype=float),
+                               np.asarray(self.last_data.left_boundary_y, dtype=float),
+                               'g:', linewidth=1.5, alpha=0.5, label='Left Boundary')
+                elif hasattr(self.last_data, 'left_bound') and self.last_data.left_bound is not None:
+                    if hasattr(self.last_data.left_bound, 'x') and hasattr(self.last_data.left_bound, 'y'):
+                        ax.plot(np.asarray(self.last_data.left_bound.x, dtype=float),
+                               np.asarray(self.last_data.left_bound.y, dtype=float),
+                               'g:', linewidth=1.5, alpha=0.5, label='Left Boundary')
+                
+                # Plot right boundary
+                if hasattr(self.last_data, 'right_boundary_x') and hasattr(self.last_data, 'right_boundary_y'):
+                    if (self.last_data.right_boundary_x is not None and self.last_data.right_boundary_y is not None and
+                        len(self.last_data.right_boundary_x) > 0 and len(self.last_data.right_boundary_y) > 0):
+                        ax.plot(np.asarray(self.last_data.right_boundary_x, dtype=float),
+                               np.asarray(self.last_data.right_boundary_y, dtype=float),
+                               'g:', linewidth=1.5, alpha=0.5, label='Right Boundary')
+                elif hasattr(self.last_data, 'right_bound') and self.last_data.right_bound is not None:
+                    if hasattr(self.last_data.right_bound, 'x') and hasattr(self.last_data.right_bound, 'y'):
+                        ax.plot(np.asarray(self.last_data.right_bound.x, dtype=float),
+                               np.asarray(self.last_data.right_bound.y, dtype=float),
+                               'g:', linewidth=1.5, alpha=0.5, label='Right Boundary')
+        except Exception as e:
+            logging.getLogger("integration_test").debug(f"Could not plot reference path boundaries: {e}")
 
         # Draw module-provided visualizations (e.g., road bounds) on this animation axes
         try:
@@ -1347,6 +1569,9 @@ class IntegrationTestFramework:
         obstacle_trail_x = [[] for _ in range(len(obstacle_states))]
         obstacle_trail_y = [[] for _ in range(len(obstacle_states))]
         
+        # Initialize halfspace constraint lines (will be updated dynamically)
+        halfspace_lines = []
+        
         def animate(frame):
             if frame < len(vehicle_states):
                 # Update vehicle
@@ -1380,6 +1605,165 @@ class IntegrationTestFramework:
                         pred_line.set_data(px, py)
                     else:
                         pred_line.set_data([], [])
+                
+                # Update halfspace constraints visualization
+                # Remove old halfspace lines and fill regions
+                for artist in halfspace_lines:
+                    try:
+                        artist.remove()
+                    except Exception:
+                        pass
+                halfspace_lines.clear()
+                
+                # Draw new halfspace constraints for this frame
+                if halfspaces_per_step is not None and frame < len(halfspaces_per_step):
+                    frame_halfspaces = halfspaces_per_step[frame]
+                    if frame_halfspaces:
+                        # Get plot bounds for line extension
+                        xlim = ax.get_xlim()
+                        ylim = ax.get_ylim()
+                        plot_size = max(xlim[1] - xlim[0], ylim[1] - ylim[0])
+                        
+                        # Collect left and right boundaries separately for better visualization
+                        left_halfspaces = []
+                        right_halfspaces = []
+                        
+                        for constraint_tuple in frame_halfspaces:
+                            # Unpack constraint tuple (A, b, is_left)
+                            if len(constraint_tuple) >= 3:
+                                A, b, is_left = constraint_tuple[:3]
+                            else:
+                                # Fallback for old format
+                                A, b = constraint_tuple[:2]
+                                is_left = None
+                            
+                            a1, a2 = float(A[0]), float(A[1])
+                            norm = np.sqrt(a1**2 + a2**2)
+                            if norm < 1e-6:
+                                continue
+                            
+                            # Normalize A
+                            a1_norm = a1 / norm
+                            a2_norm = a2 / norm
+                            
+                            # Determine if this is a left or right boundary constraint
+                            if is_left is not None:
+                                is_left_constraint = bool(is_left)
+                            else:
+                                # Fallback heuristic: check dot product with reference path tangent
+                                is_left_constraint = a1_norm < 0
+                            
+                            # Store for grouped visualization
+                            if is_left_constraint:
+                                left_halfspaces.append((a1_norm, a2_norm, b / norm))
+                            else:
+                                right_halfspaces.append((a1_norm, a2_norm, b / norm))
+                        
+                        # Draw left boundary constraints (orange) - line on right side of reference path
+                        # Left boundary constraint restricts vehicle to stay on the left side (away from right boundary)
+                        for idx, (a1_norm, a2_norm, b_norm) in enumerate(left_halfspaces):
+                            color = 'orange'
+                            alpha = 0.7
+                            
+                            # Calculate line segment that spans the plot
+                            # Line: A·p = b, so a1*x + a2*y = b
+                            center_x = (xlim[0] + xlim[1]) / 2
+                            center_y = (ylim[0] + ylim[1]) / 2
+                            
+                            # Project center onto line: distance from center to line
+                            dist_to_line = (a1_norm * center_x + a2_norm * center_y - b_norm)
+                            
+                            # Point on line closest to center
+                            line_center_x = center_x - dist_to_line * a1_norm
+                            line_center_y = center_y - dist_to_line * a2_norm
+                            
+                            # Direction along the line (perpendicular to A)
+                            dir_x = -a2_norm
+                            dir_y = a1_norm
+                            
+                            # Extend line to span plot
+                            line_length = plot_size * 1.2  # Slightly longer to ensure full coverage
+                            x1 = line_center_x - dir_x * line_length
+                            y1 = line_center_y - dir_y * line_length
+                            x2 = line_center_x + dir_x * line_length
+                            y2 = line_center_y + dir_y * line_length
+                            
+                            # Draw constraint line
+                            # Only label the first left boundary
+                            label = 'Left Boundary' if idx == 0 else ''
+                            line, = ax.plot([x1, x2], [y1, y2], 
+                                           color=color, linestyle='--', 
+                                           linewidth=2.0, alpha=alpha, zorder=1,
+                                           label=label)
+                            halfspace_lines.append(line)
+                            
+                            # Add arrow showing restriction direction
+                            # Left boundary: A points right, constraint restricts to left (opposite to A)
+                            # Arrow should point in direction -A (toward allowed region)
+                            arrow_length = plot_size * 0.08
+                            arrow_mid_x = (x1 + x2) / 2
+                            arrow_mid_y = (y1 + y2) / 2
+                            arrow_dx = -a1_norm * arrow_length  # Opposite to A (toward allowed region)
+                            arrow_dy = -a2_norm * arrow_length
+                            
+                            arrow = ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
+                                              xytext=(arrow_mid_x, arrow_mid_y),
+                                              arrowprops=dict(arrowstyle='->', color=color, 
+                                                            lw=2.5, alpha=alpha, zorder=2))
+                            halfspace_lines.append(arrow)
+                        
+                        # Draw right boundary constraints (cyan) - line on left side of reference path
+                        # Right boundary constraint restricts vehicle to stay on the right side (away from left boundary)
+                        for idx, (a1_norm, a2_norm, b_norm) in enumerate(right_halfspaces):
+                            color = 'cyan'
+                            alpha = 0.7
+                            
+                            # Calculate line segment that spans the plot
+                            center_x = (xlim[0] + xlim[1]) / 2
+                            center_y = (ylim[0] + ylim[1]) / 2
+                            
+                            # Project center onto line
+                            dist_to_line = (a1_norm * center_x + a2_norm * center_y - b_norm)
+                            
+                            # Point on line closest to center
+                            line_center_x = center_x - dist_to_line * a1_norm
+                            line_center_y = center_y - dist_to_line * a2_norm
+                            
+                            # Direction along the line (perpendicular to A)
+                            dir_x = -a2_norm
+                            dir_y = a1_norm
+                            
+                            # Extend line to span plot
+                            line_length = plot_size * 1.2
+                            x1 = line_center_x - dir_x * line_length
+                            y1 = line_center_y - dir_y * line_length
+                            x2 = line_center_x + dir_x * line_length
+                            y2 = line_center_y + dir_y * line_length
+                            
+                            # Draw constraint line
+                            # Only label the first right boundary
+                            label = 'Right Boundary' if idx == 0 else ''
+                            line, = ax.plot([x1, x2], [y1, y2], 
+                                           color=color, linestyle='--', 
+                                           linewidth=2.0, alpha=alpha, zorder=1,
+                                           label=label)
+                            halfspace_lines.append(line)
+                            
+                            # Add arrow showing restriction direction
+                            # Right boundary: A points left, constraint restricts to right (opposite to A)
+                            # Arrow should point in direction -A (toward allowed region)
+                            arrow_length = plot_size * 0.08
+                            arrow_mid_x = (x1 + x2) / 2
+                            arrow_mid_y = (y1 + y2) / 2
+                            arrow_dx = -a1_norm * arrow_length  # Opposite to A (toward allowed region)
+                            arrow_dy = -a2_norm * arrow_length
+                            
+                            arrow = ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
+                                              xytext=(arrow_mid_x, arrow_mid_y),
+                                              arrowprops=dict(arrowstyle='->', color=color, 
+                                                            lw=2.5, alpha=alpha, zorder=2))
+                            halfspace_lines.append(arrow)
+                
                 # Goals update
                 artists_extra = []
                 if goal_sequence is not None and current_goal_plot is not None:
@@ -1395,18 +1779,27 @@ class IntegrationTestFramework:
                     cg = goal_sequence[cur_idx]
                     current_goal_plot.set_data([float(cg[0])], [float(cg[1])])
                     artists_extra.append(current_goal_plot)
-            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles + ([current_goal_plot] if current_goal_plot is not None else []) + reached_goal_plots
+            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles + ([current_goal_plot] if current_goal_plot is not None else []) + reached_goal_plots + halfspace_lines
             
         # Create animation - use all frames to show complete trajectory
         total_frames = len(vehicle_states)
-        anim = animation.FuncAnimation(fig, animate, frames=total_frames, 
-                                     interval=100, blit=True, repeat=True)
+        # Explicitly use range to ensure all frames are included (0 to total_frames-1)
+        # Using repeat=True allows the GIF to loop when saved
+        # Note: blit=False to allow dynamic adding/removing of constraint lines
+        anim = animation.FuncAnimation(fig, animate, frames=range(total_frames), 
+                                     interval=100, blit=False, repeat=True)
         
-        # Save as GIF with appropriate fps (10 fps = 100ms per frame)
+        # Calculate appropriate fps to ensure GIF shows complete trajectory
+        # Target: minimum 5 seconds for short trajectories, scale for longer ones
+        min_duration = 5.0  # seconds
+        max_fps = 10  # Maximum fps for smooth playback
+        calculated_fps = min(max_fps, total_frames / min_duration) if total_frames > 0 else max_fps
+        
+        # Save as GIF with calculated fps to ensure complete trajectory is visible
         gif_path = os.path.join(output_folder, "animation.gif")
-        anim.save(gif_path, writer='pillow', fps=10)
+        anim.save(gif_path, writer='pillow', fps=calculated_fps)
         
-        logging.getLogger("integration_test").info(f"Saved animation with {total_frames} frames to {gif_path}")
+        logging.getLogger("integration_test").info(f"Saved animation with {total_frames} frames at {calculated_fps:.2f} fps to {gif_path} (duration: {total_frames/calculated_fps:.2f}s)")
         plt.close(fig)
 
 
