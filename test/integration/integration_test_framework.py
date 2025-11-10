@@ -2251,9 +2251,10 @@ class IntegrationTestFramework:
                             
                             # Get obstacle position for shorter line segments and connection line
                             obstacle_pos = None
-                            if frame < len(obstacle_states) and obstacle_id < len(obstacle_states):
-                                if frame < len(obstacle_states[obstacle_id]):
-                                    obs_state = obstacle_states[obstacle_id][frame]
+                            if obstacle_id < len(obstacle_states):
+                                obstacle_history = obstacle_states[obstacle_id]
+                                if frame < len(obstacle_history):
+                                    obs_state = obstacle_history[frame]
                                     obstacle_pos = np.array([obs_state[0], obs_state[1]])
                             
                             for idx, (A, b) in enumerate(constraints_list):
