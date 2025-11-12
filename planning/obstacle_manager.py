@@ -4,7 +4,7 @@ import numpy as np
 import logging
 from dataclasses import dataclass
 
-from planning.types import DynamicObstacle, PredictionType, PredictionStep
+from planning.types import DynamicObstacle, PredictionType, PredictionStep, ObstacleType
 from planning.dynamic_models import DynamicsModel, SecondOrderUnicycleModel, SecondOrderBicycleModel, PointMassModel
 
 @dataclass
@@ -191,21 +191,41 @@ class ObstacleManager:
         # Get uncertainty parameters
         uncertainty_params = obstacle_config.uncertainty_params or self.default_uncertainty
         
+        # Check if obstacle is static
+        initial_state = self._create_initial_state(obstacle_config, dynamics_model)
+        is_static = False
+        if hasattr(obstacle, 'type') and obstacle.type == ObstacleType.STATIC:
+            is_static = True
+        elif dynamics_model.__class__.__name__ == "PointMassModel":
+            if len(initial_state) >= 4:
+                vx = initial_state[2]
+                vy = initial_state[3]
+                is_static = abs(vx) < 1e-6 and abs(vy) < 1e-6
+        else:
+            if len(initial_state) > 3:
+                speed = initial_state[3]
+                is_static = abs(speed) < 1e-6
+        
         # Generate prediction steps
         for step in range(horizon_length):
             # Integrate obstacle state
-            current_state = self.obstacle_states[-1][-1] if self.obstacle_states[-1] else self._create_initial_state(obstacle_config, dynamics_model)
+            current_state = self.obstacle_states[-1][-1] if self.obstacle_states[-1] else initial_state
             
-            # Create control input (can be specified or generated)
-            if obstacle_config.control_inputs is not None:
-                control_input = obstacle_config.control_inputs[step] if step < len(obstacle_config.control_inputs) else np.zeros(dynamics_model.nu)
+            # For static obstacles, keep position fixed
+            if is_static:
+                next_state = current_state.copy()
+                control_input = np.zeros(dynamics_model.nu)
             else:
-                # Get obstacle index (last obstacle in list)
-                obstacle_idx = len(self.obstacles) - 1 if len(self.obstacles) > 0 else 0
-                control_input = self._generate_control_input(dynamics_model, current_state, step, obstacle_idx)
-            
-            # Integrate state
-            next_state = self._integrate_state(dynamics_model, current_state, control_input, timestep)
+                # Create control input (can be specified or generated)
+                if obstacle_config.control_inputs is not None:
+                    control_input = obstacle_config.control_inputs[step] if step < len(obstacle_config.control_inputs) else np.zeros(dynamics_model.nu)
+                else:
+                    # Get obstacle index (last obstacle in list)
+                    obstacle_idx = len(self.obstacles) - 1 if len(self.obstacles) > 0 else 0
+                    control_input = self._generate_control_input(dynamics_model, current_state, step, obstacle_idx)
+                
+                # Integrate state
+                next_state = self._integrate_state(dynamics_model, current_state, control_input, timestep)
             
             # Store state
             if hasattr(next_state, 'copy'):
@@ -901,6 +921,35 @@ class ObstacleManager:
         for i, (obstacle, dynamics_model) in enumerate(zip(self.obstacles, self.obstacle_dynamics)):
             if i < len(self.obstacle_states) and len(self.obstacle_states[i]) > 0:
                 current_state = self.obstacle_states[i][-1]
+                
+                # Skip static obstacles - they should not move
+                # Check if obstacle type is STATIC
+                is_static_by_type = hasattr(obstacle, 'type') and obstacle.type == ObstacleType.STATIC
+                
+                # Check if obstacle has zero velocity (for obstacles created as DynamicObstacle with zero velocity)
+                is_static_by_velocity = False
+                if dynamics_model.__class__.__name__ == "PointMassModel":
+                    # For point mass: state is [x, y, vx, vy]
+                    if len(current_state) >= 4:
+                        vx = current_state[2]
+                        vy = current_state[3]
+                        is_static_by_velocity = abs(vx) < 1e-6 and abs(vy) < 1e-6
+                else:
+                    # For unicycle/bicycle: state is [x, y, psi, v, ...]
+                    if len(current_state) > 3:
+                        speed = current_state[3]
+                        is_static_by_velocity = abs(speed) < 1e-6
+                
+                # If obstacle is static, keep it in place and skip all movement logic
+                if is_static_by_type or is_static_by_velocity:
+                    # Keep obstacle at current position - no movement
+                    # Just append the same state to maintain history
+                    self.obstacle_states[i].append(current_state.copy())
+                    # Ensure obstacle position stays fixed
+                    obstacle.position = current_state[:2].copy()
+                    if len(current_state) > 2:
+                        obstacle.angle = current_state[2]
+                    continue  # Skip all movement logic for static obstacles
                 
                 # Generate control input (with behavior-based control)
                 control_input = self._generate_control_input(dynamics_model, current_state, len(self.obstacle_states[i]), i)
