@@ -25,7 +25,7 @@ contouring:
 
 weights:
   contour_weight: 10.0  # Increased to force better path following
-  contouring_lag_weight: 0.1
+  contouring_lag_weight: 10
   goal_weight: 10.0
   goal_angle_weight: 1.0
   goal_terminal_weight: 10.0

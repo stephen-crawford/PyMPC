@@ -778,13 +778,17 @@ class ContouringObjective(BaseObjective):
 		contour_cost = contour_weight * contour_error ** 2
 		goal_cost = goal_weight * remaining_distance ** 2
 		
-		# Log cost values (try to extract numeric if possible)
+		# Log cost values for all stages (try to extract numeric if possible)
 		try:
 			import casadi as cd
 			if not isinstance(lag_cost, (cd.MX, cd.SX)):
-				LOG_DEBUG(f"  Costs: lag={float(lag_cost):.4f}, contour={float(contour_cost):.4f}, goal={float(goal_cost):.4f}")
+				LOG_INFO(f"ContouringObjective.get_value: stage={stage_idx}, lag_cost={float(lag_cost):.4f}, "
+				        f"contour_cost={float(contour_cost):.4f}, goal_cost={float(goal_cost):.4f}, "
+				        f"contour_error={float(contour_error):.4f}, lag_error={float(lag_error):.4f}")
+			else:
+				LOG_INFO(f"ContouringObjective.get_value: stage={stage_idx}, computing symbolic costs (lag, contour, goal)")
 		except Exception:
-			pass
+			LOG_DEBUG(f"ContouringObjective.get_value: stage={stage_idx}, computing costs (unable to extract numeric values)")
 
 		# Velocity cost (if enabled)
 		velocity_cost = 0

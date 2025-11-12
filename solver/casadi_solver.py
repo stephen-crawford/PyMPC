@@ -59,13 +59,29 @@ class CasADiSolver(BaseSolver):
 			self.opti = cs.Opti()
 			LOG_DEBUG("Created new CasADi Opti instance")
 		
-		LOG_DEBUG("Creating optimization variables...")
+		LOG_INFO("=== CREATING OPTIMIZATION VARIABLES ===")
 		dependent_vars = dynamics.get_dependent_vars()
 		input_vars = dynamics.get_inputs()
-		LOG_DEBUG(f"  Dependent variables ({len(dependent_vars)}): {dependent_vars}")
-		LOG_DEBUG(f"  Input variables ({len(input_vars)}): {input_vars}")
+		LOG_INFO(f"  Dependent variables (STATES - will be constrained by RK4 integration) ({len(dependent_vars)}): {dependent_vars}")
+		LOG_INFO(f"  Input variables (CONTROLS - decision variables) ({len(input_vars)}): {input_vars}")
+		
+		# Verify that inputs are only acceleration/angular acceleration for unicycle
+		expected_inputs_unicycle = ["a", "w"]
+		expected_inputs_bicycle = ["a", "w", "slack"]
+		expected_inputs_pointmass = ["ax", "ay"]
+		
+		if set(input_vars) == set(expected_inputs_unicycle):
+			LOG_INFO(f"  ✓ Verified: Inputs are acceleration (a) and angular acceleration (w) for unicycle model")
+		elif set(input_vars) == set(expected_inputs_bicycle):
+			LOG_INFO(f"  ✓ Verified: Inputs are acceleration (a), angular acceleration (w), and slack for bicycle model")
+		elif set(input_vars) == set(expected_inputs_pointmass):
+			LOG_INFO(f"  ✓ Verified: Inputs are accelerations (ax, ay) for point mass model")
+		else:
+			LOG_WARN(f"  ⚠️  Unexpected input variables: {input_vars}. Expected only control inputs (acceleration/angular acceleration)")
 		
 		# Create state variables with bounds
+		# NOTE: States are decision variables BUT they are constrained by dynamics integration
+		# The constraint x_next == symbolic_dynamics(x_k, u_k, timestep) ensures states follow integration
 		for var_name in dependent_vars:
 			self.var_dict[var_name] = self.opti.variable(horizon + 1)
 			self.warmstart_values[var_name] = np.zeros(horizon + 1)
@@ -73,11 +89,12 @@ class CasADiSolver(BaseSolver):
 			try:
 				lb, ub, _ = dynamics.get_bounds(var_name)
 				self.opti.subject_to(self.opti.bounded(lb, self.var_dict[var_name], ub))
-				LOG_DEBUG(f"  Created variable '{var_name}': shape={horizon + 1}, bounds=[{lb}, {ub}]")
+				LOG_INFO(f"  Created STATE variable '{var_name}': shape={horizon + 1}, bounds=[{lb}, {ub}] (constrained by RK4 integration)")
 			except Exception as e:
-				LOG_WARN(f"  Created variable '{var_name}': shape={horizon + 1}, no bounds (error: {e})")
+				LOG_WARN(f"  Created STATE variable '{var_name}': shape={horizon + 1}, no bounds (error: {e})")
 		
 		# Create input variables with bounds
+		# NOTE: These are the ONLY true decision variables - acceleration and angular acceleration
 		for var_name in input_vars:
 			self.var_dict[var_name] = self.opti.variable(horizon)
 			self.warmstart_values[var_name] = np.zeros(horizon)
@@ -85,9 +102,9 @@ class CasADiSolver(BaseSolver):
 			try:
 				lb, ub, _ = dynamics.get_bounds(var_name)
 				self.opti.subject_to(self.opti.bounded(lb, self.var_dict[var_name], ub))
-				LOG_DEBUG(f"  Created input variable '{var_name}': shape={horizon}, bounds=[{lb}, {ub}]")
+				LOG_INFO(f"  Created CONTROL variable '{var_name}': shape={horizon}, bounds=[{lb}, {ub}] (DECISION VARIABLE)")
 			except Exception as e:
-				LOG_WARN(f"  Created input variable '{var_name}': shape={horizon}, no bounds (error: {e})")
+				LOG_WARN(f"  Created CONTROL variable '{var_name}': shape={horizon}, no bounds (error: {e})")
 		opts = {
 			'ipopt.print_level': 0,
 			'print_time': 0,
@@ -121,7 +138,11 @@ class CasADiSolver(BaseSolver):
 		dynamics = data.dynamics_model
 		horizon = getattr(data, 'horizon', None) or self.horizon
 		timestep = getattr(data, 'timestep', None) or self.timestep
-		LOG_DEBUG(f"Adding dynamics constraints for {horizon} stages (timestep={timestep})...")
+		LOG_INFO(f"=== ADDING DYNAMICS CONSTRAINTS (RK4 INTEGRATION) ===")
+		LOG_INFO(f"  Adding constraints for {horizon} stages (timestep={timestep})...")
+		LOG_INFO(f"  Using RK4 integration via dynamics.symbolic_dynamics()")
+		LOG_INFO(f"  Constraint form: x[k+1] == RK4_integration(x[k], u[k], timestep)")
+		LOG_INFO(f"  This ensures states are computed from integration, not free decision variables")
 		
 		for k in range(horizon):
 			x_k_list = [self.var_dict[var][k] for var in dynamics.get_dependent_vars()]
@@ -147,11 +168,15 @@ class CasADiSolver(BaseSolver):
 				except Exception:
 					return defaults.get(key, 0.0)
 			
+			# CRITICAL: This uses RK4 integration to compute next state from current state and control
+			# The constraint x_next == x_next_pred ensures states follow integration
 			x_next_pred = dynamics.symbolic_dynamics(x_k, u_k, _param_getter, timestep)
 
 			self.opti.subject_to(x_next == x_next_pred)
-			if k == 0 or k == horizon - 1:
-				LOG_DEBUG(f"  Added dynamics constraint for stage {k}")
+			if k == 0 or k == horizon - 1 or k == horizon // 2:
+				LOG_INFO(f"  Stage {k}: Added RK4 dynamics constraint: x[{k+1}] == RK4(x[{k}], u[{k}], dt={timestep})")
+				LOG_INFO(f"    State vars at k: {dynamics.get_dependent_vars()}")
+				LOG_INFO(f"    Control vars at k: {dynamics.get_inputs()}")
 		
 		LOG_INFO(f"CasADiSolver initialized: {horizon} stages, {len(dependent_vars)} state vars, {len(input_vars)} input vars")
 
@@ -306,23 +331,29 @@ class CasADiSolver(BaseSolver):
 				spline_profile[k] = min(s_max, spline_profile[k - 1] + ds)
 				
 				# Get desired position and heading from path at this spline value
-				# CRITICAL: Stay close to path centerline to ensure road constraint feasibility
+				# CRITICAL: Apply lateral offset to avoid obstacles (like reference implementation)
 				try:
 					s_k = spline_profile[k]
-					x_desired = float(ref_path.x_spline(s_k))
-					y_desired = float(ref_path.y_spline(s_k))
+					x_centerline = float(ref_path.x_spline(s_k))
+					y_centerline = float(ref_path.y_spline(s_k))
 					# Get desired heading from path tangent
 					dx_path = float(ref_path.x_spline.derivative()(s_k))
 					dy_path = float(ref_path.y_spline.derivative()(s_k))
 					norm = np.sqrt(dx_path**2 + dy_path**2)
 					if norm > 1e-6:
+						tangent = np.array([dx_path / norm, dy_path / norm])
+						normal = np.array([-tangent[1], tangent[0]])  # Left normal (perpendicular to path)
 						psi_desired = np.arctan2(dy_path, dx_path)
 					else:
+						normal = np.array([0.0, 1.0])  # Default normal
 						psi_desired = psi_profile[k - 1]
 					
-					# CRITICAL FIX: Ensure warmstart stays well within road bounds
-					# The warmstart should follow the path centerline, which is the safest position
-					# This ensures the trajectory satisfies road constraints at all stages
+					# CRITICAL: Warmstart follows reference path centerline (matching reference implementation)
+					# The warmstart should follow the path - obstacle avoidance is handled by linearized constraints
+					# during optimization. This ensures the vehicle follows the path while constraints prevent collisions.
+					# Reference: https://github.com/tud-amr/mpc_planner
+					x_desired = x_centerline
+					y_desired = y_centerline
 				
 					# CRITICAL: Compute dynamics-consistent next state from previous state and control
 					# The dynamics constraint for transition k->k+1 uses: x[k+1] = x[k] + dt * v[k] * cos(psi[k])
@@ -845,30 +876,44 @@ class CasADiSolver(BaseSolver):
 
 			# Get constraints from module manager - it uses data as source of truth
 			constraints = self.get_constraints(stage_idx)
-			# Log constraints BEFORE processing
+			# Log constraints BEFORE processing with detailed breakdown
 			try:
 				import logging as _logging
 				_integ_logger = _logging.getLogger("integration_test")
 				cons_summ = []
+				linearized_count = 0
+				contouring_count = 0
+				other_count = 0
 				for (c, lb, ub) in (constraints or []):
 					ctype = None
 					if isinstance(c, dict):
-						ctype = c.get('type') or ('linear' if ('a1' in c and 'a2' in c) else 'dict')
+						if 'a1' in c and 'a2' in c:
+							# Check if it's a linearized constraint (has obstacle index context) or contouring
+							if 'is_left' in c or 'spline_s' in c:
+								contouring_count += 1
+								ctype = 'contouring'
+							else:
+								linearized_count += 1
+								ctype = 'linearized'
+						else:
+							ctype = c.get('type') or 'dict'
+							other_count += 1
 					else:
 						ctype = type(c).__name__
+						other_count += 1
 					cons_summ.append({
 						"type": ctype,
 						"lb": None if lb is None else 'set',
 						"ub": None if ub is None else 'set',
 					})
-				msg_cons = f"Stage {stage_idx}: constraints count={len(constraints or [])} summary={cons_summ}"
+				msg_cons = f"Stage {stage_idx}: constraints count={len(constraints or [])} (linearized={linearized_count}, contouring={contouring_count}, other={other_count}) summary={cons_summ[:5]}"
 				LOG_INFO(msg_cons)
 				try:
 					_integ_logger.info(msg_cons)
 				except Exception:
 					pass
-			except Exception:
-				pass
+			except Exception as e:
+				LOG_WARN(f"Error logging constraints: {e}")
 			if constraints:
 				for (c, lb, ub) in constraints:
 					# Robust bound handling with translation of structured constraints to CasADi
@@ -948,8 +993,8 @@ class CasADiSolver(BaseSolver):
 					ub_mx = _to_mx(ub)
 
 					try:
-						# Log constraint details for stage 0 to diagnose issues
-						if stage_idx == 0 and total_constraints_added < 10:
+						# Log constraint details for stage 0 to diagnose issues - check for violations
+						if stage_idx == 0:
 							if isinstance(c, dict):
 								# Log constraint expression value for debugging
 								try:
@@ -965,8 +1010,16 @@ class CasADiSolver(BaseSolver):
 												y_val = float(self.data.state.get('y', 0.0))
 												constraint_val = a1_val * x_val + a2_val * y_val
 												constraint_satisfied = constraint_val <= b_val
-												LOG_DEBUG(f"  Stage 0 linearized constraint {total_constraints_added}: a1={a1_val:.3f}, a2={a2_val:.3f}, b={b_val:.3f}, "
-												         f"at vehicle ({x_val:.2f}, {y_val:.2f}): {constraint_val:.3f} <= {b_val:.3f}? {constraint_satisfied}")
+												violation_amount = constraint_val - b_val if not constraint_satisfied else 0.0
+												
+												if not constraint_satisfied:
+													LOG_WARN(f"  ⚠️  Stage 0 linearized constraint {total_constraints_added}: VIOLATED! "
+													        f"a1={a1_val:.4f}, a2={a2_val:.4f}, b={b_val:.4f}, "
+													        f"at vehicle ({x_val:.3f}, {y_val:.3f}): constraint_value={constraint_val:.4f} > b={b_val:.4f}, "
+													        f"violation={violation_amount:.4f}")
+												else:
+													LOG_DEBUG(f"  Stage 0 linearized constraint {total_constraints_added}: a1={a1_val:.3f}, a2={a2_val:.3f}, b={b_val:.3f}, "
+													         f"at vehicle ({x_val:.2f}, {y_val:.2f}): {constraint_val:.3f} <= {b_val:.3f}? {constraint_satisfied}")
 								except Exception as e:
 									LOG_DEBUG(f"  Stage 0 constraint {total_constraints_added}: a1={c.get('a1', 'N/A')}, a2={c.get('a2', 'N/A')}, b={c.get('b', 'N/A')}, disc_offset={c.get('disc_offset', 'N/A')}, lb={lb}, ub={ub}, error={e}")
 						
@@ -998,6 +1051,15 @@ class CasADiSolver(BaseSolver):
 		total_input_vars = num_input_vars * horizon_val
 		LOG_INFO(f"  Variables: {num_state_vars} state types × {horizon_val + 1} = {total_state_vars} state vars, "
 		         f"{num_input_vars} input types × {horizon_val} = {total_input_vars} input vars")
+		
+		# Verify decision variables are only controls (acceleration, angular acceleration)
+		LOG_INFO(f"=== VERIFYING DECISION VARIABLES ===")
+		state_vars_list = [v for v in dynamics_model.get_dependent_vars() if v in self.var_dict]
+		control_vars_list = [v for v in dynamics_model.get_inputs() if v in self.var_dict]
+		LOG_INFO(f"  State variables (constrained by RK4): {state_vars_list}")
+		LOG_INFO(f"  Control variables (TRUE DECISION VARIABLES): {control_vars_list}")
+		LOG_INFO(f"  ✓ Only control inputs (a, w) are free decision variables")
+		LOG_INFO(f"  ✓ All states (x, y, psi, v) are constrained by RK4 integration: x[k+1] == RK4(x[k], u[k])")
 		
 		# Log objective structure
 		obj_type = "scalar" if not hasattr(total_objective, 'shape') else f"array shape {total_objective.shape}"

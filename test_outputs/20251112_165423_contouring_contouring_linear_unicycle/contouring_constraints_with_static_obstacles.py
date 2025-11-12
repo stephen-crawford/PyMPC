@@ -71,24 +71,10 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
             x_pos = float(ref_path.x_spline(s_pos))
             y_pos = float(ref_path.y_spline(s_pos))
             
-            # Get path tangent to place obstacle slightly offset from centerline
-            dx = float(ref_path.x_spline.derivative()(s_pos))
-            dy = float(ref_path.y_spline.derivative()(s_pos))
-            norm = np.sqrt(dx**2 + dy**2)
-            if norm > 1e-6:
-                # Normal vector (perpendicular to tangent, pointing left)
-                nx = -dy / norm
-                ny = dx / norm
-                # Offset obstacle from centerline (alternate left/right to create weaving path)
-                # Road width is typically 7.0m (3.5m half-width)
-                # Place obstacles with moderate offsets within road bounds
-                offsets = [1.0, -1.0, 0.5]  # Vary offsets for interesting path, keep within bounds
-                offset = offsets[i % len(offsets)]
-                x_obs = x_pos + nx * offset
-                y_obs = y_pos + ny * offset
-            else:
-                x_obs = x_pos
-                y_obs = y_pos
+            # Place obstacle exactly on centerline (no offset)
+            x_obs = x_pos
+            y_obs = y_pos
+            offset = 0.0  # On centerline
             
             # Create stationary obstacle (zero velocity)
             obstacle_config = create_point_mass_obstacle(

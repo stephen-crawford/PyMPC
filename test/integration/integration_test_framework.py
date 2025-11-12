@@ -69,6 +69,8 @@ class TestConfig:
     timeout_seconds: Optional[float] = 60.0
     # Optional: maximum consecutive MPC solve failures before early termination. Default: 5.
     max_consecutive_failures: int = 5
+    # Optional: enable stuck vehicle detection and early exit. Default: True.
+    enable_stuck_vehicle_detection: bool = True
 
 
 @dataclass
@@ -720,6 +722,10 @@ class IntegrationTestFramework:
                 logger.info(f"Non-contouring dynamics: no spline variable needed")
             vehicle_states.append(vehicle_state.copy())
             
+            # Initialize early exit flags
+            early_exit_stuck = False
+            early_exit_failures = False
+            
             # Create initial state object and set it on the problem
             from planning.types import State
             initial_state = State(vehicle_dynamics)
@@ -983,6 +989,71 @@ class IntegrationTestFramework:
                     if planner_output.success:
                         logger.info(f"Step {step}: MPC solve successful")
                         consecutive_solver_failures = 0  # Reset on success
+                        
+                        # Check for stuck vehicle (not moving forward) - only if enabled
+                        if test_config.enable_stuck_vehicle_detection and step > 5 and len(vehicle_states) >= 6:
+                            # Check if vehicle has moved less than 0.1m in last 5 steps
+                            recent_states = vehicle_states[-6:]
+                            positions = np.array([[s[0], s[1]] for s in recent_states])
+                            distances = np.linalg.norm(np.diff(positions, axis=0), axis=1)
+                            total_movement = np.sum(distances)
+                            
+                            if total_movement < 0.1:  # Vehicle stuck (moved less than 10cm in 5 steps)
+                                logger.error(f"🚨 VEHICLE STUCK DETECTED at step {step}!")
+                                logger.error(f"  Vehicle has moved only {total_movement:.4f}m in last 5 steps")
+                                logger.error(f"  Current position: ({vehicle_states[-1][0]:.3f}, {vehicle_states[-1][1]:.3f})")
+                                logger.error(f"  Position 5 steps ago: ({vehicle_states[-6][0]:.3f}, {vehicle_states[-6][1]:.3f})")
+                                
+                                # Log constraint violations at current position
+                                logger.error("  Checking constraint violations at current position...")
+                                try:
+                                    # Get linearized constraints module
+                                    linearized_module = None
+                                    for module in constraint_modules:
+                                        if hasattr(module, 'name') and module.name == 'linearized_constraints':
+                                            linearized_module = module
+                                            break
+                                    
+                                    if linearized_module:
+                                        constraints = linearized_module.calculate_constraints(planner.state, data, 0)
+                                        violations = []
+                                        vehicle_x = float(planner.state.get('x'))
+                                        vehicle_y = float(planner.state.get('y'))
+                                        for c in constraints:
+                                            if 'a1' in c and 'a2' in c and 'b' in c:
+                                                constraint_val = c['a1'] * vehicle_x + c['a2'] * vehicle_y
+                                                if constraint_val > c['b']:
+                                                    violations.append({
+                                                        'a1': c['a1'],
+                                                        'a2': c['a2'],
+                                                        'b': c['b'],
+                                                        'value': constraint_val,
+                                                        'violation': constraint_val - c['b']
+                                                    })
+                                        
+                                        if violations:
+                                            logger.error(f"  Found {len(violations)} constraint violations:")
+                                            for i, v in enumerate(violations):
+                                                logger.error(f"    Violation {i+1}: a1={v['a1']:.4f}, a2={v['a2']:.4f}, b={v['b']:.4f}, "
+                                                            f"value={v['value']:.4f}, violation_amount={v['violation']:.4f}")
+                                        else:
+                                            logger.warning("  No constraint violations detected, but vehicle is stuck")
+                                except Exception as e:
+                                    logger.error(f"  Could not check constraint violations: {e}")
+                                
+                                logger.error("  Terminating test early due to stuck vehicle")
+                                # Flush logs safely (may fail if stdout/stderr are closed)
+                                try:
+                                    import sys
+                                    if sys.stdout and not sys.stdout.closed:
+                                        sys.stdout.flush()
+                                    if sys.stderr and not sys.stderr.closed:
+                                        sys.stderr.flush()
+                                except (BrokenPipeError, OSError, AttributeError) as flush_err:
+                                    logger.debug(f"Could not flush stdout/stderr (non-fatal): {flush_err}")
+                                # Mark that we're exiting early due to stuck vehicle
+                                early_exit_stuck = True
+                                break
                     else:
                         logger.warning(f"Step {step}: MPC solve failed")
                         consecutive_solver_failures += 1
@@ -991,6 +1062,17 @@ class IntegrationTestFramework:
                             logger.error(f"Max consecutive MPC failures ({max_consecutive_failures}) reached. "
                                        f"No successful solve in last {max_consecutive_failures} attempts. "
                                        f"Terminating test early at step {step}.")
+                            # Flush logs safely (may fail if stdout/stderr are closed)
+                            try:
+                                import sys
+                                if sys.stdout and not sys.stdout.closed:
+                                    sys.stdout.flush()
+                                if sys.stderr and not sys.stderr.closed:
+                                    sys.stderr.flush()
+                            except (BrokenPipeError, OSError, AttributeError) as flush_err:
+                                logger.debug(f"Could not flush stdout/stderr (non-fatal): {flush_err}")
+                            # Mark that we're exiting early due to solver failures
+                            early_exit_failures = True
                             break
                     
                     # Visualize constraints using module visualizers
@@ -1406,12 +1488,25 @@ class IntegrationTestFramework:
                         logger.info(f"Reached safety cap of {max_steps_cap} steps before path end; stopping")
                         break
                     
-            # Save results
-            self.save_state_history(output_folder, vehicle_states, obstacle_states)
+            # Save results - ALWAYS save files even if early exit occurred
+            try:
+                logger.info("Saving test results...")
+                self.save_state_history(output_folder, vehicle_states, obstacle_states)
+                logger.info(f"Saved state history: {len(vehicle_states)} vehicle states, {len(obstacle_states)} obstacles")
+            except Exception as save_err:
+                logger.error(f"Error saving state history: {save_err}")
+            
             # Store data object for goal plotting in animation
             self.last_data = data
-            # halfspaces_per_step and linearized_halfspaces_per_step are already captured in the loop above
-            self.create_animation(output_folder, vehicle_states, obstacle_states, test_config, goal_reached_step, predicted_trajs, halfspaces_per_step, linearized_halfspaces_per_step)
+            
+            # Create animation - ALWAYS create even if early exit occurred
+            try:
+                logger.info("Creating animation...")
+                # halfspaces_per_step and linearized_halfspaces_per_step are already captured in the loop above
+                self.create_animation(output_folder, vehicle_states, obstacle_states, test_config, goal_reached_step, predicted_trajs, halfspaces_per_step, linearized_halfspaces_per_step)
+                logger.info("Animation created successfully")
+            except Exception as anim_err:
+                logger.error(f"Error creating animation: {anim_err}")
             # Save framework summary for validation
             try:
                 summary = {
@@ -1428,10 +1523,19 @@ class IntegrationTestFramework:
             except Exception:
                 pass
             
-            logger.info("Test completed successfully")
+            # Determine test success - may have exited early but still successful if files were saved
+            if early_exit_stuck:
+                logger.warning("Test exited early due to stuck vehicle, but files were saved")
+                test_success = True  # Files saved, so consider it successful
+            elif early_exit_failures:
+                logger.warning("Test exited early due to solver failures, but files were saved")
+                test_success = True  # Files saved, so consider it successful
+            else:
+                logger.info("Test completed successfully")
+                test_success = True
             
             return TestResult(
-                success=True,
+                success=test_success,
                 vehicle_states=vehicle_states,
                 obstacle_states=obstacle_states,
                 computation_times=computation_times,

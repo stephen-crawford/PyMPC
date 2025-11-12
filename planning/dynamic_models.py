@@ -125,8 +125,15 @@ class DynamicsModel:
 		Performs symbolic RK4 integration for the full state vector.
 		This method is used by the CasADiSolver to build the optimization constraints.
 		Subclasses with algebraic states (non-integrated) should override this.
+		
+		RK4 (Runge-Kutta 4th order) integration:
+		k1 = f(x, u, p)
+		k2 = f(x + dt/2 * k1, u, p)
+		k3 = f(x + dt/2 * k2, u, p)
+		k4 = f(x + dt * k3, u, p)
+		x_next = x + dt/6 * (k1 + 2*k2 + 2*k3 + k4)
 		"""
-        # RK4 integration
+        # RK4 integration - this is the standard 4th order Runge-Kutta method
         k1 = self.continuous_model(x, u, p)
         k2 = self.continuous_model(x + timestep / 2 * k1, u, p)
         k3 = self.continuous_model(x + timestep / 2 * k2, u, p)

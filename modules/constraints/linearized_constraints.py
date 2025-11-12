@@ -4,7 +4,7 @@ from modules.constraints.base_constraint import BaseConstraint
 from planning.types import Data, State, PredictionType
 from utils.const import DETERMINISTIC, GAUSSIAN
 from utils.math_tools import rotation_matrix
-from utils.utils import LOG_DEBUG, LOG_WARN
+from utils.utils import LOG_DEBUG, LOG_INFO, LOG_WARN
 
 
 
@@ -74,8 +74,77 @@ class LinearizedConstraints(BaseConstraint):
 		# if self.filter_distant_obstacles:
 		# 	copied_dynamic_obstacles = filter_distant_obstacles(data.dynamic_obstacles, state, 5)
 		self.num_active_obstacles = len(copied_dynamic_obstacles)
-		ref_states = self.solver.get_reference_trajectory().get_states() # This gets a horizon length trajectory of the ego robot
-		LOG_DEBUG("fetched reference states: {}".format(ref_states))
+		
+		# Get reference trajectory - this should be the warmstart trajectory
+		# CRITICAL: If reference trajectory is empty, use warmstart values directly
+		ref_trajectory = self.solver.get_reference_trajectory()
+		ref_states = ref_trajectory.get_states() if ref_trajectory else []
+		
+		# If reference trajectory is empty, try to create states from warmstart values
+		if len(ref_states) == 0:
+			LOG_WARN("LinearizedConstraints.update: Reference trajectory is EMPTY! Attempting to use warmstart values directly.")
+			has_warmstart = hasattr(self.solver, 'warmstart_values') and self.solver.warmstart_values
+			LOG_INFO(f"LinearizedConstraints.update: warmstart_values available: {has_warmstart}")
+			if has_warmstart:
+				ws_keys = list(self.solver.warmstart_values.keys()) if self.solver.warmstart_values else []
+				LOG_INFO(f"LinearizedConstraints.update: warmstart_values keys: {ws_keys}")
+				if 'x' in self.solver.warmstart_values:
+					x_len = len(self.solver.warmstart_values['x']) if hasattr(self.solver.warmstart_values['x'], '__len__') else 'N/A'
+					LOG_INFO(f"LinearizedConstraints.update: warmstart x length: {x_len}")
+				
+				# Create reference states from warmstart values
+				horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
+				from planning.types import State
+				from planning.dynamic_models import DynamicsModel
+				# Get dynamics model from data
+				dynamics_model = None
+				if data is not None and hasattr(data, 'dynamics_model'):
+					dynamics_model = data.dynamics_model
+				elif hasattr(self.solver, '_get_dynamics_model'):
+					dynamics_model = self.solver._get_dynamics_model()
+				
+				LOG_INFO(f"LinearizedConstraints.update: dynamics_model available: {dynamics_model is not None}")
+				
+				if dynamics_model and 'x' in self.solver.warmstart_values and 'y' in self.solver.warmstart_values:
+					ref_states = []
+					x_vals = self.solver.warmstart_values['x']
+					y_vals = self.solver.warmstart_values['y']
+					psi_vals = self.solver.warmstart_values.get('psi', [0.0] * (horizon_val + 1))
+					
+					# Ensure arrays are the right length
+					if not hasattr(x_vals, '__len__'):
+						LOG_WARN(f"LinearizedConstraints.update: warmstart x is not an array: {type(x_vals)}")
+					else:
+						for k in range(min(horizon_val + 1, len(x_vals))):
+							ref_state = State(model_type=dynamics_model)
+							ref_state.set("x", float(x_vals[k]))
+							ref_state.set("y", float(y_vals[k]))
+							if k < len(psi_vals):
+								ref_state.set("psi", float(psi_vals[k]))
+							if 'v' in self.solver.warmstart_values and k < len(self.solver.warmstart_values['v']):
+								ref_state.set("v", float(self.solver.warmstart_values['v'][k]))
+							ref_states.append(ref_state)
+						LOG_INFO(f"LinearizedConstraints.update: Created {len(ref_states)} reference states from warmstart values")
+				else:
+					missing = []
+					if not dynamics_model:
+						missing.append("dynamics_model")
+					if 'x' not in self.solver.warmstart_values:
+						missing.append("warmstart x")
+					if 'y' not in self.solver.warmstart_values:
+						missing.append("warmstart y")
+					LOG_WARN(f"LinearizedConstraints.update: Cannot create reference states from warmstart - missing: {missing}")
+			else:
+				LOG_WARN("LinearizedConstraints.update: No warmstart values available either!")
+		
+		LOG_INFO(f"LinearizedConstraints.update: Using {len(ref_states)} reference states for constraint computation")
+		if len(ref_states) > 0:
+			# Log first few reference states to verify they're correct
+			for i in range(min(3, len(ref_states))):
+				ref_state = ref_states[i]
+				ref_x = ref_state.get("x") if ref_state.has("x") else None
+				ref_y = ref_state.get("y") if ref_state.has("y") else None
+				LOG_INFO(f"  Reference state {i}: x={ref_x:.3f}, y={ref_y:.3f}" if ref_x is not None and ref_y is not None else f"  Reference state {i}: x={ref_x}, y={ref_y}")
 
 		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
 		
@@ -91,6 +160,7 @@ class LinearizedConstraints(BaseConstraint):
 					state.get("y")
 				])
 				ego_psi = state.get("psi")
+				LOG_INFO(f"LinearizedConstraints.update: step={step} (stage 0), using CURRENT state position: ({ego_position[0]:.3f}, {ego_position[1]:.3f}), psi={ego_psi:.3f}")
 			else:
 				# Use reference trajectory position (matching C++: _solver->getEgoPrediction(k, "x"))
 				if step < len(ref_states):
@@ -99,6 +169,7 @@ class LinearizedConstraints(BaseConstraint):
 						ref_states[step].get("y")
 					])
 					ego_psi = ref_states[step].get("psi")
+					LOG_INFO(f"LinearizedConstraints.update: step={step}, using REFERENCE TRAJECTORY position: ({ego_position[0]:.3f}, {ego_position[1]:.3f}), psi={ego_psi:.3f}")
 				else:
 					# Fallback to state if reference trajectory is not long enough
 					ego_position = np.array([
@@ -106,6 +177,88 @@ class LinearizedConstraints(BaseConstraint):
 						state.get("y")
 					])
 					ego_psi = state.get("psi")
+					LOG_WARN(f"LinearizedConstraints.update: step={step}, reference trajectory too short (len={len(ref_states)}), using CURRENT state position: ({ego_position[0]:.3f}, {ego_position[1]:.3f})")
+				
+				# CRITICAL FIX: Project reference trajectory position away from obstacles
+				# Matching reference implementation: linearization must happen at feasible points (outside obstacles)
+				# The reference trajectory may go through obstacles, making linearization ineffective.
+				# Project the position away from nearby obstacles to ensure constraints are linearized
+				# at feasible positions. This is critical for solver convergence.
+				robot_radius = self.get_config_value("robot_radius", 0.5) or self.disc_radius
+				safety_margin = 0.3  # Increased safety margin for better feasibility
+				
+				# Find closest obstacle and project away from it
+				closest_obs_id = None
+				closest_dist = float('inf')
+				closest_obs_pos = None
+				closest_min_safe_distance = None
+				
+				for obs_id in range(len(copied_dynamic_obstacles)):
+					obstacle = copied_dynamic_obstacles[obs_id]
+					# Get obstacle position (use current position for static obstacles)
+					if hasattr(obstacle, 'velocity') and obstacle.velocity is not None:
+						vel_norm = np.linalg.norm(obstacle.velocity)
+						is_static = vel_norm < 1e-3
+					else:
+						is_static = True  # Assume static if no velocity
+					
+					if is_static:
+						obs_pos = np.array([obstacle.position[0], obstacle.position[1]])
+					else:
+						# For dynamic obstacles, use predicted position at step-1
+						if step - 1 < len(obstacle.prediction.steps):
+							obs_pos = np.array([
+								obstacle.prediction.steps[step - 1].position[0],
+								obstacle.prediction.steps[step - 1].position[1]
+							])
+						else:
+							obs_pos = np.array([obstacle.position[0], obstacle.position[1]])
+					
+					# Compute distance to obstacle
+					diff = ego_position - obs_pos
+					dist = np.linalg.norm(diff)
+					
+					# Get combined radius (robot + obstacle)
+					obstacle_radius = obstacle.radius if hasattr(obstacle, 'radius') else 0.35
+					min_safe_distance = robot_radius + obstacle_radius + safety_margin
+					
+					# Track closest obstacle
+					if dist < closest_dist:
+						closest_dist = dist
+						closest_obs_id = obs_id
+						closest_obs_pos = obs_pos
+						closest_min_safe_distance = min_safe_distance
+				
+				# Project away from closest obstacle if too close (even if just slightly inside)
+				# This ensures linearization point is always feasible
+				if closest_obs_id is not None and closest_dist < closest_min_safe_distance:
+					if closest_dist < 1e-6:
+						# Ego position is exactly at obstacle center - project in arbitrary direction
+						# Use path tangent direction if available, otherwise use [1, 0]
+						if hasattr(self.solver, 'data') and self.solver.data is not None:
+							if hasattr(self.solver.data, 'reference_path') and self.solver.data.reference_path is not None:
+								try:
+									# Try to get path tangent at this step
+									ref_states = self.solver.get_reference_trajectory().get_states()
+									if step < len(ref_states):
+										ref_psi = ref_states[step].get("psi")
+										direction = np.array([np.cos(ref_psi), np.sin(ref_psi)])
+									else:
+										direction = np.array([1.0, 0.0])
+								except:
+									direction = np.array([1.0, 0.0])
+							else:
+								direction = np.array([1.0, 0.0])
+						else:
+							direction = np.array([1.0, 0.0])
+					else:
+						# Normalize direction vector (away from obstacle)
+						direction = (ego_position - closest_obs_pos) / closest_dist
+					
+					# Project to safe distance (ensure we're outside the obstacle)
+					ego_position = closest_obs_pos + direction * closest_min_safe_distance
+					LOG_DEBUG(f"  Projected reference position at step {step} away from obstacle {closest_obs_id}: "
+					         f"distance {closest_dist:.3f}m -> {closest_min_safe_distance:.3f}m")
 
 			for disc_id in range(self.num_discs):
 
@@ -264,7 +417,11 @@ class LinearizedConstraints(BaseConstraint):
 													  self._a2[disc_id][step][obs_id] * target_obstacle_pos[1] -
 													  (target_obstacle_radius + robot_radius))
 
-					LOG_DEBUG(f"b for {obs_id} set to {self._b[disc_id][step][obs_id]}")
+					# Log constraint computation details for verification
+					LOG_INFO(f"  Step {step}, disc {disc_id}, obstacle {obs_id}: ego_pos=({ego_position[0]:.3f}, {ego_position[1]:.3f}), "
+					        f"obs_pos=({target_obstacle_pos[0]:.3f}, {target_obstacle_pos[1]:.3f}), "
+					        f"dist={dist:.3f}, a1={self._a1[disc_id][step][obs_id]:.4f}, a2={self._a2[disc_id][step][obs_id]:.4f}, "
+					        f"b={self._b[disc_id][step][obs_id]:.4f}")
 
 				# Handle static obstacles (matching C++: module_data.static_obstacles[k])
 				# In Python, data.static_obstacles is a list of StaticObstacle objects, one per stage
@@ -309,7 +466,10 @@ class LinearizedConstraints(BaseConstraint):
 		constraints = []
 		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
 		if stage_idx >= horizon_val:
+			LOG_DEBUG(f"LinearizedConstraints.calculate_constraints: stage_idx={stage_idx} >= horizon={horizon_val}, returning empty constraints")
 			return constraints
+
+		LOG_INFO(f"LinearizedConstraints.calculate_constraints: stage_idx={stage_idx}, num_discs={self.num_discs}, num_active_obstacles={self.num_active_obstacles}, num_other_halfspaces={self.num_other_halfspaces}")
 
 		for disc_id in range(self.num_discs):
 			# Resolve disc offset from robot_area if available
@@ -317,6 +477,7 @@ class LinearizedConstraints(BaseConstraint):
 			if not self.use_guidance and data.has("robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
 				disc_offset = float(data.robot_area[disc_id].offset)
 
+			disc_constraints = 0
 			for index in range(self.num_active_obstacles + self.num_other_halfspaces):
 				a1 = self._a1[disc_id][stage_idx][index] if self._a1[disc_id][stage_idx][index] is not None else self._dummy_a1
 				a2 = self._a2[disc_id][stage_idx][index] if self._a2[disc_id][stage_idx][index] is not None else self._dummy_a2
@@ -327,10 +488,44 @@ class LinearizedConstraints(BaseConstraint):
 				# Add constraint - ensure it's for a valid obstacle index
 				# For actual obstacles (index < num_active_obstacles), always add
 				# For other halfspaces (index >= num_active_obstacles), also add
+				constraint_type = "obstacle" if index < self.num_active_obstacles else "halfspace"
 				constraints.append({"a1": float(a1), "a2": float(a2), "b": float(b), "disc_offset": disc_offset})
-				# Log constraint details for stage 0 to help diagnose issues
-				if stage_idx == 0 and index < self.num_active_obstacles:
-					LOG_DEBUG(f"Linearized constraint stage 0, disc {disc_id}, obstacle {index}: a1={a1:.4f}, a2={a2:.4f}, b={b:.4f}, disc_offset={disc_offset:.4f}")
+				disc_constraints += 1
+				# Log constraint details for all stages
+				# Also evaluate constraint at current vehicle position to check if it's violated
+				constraint_violated = False
+				constraint_value = None
+				if stage_idx == 0 and state is not None:
+					try:
+						# Get current vehicle position
+						vehicle_x = float(state.get("x")) if state.has("x") else None
+						vehicle_y = float(state.get("y")) if state.has("y") else None
+						if vehicle_x is not None and vehicle_y is not None:
+							# Evaluate constraint: a1*x + a2*y <= b
+							constraint_value = a1 * vehicle_x + a2 * vehicle_y
+							constraint_violated = constraint_value > b
+							if constraint_violated:
+								LOG_WARN(f"  ⚠️  Linearized constraint stage {stage_idx}, disc {disc_id}, {constraint_type} {index}: "
+								        f"VIOLATED! constraint_value={constraint_value:.4f} > b={b:.4f} "
+								        f"at vehicle position ({vehicle_x:.3f}, {vehicle_y:.3f})")
+							else:
+								LOG_INFO(f"  ✓ Linearized constraint stage {stage_idx}, disc {disc_id}, {constraint_type} {index}: "
+								        f"a1={a1:.4f}, a2={a2:.4f}, b={b:.4f}, disc_offset={disc_offset:.4f}, "
+								        f"constraint_value={constraint_value:.4f} <= b={b:.4f} at vehicle ({vehicle_x:.3f}, {vehicle_y:.3f})")
+						else:
+							LOG_INFO(f"  Linearized constraint stage {stage_idx}, disc {disc_id}, {constraint_type} {index}: "
+							        f"a1={a1:.4f}, a2={a2:.4f}, b={b:.4f}, disc_offset={disc_offset:.4f}")
+					except Exception as e:
+						LOG_INFO(f"  Linearized constraint stage {stage_idx}, disc {disc_id}, {constraint_type} {index}: "
+						        f"a1={a1:.4f}, a2={a2:.4f}, b={b:.4f}, disc_offset={disc_offset:.4f} (could not evaluate: {e})")
+				else:
+					LOG_INFO(f"  Linearized constraint stage {stage_idx}, disc {disc_id}, {constraint_type} {index}: "
+					        f"a1={a1:.4f}, a2={a2:.4f}, b={b:.4f}, disc_offset={disc_offset:.4f}")
+			
+			if disc_constraints == 0:
+				LOG_DEBUG(f"  Disc {disc_id} at stage {stage_idx}: no valid constraints (all degenerate)")
+
+		LOG_INFO(f"LinearizedConstraints.calculate_constraints: stage_idx={stage_idx}, returning {len(constraints)} constraints")
 		return constraints
 
 	def lower_bounds(self, state=None, data=None, stage_idx=None):

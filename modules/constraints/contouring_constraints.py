@@ -280,10 +280,10 @@ class ContouringConstraints(BaseConstraint):
 		- Computes constraints for that spline value
 		- Returns constraints for all discs
 		"""
-		LOG_DEBUG(f"ContouringConstraints.calculate_constraints: stage_idx={stage_idx}")
+		LOG_INFO(f"ContouringConstraints.calculate_constraints: stage_idx={stage_idx}")
 		
 		if self._reference_path is None:
-			LOG_DEBUG("  No reference path stored, skipping constraints")
+			LOG_INFO(f"  ContouringConstraints stage {stage_idx}: No reference path stored, skipping constraints")
 			return []
 		
 		# Get predicted spline value for this stage (analogous to C++ _solver->getOutput(k, "spline"))
@@ -434,15 +434,20 @@ class ContouringConstraints(BaseConstraint):
 						"spline_s": float(segment_s),  # Store spline parameter for visualization
 					})
 		
-		LOG_DEBUG(f"ContouringConstraints.calculate_constraints: stage_idx={stage_idx}, cur_s={cur_s:.3f}, "
+		LOG_INFO(f"ContouringConstraints.calculate_constraints: stage_idx={stage_idx}, cur_s={cur_s:.3f}, "
 		         f"segments={len(segment_s_values)}, returning {len(constraints)} constraint(s) "
 		         f"({halfspace_count} halfspace(s) × {self.num_discs} disc(s))")
 		
-		if stage_idx <= 2 and constraints:
-			first_const = constraints[0]
-			LOG_INFO(f"  Stage {stage_idx}: cur_s={cur_s:.3f}, segments={len(segment_s_values)}, "
-			        f"first constraint: a1={first_const.get('a1', 'N/A'):.6f}, "
-			        f"a2={first_const.get('a2', 'N/A'):.6f}, b={first_const.get('b', 'N/A'):.6f}")
+		# Log detailed constraint information for all stages
+		if constraints:
+			for i, const in enumerate(constraints[:3]):  # Log first 3 constraints
+				LOG_INFO(f"  Contouring constraint stage {stage_idx}, constraint {i}: a1={const.get('a1', 'N/A'):.6f}, "
+				        f"a2={const.get('a2', 'N/A'):.6f}, b={const.get('b', 'N/A'):.6f}, "
+				        f"disc_offset={const.get('disc_offset', 0.0):.4f}, is_left={const.get('is_left', 'N/A')}")
+			if len(constraints) > 3:
+				LOG_INFO(f"  ... and {len(constraints) - 3} more contouring constraints")
+		else:
+			LOG_INFO(f"  ContouringConstraints stage {stage_idx}: No constraints returned")
 		
 		return constraints
 
