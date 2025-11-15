@@ -1,7 +1,6 @@
 {
-  "objective_module": "contouring",
+  "objective_module": "goal",
   "constraint_modules": [
-    "contouring",
     "linear"
   ],
   "vehicle_dynamics": "unicycle",

@@ -32,7 +32,15 @@ class GoalObjective(BaseObjective):
     params.add("goal_y")
 
   def get_value(self, state, data, stage_idx):
-
+    """Compute goal objective cost symbolically.
+    
+    CRITICAL: This method receives symbolic_state for future stages (stage_idx > 0),
+    ensuring objectives are computed symbolically using predicted states.
+    This matches the reference codebase pattern.
+    
+    Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+    """
+    # Get symbolic state variables (will be symbolic for future stages)
     pos_x = state.get("x")
     pos_y = state.get("y")
     psi = state.get("psi")
@@ -138,16 +146,28 @@ class GoalObjective(BaseObjective):
       horizon_val = self.solver.horizon
     elif data and hasattr(data, 'horizon') and data.horizon is not None:
       horizon_val = data.horizon
+    # Helper to safely format values (handles symbolic expressions)
+    def safe_format(val, default='symbolic'):
+        if val is None:
+            return 'None'
+        import casadi as cd
+        if isinstance(val, (cd.MX, cd.SX)):
+            return default  # Can't format symbolic expressions
+        try:
+            return f"{float(val):.3f}"
+        except (TypeError, ValueError):
+            return str(val)
+    
     if stage_idx == horizon_val - 1:
       pos_cost = terminal_goal_weight * pos_error_sq
       angle_cost = terminal_angle_weight * angle_error ** 2
       if stage_idx == 0:  # Only log for first stage to avoid spam
-        LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}, TERMINAL): pos=({pos_x:.3f}, {pos_y:.3f}), goal=({goal_x:.3f}, {goal_y:.3f}), error={float(pos_error):.3f}m, cost={float(pos_cost):.3f}")
+        LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}, TERMINAL): pos=({safe_format(pos_x)}, {safe_format(pos_y)}), goal=({safe_format(goal_x)}, {safe_format(goal_y)}), error={safe_format(pos_error)}m, cost={safe_format(pos_cost)}")
     else:
       pos_cost = goal_weight * pos_error_sq
       angle_cost = angle_weight * angle_error ** 2
       if stage_idx == 0:  # Only log for first stage to avoid spam
-        LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): pos=({pos_x:.3f}, {pos_y:.3f}), goal=({goal_x:.3f}, {goal_y:.3f}), error={float(pos_error):.3f}m, cost={float(pos_cost):.3f}")
+        LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): pos=({safe_format(pos_x)}, {safe_format(pos_y)}), goal=({safe_format(goal_x)}, {safe_format(goal_y)}), error={safe_format(pos_error)}m, cost={safe_format(pos_cost)}")
 
     return {"goal_pos_cost": pos_cost, "goal_angle_cost": angle_cost}
 

@@ -570,9 +570,16 @@ class ContouringObjective(BaseObjective):
 			#LOG_INFO("Finished setting contouring objective parameters")
 
 	def get_value(self, state, data, stage_idx):
-		# FIX: get_value signature is (state, data, stage_idx) not (symbolic_state, params, stage_idx)
+		"""Compute contouring objective cost symbolically.
+		
+		CRITICAL: This method receives symbolic_state for future stages (stage_idx > 0),
+		ensuring objectives are computed symbolically using predicted states.
+		This matches the reference codebase pattern.
+		
+		Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+		"""
 		# Get parameters from parameter_manager for this stage
-		symbolic_state = state
+		symbolic_state = state  # state is already symbolic for future stages
 		if self.solver and hasattr(self.solver, 'parameter_manager'):
 			params_dict = self.solver.parameter_manager.get_all(stage_idx)
 			
@@ -622,12 +629,12 @@ class ContouringObjective(BaseObjective):
 		if s_max is None:
 			raise ValueError("ContouringObjective: Cannot determine arc length from reference_path.")
 		
-		# Get symbolic state variables
-		pos_x = symbolic_state.get("x")
-		pos_y = symbolic_state.get("y")
-		psi = symbolic_state.get("psi")
-		v = symbolic_state.get("v")
-		spline_val = symbolic_state.get("spline")
+		# Get symbolic state variables (state is already symbolic for future stages)
+		pos_x = state.get("x")
+		pos_y = state.get("y")
+		psi = state.get("psi")
+		v = state.get("v")
+		spline_val = state.get("spline")
 		
 		if spline_val is None:
 			raise ValueError("ContouringObjective: spline state variable is None. Ensure vehicle dynamics model includes 'spline' state.")

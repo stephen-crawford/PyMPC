@@ -373,63 +373,20 @@ class Planner:
           if goal_x is not None and goal_y is not None:
             LOG_INFO(f"Planner: After set_parameters, goal_x={goal_x:.3f}, goal_y={goal_y:.3f} at stage 0")
     
-    LOG_INFO(f"Collecting constraints and objectives for {horizon_val + 1} stages...")
-    for k in range(horizon_val + 1):
-      # CRITICAL FIX: Use solver's parameter_manager to get parameters
-      params_k = self.solver.parameter_manager.get_all(k)
-      cons_k = self.module_manager.get_constraints(self.state, self.data, k)
-      objs_k = self.module_manager.get_objectives(self.state, self.data, k)
-      lbs_k = self.module_manager.get_lower_bounds(self.state, self.data, k)
-      ubs_k = self.module_manager.get_upper_bounds(self.state, self.data, k)
-      
-      LOG_DEBUG(f"Stage {k}: {len(cons_k) if cons_k else 0} constraints, {len(objs_k) if objs_k else 0} objectives, {len(lbs_k) if lbs_k else 0} lower bounds, {len(ubs_k) if ubs_k else 0} upper bounds")
-      # Dump concise summary for stage 0 constraints to diagnose infeasibility
-      if k == 0 and cons_k:
-        try:
-          LOG_INFO(f"Stage 0 constraints count: {len(cons_k)}")
-          for i in range(min(2, len(cons_k))):
-            c = cons_k[i]
-            a1 = c.get('a1', None); a2 = c.get('a2', None); b = c.get('b', None)
-            LOG_INFO(f"  c[{i}]: a=({a1},{a2}), b={b}")
-          # Show first few bounds too
-          if lbs_k and ubs_k:
-            LOG_INFO(f"  bounds[0..2]: lb={lbs_k[:min(2,len(lbs_k))]}, ub={ubs_k[:min(2,len(ubs_k))]}")
-        except Exception:
-          pass
-
-      if hasattr(self.data, 'set_parameters') and callable(getattr(self.data, 'set_parameters', None)):
-        self.data.set_parameters(params_k, k)
-      else:
-        self.data.set(f'parameters_{k}', params_k)
-      
-      # Also set data.parameters as a single dict for backward compatibility (used by goal objective)
-      if k == 0:
-        if not hasattr(self.data, 'parameters') or self.data.parameters is None:
-          self.data.parameters = {}
-        self.data.parameters.update(params_k)
-        # Log goal parameters
-        if 'goal_x' in params_k and 'goal_y' in params_k:
-          LOG_INFO(f"Planner: Set data.parameters with goal_x={params_k['goal_x']:.3f}, goal_y={params_k['goal_y']:.3f}")
-
-      if hasattr(self.data, 'set_constraints') and callable(getattr(self.data, 'set_constraints', None)):
-        self.data.set_constraints(cons_k, k)
-      else:
-        self.data.set(f'constraints_{k}', cons_k)
-
-      if hasattr(self.data, 'set_objectives') and callable(getattr(self.data, 'set_objectives', None)):
-        self.data.set_objectives(objs_k, k)
-      else:
-        self.data.set(f'objectives_{k}', objs_k)
-
-      if hasattr(self.data, 'set_lower_bounds') and callable(getattr(self.data, 'set_lower_bounds', None)):
-        self.data.set_lower_bounds(lbs_k, k)
-      else:
-        self.data.set(f'lower_bounds_{k}', lbs_k)
-
-      if hasattr(self.data, 'set_upper_bounds') and callable(getattr(self.data, 'set_upper_bounds', None)):
-        self.data.set_upper_bounds(ubs_k, k)
-      else:
-        self.data.set(f'upper_bounds_{k}', ubs_k)
+    # CRITICAL: Constraints and objectives are now computed symbolically in the solver
+    # The solver creates symbolic states for each stage and passes them to modules.
+    # We no longer pre-collect constraints/objectives here since they must use symbolic states.
+    # Reference: https://github.com/tud-amr/mpc_planner - all computation is symbolic in the solver.
+    LOG_INFO(f"Parameters set for {horizon_val + 1} stages. Constraints and objectives will be computed symbolically in solver.")
+    
+    # Set data.parameters for backward compatibility (used by some modules)
+    if not hasattr(self.data, 'parameters') or self.data.parameters is None:
+      self.data.parameters = {}
+    params_0 = self.solver.parameter_manager.get_all(0)
+    self.data.parameters.update(params_0)
+    # Log goal parameters
+    if 'goal_x' in params_0 and 'goal_y' in params_0:
+      LOG_INFO(f"Planner: Set data.parameters with goal_x={params_0['goal_x']:.3f}, goal_y={params_0['goal_y']:.3f}")
 
     LOG_INFO("Calling solver.solve()...")
     LOG_DEBUG(f"  Solving MPC over horizon={horizon_val}, timestep={timestep_val}")

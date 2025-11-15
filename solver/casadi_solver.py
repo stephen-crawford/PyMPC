@@ -1001,18 +1001,11 @@ class CasADiSolver(BaseSolver):
 				LOG_DEBUG(f"Stage {stage_idx}: Using data.state={self.data.state is not None}, symbolic_state for CasADi vars")
 			
 			# Get objectives from module manager
-			# CRITICAL: For goal objective, we MUST use symbolic_state (predicted state) for future stages,
-			# not data.state (current state). Otherwise, the angle cost will be the same for all stages,
-			# and the solver won't see the benefit of turning.
-			# For stage 0, we can use data.state, but for future stages, we need symbolic_state.
-			# However, get_objective_cost overrides state with data.state. We need to pass symbolic_state directly.
-			# Let's call module_manager.get_objectives directly with symbolic_state for goal objective
-			if stage_idx == 0:
-				# For stage 0, use get_objective_cost which may use data.state
-				objective_costs = self.get_objective_cost(symbolic_state, stage_idx)
-			else:
-				# For future stages, use symbolic_state directly (predicted state)
-				objective_costs = self.module_manager.get_objectives(symbolic_state, self.data, stage_idx) or []
+			# CRITICAL: For ALL stages, use symbolic_state (predicted state) so objectives are computed symbolically.
+			# This matches the reference codebase pattern where objectives are evaluated symbolically.
+			# For stage 0, symbolic_state contains the current state; for future stages, it contains predicted states.
+			# Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+			objective_costs = self.module_manager.get_objectives(symbolic_state, self.data, stage_idx) or []
 			# Log objectives BEFORE processing
 			obj_count = len(objective_costs or [])
 			if obj_count > 0:
@@ -1112,8 +1105,10 @@ class CasADiSolver(BaseSolver):
 				except Exception as e:
 					LOG_WARN(f"Failed to add control costs at stage {stage_idx}: {e}")
 
-			# Get constraints from module manager - it uses data as source of truth
-			constraints = self.get_constraints(stage_idx)
+			# Get constraints from module manager
+			# CRITICAL: For future stages, pass symbolic_state so constraints are computed symbolically
+			# This matches the reference codebase where constraints are evaluated at predicted states
+			constraints = self.get_constraints(stage_idx, symbolic_state=symbolic_state)
 			# Log constraints BEFORE processing with detailed breakdown
 			LOG_INFO(f"=== Solver.solve(): Stage {stage_idx} - Constraints being passed to solver ===")
 			try:
@@ -1124,10 +1119,21 @@ class CasADiSolver(BaseSolver):
 				contouring_count = 0
 				other_count = 0
 				linearized_constraints_detail = []
-				for (c, lb, ub) in (constraints or []):
+				for constraint_item in (constraints or []):
+					# Handle both tuple format (c, lb, ub) and direct constraints
+					if isinstance(constraint_item, tuple) and len(constraint_item) == 3:
+						c, lb, ub = constraint_item
+					else:
+						c = constraint_item
+						lb, ub = None, None
+					
 					ctype = None
 					if isinstance(c, dict):
-						if 'a1' in c and 'a2' in c:
+						# Check for symbolic expression type (from contouring constraints)
+						if c.get('type') == 'symbolic_expression':
+							contouring_count += 1
+							ctype = 'contouring'
+						elif 'a1' in c and 'a2' in c:
 							# Check if it's a linearized constraint (has obstacle index context) or contouring
 							if 'is_left' in c or 'spline_s' in c:
 								contouring_count += 1
@@ -1136,15 +1142,29 @@ class CasADiSolver(BaseSolver):
 								linearized_count += 1
 								ctype = 'linearized'
 								# Log detailed information for linearized constraints
+								# CRITICAL: Handle symbolic values - only convert to float if numeric
 								a1_val = c.get('a1', 0.0)
 								a2_val = c.get('a2', 0.0)
 								b_val = c.get('b', 0.0)
 								disc_offset_val = c.get('disc_offset', 0.0)
+								
+								# Helper to safely convert to float (handles symbolic expressions)
+								def safe_float(val):
+									if val is None:
+										return 0.0
+									import casadi as cd
+									if isinstance(val, (cd.MX, cd.SX)):
+										return 'symbolic'  # Can't evaluate symbolic expressions here
+									try:
+										return float(val)
+									except (TypeError, ValueError):
+										return 'N/A'
+								
 								linearized_constraints_detail.append({
-									"a1": float(a1_val),
-									"a2": float(a2_val),
-									"b": float(b_val),
-									"disc_offset": float(disc_offset_val),
+									"a1": safe_float(a1_val),
+									"a2": safe_float(a2_val),
+									"b": safe_float(b_val),
+									"disc_offset": safe_float(disc_offset_val),
 									"lb": lb,
 									"ub": ub
 								})
@@ -1159,7 +1179,9 @@ class CasADiSolver(BaseSolver):
 						"lb": None if lb is None else 'set',
 						"ub": None if ub is None else 'set',
 					})
-				msg_cons = f"Stage {stage_idx}: constraints count={len(constraints or [])} (linearized={linearized_count}, contouring={contouring_count}, other={other_count})"
+				# Count total constraints properly (handle tuple format)
+				total_constraints = len(constraints or [])
+				msg_cons = f"Stage {stage_idx}: constraints count={total_constraints} (linearized={linearized_count}, contouring={contouring_count}, other={other_count})"
 				LOG_INFO(msg_cons)
 				
 				# Log detailed information for linearized constraints
@@ -1185,7 +1207,19 @@ class CasADiSolver(BaseSolver):
 			except Exception as e:
 				LOG_WARN(f"Error logging constraints: {e}")
 			if constraints:
-				for (c, lb, ub) in constraints:
+				for constraint_item in constraints:
+					# Handle both tuple format (c, lb, ub) and direct CasADi expressions
+					if isinstance(constraint_item, tuple) and len(constraint_item) == 3:
+						c, lb, ub = constraint_item
+					elif isinstance(constraint_item, tuple) and len(constraint_item) == 1:
+						# Single expression, no bounds
+						c = constraint_item[0]
+						lb, ub = None, None
+					else:
+						# Direct expression or dict
+						c = constraint_item
+						lb, ub = None, None
+					
 					# Robust bound handling with translation of structured constraints to CasADi
 					if c is None:
 						continue
@@ -1200,10 +1234,21 @@ class CasADiSolver(BaseSolver):
 						return val
 
 					def _translate_constraint(expr_or_dict):
-						# Accept already-built CasADi expressions
+						# Accept already-built CasADi expressions (from symbolic constraint computation)
+						# This matches the reference codebase where constraints are symbolic
+						import casadi as cd
+						if isinstance(expr_or_dict, (cd.MX, cd.SX)):
+							# Already a CasADi expression - return directly
+							return expr_or_dict
 						if not isinstance(expr_or_dict, dict):
+							# Try to convert to CasADi if possible
 							return expr_or_dict
 						cdef = expr_or_dict
+						
+						# Check if this is a symbolic expression wrapped in a dict
+						if cdef.get('type') == 'symbolic_expression' and 'expression' in cdef:
+							# Return the symbolic expression directly
+							return cdef['expression']
 						# Support common linearized halfspace: a1*x + a2*y <= b
 						if ('a1' in cdef and 'a2' in cdef) or cdef.get('type') == 'linear':
 							a1 = _to_mx(cdef.get('a1', 0.0))
@@ -1258,6 +1303,14 @@ class CasADiSolver(BaseSolver):
 					c_expr = _translate_constraint(c)
 					if c_expr is None:
 						continue
+					
+					# For symbolic expressions, bounds may be in the dict
+					if isinstance(c, dict) and c.get('type') == 'symbolic_expression':
+						# Use bounds from dict if provided
+						if 'lb' in c:
+							lb = c.get('lb')
+						if 'ub' in c:
+							ub = c.get('ub')
 
 					lb_mx = _to_mx(lb)
 					ub_mx = _to_mx(ub)
@@ -1270,9 +1323,21 @@ class CasADiSolver(BaseSolver):
 								try:
 									if 'a1' in c and 'a2' in c:
 										# This is a linearized constraint
-										a1_val = float(c.get('a1', 0.0))
-										a2_val = float(c.get('a2', 0.0))
-										b_val = float(c.get('b', 0.0))
+										# CRITICAL: Handle symbolic values - only convert to float if numeric
+										def safe_float_log(val):
+											if val is None:
+												return 0.0
+											import casadi as cd
+											if isinstance(val, (cd.MX, cd.SX)):
+												return 'symbolic'  # Can't evaluate symbolic expressions here
+											try:
+												return float(val)
+											except (TypeError, ValueError):
+												return 'N/A'
+										
+										a1_val = safe_float_log(c.get('a1', 0.0))
+										a2_val = safe_float_log(c.get('a2', 0.0))
+										b_val = safe_float_log(c.get('b', 0.0))
 										# Get current state values for constraint evaluation
 										if hasattr(self, 'data') and self.data is not None:
 											if hasattr(self.data, 'state') and self.data.state is not None:
@@ -1497,10 +1562,17 @@ class CasADiSolver(BaseSolver):
 								# For constraints lb <= expr <= ub, violation means expr < lb or expr > ub
 								# The debug.g values are the constraint expressions themselves
 								# We need to check against bounds to find actual violations
+								# CRITICAL: Create symbolic states for diagnostic purposes to match the symbolic system
 								violations = []
 								constraints_with_bounds = []
+								dynamics_model = self._get_dynamics_model()
 								for stage_idx_check in range(horizon_val + 1):
-									cons_list = self.get_constraints(stage_idx_check)
+									# Create symbolic state for this stage (for diagnostic purposes)
+									symbolic_state_diag = State(dynamics_model)
+									for var_name in dynamics_model.get_all_vars():
+										if var_name in self.var_dict and stage_idx_check < self.var_dict[var_name].shape[0]:
+											symbolic_state_diag.set(var_name, self.var_dict[var_name][stage_idx_check])
+									cons_list = self.get_constraints(stage_idx_check, symbolic_state=symbolic_state_diag)
 									constraints_with_bounds.extend(cons_list)
 								
 								# Check each constraint against its bounds
@@ -1589,7 +1661,12 @@ class CasADiSolver(BaseSolver):
 												constraint_idx_in_stage = 0
 												found_stage = False
 												for stage_check in range(horizon_val + 1):
-													cons_check = self.get_constraints(stage_check)
+													# Create symbolic state for diagnostic purposes
+													symbolic_state_diag = State(dynamics_model)
+													for var_name in dynamics_model.get_all_vars():
+														if var_name in self.var_dict and stage_check < self.var_dict[var_name].shape[0]:
+															symbolic_state_diag.set(var_name, self.var_dict[var_name][stage_check])
+													cons_check = self.get_constraints(stage_check, symbolic_state=symbolic_state_diag)
 													if module_idx < constraints_counted + len(cons_check):
 														stage_idx = stage_check
 														constraint_idx_in_stage = module_idx - constraints_counted
@@ -1604,7 +1681,12 @@ class CasADiSolver(BaseSolver):
 												# Try to get more details about this constraint
 												try:
 													if stage_idx < horizon_val + 1:
-														cons_list = self.get_constraints(stage_idx)
+														# Create symbolic state for diagnostic purposes
+														symbolic_state_diag = State(dynamics_model)
+														for var_name in dynamics_model.get_all_vars():
+															if var_name in self.var_dict and stage_idx < self.var_dict[var_name].shape[0]:
+																symbolic_state_diag.set(var_name, self.var_dict[var_name][stage_idx])
+														cons_list = self.get_constraints(stage_idx, symbolic_state=symbolic_state_diag)
 														if constraint_idx_in_stage < len(cons_list):
 															c, lb, ub = cons_list[constraint_idx_in_stage]
 															if isinstance(c, dict):
@@ -1754,9 +1836,15 @@ class CasADiSolver(BaseSolver):
 										num_dynamics_constraints = len(dynamics_model.get_dependent_vars()) * horizon_val if dynamics_model else 5 * horizon_val
 										# Module constraints: Count actual constraints from all stages
 										# Note: Some constraint modules may not return constraints for stage_idx >= horizon_val
+										# CRITICAL: Create symbolic states for diagnostic purposes to match the symbolic system
 										num_module_constraints = 0
 										for stage_check in range(horizon_val + 1):
-											cons_check = self.get_constraints(stage_check)
+											# Create symbolic state for diagnostic purposes
+											symbolic_state_diag = State(dynamics_model)
+											for var_name in dynamics_model.get_all_vars():
+												if var_name in self.var_dict and stage_check < self.var_dict[var_name].shape[0]:
+													symbolic_state_diag.set(var_name, self.var_dict[var_name][stage_check])
+											cons_check = self.get_constraints(stage_check, symbolic_state=symbolic_state_diag)
 											num_module_constraints += len(cons_check)
 										# Constraints are added in order: initial state, then module constraints per stage, then dynamics constraints
 										LOG_WARN(f"  Constraint indexing: initial={num_initial_state}, module={num_module_constraints}, dynamics={num_dynamics_constraints}, total expected={num_initial_state+num_module_constraints+num_dynamics_constraints}, actual={len(constraint_violations)}")
@@ -1772,7 +1860,12 @@ class CasADiSolver(BaseSolver):
 											constraint_in_stage = 0
 											found_stage = False
 											for stage_check in range(horizon_val + 1):
-												cons_check = self.get_constraints(stage_check)
+												# Create symbolic state for diagnostic purposes
+												symbolic_state_diag = State(dynamics_model)
+												for var_name in dynamics_model.get_all_vars():
+													if var_name in self.var_dict and stage_check < self.var_dict[var_name].shape[0]:
+														symbolic_state_diag.set(var_name, self.var_dict[var_name][stage_check])
+												cons_check = self.get_constraints(stage_check, symbolic_state=symbolic_state_diag)
 												if module_idx < constraints_counted + len(cons_check):
 													stage_idx = stage_check
 													constraint_in_stage = module_idx - constraints_counted

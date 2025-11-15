@@ -293,15 +293,27 @@ class ContouringConstraints(BaseConstraint):
 		
 		# Get predicted spline value for this stage (analogous to C++ _solver->getOutput(k, "spline"))
 		spline_val = None
-		if state is not None and hasattr(state, 'get') and state.has('spline'):
-			try:
-				spline_val = state.get('spline')
-			except Exception as e:
-				LOG_DEBUG(f"  Could not get spline from state: {e}")
+		if state is not None:
+			if hasattr(state, 'has') and state.has('spline'):
+				try:
+					spline_val = state.get('spline')
+					LOG_DEBUG(f"  Stage {stage_idx}: Got spline from state: type={type(spline_val).__name__}, value={spline_val if not hasattr(spline_val, '__class__') or 'MX' not in str(type(spline_val)) else 'symbolic'}")
+				except Exception as e:
+					LOG_DEBUG(f"  Could not get spline from state: {e}")
+			else:
+				LOG_DEBUG(f"  Stage {stage_idx}: State does not have 'spline' variable (has method: {hasattr(state, 'has')})")
+		else:
+			LOG_DEBUG(f"  Stage {stage_idx}: State is None")
 		
 		# CRITICAL: Check if spline is symbolic
 		import casadi as cd
 		is_symbolic = isinstance(spline_val, (cd.MX, cd.SX))
+		if is_symbolic:
+			LOG_INFO(f"  Stage {stage_idx}: Spline is SYMBOLIC (CasADi {type(spline_val).__name__})")
+		elif spline_val is not None:
+			LOG_INFO(f"  Stage {stage_idx}: Spline is NUMERIC: {float(spline_val):.3f}")
+		else:
+			LOG_INFO(f"  Stage {stage_idx}: Spline is None - will try to get from warmstart")
 		
 		if is_symbolic:
 			# SYMBOLIC spline: Compute constraints symbolically using the symbolic spline value
@@ -309,41 +321,62 @@ class ContouringConstraints(BaseConstraint):
 			LOG_INFO(f"  Stage {stage_idx}: Computing constraints SYMBOLICALLY using symbolic spline value")
 			return self._compute_symbolic_constraints(spline_val, state, data, stage_idx)
 		else:
-			# Numeric spline: Use numeric computation (for warmstart/initialization)
-			# Get numeric value
-			cur_s = None
-			if spline_val is not None:
+			# LEGACY: Numeric spline should not happen in normal operation
+			# Try to get symbolic spline from solver's var_dict
+			LOG_WARN(f"  Stage {stage_idx}: Spline is not symbolic - attempting to get from solver var_dict")
+			if hasattr(self, 'solver') and self.solver is not None:
 				try:
-					cur_s = float(spline_val)
+					dynamics_model = self.solver._get_dynamics_model() if hasattr(self.solver, '_get_dynamics_model') else None
+					if dynamics_model is not None and hasattr(self.solver, 'var_dict'):
+						if 'spline' in self.solver.var_dict:
+							if stage_idx < self.solver.var_dict['spline'].shape[0]:
+								spline_sym = self.solver.var_dict['spline'][stage_idx]
+								# Also update state with symbolic spline for consistency
+								if state is not None:
+									state.set('spline', spline_sym)
+								LOG_INFO(f"  Stage {stage_idx}: Retrieved symbolic spline from solver var_dict, computing symbolically")
+								return self._compute_symbolic_constraints(spline_sym, state, data, stage_idx)
+							else:
+								LOG_WARN(f"  Stage {stage_idx}: stage_idx {stage_idx} out of bounds for spline var_dict")
+								return []
+						else:
+							LOG_WARN(f"  Stage {stage_idx}: 'spline' not in var_dict")
+							return []
+					else:
+						LOG_WARN(f"  Stage {stage_idx}: Cannot get dynamics_model or var_dict")
+						return []
 				except Exception as e:
-					LOG_DEBUG(f"  Error converting spline to float: {e}")
-			
-			# Fallback: get from warmstart or current state
-			if cur_s is None:
-				if hasattr(self, 'solver') and self.solver is not None:
-					if hasattr(self.solver, 'warmstart_values') and 'spline' in self.solver.warmstart_values:
-						if stage_idx < len(self.solver.warmstart_values['spline']):
-							cur_s = float(self.solver.warmstart_values['spline'][stage_idx])
-					elif hasattr(self.solver, 'data') and self.solver.data is not None:
-						data = self.solver.data
-						if hasattr(data, 'state') and data.state is not None:
-							try:
-								if data.state.has('spline'):
-									cur_s = float(data.state.get('spline'))
-							except Exception:
-								pass
-			
-			if cur_s is None:
-				s_arr = np.asarray(self._reference_path.s, dtype=float)
-				if s_arr.size > 0:
-					cur_s = float(s_arr[0])
-					LOG_DEBUG(f"  Using path start s0={cur_s:.3f} as fallback")
-				else:
-					LOG_WARN(f"  Stage {stage_idx}: Cannot determine spline value, skipping constraints")
+					LOG_WARN(f"  Stage {stage_idx}: Error retrieving symbolic spline: {e}")
 					return []
-			
-			LOG_INFO(f"  Stage {stage_idx}: Computing constraints NUMERICALLY for cur_s={cur_s:.3f} (warmstart/initialization)")
-			return self._compute_numeric_constraints(cur_s, state, data, stage_idx)
+			else:
+				# Last resort: numeric fallback (should not happen in normal operation)
+				LOG_WARN(f"  Stage {stage_idx}: No solver available, falling back to NUMERIC computation (legacy mode)")
+				# Get numeric value for fallback
+				cur_s = None
+				if spline_val is not None:
+					try:
+						cur_s = float(spline_val)
+					except Exception as e:
+						LOG_DEBUG(f"  Error converting spline to float: {e}")
+				
+				# Fallback: get from warmstart or current state
+				if cur_s is None:
+					if hasattr(self, 'solver') and self.solver is not None:
+						if hasattr(self.solver, 'warmstart_values') and 'spline' in self.solver.warmstart_values:
+							if stage_idx < len(self.solver.warmstart_values['spline']):
+								cur_s = float(self.solver.warmstart_values['spline'][stage_idx])
+					
+					if cur_s is None:
+						s_arr = np.asarray(self._reference_path.s, dtype=float)
+						if s_arr.size > 0:
+							cur_s = float(s_arr[0])
+							LOG_DEBUG(f"  Using path start s0={cur_s:.3f} as fallback")
+						else:
+							LOG_WARN(f"  Stage {stage_idx}: Cannot determine spline value, skipping constraints")
+							return []
+				
+				LOG_WARN(f"  Stage {stage_idx}: Computing constraints NUMERICALLY for cur_s={cur_s:.3f} (legacy fallback)")
+				return self._compute_numeric_constraints(cur_s, state, data, stage_idx)
 	
 	def _compute_symbolic_constraints(self, spline_sym, state, data, stage_idx):
 		"""Compute constraints symbolically using the symbolic spline value.
@@ -406,10 +439,41 @@ class ContouringConstraints(BaseConstraint):
 		# Get vehicle position symbolically
 		pos_x_sym = state.get('x')
 		pos_y_sym = state.get('y')
+		psi_sym = state.get('psi')
 		
 		if pos_x_sym is None or pos_y_sym is None:
-			LOG_WARN(f"  Stage {stage_idx}: Cannot get symbolic position, falling back to numeric constraints")
-			return self._compute_numeric_constraints(float(s_min), state, data, stage_idx)
+			# Try to get from solver's var_dict if available
+			LOG_WARN(f"  Stage {stage_idx}: Cannot get symbolic position, attempting to get from solver var_dict")
+			if hasattr(self, 'solver') and self.solver is not None:
+				try:
+					dynamics_model = self.solver._get_dynamics_model() if hasattr(self.solver, '_get_dynamics_model') else None
+					if dynamics_model is not None and hasattr(self.solver, 'var_dict'):
+						if 'x' in self.solver.var_dict and 'y' in self.solver.var_dict:
+							if stage_idx < self.solver.var_dict['x'].shape[0] and stage_idx < self.solver.var_dict['y'].shape[0]:
+								pos_x_sym = self.solver.var_dict['x'][stage_idx]
+								pos_y_sym = self.solver.var_dict['y'][stage_idx]
+								# Update state with symbolic values
+								if state is not None:
+									state.set('x', pos_x_sym)
+									state.set('y', pos_y_sym)
+								LOG_INFO(f"  Stage {stage_idx}: Retrieved symbolic position from solver var_dict")
+								# Retry with updated state
+								return self._compute_symbolic_constraints(spline_sym, state, data, stage_idx)
+							else:
+								LOG_WARN(f"  Stage {stage_idx}: stage_idx {stage_idx} out of bounds for var_dict")
+								return []
+						else:
+							LOG_WARN(f"  Stage {stage_idx}: var_dict missing x or y")
+							return []
+					else:
+						LOG_WARN(f"  Stage {stage_idx}: Cannot get dynamics_model or var_dict")
+						return []
+				except Exception as e:
+					LOG_WARN(f"  Stage {stage_idx}: Error retrieving symbolic position: {e}")
+					return []
+			else:
+				LOG_WARN(f"  Stage {stage_idx}: No solver available, cannot compute constraints")
+				return []
 		
 		# Compute constraint b values symbolically
 		# Right boundary: A·p <= A·path_point + width_right - w_cur
@@ -430,51 +494,67 @@ class ContouringConstraints(BaseConstraint):
 		# Actually, we can't extract numeric values from symbolic - we need to return symbolic expressions
 		# But the solver expects dict format with a1, a2, b...
 		
-		# CRITICAL: The solver's _translate_constraint expects dict with a1, a2, b
-		# But we have symbolic expressions. We need to either:
-		# 1. Return symbolic expressions directly (modify solver to accept them)
-		# 2. Use numeric evaluation at warmstart value (not ideal)
-		# 3. Create constraints at multiple segments (current approach, but needs to be dense)
+		# CRITICAL: Return symbolic constraint expressions directly
+		# The solver's _translate_constraint can handle CasADi expressions directly
+		# This matches the reference codebase where constraints are symbolic
 		
-		# For now, use approach 3 but make it much denser to ensure coverage
-		# This is a workaround until we can modify the solver to accept symbolic constraint expressions
-		path_length = s_max - s_min
-		segment_spacing_meters = 0.3  # Dense spacing: 0.3m along path
-		num_segments = max(20, int(path_length / segment_spacing_meters) + 1)
-		segment_s_values = np.linspace(s_min, s_max, num_segments)
+		# Get vehicle position symbolically (already checked above)
+		pos_x_sym = state.get('x')
+		pos_y_sym = state.get('y')
 		
-		LOG_INFO(f"  Symbolic spline detected: Computing {num_segments} constraint segments covering entire path "
-		         f"(s_min={s_min:.2f}, s_max={s_max:.2f}, spacing={segment_spacing_meters:.2f}m)")
+		# Get orientation for disc offset if needed
+		psi_sym = state.get('psi')
 		
+		# Create symbolic constraint expressions
 		constraints = []
-		halfspace_count = 0
 		
-		for segment_s in segment_s_values:
-			constraint_tuples = self._compute_constraint_for_s(segment_s, stage_idx, state)
-			
-			if not constraint_tuples:
-				continue
-			
-			for A, b, is_left in constraint_tuples:
-				halfspace_count += 1
-				for disc_id in range(self.num_discs):
-					disc_offset = 0.0
-					disc_radius = 0.5
-					if hasattr(data, "robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
-						disc_offset = float(data.robot_area[disc_id].offset)
-						disc_radius = float(data.robot_area[disc_id].radius)
-					
-					constraints.append({
-						"type": "linear",
-						"a1": float(A[0]),
-						"a2": float(A[1]),
-						"b": float(b),
-						"disc_offset": disc_offset,
-						"is_left": is_left,
-						"spline_s": float(segment_s),
-					})
+		# Right boundary constraint: A·[x, y] <= b_right
+		# Constraint expression: path_dy_norm_sym * pos_x_sym - path_dx_norm_sym * pos_y_sym - b_right_sym <= 0
+		constraint_right_expr = path_dy_norm_sym * pos_x_sym - path_dx_norm_sym * pos_y_sym - b_right_sym
 		
-		LOG_INFO(f"  Symbolic constraints: {len(constraints)} constraints computed for {num_segments} segments")
+		# Left boundary constraint: -A·[x, y] <= b_left
+		# Constraint expression: -path_dy_norm_sym * pos_x_sym + path_dx_norm_sym * pos_y_sym - b_left_sym <= 0
+		constraint_left_expr = -path_dy_norm_sym * pos_x_sym + path_dx_norm_sym * pos_y_sym - b_left_sym
+		
+		# Apply disc offset if needed (for each disc)
+		for disc_id in range(self.num_discs):
+			disc_offset = 0.0
+			if hasattr(data, "robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
+				disc_offset = float(data.robot_area[disc_id].offset)
+			
+			if abs(disc_offset) > 1e-9 and psi_sym is not None:
+				# Adjust constraints for disc offset: p_disc = p_robot + offset * [cos(psi), sin(psi)]
+				# For right boundary: A·p_disc <= b_right
+				#   path_dy_norm_sym * (x + offset*cos(psi)) - path_dx_norm_sym * (y + offset*sin(psi)) <= b_right
+				#   = path_dy_norm_sym * x - path_dx_norm_sym * y + offset*(path_dy_norm_sym*cos(psi) - path_dx_norm_sym*sin(psi)) <= b_right
+				offset_adjustment_right = disc_offset * (path_dy_norm_sym * cd.cos(psi_sym) - path_dx_norm_sym * cd.sin(psi_sym))
+				constraint_right_expr_disc = constraint_right_expr - offset_adjustment_right
+				
+				# For left boundary: -A·p_disc <= b_left
+				#   -path_dy_norm_sym * (x + offset*cos(psi)) + path_dx_norm_sym * (y + offset*sin(psi)) <= b_left
+				#   = -path_dy_norm_sym * x + path_dx_norm_sym * y + offset*(-path_dy_norm_sym*cos(psi) + path_dx_norm_sym*sin(psi)) <= b_left
+				offset_adjustment_left = disc_offset * (-path_dy_norm_sym * cd.cos(psi_sym) + path_dx_norm_sym * cd.sin(psi_sym))
+				constraint_left_expr_disc = constraint_left_expr - offset_adjustment_left
+			else:
+				constraint_right_expr_disc = constraint_right_expr
+				constraint_left_expr_disc = constraint_left_expr
+			
+			# Return as CasADi expressions directly (solver will handle them)
+			# The solver's get_constraints will pair them with bounds
+			# For now, return as dicts with a special marker to indicate they're symbolic expressions
+			# The solver's _translate_constraint will detect CasADi expressions and handle them
+			constraints.append({
+				"type": "symbolic_expression",
+				"expression": constraint_right_expr_disc,
+				"ub": 0.0,  # expr <= 0
+			})
+			constraints.append({
+				"type": "symbolic_expression",
+				"expression": constraint_left_expr_disc,
+				"ub": 0.0,  # expr <= 0
+			})
+		
+		LOG_INFO(f"  Symbolic constraints: {len(constraints)} constraint expressions computed symbolically")
 		return constraints
 	
 	def _compute_numeric_constraints(self, cur_s, state, data, stage_idx):

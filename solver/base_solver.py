@@ -102,23 +102,46 @@ class BaseSolver(ABC):
     # Standardized planner ↔ solver interface: fetch objectives/constraints via ModuleManager
     def get_objective_cost(self, state, stage_idx):
         """Return a list of objective term dicts for the given stage.
-        This delegates to ModuleManager to aggregate module-provided costs.
-        Gets state from data if available - data is the single source of truth.
+        
+        CRITICAL: This method receives symbolic_state for future stages (stage_idx > 0),
+        ensuring objectives are computed symbolically using predicted states.
+        This matches the reference codebase pattern.
+        
+        Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+        
+        Args:
+            state: Symbolic state for this stage (predicted state for stage_idx > 0)
+            stage_idx: Stage index (0 = current, >0 = future)
         """
-        # Get state from data - this is the authoritative source
-        if self.data is not None and hasattr(self.data, 'state') and self.data.state is not None:
-            state = self.data.state
+        # Use the provided state directly (it's already symbolic for future stages)
+        # This matches the reference codebase where objectives are evaluated symbolically
         return self.module_manager.get_objectives(state, self.data, stage_idx) or []
 
-    def get_constraints(self, stage_idx):
+    def get_constraints(self, stage_idx, symbolic_state=None):
         """Return a list of (constraint, lb, ub) tuples for the given stage.
-        ModuleManager supplies constraints and bounds; solver subclasses convert them as needed.
-        Gets state from data if available - data is the single source of truth.
+        
+        CRITICAL: For ALL stages (including stage 0), constraints MUST be computed using
+        symbolic_state (CasADi variables). This matches the reference codebase pattern
+        where constraints are evaluated symbolically.
+        
+        Args:
+            stage_idx: Stage index (0 = current, >0 = future)
+            symbolic_state: Symbolic state for this stage (required for all stages)
+        
+        Reference: https://github.com/tud-amr/mpc_planner - constraints are evaluated symbolically.
         """
-        # Get state from data - this is the authoritative source
-        state = None
-        if self.data is not None and hasattr(self.data, 'state') and self.data.state is not None:
-            state = self.data.state
+        # For ALL stages, use symbolic_state (CasADi variables)
+        # This ensures constraints are properly integrated into the optimization problem
+        if symbolic_state is None:
+            from utils.utils import LOG_WARN
+            LOG_WARN(f"get_constraints: stage_idx={stage_idx} but symbolic_state is None - constraints may be incorrect")
+            # Fallback to current state (not ideal, but better than crashing)
+            if self.data is not None and hasattr(self.data, 'state') and self.data.state is not None:
+                state = self.data.state
+            else:
+                state = None
+        else:
+            state = symbolic_state
         
         if hasattr(self.module_manager, 'get_constraints_with_bounds'):
             return self.module_manager.get_constraints_with_bounds(state, self.data, stage_idx)

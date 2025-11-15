@@ -1284,55 +1284,99 @@ class IntegrationTestFramework:
                         
                         if linearized_module is not None:
                             # Get constraints for stage 0 (current vehicle position) to show active constraints
-                            # Constraints are computed for all stages including stage 0 in update()
-                            constraints = linearized_module.calculate_constraints(planner.state, data, 0)
-                            
-                            # Extract halfspace information from constraint dictionaries
-                            # Also track which obstacle each constraint belongs to
+                            # For visualization, extract constraint parameters from module's internal state
+                            # This works for both numeric and symbolic constraints
                             step_linearized_halfspaces = []
-                            if constraints:
-                                # Get obstacle information to map constraints to obstacles
-                                obstacle_positions = []
-                                if hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles is not None:
-                                    for obs in data.dynamic_obstacles:
-                                        if hasattr(obs, 'position') and obs.position is not None:
-                                            obstacle_positions.append(np.array([obs.position[0], obs.position[1]]))
-                                
-                                # Group constraints by obstacle
-                                # Constraints are organized as: [disc0_obs0, disc0_obs1, ..., disc0_obsN, disc1_obs0, disc1_obs1, ...]
-                                num_discs = getattr(linearized_module, 'num_discs', 1)
-                                num_active_obstacles = getattr(linearized_module, 'num_active_obstacles', 0)
-                                num_other_halfspaces = getattr(linearized_module, 'num_other_halfspaces', 0)
-                                constraints_per_disc = num_active_obstacles + num_other_halfspaces
-                                
-                                constraint_idx = 0
-                                for const_dict in constraints:
-                                    a1 = float(const_dict.get('a1', 0.0))
-                                    a2 = float(const_dict.get('a2', 0.0))
-                                    b = float(const_dict.get('b', 0.0))
-                                    disc_offset = float(const_dict.get('disc_offset', 0.0))
-                                    
-                                    # Check if constraint is valid (non-zero normal)
-                                    norm = np.sqrt(a1**2 + a2**2)
-                                    if norm > 1e-6:
-                                        A = np.array([a1, a2])
+                            
+                            # Extract constraint parameters from module's internal arrays (_a1, _a2, _b)
+                            # These are computed in update_step() and are available for stage 0
+                            num_discs = getattr(linearized_module, 'num_discs', 1)
+                            num_active_obstacles = getattr(linearized_module, 'num_active_obstacles', 0)
+                            num_other_halfspaces = getattr(linearized_module, 'num_other_halfspaces', 0)
+                            constraints_per_disc = num_active_obstacles + num_other_halfspaces
+                            
+                            # Get constraint arrays (computed in update_step for stage 0)
+                            if hasattr(linearized_module, '_a1') and hasattr(linearized_module, '_a2') and hasattr(linearized_module, '_b'):
+                                for disc_id in range(num_discs):
+                                    for obs_idx in range(num_active_obstacles + num_other_halfspaces):
+                                        # Get constraint parameters from internal arrays (stage 0)
+                                        # Arrays are indexed as: _a1[disc_id][step][obs_idx]
+                                        if (disc_id < len(linearized_module._a1) and 
+                                            len(linearized_module._a1[disc_id]) > 0 and
+                                            obs_idx < len(linearized_module._a1[disc_id][0])):
+                                            a1 = linearized_module._a1[disc_id][0][obs_idx]
+                                            a2 = linearized_module._a2[disc_id][0][obs_idx]
+                                            b = linearized_module._b[disc_id][0][obs_idx]
+                                            
+                                            # Skip if constraint is None or invalid
+                                            if a1 is None or a2 is None or b is None:
+                                                continue
+                                            
+                                            a1 = float(a1)
+                                            a2 = float(a2)
+                                            b = float(b)
+                                            
+                                            # Check if constraint is valid (non-zero normal)
+                                            norm = np.sqrt(a1**2 + a2**2)
+                                            if norm > 1e-6:
+                                                A = np.array([a1, a2])
+                                                
+                                                # Determine which obstacle this constraint belongs to
+                                                # Only map to obstacle if it's within active obstacles (not other_halfspaces)
+                                                if obs_idx < num_active_obstacles:
+                                                    obstacle_id = obs_idx
+                                                else:
+                                                    # This is an "other_halfspace" constraint, assign to obstacle 0 for visualization
+                                                    obstacle_id = 0
+                                                
+                                                # Store as (A, b, obstacle_id) tuple for visualization
+                                                step_linearized_halfspaces.append((A, b, obstacle_id))
+                            
+                            # Fallback: try to get constraints from calculate_constraints if internal arrays not available
+                            if len(step_linearized_halfspaces) == 0:
+                                try:
+                                    constraints = linearized_module.calculate_constraints(planner.state, data, 0)
+                                    if constraints:
+                                        # Get obstacle information to map constraints to obstacles
+                                        obstacle_positions = []
+                                        if hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles is not None:
+                                            for obs in data.dynamic_obstacles:
+                                                if hasattr(obs, 'position') and obs.position is not None:
+                                                    obstacle_positions.append(np.array([obs.position[0], obs.position[1]]))
                                         
-                                        # Determine which obstacle this constraint belongs to
-                                        # constraint_idx maps to: disc_id = idx // constraints_per_disc, obs_idx = idx % constraints_per_disc
-                                        if constraints_per_disc > 0:
-                                            obs_idx = constraint_idx % constraints_per_disc
-                                            # Only map to obstacle if it's within active obstacles (not other_halfspaces)
-                                            if obs_idx < num_active_obstacles:
-                                                obstacle_id = obs_idx
-                                            else:
-                                                # This is an "other_halfspace" constraint, assign to obstacle 0 for visualization
-                                                obstacle_id = 0
-                                        else:
-                                            obstacle_id = 0
-                                        
-                                        # Store as (A, b, obstacle_id) tuple for visualization
-                                        step_linearized_halfspaces.append((A, b, obstacle_id))
-                                    constraint_idx += 1
+                                        constraint_idx = 0
+                                        for const_dict in constraints:
+                                            # Handle both numeric and symbolic constraint formats
+                                            if const_dict.get('type') == 'symbolic_expression':
+                                                # For symbolic constraints, skip (can't extract a1, a2, b directly)
+                                                # The internal arrays should have been used above
+                                                constraint_idx += 1
+                                                continue
+                                            
+                                            a1 = float(const_dict.get('a1', 0.0))
+                                            a2 = float(const_dict.get('a2', 0.0))
+                                            b = float(const_dict.get('b', 0.0))
+                                            disc_offset = float(const_dict.get('disc_offset', 0.0))
+                                            
+                                            # Check if constraint is valid (non-zero normal)
+                                            norm = np.sqrt(a1**2 + a2**2)
+                                            if norm > 1e-6:
+                                                A = np.array([a1, a2])
+                                                
+                                                # Determine which obstacle this constraint belongs to
+                                                if constraints_per_disc > 0:
+                                                    obs_idx = constraint_idx % constraints_per_disc
+                                                    if obs_idx < num_active_obstacles:
+                                                        obstacle_id = obs_idx
+                                                    else:
+                                                        obstacle_id = 0
+                                                else:
+                                                    obstacle_id = 0
+                                                
+                                                step_linearized_halfspaces.append((A, b, obstacle_id))
+                                            constraint_idx += 1
+                                except Exception as e:
+                                    logger.debug(f"Could not extract constraints from calculate_constraints: {e}")
                             
                             if step == 0 and len(step_linearized_halfspaces) > 0:
                                 logger.debug(f"Captured {len(step_linearized_halfspaces)} linearized constraint halfspaces at step {step}")
@@ -2429,16 +2473,16 @@ class IntegrationTestFramework:
                                 b_norm = b / norm
                                 
                                 # Calculate constraint line position
-                                # The constraint is: A·p <= b, where A points from vehicle to obstacle
-                                # From linearized_constraints.py: b = A·obstacle_pos - (obstacle_radius + robot_radius)
+                                # The constraint is: A·p <= b, where A points FROM vehicle TO obstacle
+                                # From linearized_constraints.py (updated): b = A·obstacle_pos - (obstacle_radius + robot_radius)
                                 # The constraint line A·p = b is perpendicular to A
-                                # Following the reference implementation, the constraint line should pass through
-                                # a point that's at the safety distance from the obstacle along the vehicle-to-obstacle direction
+                                # The constraint enforces: A·vehicle <= A·obstacle - safe_distance
+                                # Which means: ||obstacle - vehicle|| >= safe_distance
                                 if obstacle_pos is not None:
                                     # Vehicle position
                                     vehicle_pos = np.array([vehicle_x, vehicle_y])
                                     
-                                    # Vehicle-to-obstacle vector
+                                    # Vehicle-to-obstacle vector (points FROM vehicle TO obstacle, matches A direction)
                                     vehicle_to_obstacle = obstacle_pos - vehicle_pos
                                     vehicle_to_obstacle_dist = np.linalg.norm(vehicle_to_obstacle)
                                     
@@ -2461,6 +2505,7 @@ class IntegrationTestFramework:
                                         # The intersection point on the vehicle-to-obstacle line
                                         # This is the point where the constraint line (perpendicular to A) passes
                                         # through the vehicle-to-obstacle line
+                                        # Note: t represents distance along A from vehicle_pos
                                         line_center_point = vehicle_pos + t * np.array([a1_norm, a2_norm])
                                         
                                         line_center_x = line_center_point[0]

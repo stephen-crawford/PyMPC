@@ -148,12 +148,12 @@ class LinearizedConstraints(BaseConstraint):
 			else:
 				LOG_WARN("LinearizedConstraints.update: No warmstart values available either!")
 		
-		# Store reference states for use in update_step()
+		# Store reference states (for potential use, though constraints are now computed symbolically)
 		self._ref_states = ref_states
 		self._current_state = state
 		self._current_data = data
 		
-		LOG_INFO(f"LinearizedConstraints.update: Using {len(ref_states)} reference states for constraint computation")
+		LOG_INFO(f"LinearizedConstraints.update: Using {len(ref_states)} reference states for data preparation")
 		if len(ref_states) > 0:
 			# Log first few reference states to verify they're correct
 			for i in range(min(3, len(ref_states))):
@@ -162,17 +162,16 @@ class LinearizedConstraints(BaseConstraint):
 				ref_y = ref_state.get("y") if ref_state.has("y") else None
 				LOG_INFO(f"  Reference state {i}: x={ref_x:.3f}, y={ref_y:.3f}" if ref_x is not None and ref_y is not None else f"  Reference state {i}: x={ref_x}, y={ref_y}")
 
-		# Initialize position storage arrays
-		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
-		if len(self._vehicle_positions) < horizon_val:
-			# Extend arrays if horizon increased
-			self._vehicle_positions.extend([None] * (horizon_val - len(self._vehicle_positions)))
-			self._obstacle_positions.extend([None] * (horizon_val - len(self._obstacle_positions)))
-		
-		# Compute constraints for all stages (matching reference C++ pattern where update computes all steps)
-		# This ensures constraints are ready when calculate_constraints() is called per stage
-		for step in range(0, horizon_val):
-			self.update_step(step, state, data)
+		# NOTE: update_step() is no longer called for constraint computation because constraints are computed symbolically
+		# in calculate_constraints() using symbolic states from the solver.
+		# However, we still call update_step(0, ...) to populate _a1, _a2, _b arrays for stage 0
+		# so that visualization code can extract constraint parameters.
+		# This is for visualization only - actual constraint computation happens symbolically in calculate_constraints().
+		if len(ref_states) > 0 or state is not None:
+			try:
+				self.update_step(0, state, data)
+			except Exception as e:
+				LOG_WARN(f"LinearizedConstraints.update: Failed to call update_step(0) for visualization: {e}")
 		
 		LOG_DEBUG("LinearizedConstraints.update done")
 
@@ -617,8 +616,17 @@ class LinearizedConstraints(BaseConstraint):
 
 	def calculate_constraints(self, state: State, data: Data, stage_idx: int):
 		"""Return structured linear constraints for the solver to convert.
-		Each constraint is a dict: {a1,a2,b,disc_offset}.
+		
+		CRITICAL: For future stages (stage_idx > 0), constraints MUST be computed symbolically
+		using the symbolic state (predicted position). This matches the reference codebase pattern.
+		
+		For stage 0, uses pre-computed numeric values from update_step().
+		For future stages, computes constraints symbolically using predicted vehicle position.
+		
+		Reference: https://github.com/tud-amr/mpc_planner - constraints are evaluated symbolically.
 		"""
+		import casadi as cd
+		
 		constraints = []
 		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
 		if stage_idx >= horizon_val:
@@ -627,6 +635,167 @@ class LinearizedConstraints(BaseConstraint):
 
 		LOG_INFO(f"=== LinearizedConstraints.calculate_constraints: stage_idx={stage_idx} ===")
 		LOG_INFO(f"  num_discs={self.num_discs}, num_active_obstacles={self.num_active_obstacles}, num_other_halfspaces={self.num_other_halfspaces}")
+		
+		# CRITICAL: Always use symbolic computation - solver always provides symbolic states
+		# Check if state is symbolic (should always be true in normal operation)
+		pos_x = state.get("x") if state is not None and state.has("x") else None
+		pos_y = state.get("y") if state is not None and state.has("y") else None
+		is_symbolic = isinstance(pos_x, (cd.MX, cd.SX)) or isinstance(pos_y, (cd.MX, cd.SX))
+		
+		if is_symbolic:
+			# SYMBOLIC computation (matching reference codebase)
+			# All constraints are computed symbolically using CasADi variables
+			# This ensures constraints are properly integrated into the optimization problem
+			LOG_INFO(f"  Stage {stage_idx}: Computing constraints SYMBOLICALLY using symbolic vehicle position")
+			return self._compute_symbolic_obstacle_constraints(state, data, stage_idx)
+		else:
+			# LEGACY: Numeric fallback should not happen in normal operation
+			# If state is not symbolic, try to create symbolic state from solver's var_dict
+			LOG_WARN(f"  Stage {stage_idx}: State is not symbolic - attempting to create symbolic state from solver")
+			if hasattr(self, 'solver') and self.solver is not None:
+				try:
+					dynamics_model = self.solver._get_dynamics_model() if hasattr(self.solver, '_get_dynamics_model') else None
+					if dynamics_model is not None and hasattr(self.solver, 'var_dict'):
+						# Create symbolic state from solver's var_dict
+						symbolic_state = State(dynamics_model)
+						for var_name in dynamics_model.get_all_vars():
+							if var_name in self.solver.var_dict and stage_idx < self.solver.var_dict[var_name].shape[0]:
+								symbolic_state.set(var_name, self.solver.var_dict[var_name][stage_idx])
+						LOG_INFO(f"  Stage {stage_idx}: Created symbolic state from solver var_dict, computing symbolically")
+						return self._compute_symbolic_obstacle_constraints(symbolic_state, data, stage_idx)
+				except Exception as e:
+					LOG_WARN(f"  Stage {stage_idx}: Failed to create symbolic state: {e}")
+			
+			# Last resort: numeric fallback (should not happen in normal operation)
+			LOG_WARN(f"  Stage {stage_idx}: Falling back to NUMERIC computation (legacy mode - should not happen)")
+			return self._compute_numeric_obstacle_constraints(state, data, stage_idx)
+	
+	def _compute_symbolic_obstacle_constraints(self, state: State, data: Data, stage_idx: int):
+		"""Compute obstacle constraints symbolically using predicted vehicle position.
+		
+		Reference: https://github.com/tud-amr/mpc_planner - constraints computed symbolically.
+		"""
+		import casadi as cd
+		import numpy as np
+		
+		constraints = []
+		
+		# Get symbolic vehicle position
+		pos_x_sym = state.get("x")
+		pos_y_sym = state.get("y")
+		psi_sym = state.get("psi")
+		
+		if pos_x_sym is None or pos_y_sym is None:
+			# Try to get from solver's var_dict if available
+			LOG_WARN(f"  Stage {stage_idx}: Cannot get symbolic position from state, attempting to get from solver")
+			if hasattr(self, 'solver') and self.solver is not None:
+				try:
+					dynamics_model = self.solver._get_dynamics_model() if hasattr(self.solver, '_get_dynamics_model') else None
+					if dynamics_model is not None and hasattr(self.solver, 'var_dict'):
+						if 'x' in self.solver.var_dict and 'y' in self.solver.var_dict:
+							if stage_idx < self.solver.var_dict['x'].shape[0] and stage_idx < self.solver.var_dict['y'].shape[0]:
+								pos_x_sym = self.solver.var_dict['x'][stage_idx]
+								pos_y_sym = self.solver.var_dict['y'][stage_idx]
+								psi_sym = self.solver.var_dict.get('psi', [None] * (stage_idx + 1))[stage_idx] if 'psi' in self.solver.var_dict else state.get("psi")
+								LOG_INFO(f"  Stage {stage_idx}: Retrieved symbolic position from solver var_dict")
+							else:
+								LOG_WARN(f"  Stage {stage_idx}: stage_idx {stage_idx} out of bounds for var_dict")
+								return []
+						else:
+							LOG_WARN(f"  Stage {stage_idx}: var_dict missing x or y")
+							return []
+					else:
+						LOG_WARN(f"  Stage {stage_idx}: Cannot get dynamics_model or var_dict")
+						return []
+				except Exception as e:
+					LOG_WARN(f"  Stage {stage_idx}: Error retrieving symbolic position: {e}")
+					return []
+			else:
+				LOG_WARN(f"  Stage {stage_idx}: No solver available, cannot compute constraints")
+				return []
+		
+		# Get obstacles (these are numeric, known positions)
+		copied_dynamic_obstacles = getattr(self, '_copied_dynamic_obstacles', [])
+		if not copied_dynamic_obstacles:
+			if data.has("dynamic_obstacles") and data.dynamic_obstacles:
+				copied_dynamic_obstacles = data.dynamic_obstacles
+		
+		robot_radius = self.get_config_value("robot_radius", 0.5) or self.disc_radius
+		safety_margin = 0.3
+		
+		# Compute constraints for each disc and obstacle
+		for disc_id in range(self.num_discs):
+			# Get disc offset
+			disc_offset = 0.0
+			if not self.use_guidance and data.has("robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
+				disc_offset = float(data.robot_area[disc_id].offset)
+			
+			# Compute disc position symbolically (if offset is non-zero)
+			if abs(disc_offset) > 1e-9 and psi_sym is not None:
+				disc_x_sym = pos_x_sym + disc_offset * cd.cos(psi_sym)
+				disc_y_sym = pos_y_sym + disc_offset * cd.sin(psi_sym)
+			else:
+				disc_x_sym = pos_x_sym
+				disc_y_sym = pos_y_sym
+			
+			# Compute constraints for each obstacle
+			for obs_id in range(min(len(copied_dynamic_obstacles), self.num_active_obstacles)):
+				obstacle = copied_dynamic_obstacles[obs_id]
+				
+				# Get obstacle position (numeric, known)
+				if hasattr(obstacle, 'position'):
+					obs_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+				else:
+					continue
+				
+				obstacle_radius = obstacle.radius if hasattr(obstacle, 'radius') else 0.35
+				# Get obstacle radius (matching C++: radius = _use_guidance ? 1e-3 : obstacle.radius)
+				target_obstacle_radius = 1e-3 if self.use_guidance else obstacle_radius
+				# Compute safe_distance (matching C++: radius + CONFIG["robot_radius"])
+				# Note: safety_margin (0.3) is used in projection logic, not in constraint b value
+				safe_distance = robot_radius + target_obstacle_radius
+				
+				# Compute constraint symbolically: a·p_disc <= b
+				# CRITICAL: Normal vector points FROM vehicle TO obstacle (matching reference C++ implementation)
+				# Reference: https://github.com/tud-amr/mpc_planner - _a1[d][k](obs_id) = diff_x / dist
+				# where diff = obstacle_pos - ego_position (points FROM vehicle TO obstacle)
+				diff_x_sym = obs_pos[0] - disc_x_sym  # obstacle - vehicle (points FROM vehicle TO obstacle)
+				diff_y_sym = obs_pos[1] - disc_y_sym
+				dist_sym = cd.sqrt(diff_x_sym * diff_x_sym + diff_y_sym * diff_y_sym)
+				dist_sym = cd.fmax(dist_sym, 1e-6)  # Avoid division by zero
+				
+				# Normalized direction vector (points FROM vehicle TO obstacle)
+				# Matching C++: _a1[d][k](obs_id) = diff_x / dist, _a2[d][k](obs_id) = diff_y / dist
+				a1_sym = diff_x_sym / dist_sym
+				a2_sym = diff_y_sym / dist_sym
+				
+				# Compute b: a·obs_pos - safe_distance
+				# Matching C++: _b[d][k](obs_id) = _a1[d][k](obs_id) * obstacle_pos(0) + 
+				#                                    _a2[d][k](obs_id) * obstacle_pos(1) - 
+				#                                    (radius + CONFIG["robot_radius"])
+				# The constraint a1*x + a2*y <= b means: a·vehicle <= a·obstacle - safe_distance
+				# Rearranging: a·(vehicle - obstacle) <= -safe_distance
+				# Since a = (obstacle - vehicle) / ||obstacle - vehicle||, this enforces:
+				# ||obstacle - vehicle|| >= safe_distance (correct!)
+				b_sym = a1_sym * obs_pos[0] + a2_sym * obs_pos[1] - safe_distance
+				
+				# Constraint expression: a1*x + a2*y - b <= 0
+				# This enforces: a·disc_pos <= b, i.e., a·disc_pos <= a·obs_pos - safe_distance
+				constraint_expr = a1_sym * disc_x_sym + a2_sym * disc_y_sym - b_sym
+				
+				# Return as symbolic expression (solver will handle it)
+				constraints.append({
+					"type": "symbolic_expression",
+					"expression": constraint_expr,
+					"ub": 0.0,  # expr <= 0
+				})
+		
+		LOG_INFO(f"  Symbolic constraints: {len(constraints)} constraint expressions computed symbolically")
+		return constraints
+	
+	def _compute_numeric_obstacle_constraints(self, state: State, data: Data, stage_idx: int):
+		"""Compute obstacle constraints numerically (for stage 0 or warmstart)."""
+		constraints = []
 		
 		# Get vehicle position at this rollout step (from update())
 		vehicle_pos_at_step = None
