@@ -220,13 +220,42 @@ class CasADiSolver(BaseSolver):
 
 	def _initialize_warmstart(self, state: State, shift_forward=True):
 		# Initialize warmstart to provide feasible initial guess for IPOPT
+		# Reference: https://github.com/tud-amr/mpc_planner - solution shifting improves convergence
 		LOG_DEBUG("Initializing warmstart trajectory")
 		
 		if not hasattr(self, 'forecast'):
 			self.forecast = []
 		
-		# Initialize base warmstart which creates path-following trajectory
-		self._initialize_base_warmstart(state)
+		# Check if we should shift previous solution forward (reference codebase pattern)
+		should_shift = shift_forward
+		if self.config is not None and isinstance(self.config, dict):
+			solver_config = self.config.get("solver", {})
+			if isinstance(solver_config, dict):
+				should_shift = solver_config.get("shift_previous_solution_forward", shift_forward)
+		
+		# If we have a previous solution and shifting is enabled, shift it forward first
+		# This provides continuity between MPC steps and helps the solver converge faster
+		# Reference: https://github.com/tud-amr/mpc_planner - solution shifting maintains trajectory continuity
+		if should_shift and hasattr(self, 'warmstart_values') and self.warmstart_values:
+			# Check if warmstart was initialized from a previous solution
+			# Also check if we have a valid solution to shift from (not just initial warmstart)
+			has_previous_solution = (hasattr(self, 'solution') and self.solution is not None and
+			                         hasattr(self, 'warmstart_intiailized') and self.warmstart_intiailized)
+			
+			if has_previous_solution:
+				LOG_DEBUG("Shifting previous warmstart solution forward (reference: mpc_planner)")
+				# Shift the previous solution forward
+				self._shift_warmstart_forward()
+				# Update current state in warmstart (stage 0 should match current state)
+				# CRITICAL: This ensures the warmstart reflects the vehicle's actual current state
+				self._update_warmstart_current_state(state)
+			else:
+				# First initialization or no previous solution - create new warmstart
+				LOG_DEBUG("First initialization: creating new warmstart trajectory")
+				self._initialize_base_warmstart(state)
+		else:
+			# Initialize base warmstart which creates path-following trajectory
+			self._initialize_base_warmstart(state)
 		
 		# Set initial values in CasADi opti problem
 		self._set_opti_initial_values()
@@ -559,14 +588,128 @@ class CasADiSolver(BaseSolver):
 					self.warmstart_values[var_name][:] = 0.01
 
 	def _shift_warmstart_forward(self):
+		"""Shift warmstart solution forward by one step (reference: mpc_planner solution shifting).
+		
+		This maintains continuity between MPC steps: the solution from step k becomes the
+		warmstart for step k+1, shifted forward by one timestep.
+		
+		CRITICAL: For spline variable, ensure monotonic increase (vehicle should progress along path).
+		"""
 		dynamics_model = self._get_dynamics_model()
 		if dynamics_model is None:
 			return
+		
+		LOG_DEBUG("Shifting warmstart forward by one step")
+		horizon_val = self.horizon if self.horizon is not None else 10
+		timestep_val = self.timestep if self.timestep is not None else 0.1
+		
 		for var_name in dynamics_model.get_all_vars():
 			if var_name in self.warmstart_values:
-				self.warmstart_values[var_name][:-1] = self.warmstart_values[var_name][1:]
-				if len(self.warmstart_values[var_name]) > 1:
-					self.warmstart_values[var_name][-1] = self.warmstart_values[var_name][-2]
+				# Special handling for spline: ensure it's monotonically increasing
+				if var_name == 'spline':
+					# Shift spline forward, but ensure it doesn't decrease
+					if len(self.warmstart_values[var_name]) > 1:
+						old_spline = self.warmstart_values[var_name].copy()
+						# Shift forward: [s0, s1, ..., sN] -> [s1, s2, ..., sN, sN+ds]
+						self.warmstart_values[var_name][:-1] = old_spline[1:]
+						# For last value, advance by velocity * dt to maintain progression
+						# Get velocity at last stage to estimate progression
+						if 'v' in self.warmstart_values and len(self.warmstart_values['v']) > 0:
+							v_last = float(self.warmstart_values['v'][-1])
+							ds = v_last * timestep_val
+							# Ensure spline doesn't go backwards
+							s_last = max(old_spline[-1], old_spline[-2] + ds) if len(old_spline) > 1 else old_spline[-1]
+							self.warmstart_values[var_name][-1] = s_last
+						else:
+							# Fallback: repeat last value
+							self.warmstart_values[var_name][-1] = old_spline[-1]
+						
+						# Verify monotonicity
+						spline_diff = np.diff(self.warmstart_values[var_name])
+						if np.any(spline_diff < -1e-6):  # Allow small numerical errors
+							LOG_WARN(f"  WARNING: Spline warmstart is not monotonic after shifting! Diffs: {spline_diff}")
+							# Fix: ensure monotonic increase
+							for k in range(1, len(self.warmstart_values[var_name])):
+								if self.warmstart_values[var_name][k] < self.warmstart_values[var_name][k-1]:
+									self.warmstart_values[var_name][k] = self.warmstart_values[var_name][k-1]
+						
+						LOG_DEBUG(f"  Shifted spline: [{old_spline[0]:.3f}, ..., {old_spline[-1]:.3f}] -> [{self.warmstart_values[var_name][0]:.3f}, ..., {self.warmstart_values[var_name][-1]:.3f}]")
+				else:
+					# Standard shifting for other variables
+					if len(self.warmstart_values[var_name]) > 1:
+						self.warmstart_values[var_name][:-1] = self.warmstart_values[var_name][1:]
+						self.warmstart_values[var_name][-1] = self.warmstart_values[var_name][-2]
+					LOG_DEBUG(f"  Shifted {var_name}: new range = [{self.warmstart_values[var_name][0]:.3f}, ..., {self.warmstart_values[var_name][-1]:.3f}]")
+	
+	def _update_warmstart_current_state(self, state: State):
+		"""Update stage 0 of warmstart to match current vehicle state.
+		
+		After shifting, stage 0 should reflect the vehicle's current position/state.
+		CRITICAL: For spline, ensure it matches current state and doesn't go backwards.
+		"""
+		dynamics_model = self._get_dynamics_model()
+		if dynamics_model is None:
+			return
+		
+		LOG_DEBUG("Updating warmstart stage 0 to match current state")
+		horizon_val = self.horizon if self.horizon is not None else 10
+		timestep_val = self.timestep if self.timestep is not None else 0.1
+		
+		# Get current spline value first (needed for validation)
+		current_spline = None
+		if 'spline' in self.warmstart_values and state.has('spline'):
+			current_spline = state.get('spline')
+		
+		for var_name in dynamics_model.get_dependent_vars():
+			if var_name in self.warmstart_values and state.has(var_name):
+				current_val = state.get(var_name)
+				if current_val is not None:
+					# Special handling for spline: ensure it doesn't go backwards
+					if var_name == 'spline':
+						# Current spline should be >= previous warmstart[0] (vehicle should progress)
+						# But allow small backward movement if vehicle is correcting (e.g., due to obstacle)
+						old_spline_0 = self.warmstart_values[var_name][0]
+						if current_spline is not None:
+							# Allow small backward movement (up to 0.1m) for correction, but warn if larger
+							if current_spline < old_spline_0 - 0.1:
+								LOG_WARN(f"  WARNING: Current spline ({current_spline:.3f}) is significantly behind warmstart[0] ({old_spline_0:.3f})")
+								# Use the larger value to ensure forward progression
+								current_val = max(current_spline, old_spline_0 - 0.1)
+							else:
+								current_val = current_spline
+							LOG_DEBUG(f"  Updated spline[0] = {current_val:.3f} (current={current_spline:.3f}, old_ws={old_spline_0:.3f})")
+						else:
+							# No current spline - keep warmstart value
+							current_val = old_spline_0
+							LOG_DEBUG(f"  Keeping spline[0] = {current_val:.3f} (no current spline in state)")
+					
+					self.warmstart_values[var_name][0] = current_val
+					if var_name != 'spline':  # Already logged above
+						LOG_DEBUG(f"  Updated {var_name}[0] = {current_val:.3f}")
+		
+		# Also update control inputs at stage 0 if available from state
+		for var_name in dynamics_model.get_inputs():
+			if var_name in self.warmstart_values and state.has(var_name):
+				current_val = state.get(var_name)
+				if current_val is not None:
+					self.warmstart_values[var_name][0] = current_val
+					LOG_DEBUG(f"  Updated control {var_name}[0] = {current_val:.3f}")
+		
+		# After updating stage 0, ensure spline progression is maintained
+		if 'spline' in self.warmstart_values:
+			# Ensure spline is monotonically non-decreasing (allow small decreases for correction)
+			spline_vals = self.warmstart_values['spline']
+			for k in range(1, len(spline_vals)):
+				# Allow small backward movement (0.1m) but ensure forward progression overall
+				if spline_vals[k] < spline_vals[k-1] - 0.1:
+					# Advance by minimum step based on velocity
+					if 'v' in self.warmstart_values and k-1 < len(self.warmstart_values['v']):
+						v_k = max(0.0, float(self.warmstart_values['v'][k-1]))
+						ds_min = v_k * timestep_val
+						spline_vals[k] = max(spline_vals[k-1], spline_vals[k-1] + ds_min)
+					else:
+						spline_vals[k] = spline_vals[k-1]  # Keep same value
+					LOG_DEBUG(f"  Corrected spline[{k}] to {spline_vals[k]:.3f} to maintain progression")
 
 	def _update_warmstart_from_solution(self):
 		for var_name in self.var_dict:
@@ -921,9 +1064,17 @@ class CasADiSolver(BaseSolver):
 			# Reference: https://github.com/tud-amr/mpc_planner uses base_module.weigh_variable()
 			if stage_idx < horizon_val:  # Only for control stages (not terminal state)
 				try:
-					control_weights = self.config.get("solver", {}).get("t-mpc", {}).get("weights", {})
-					acceleration_weight = control_weights.get("acceleration_x", 0.0)  # Default 0 = no cost
-					angular_velocity_weight = control_weights.get("angular_velocity", 0.0)  # Default 0 = no cost
+					# Safely get control weights from config
+					control_weights = {}
+					if self.config is not None and isinstance(self.config, dict):
+						solver_config = self.config.get("solver", {})
+						if isinstance(solver_config, dict):
+							t_mpc_config = solver_config.get("t-mpc", {})
+							if isinstance(t_mpc_config, dict):
+								control_weights = t_mpc_config.get("weights", {})
+					
+					acceleration_weight = control_weights.get("acceleration_x", 0.0) if isinstance(control_weights, dict) else 0.0
+					angular_velocity_weight = control_weights.get("angular_velocity", 0.0) if isinstance(control_weights, dict) else 0.0
 					
 					# Get control variables from dynamics model
 					if dynamics_model is not None and hasattr(self, 'var_dict') and self.var_dict:
@@ -939,11 +1090,25 @@ class CasADiSolver(BaseSolver):
 										if stage_idx == 0:
 											LOG_DEBUG(f"  Stage {stage_idx}: Added acceleration cost (weight={acceleration_weight:.2f})")
 									elif u_name == 'w' and angular_velocity_weight > 0:
-										# Quadratic cost on angular velocity
+										# Quadratic cost on angular velocity (reference: base_module.weigh_variable("w", "angular_velocity"))
 										control_cost = angular_velocity_weight * u_k ** 2
 										total_objective += control_cost
 										if stage_idx == 0:
-											LOG_DEBUG(f"  Stage {stage_idx}: Added angular velocity cost (weight={angular_velocity_weight:.2f})")
+											LOG_INFO(f"  Stage {stage_idx}: Added angular velocity cost (weight={angular_velocity_weight:.2f}, cost={control_cost})")
+									
+									# Add control rate smoothing (penalize changes in control between steps)
+									# This reduces oversteering by encouraging smoother control inputs
+									# Reference: Similar to reference codebase which encourages smooth control
+									if stage_idx > 0 and u_name in self.var_dict and stage_idx - 1 < self.var_dict[u_name].shape[0]:
+										u_km1 = self.var_dict[u_name][stage_idx - 1]
+										# Use a moderate weight for control rate (0.2-0.5 of control weight)
+										# This prevents rapid changes in control, reducing oversteering
+										control_rate_weight = angular_velocity_weight * 0.4 if u_name == 'w' else acceleration_weight * 0.4
+										if control_rate_weight > 0:
+											control_rate_cost = control_rate_weight * (u_k - u_km1) ** 2
+											total_objective += control_rate_cost
+											if stage_idx == 1 and u_name == 'w':
+												LOG_DEBUG(f"  Stage {stage_idx}: Added control rate cost for {u_name} (weight={control_rate_weight:.2f})")
 				except Exception as e:
 					LOG_WARN(f"Failed to add control costs at stage {stage_idx}: {e}")
 

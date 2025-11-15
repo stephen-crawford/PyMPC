@@ -24,8 +24,8 @@ contouring:
   three_dimensional_contouring: false
 
 weights:
-  contour_weight: 10.0  # Increased to force better path following
-  contouring_lag_weight: 10
+  contour_weight: 5.0  # Reduced from 10.0 to balance with control costs and reduce oversteering
+  contouring_lag_weight: 5  # Reduced from 10 to balance with control costs
   goal_weight: 10.0
   goal_angle_weight: 1.0
   goal_terminal_weight: 10.0
@@ -38,7 +38,7 @@ recording:
   timestamp: true
 solver:
   solver: casadi
-  shift_previous_solution_forward: false
+  shift_previous_solution_forward: true  # Enable solution shifting for better warmstart (reference: mpc_planner)
   t-mpc:
     enable_constraints: true
     highlight_selected: true
@@ -47,7 +47,7 @@ solver:
     weights:
     acceleration_x: 1
     acceleration_y: 1
-    angular_velocity: 0.5
+    angular_velocity: 10.0  # Increased to 10.0 to strongly penalize oversteering (reference: base_module.weigh_variable)
     goal_weight: 10
     goal_angle_weight: 10
     goal_control_weight: 1
@@ -57,8 +57,8 @@ solver:
     reference_velocity: 0.01
     slack: 1.0
     velocity: 0.3
-    contour_weight: 20.0
-    contouring_lag_weight: 0
+    contour_weight: 10.0  # Reduced from 20.0 to balance with control costs
+    contouring_lag_weight: 5  # Increased from 0 to provide lag tracking
     contouring_goal_weight: 100
     spline_progression_weight: 0.0
     spline_velocity_weight: 0.0
