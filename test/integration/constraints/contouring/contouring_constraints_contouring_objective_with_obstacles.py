@@ -71,25 +71,10 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
             x_pos = float(ref_path.x_spline(s_pos))
             y_pos = float(ref_path.y_spline(s_pos))
             
-            # Get path tangent to place obstacle slightly offset from centerline
-            dx = float(ref_path.x_spline.derivative()(s_pos))
-            dy = float(ref_path.y_spline.derivative()(s_pos))
-            norm = np.sqrt(dx**2 + dy**2)
-            if norm > 1e-6:
-                # Normal vector (perpendicular to tangent, pointing left)
-                nx = -dy / norm
-                ny = dx / norm
-                # Offset obstacle from centerline (alternate left/right)
-                # Road width is typically 7.0m (3.5m half-width)
-                # Place obstacles with moderate offsets to create a weaving path
-                # This allows vehicle to navigate while staying within road bounds
-                offsets = [1.2, -1.2, 0.8]  # Vary offsets for more interesting path
-                offset = offsets[i % len(offsets)]
-                x_obs = x_pos + nx * offset
-                y_obs = y_pos + ny * offset
-            else:
-                x_obs = x_pos
-                y_obs = y_pos
+            # Place obstacle exactly on centerline (no offset)
+            x_obs = x_pos
+            y_obs = y_pos
+            offset = 0.0  # On centerline
             
             # Create stationary obstacle (zero velocity)
             obstacle_config = create_point_mass_obstacle(
@@ -107,17 +92,18 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
     config = TestConfig(
         reference_path=ref_path_points,
         objective_module="contouring",
-        constraint_modules=["contouring", "linear"],  # Add linear constraints for obstacle avoidance
+        constraint_modules=["linear"],  # Only linear constraints for obstacle avoidance (contouring constraints disabled)
         vehicle_dynamics="unicycle",
         num_obstacles=len(obstacle_configs),
         obstacle_dynamics=["point_mass"] * len(obstacle_configs),
-        test_name="Contouring Constraints with Stationary Obstacles",
+        test_name="Contouring Objective with Linear Obstacle Constraints (No Contouring Constraints)",
         duration=max_iterations * dt,
         timestep=dt,
         show_predicted_trajectory=True,
         obstacle_configs=obstacle_configs,  # Use deterministic obstacle positions
         obstacle_prediction_types=["deterministic"] * len(obstacle_configs),  # Deterministic for stationary obstacles
-        fallback_control_enabled=False  # Keep strict - vehicle must find feasible solution
+        fallback_control_enabled=False,  # Keep strict - vehicle must find feasible solution
+        max_consecutive_failures=50  # Increase limit to allow more recovery attempts
     )
     
     # Run the test

@@ -37,35 +37,69 @@ class GoalObjective(BaseObjective):
     pos_y = state.get("y")
     psi = state.get("psi")
 
-    # Get parameters from data.parameters
+    # Get parameters from parameter_manager (like contouring objective does)
     goal_x = None
     goal_y = None
-    if data and hasattr(data, 'parameters') and data.parameters is not None:
-        goal_x = data.parameters.get("goal_x")
-        goal_y = data.parameters.get("goal_y")
+    
+    # Log solver availability for debugging
+    if stage_idx == 0:
+        has_solver = hasattr(self, 'solver') and self.solver is not None
+        has_param_mgr = has_solver and hasattr(self.solver, 'parameter_manager')
+        LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): has_solver={has_solver}, has_param_mgr={has_param_mgr}")
+    
+    if self.solver and hasattr(self.solver, 'parameter_manager'):
+        params_dict = self.solver.parameter_manager.get_all(stage_idx)
+        goal_x = params_dict.get("goal_x")
+        goal_y = params_dict.get("goal_y")
+        if stage_idx == 0:
+            LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): goal from parameter_manager: ({goal_x}, {goal_y}), all_params={list(params_dict.keys())[:5]}")
+    
+    # Fallback: try data.parameters
+    if goal_x is None or goal_y is None:
+        if data and hasattr(data, 'parameters') and data.parameters is not None:
+            goal_x = data.parameters.get("goal_x")
+            goal_y = data.parameters.get("goal_y")
+            if stage_idx == 0:
+                LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): goal from data.parameters: ({goal_x}, {goal_y})")
 
     # If goal parameters not set, try to get from data.goal directly
     if goal_x is None or goal_y is None:
         if data and hasattr(data, 'goal') and data.goal is not None:
             goal_x = float(data.goal[0]) if len(data.goal) > 0 else None
             goal_y = float(data.goal[1]) if len(data.goal) > 1 else None
+            if stage_idx == 0:
+                LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): goal from data.goal: ({goal_x}, {goal_y})")
 
     # If still None, return zero cost (can't compute goal error without goal)
     if goal_x is None or goal_y is None:
-        LOG_WARN(f"GoalObjective: goal_x={goal_x}, goal_y={goal_y} - returning zero cost")
+        LOG_WARN(f"GoalObjective.get_value(stage={stage_idx}): goal_x={goal_x}, goal_y={goal_y} - returning zero cost")
+        LOG_WARN(f"  has_solver={hasattr(self, 'solver') and self.solver is not None}, has_data={data is not None}, has_data_goal={data and hasattr(data, 'goal') and data.goal is not None}")
+        if data and hasattr(data, 'goal'):
+            LOG_WARN(f"  data.goal={data.goal}")
         return {"goal_pos_cost": 0.0, "goal_angle_cost": 0.0}
 
-    # Get weights with safe defaults
-    if data and hasattr(data, 'parameters') and data.parameters is not None:
-        goal_weight = data.parameters.get("goal_weight", 1.0)
-        angle_weight = data.parameters.get("goal_angle_weight", 10.0)
-        terminal_goal_weight = data.parameters.get("goal_terminal_weight", 10.0)
-        terminal_angle_weight = data.parameters.get("goal_terminal_angle_weight", 1.0)
-    else:
-        goal_weight = 1.0
-        angle_weight = 10.0
-        terminal_goal_weight = 10.0
-        terminal_angle_weight = 1.0
+    # Get weights with safe defaults - try parameter_manager first, then data.parameters, then config
+    # Defaults from config file: goal_weight=10.0, goal_angle_weight=1.0
+    goal_weight = self.get_config_value("weights.goal_weight", 10.0)
+    angle_weight = self.get_config_value("weights.goal_angle_weight", 1.0)
+    terminal_goal_weight = self.get_config_value("weights.goal_terminal_weight", 10.0)
+    terminal_angle_weight = self.get_config_value("weights.goal_terminal_angle", 1.0)
+    
+    if self.solver and hasattr(self.solver, 'parameter_manager'):
+        params_dict = self.solver.parameter_manager.get_all(stage_idx)
+        goal_weight = params_dict.get("goal_weight", goal_weight)
+        angle_weight = params_dict.get("goal_angle_weight", angle_weight)
+        terminal_goal_weight = params_dict.get("goal_terminal_weight", terminal_goal_weight)
+        terminal_angle_weight = params_dict.get("goal_terminal_angle_weight", terminal_angle_weight)
+    elif data and hasattr(data, 'parameters') and data.parameters is not None:
+        goal_weight = data.parameters.get("goal_weight", goal_weight)
+        angle_weight = data.parameters.get("goal_angle_weight", angle_weight)
+        terminal_goal_weight = data.parameters.get("goal_terminal_weight", terminal_goal_weight)
+        terminal_angle_weight = data.parameters.get("goal_terminal_angle_weight", terminal_angle_weight)
+    
+    # Log weights for debugging
+    if stage_idx == 0:
+        LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): weights - goal={goal_weight:.2f}, angle={angle_weight:.2f}, terminal_goal={terminal_goal_weight:.2f}, terminal_angle={terminal_angle_weight:.2f}")
 
     LOG_DEBUG("pos x : " + str(pos_x))
     LOG_DEBUG("pos y : " + str(pos_y))
@@ -78,8 +112,24 @@ class GoalObjective(BaseObjective):
     dy = pos_y - goal_y
 
     pos_error_sq = dx ** 2 + dy ** 2
+    pos_error = cs.sqrt(pos_error_sq)  # For logging
     theta_goal = cs.atan2(goal_y - pos_y, goal_x - pos_x)
+    # Angle error: difference between current heading and desired heading toward goal
+    # Positive error means vehicle should turn left (increase psi), negative means turn right (decrease psi)
     angle_error = cs.fmod(psi - theta_goal + cs.pi, 2 * cs.pi) - cs.pi
+    
+    # Log angle error for debugging (only for stage 0 to avoid spam)
+    if stage_idx == 0:
+        try:
+            # Try to evaluate if symbolic
+            import casadi as cs_eval
+            if hasattr(psi, 'is_constant') and psi.is_constant():
+                psi_val = float(psi)
+                theta_goal_val = float(theta_goal) if hasattr(theta_goal, 'is_constant') and theta_goal.is_constant() else 'symbolic'
+                angle_error_val = float(angle_error) if hasattr(angle_error, 'is_constant') and angle_error.is_constant() else 'symbolic'
+                LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): angle_error computation - psi={psi_val:.3f} rad ({np.degrees(psi_val):.1f}°), theta_goal={theta_goal_val}, angle_error={angle_error_val}")
+        except:
+            pass
 
     # If at terminal stage, apply stronger penalty
     # Get horizon from data or use default
@@ -91,9 +141,13 @@ class GoalObjective(BaseObjective):
     if stage_idx == horizon_val - 1:
       pos_cost = terminal_goal_weight * pos_error_sq
       angle_cost = terminal_angle_weight * angle_error ** 2
+      if stage_idx == 0:  # Only log for first stage to avoid spam
+        LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}, TERMINAL): pos=({pos_x:.3f}, {pos_y:.3f}), goal=({goal_x:.3f}, {goal_y:.3f}), error={float(pos_error):.3f}m, cost={float(pos_cost):.3f}")
     else:
       pos_cost = goal_weight * pos_error_sq
       angle_cost = angle_weight * angle_error ** 2
+      if stage_idx == 0:  # Only log for first stage to avoid spam
+        LOG_INFO(f"GoalObjective.get_value(stage={stage_idx}): pos=({pos_x:.3f}, {pos_y:.3f}), goal=({goal_x:.3f}, {goal_y:.3f}), error={float(pos_error):.3f}m, cost={float(pos_cost):.3f}")
 
     return {"goal_pos_cost": pos_cost, "goal_angle_cost": angle_cost}
 
@@ -101,9 +155,11 @@ class GoalObjective(BaseObjective):
     LOG_DEBUG("Setting parameters for Goal Objective")
     if k == 0:
       LOG_DEBUG( "Goal Module.set_parameters()")
+      LOG_INFO(f"Goal Objective: Setting goal to ({data.goal[0]:.3f}, {data.goal[1]:.3f})")
 
-    parameter_manager.set_parameter("goal_x", data.goal[0])
-    parameter_manager.set_parameter("goal_y", data.goal[1])
+    # Set goal for this specific stage (goal is the same for all stages)
+    parameter_manager.set_parameter("goal_x", data.goal[0], stage_index=k)
+    parameter_manager.set_parameter("goal_y", data.goal[1], stage_index=k)
     parameter_manager.set_parameter("goal_weight", self.goal_weight)
     # Set all weight parameters from config for proper convergence
     parameter_manager.set_parameter("goal_angle_weight", 

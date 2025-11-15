@@ -211,6 +211,11 @@ class Planner:
         LOG_DEBUG(f"Iteration {solver_iterations + 1}: MPC solve successful")
         if hasattr(mpc_output, 'control') and mpc_output.control:
           LOG_INFO(f"Control output: {mpc_output.control}")
+          # Log angular velocity specifically
+          if 'w' in mpc_output.control:
+            LOG_INFO(f"  Angular velocity w = {mpc_output.control['w']:.4f} rad/s")
+          if 'a' in mpc_output.control:
+            LOG_INFO(f"  Acceleration a = {mpc_output.control['a']:.4f} m/s²")
         else:
           LOG_WARN(f"Iteration {solver_iterations + 1}: MPC solved but no control output!")
         
@@ -263,6 +268,14 @@ class Planner:
     if data is not None:
       LOG_DEBUG("Updating data from provided argument")
       self.data = data
+      # Log goal if available
+      if hasattr(data, 'goal') and data.goal is not None:
+        LOG_INFO(f"Planner.solve_mpc: data.goal = ({data.goal[0]:.3f}, {data.goal[1]:.3f})")
+      if hasattr(data, 'parameters') and data.parameters is not None:
+        goal_x = data.parameters.get("goal_x")
+        goal_y = data.parameters.get("goal_y")
+        if goal_x is not None and goal_y is not None:
+          LOG_INFO(f"Planner.solve_mpc: parameters.goal = ({goal_x:.3f}, {goal_y:.3f})")
     else:
       LOG_DEBUG("Using existing self.data")
     
@@ -276,6 +289,12 @@ class Planner:
         # Update planner.state to match data.state (data is authoritative)
         self.state = self.data.state
         LOG_DEBUG("Updated planner.state from data.state")
+      
+      # Log current state
+      if self.state is not None:
+        state_x = self.state.get('x') if self.state.has('x') else None
+        state_y = self.state.get('y') if self.state.has('y') else None
+        LOG_INFO(f"Planner.solve_mpc: current state = ({state_x:.3f}, {state_y:.3f})")
     
     # Ensure solver horizon and timestep are set
     if not hasattr(self.solver, 'horizon') or self.solver.horizon is None:
@@ -346,6 +365,13 @@ class Planner:
     for k in range(horizon_val + 1):
       for module in self.solver.module_manager.get_modules():
         self.solver.parameter_manager.set_parameters(module, self.data, k)
+        # Log goal parameters for goal objective at stage 0
+        if k == 0 and hasattr(module, 'name') and module.name == 'goal_objective':
+          params_0 = self.solver.parameter_manager.get_all(0)
+          goal_x = params_0.get('goal_x')
+          goal_y = params_0.get('goal_y')
+          if goal_x is not None and goal_y is not None:
+            LOG_INFO(f"Planner: After set_parameters, goal_x={goal_x:.3f}, goal_y={goal_y:.3f} at stage 0")
     
     LOG_INFO(f"Collecting constraints and objectives for {horizon_val + 1} stages...")
     for k in range(horizon_val + 1):
@@ -375,6 +401,15 @@ class Planner:
         self.data.set_parameters(params_k, k)
       else:
         self.data.set(f'parameters_{k}', params_k)
+      
+      # Also set data.parameters as a single dict for backward compatibility (used by goal objective)
+      if k == 0:
+        if not hasattr(self.data, 'parameters') or self.data.parameters is None:
+          self.data.parameters = {}
+        self.data.parameters.update(params_k)
+        # Log goal parameters
+        if 'goal_x' in params_k and 'goal_y' in params_k:
+          LOG_INFO(f"Planner: Set data.parameters with goal_x={params_k['goal_x']:.3f}, goal_y={params_k['goal_y']:.3f}")
 
       if hasattr(self.data, 'set_constraints') and callable(getattr(self.data, 'set_constraints', None)):
         self.data.set_constraints(cons_k, k)
@@ -469,6 +504,9 @@ class Planner:
           if val0 is not None:
             control_out[u_name] = float(val0)
             LOG_DEBUG(f"  Extracted u[{u_name}][0] = {float(val0):.4f}")
+            # Log w specifically for debugging turning
+            if u_name == 'w':
+              LOG_INFO(f"  ⚠️  Angular velocity w[0] = {float(val0):.4f} rad/s (vehicle should turn if non-zero)")
           else:
             LOG_WARN(f"  Could not extract {u_name} from solver (returned None)")
             # Optional fallback: extract from trajectory if enabled in config

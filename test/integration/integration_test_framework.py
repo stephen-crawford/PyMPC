@@ -382,6 +382,15 @@ class IntegrationTestFramework:
             
             # Keep reference to planner's solver if needed by framework utilities
             self.solver = planner.solver
+            
+            # CRITICAL: Set solver on all modules immediately so they can access parameter_manager
+            logger.info("Setting solver on all modules...")
+            for module in planner.solver.module_manager.get_modules():
+                if hasattr(module, 'solver'):
+                    module.solver = planner.solver
+                    logger.debug(f"  Set solver on module: {module.name}")
+                else:
+                    logger.warning(f"  Module {module.name} has no solver attribute")
 
             # Define parameters now that modules are registered
             # Use planner's solver for define_parameters
@@ -481,11 +490,14 @@ class IntegrationTestFramework:
                         data.goal_sequence = [np.array(g[:2]) for g in test_config.goal_sequence]
                         data.current_goal_index = 0
                         data.goal = data.goal_sequence[0]
+                        logger.info(f"Goal objective: Using goal_sequence, setting goal to ({data.goal[0]:.3f}, {data.goal[1]:.3f})")
                     else:
                         data.goal_sequence = None
                         data.goal = np.array(goal_pt[:2])
+                        logger.info(f"Goal objective: Using default goal_pt, setting goal to ({data.goal[0]:.3f}, {data.goal[1]:.3f})")
                     data.goal_received = True
                     data.reached_goals = []  # Track all reached goals
+                    logger.info(f"Goal objective: goal_received={data.goal_received}, goal={data.goal}")
                 # Compute road boundaries using path normals (ONLY if using reference path)
                 if use_ref_path and data.reference_path is not None:
                     def calculate_path_normals(_ref_path: ReferencePath):
@@ -983,6 +995,50 @@ class IntegrationTestFramework:
                         logger.debug(f"Could not check goal status: {e}")
 
                 try:
+                    # CRITICAL: Update reference path to start at current vehicle position at each step
+                    # This is essential for contouring constraints to work correctly
+                    # Re-check has_contouring at each step to ensure it's in scope
+                    has_contouring_check = (test_config.objective_module == "contouring" or 
+                                          "contouring" in test_config.constraint_modules)
+                    if has_contouring_check and hasattr(data, 'reference_path') and data.reference_path is not None:
+                        try:
+                            vehicle_pos = np.array([vehicle_state[0], vehicle_state[1]])
+                            ref_path_start = np.array([float(data.reference_path.x[0]), float(data.reference_path.y[0])])
+                            dist = np.linalg.norm(vehicle_pos - ref_path_start)
+                            
+                            logger.debug(f"Step {step}: Checking path alignment: vehicle=({vehicle_pos[0]:.3f}, {vehicle_pos[1]:.3f}), "
+                                       f"path_start=({ref_path_start[0]:.3f}, {ref_path_start[1]:.3f}), dist={dist:.3f}m")
+                            
+                            if dist > 0.01:  # More than 1cm difference - update path
+                                x_offset = vehicle_pos[0] - ref_path_start[0]
+                                y_offset = vehicle_pos[1] - ref_path_start[1]
+                                
+                                # Adjust all path points
+                                data.reference_path.x = np.asarray(data.reference_path.x, dtype=float) + x_offset
+                                data.reference_path.y = np.asarray(data.reference_path.y, dtype=float) + y_offset
+                                
+                                # Rebuild splines with adjusted coordinates
+                                from scipy.interpolate import CubicSpline
+                                s_arr = np.asarray(data.reference_path.s, dtype=float)
+                                data.reference_path.x_spline = CubicSpline(s_arr, data.reference_path.x)
+                                data.reference_path.y_spline = CubicSpline(s_arr, data.reference_path.y)
+                                if hasattr(data.reference_path, 'z') and data.reference_path.z is not None:
+                                    data.reference_path.z_spline = CubicSpline(s_arr, data.reference_path.z)
+                                
+                                logger.info(f"Step {step}: Updated reference path to start at vehicle position: "
+                                           f"({data.reference_path.x[0]:.2f}, {data.reference_path.y[0]:.2f}), "
+                                           f"offset=({x_offset:.3f}, {y_offset:.3f}), distance={dist:.3f}m")
+                                
+                                # Also update the reference_path in contouring objective/constraints modules if they have cached it
+                                if hasattr(planner, 'module_manager') and planner.module_manager is not None:
+                                    for module in planner.module_manager.get_modules():
+                                        if hasattr(module, 'reference_path') and module.reference_path is not None:
+                                            # Update the cached reference path in the module
+                                            module.reference_path = data.reference_path
+                                            logger.debug(f"  Updated cached reference_path in module {module.name}")
+                        except Exception as path_update_err:
+                            logger.warning(f"Could not update reference path at step {step}: {path_update_err}")
+                    
                     logger.info(f"=== Calling planner.solve_mpc() at step {step} ===")
                     planner_output = planner.solve_mpc(data)
                     

@@ -49,8 +49,9 @@ class ContouringConstraints(BaseConstraint):
 				LOG_DEBUG(f"Could not verify reference path start position: {e}")
 		
 		# Store reference path data for dynamic constraint computation (analogous to C++ onDataReceived)
+		# CRITICAL: Always use the path from data, don't cache it, so it stays in sync with updates
 		if hasattr(data, 'reference_path') and data.reference_path is not None:
-			self._reference_path = data.reference_path
+			self._reference_path = data.reference_path  # Store reference, but always check data.reference_path for latest
 			
 			# Compute width splines from actual road boundaries (analogous to C++ onDataReceived)
 			# C++ computes: widths_left[i] = distance(center, left), widths_right[i] = distance(center, right)

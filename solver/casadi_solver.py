@@ -527,13 +527,36 @@ class CasADiSolver(BaseSolver):
 					self.warmstart_values[var_name][:] = 0.0
 
 		# Initialize inputs with small values (zero can cause issues)
+		# For goal objective, initialize w to turn toward goal if goal is available
+		goal_available = False
+		goal_x = None
+		goal_y = None
+		if self.data is not None and hasattr(self.data, 'goal') and self.data.goal is not None:
+			goal_available = True
+			goal_x = float(self.data.goal[0])
+			goal_y = float(self.data.goal[1])
+		
 		for var_name in dynamics_model.get_inputs():
 			current_val = state.get(var_name)
 			if current_val is not None:
 				self.warmstart_values[var_name][:] = current_val
 			else:
-				# Use small non-zero values for better convergence
-				self.warmstart_values[var_name][:] = 0.01
+				# For goal objective, initialize w to turn toward goal
+				if var_name == 'w' and goal_available:
+					current_x = state.get('x') if state.has('x') else 0.0
+					current_y = state.get('y') if state.has('y') else 0.0
+					current_psi = state.get('psi') if state.has('psi') else 0.0
+					# Compute desired heading toward goal
+					theta_goal = np.arctan2(goal_y - current_y, goal_x - current_x)
+					angle_error = np.mod(current_psi - theta_goal + np.pi, 2 * np.pi) - np.pi
+					# Initialize w to turn toward goal (proportional to angle error, capped)
+					# Use a reasonable turning rate (e.g., 0.5 rad/s max)
+					w_init = np.clip(-angle_error * 0.5, -0.5, 0.5)  # Proportional control, capped at 0.5 rad/s
+					self.warmstart_values[var_name][:] = w_init
+					LOG_DEBUG(f"Goal objective: Initializing w warmstart to {w_init:.4f} rad/s (angle_error={angle_error:.3f} rad)")
+				else:
+					# Use small non-zero values for better convergence
+					self.warmstart_values[var_name][:] = 0.01
 
 	def _shift_warmstart_forward(self):
 		dynamics_model = self._get_dynamics_model()
@@ -834,9 +857,19 @@ class CasADiSolver(BaseSolver):
 			if self.data is not None:
 				LOG_DEBUG(f"Stage {stage_idx}: Using data.state={self.data.state is not None}, symbolic_state for CasADi vars")
 			
-			# Get objectives from module manager - it uses data as source of truth
-			# Note: get_objective_cost will override state with data.state if available
-			objective_costs = self.get_objective_cost(symbolic_state, stage_idx)
+			# Get objectives from module manager
+			# CRITICAL: For goal objective, we MUST use symbolic_state (predicted state) for future stages,
+			# not data.state (current state). Otherwise, the angle cost will be the same for all stages,
+			# and the solver won't see the benefit of turning.
+			# For stage 0, we can use data.state, but for future stages, we need symbolic_state.
+			# However, get_objective_cost overrides state with data.state. We need to pass symbolic_state directly.
+			# Let's call module_manager.get_objectives directly with symbolic_state for goal objective
+			if stage_idx == 0:
+				# For stage 0, use get_objective_cost which may use data.state
+				objective_costs = self.get_objective_cost(symbolic_state, stage_idx)
+			else:
+				# For future stages, use symbolic_state directly (predicted state)
+				objective_costs = self.module_manager.get_objectives(symbolic_state, self.data, stage_idx) or []
 			# Log objectives BEFORE processing
 			obj_count = len(objective_costs or [])
 			if obj_count > 0:
@@ -871,12 +904,53 @@ class CasADiSolver(BaseSolver):
 				if stage_idx <= 2:
 					LOG_DEBUG(f"Stage {stage_idx}: No objectives")
 			for cost_dict in objective_costs:
-				for cost_val in cost_dict.values():
+				for cost_name, cost_val in cost_dict.items():
 					total_objective += cost_val
+					# Log angle cost specifically for goal objective debugging
+					if stage_idx == 0 and cost_name == 'goal_angle_cost':
+						try:
+							if hasattr(cost_val, 'is_constant') and cost_val.is_constant():
+								LOG_INFO(f"  Stage {stage_idx}: goal_angle_cost = {float(cost_val):.4f} (added to total objective)")
+							else:
+								LOG_DEBUG(f"  Stage {stage_idx}: goal_angle_cost = symbolic (added to total objective)")
+						except:
+							LOG_DEBUG(f"  Stage {stage_idx}: goal_angle_cost = {cost_val} (added to total objective)")
+
+			# Add control regularization costs (like reference codebase base_module)
+			# This helps the solver find smoother solutions and escape local minima
+			# Reference: https://github.com/tud-amr/mpc_planner uses base_module.weigh_variable()
+			if stage_idx < horizon_val:  # Only for control stages (not terminal state)
+				try:
+					control_weights = self.config.get("solver", {}).get("t-mpc", {}).get("weights", {})
+					acceleration_weight = control_weights.get("acceleration_x", 0.0)  # Default 0 = no cost
+					angular_velocity_weight = control_weights.get("angular_velocity", 0.0)  # Default 0 = no cost
+					
+					# Get control variables from dynamics model
+					if dynamics_model is not None and hasattr(self, 'var_dict') and self.var_dict:
+						input_vars = dynamics_model.get_inputs()
+						for u_name in input_vars:
+							if u_name in self.var_dict and self.var_dict[u_name] is not None:
+								if stage_idx < self.var_dict[u_name].shape[0]:
+									u_k = self.var_dict[u_name][stage_idx]
+									if u_name == 'a' and acceleration_weight > 0:
+										# Quadratic cost on acceleration
+										control_cost = acceleration_weight * u_k ** 2
+										total_objective += control_cost
+										if stage_idx == 0:
+											LOG_DEBUG(f"  Stage {stage_idx}: Added acceleration cost (weight={acceleration_weight:.2f})")
+									elif u_name == 'w' and angular_velocity_weight > 0:
+										# Quadratic cost on angular velocity
+										control_cost = angular_velocity_weight * u_k ** 2
+										total_objective += control_cost
+										if stage_idx == 0:
+											LOG_DEBUG(f"  Stage {stage_idx}: Added angular velocity cost (weight={angular_velocity_weight:.2f})")
+				except Exception as e:
+					LOG_WARN(f"Failed to add control costs at stage {stage_idx}: {e}")
 
 			# Get constraints from module manager - it uses data as source of truth
 			constraints = self.get_constraints(stage_idx)
 			# Log constraints BEFORE processing with detailed breakdown
+			LOG_INFO(f"=== Solver.solve(): Stage {stage_idx} - Constraints being passed to solver ===")
 			try:
 				import logging as _logging
 				_integ_logger = _logging.getLogger("integration_test")
@@ -884,6 +958,7 @@ class CasADiSolver(BaseSolver):
 				linearized_count = 0
 				contouring_count = 0
 				other_count = 0
+				linearized_constraints_detail = []
 				for (c, lb, ub) in (constraints or []):
 					ctype = None
 					if isinstance(c, dict):
@@ -895,6 +970,19 @@ class CasADiSolver(BaseSolver):
 							else:
 								linearized_count += 1
 								ctype = 'linearized'
+								# Log detailed information for linearized constraints
+								a1_val = c.get('a1', 0.0)
+								a2_val = c.get('a2', 0.0)
+								b_val = c.get('b', 0.0)
+								disc_offset_val = c.get('disc_offset', 0.0)
+								linearized_constraints_detail.append({
+									"a1": float(a1_val),
+									"a2": float(a2_val),
+									"b": float(b_val),
+									"disc_offset": float(disc_offset_val),
+									"lb": lb,
+									"ub": ub
+								})
 						else:
 							ctype = c.get('type') or 'dict'
 							other_count += 1
@@ -906,8 +994,25 @@ class CasADiSolver(BaseSolver):
 						"lb": None if lb is None else 'set',
 						"ub": None if ub is None else 'set',
 					})
-				msg_cons = f"Stage {stage_idx}: constraints count={len(constraints or [])} (linearized={linearized_count}, contouring={contouring_count}, other={other_count}) summary={cons_summ[:5]}"
+				msg_cons = f"Stage {stage_idx}: constraints count={len(constraints or [])} (linearized={linearized_count}, contouring={contouring_count}, other={other_count})"
 				LOG_INFO(msg_cons)
+				
+				# Log detailed information for linearized constraints
+				if linearized_constraints_detail:
+					LOG_INFO(f"  Linearized constraints details ({len(linearized_constraints_detail)} constraints):")
+					for i, const_detail in enumerate(linearized_constraints_detail[:10]):  # Log first 10
+						LOG_INFO(f"    Constraint {i}: a1={const_detail['a1']:.6f}, a2={const_detail['a2']:.6f}, "
+						        f"b={const_detail['b']:.6f}, disc_offset={const_detail['disc_offset']:.4f}, "
+						        f"bounds=[{const_detail['lb']}, {const_detail['ub']}]")
+						# Verify normal vector is normalized
+						a_norm = np.sqrt(const_detail['a1']**2 + const_detail['a2']**2)
+						if abs(a_norm - 1.0) < 1e-6:
+							LOG_INFO(f"      ✓ Normal vector is normalized (||a||={a_norm:.6f})")
+						else:
+							LOG_WARN(f"      ⚠️  Normal vector is NOT normalized! ||a||={a_norm:.6f} (expected 1.0)")
+					if len(linearized_constraints_detail) > 10:
+						LOG_INFO(f"    ... and {len(linearized_constraints_detail) - 10} more linearized constraints")
+				
 				try:
 					_integ_logger.info(msg_cons)
 				except Exception:
@@ -1093,12 +1198,28 @@ class CasADiSolver(BaseSolver):
 				stats = self.opti.stats()
 				if stats:
 					LOG_INFO("=== IPOPT SOLVER STATISTICS ===")
-					LOG_INFO(f"  Return status: {stats.get('return_status', 'N/A')}")
-					LOG_INFO(f"  Iterations: {stats.get('iter_count', 'N/A')}")
-					LOG_INFO(f"  Objective value: {stats.get('obj', 'N/A')}")
-					LOG_INFO(f"  Constraint violation: {stats.get('constr_viol', 'N/A')}")
-					LOG_INFO(f"  Dual infeasibility: {stats.get('du_inf', 'N/A')}")
-					LOG_INFO(f"  Primal infeasibility: {stats.get('pr_inf', 'N/A')}")
+					return_status = stats.get('return_status', 'N/A')
+					iter_count = stats.get('iter_count', 'N/A')
+					obj_val = stats.get('obj', 'N/A')
+					constr_viol = stats.get('constr_viol', 'N/A')
+					du_inf = stats.get('du_inf', 'N/A')
+					pr_inf = stats.get('pr_inf', 'N/A')
+					
+					LOG_INFO(f"  Return status: {return_status}")
+					LOG_INFO(f"  Iterations: {iter_count}")
+					LOG_INFO(f"  Objective value: {obj_val}")
+					LOG_INFO(f"  Constraint violation: {constr_viol}")
+					LOG_INFO(f"  Dual infeasibility: {du_inf}")
+					LOG_INFO(f"  Primal infeasibility: {pr_inf}")
+					
+					# Warn if constraint violation is significant
+					try:
+						if isinstance(constr_viol, (int, float)) and constr_viol > 1e-3:
+							LOG_WARN(f"  ⚠️  Significant constraint violation detected: {constr_viol:.6f}")
+						if isinstance(pr_inf, (int, float)) and pr_inf > 1e-3:
+							LOG_WARN(f"  ⚠️  Significant primal infeasibility detected: {pr_inf:.6f}")
+					except (TypeError, ValueError):
+						pass
 			except Exception as stats_err:
 				LOG_DEBUG(f"Could not get IPOPT stats: {stats_err}")
 			
@@ -1120,6 +1241,23 @@ class CasADiSolver(BaseSolver):
 						if var_name in self.var_dict:
 							val0 = self.solution.value(self.var_dict[var_name][0])
 							LOG_INFO(f"  Solution u[{var_name}][0] = {val0} (first control input to apply)")
+					
+					# Log solution trajectory positions for first few steps
+					if 'x' in self.var_dict and 'y' in self.var_dict:
+						LOG_INFO("=== SOLUTION TRAJECTORY (first 3 steps) ===")
+						for k in range(min(3, horizon_val + 1)):
+							sol_x = float(self.solution.value(self.var_dict['x'][k]))
+							sol_y = float(self.solution.value(self.var_dict['y'][k]))
+							sol_psi = float(self.solution.value(self.var_dict['psi'][k])) if 'psi' in self.var_dict else 0.0
+							sol_v = float(self.solution.value(self.var_dict['v'][k])) if 'v' in self.var_dict else 0.0
+							LOG_INFO(f"  Step {k}: x={sol_x:.3f}, y={sol_y:.3f}, psi={sol_psi:.3f}, v={sol_v:.3f}")
+							
+							# Compare with warmstart
+							if k < len(self.warmstart_values.get('x', [])):
+								ws_x = float(self.warmstart_values['x'][k])
+								ws_y = float(self.warmstart_values['y'][k])
+								diff = np.sqrt((sol_x - ws_x)**2 + (sol_y - ws_y)**2)
+								LOG_DEBUG(f"    Warmstart: x={ws_x:.3f}, y={ws_y:.3f}, diff={diff:.3f}m")
 				except Exception as e:
 					LOG_DEBUG(f"  Could not extract solution values: {e}")
 			
