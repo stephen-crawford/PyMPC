@@ -1129,10 +1129,15 @@ class CasADiSolver(BaseSolver):
 					
 					ctype = None
 					if isinstance(c, dict):
-						# Check for symbolic expression type (from contouring constraints)
+						# Check for symbolic expression type
 						if c.get('type') == 'symbolic_expression':
-							contouring_count += 1
-							ctype = 'contouring'
+							# Distinguish between linearized and contouring constraints
+							if c.get('constraint_type') == 'linearized':
+								linearized_count += 1
+								ctype = 'linearized'
+							else:
+								contouring_count += 1
+								ctype = 'contouring'
 						elif 'a1' in c and 'a2' in c:
 							# Check if it's a linearized constraint (has obstacle index context) or contouring
 							if 'is_left' in c or 'spline_s' in c:

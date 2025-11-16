@@ -784,10 +784,12 @@ class LinearizedConstraints(BaseConstraint):
 				constraint_expr = a1_sym * disc_x_sym + a2_sym * disc_y_sym - b_sym
 				
 				# Return as symbolic expression (solver will handle it)
+				# Mark as linearized constraint so solver can count it correctly
 				constraints.append({
 					"type": "symbolic_expression",
 					"expression": constraint_expr,
 					"ub": 0.0,  # expr <= 0
+					"constraint_type": "linearized",  # Mark as linearized for counting
 				})
 		
 		LOG_INFO(f"  Symbolic constraints: {len(constraints)} constraint expressions computed symbolically")

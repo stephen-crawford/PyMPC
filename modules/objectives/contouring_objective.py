@@ -314,25 +314,34 @@ class ContouringObjective(BaseObjective):
 
 
 	def set_parameters(self, parameter_manager, data, k):
+		LOG_INFO(f"🔧 ContouringObjective.set_parameters called with k={k}")
 		LOG_DEBUG(f"ContouringObjective.set_parameters called with k={k}")
 		
-		# Retrieve weights once (only for first stage)
+		# Retrieve weights once (only for first stage) but set for ALL stages
 		if k == 0:
-			LOG_INFO("ContouringObjective.set_parameters: Setting weights for stage 0")
+			LOG_INFO("ContouringObjective.set_parameters: Setting weights for all stages")
 			contouring_weight = self.get_config_value("weights.contour_weight")
 			lag_weight = self.get_config_value("weights.contouring_lag_weight")
 
-			if self.goal_reaching_contouring:
-				contouring_goal_weight = self.get_config_value("weights.contouring_goal_weight")
-				parameter_manager.set_parameter("contouring_goal_weight", contouring_goal_weight, stage_index=0)
+			# Get horizon to set weights for all stages
+			horizon = 10  # Default
+			if hasattr(self, 'solver') and self.solver is not None:
+				horizon = getattr(self.solver, 'horizon', 10)
+			
+			# Set weights for ALL stages (0 to horizon)
+			for stage_idx in range(horizon + 1):
+				parameter_manager.set_parameter("contour_weight", contouring_weight, stage_index=stage_idx)
+				parameter_manager.set_parameter("contouring_lag_weight", lag_weight, stage_index=stage_idx)
+				
+				if self.goal_reaching_contouring:
+					contouring_goal_weight = self.get_config_value("weights.contouring_goal_weight", 0.0)
+					parameter_manager.set_parameter("contouring_goal_weight", contouring_goal_weight, stage_index=stage_idx)
 
-			if self.dynamic_velocity_reference:
-				velocity_weight = self.get_config_value("weights.contour_velocity_weight")
-				parameter_manager.set_parameter("contouring_reference_velocity_weight", velocity_weight, stage_index=0)
-
-			parameter_manager.set_parameter("contour_weight", contouring_weight, stage_index=0)
-			parameter_manager.set_parameter("contouring_lag_weight", lag_weight, stage_index=0)
-			LOG_DEBUG(f"  Set weights: contour={contouring_weight}, lag={lag_weight}")
+				if self.dynamic_velocity_reference:
+					velocity_weight = self.get_config_value("weights.contour_velocity_weight", 0.0)
+					parameter_manager.set_parameter("contouring_reference_velocity_weight", velocity_weight, stage_index=stage_idx)
+			
+			LOG_DEBUG(f"  Set weights for {horizon + 1} stages: contour={contouring_weight}, lag={lag_weight}")
 
 		# Process reference path and set path parameters (only once, typically at k=0)
 		# CRITICAL: This is called AFTER update(), so if the path was realigned in update(),
@@ -504,42 +513,59 @@ class ContouringObjective(BaseObjective):
 		# Set parameters for each segment
 		# CRITICAL: Parameters must be set for ALL stages (not just stage 0)
 		# Since set_path_parameters is called once at k=0, we set parameters for all stages
+		# Reference: https://github.com/tud-amr/mpc_planner - parameters are set for all stages
 		params_set = 0
-		LOG_INFO(f"  Setting parameters for {self.num_segments} segments...")
+		LOG_INFO(f"  Setting parameters for {self.num_segments} segments for ALL stages...")
+		
+		# Get horizon to know how many stages to set
+		horizon = 10  # Default
+		if hasattr(self, 'solver') and self.solver is not None:
+			horizon = getattr(self.solver, 'horizon', 10)
+		num_stages = horizon + 1
+		
 		for i in range(self.num_segments):
-			# Set segment start parameter (for all stages - pass None to set for all)
+			# Set segment start parameter (for all stages)
 			start_val = float(x_starts[i])
-			parameter_manager.set_parameter(f"path_{i}_start", start_val, stage_index=None)
+			for stage_idx in range(num_stages):
+				parameter_manager.set_parameter(f"path_{i}_start", start_val, stage_index=stage_idx)
 
 			# Set path coordinate coefficients (for all stages)
-			parameter_manager.set_parameter(f"path_x_{i}_a", path_x_coeffs[i][0], stage_index=None)
-			parameter_manager.set_parameter(f"path_x_{i}_b", path_x_coeffs[i][1], stage_index=None)
-			parameter_manager.set_parameter(f"path_x_{i}_c", path_x_coeffs[i][2], stage_index=None)
-			parameter_manager.set_parameter(f"path_x_{i}_d", path_x_coeffs[i][3], stage_index=None)
+			for stage_idx in range(num_stages):
+				parameter_manager.set_parameter(f"path_x_{i}_a", path_x_coeffs[i][0], stage_index=stage_idx)
+				parameter_manager.set_parameter(f"path_x_{i}_b", path_x_coeffs[i][1], stage_index=stage_idx)
+				parameter_manager.set_parameter(f"path_x_{i}_c", path_x_coeffs[i][2], stage_index=stage_idx)
+				parameter_manager.set_parameter(f"path_x_{i}_d", path_x_coeffs[i][3], stage_index=stage_idx)
 
-			parameter_manager.set_parameter(f"path_y_{i}_a", path_y_coeffs[i][0], stage_index=None)
-			parameter_manager.set_parameter(f"path_y_{i}_b", path_y_coeffs[i][1], stage_index=None)
-			parameter_manager.set_parameter(f"path_y_{i}_c", path_y_coeffs[i][2], stage_index=None)
-			parameter_manager.set_parameter(f"path_y_{i}_d", path_y_coeffs[i][3], stage_index=None)
+				parameter_manager.set_parameter(f"path_y_{i}_a", path_y_coeffs[i][0], stage_index=stage_idx)
+				parameter_manager.set_parameter(f"path_y_{i}_b", path_y_coeffs[i][1], stage_index=stage_idx)
+				parameter_manager.set_parameter(f"path_y_{i}_c", path_y_coeffs[i][2], stage_index=stage_idx)
+				parameter_manager.set_parameter(f"path_y_{i}_d", path_y_coeffs[i][3], stage_index=stage_idx)
 			params_set += 1
 			
 			# Log first segment details
 			if i == 0:
 				LOG_INFO(f"  Segment 0: start={start_val:.4f}, x_coeffs=[{path_x_coeffs[0][0]:.4f}, {path_x_coeffs[0][1]:.4f}, {path_x_coeffs[0][2]:.4f}, {path_x_coeffs[0][3]:.4f}]")
+				LOG_INFO(f"    Segment 0: y_coeffs=[{path_y_coeffs[0][0]:.4f}, {path_y_coeffs[0][1]:.4f}, {path_y_coeffs[0][2]:.4f}, {path_y_coeffs[0][3]:.4f}]")
 		
-		LOG_INFO(f"  Set {params_set} segment parameters (path_x and path_y for each) for ALL stages")
+		LOG_INFO(f"  ✓ Set {params_set} segment parameters (path_x and path_y for each) for {num_stages} stages")
 		
-		# VERIFY: Check that parameters were actually set
+		# VERIFY: Check that parameters were actually set for multiple stages
 		try:
-			test_stage = 0
-			test_params = parameter_manager.get_all(test_stage)
-			has_path_0_start = "path_0_start" in test_params
-			has_path_x_0_a = "path_x_0_a" in test_params
-			LOG_INFO(f"  VERIFICATION: Stage {test_stage} has path_0_start={has_path_0_start}, path_x_0_a={has_path_x_0_a}")
-			if has_path_0_start:
-				LOG_INFO(f"    path_0_start value: {test_params['path_0_start']}")
+			for test_stage in [0, 1, 5, 10]:  # Test multiple stages
+				if test_stage < num_stages:
+					test_params = parameter_manager.get_all(test_stage)
+					has_path_0_start = "path_0_start" in test_params
+					has_path_x_0_a = "path_x_0_a" in test_params
+					has_path_y_0_a = "path_y_0_a" in test_params
+					LOG_INFO(f"  VERIFICATION Stage {test_stage}: path_0_start={has_path_0_start}, path_x_0_a={has_path_x_0_a}, path_y_0_a={has_path_y_0_a}")
+					if has_path_0_start:
+						LOG_INFO(f"    path_0_start value: {test_params['path_0_start']}")
+					if has_path_x_0_a:
+						LOG_INFO(f"    path_x_0_a value: {test_params['path_x_0_a']}")
 		except Exception as e:
 			LOG_WARN(f"  Could not verify parameters: {e}")
+			import traceback
+			LOG_DEBUG(f"  Verification error traceback:\n{traceback.format_exc()}")
 
 		# Set 3D and velocity parameters (if needed)
 		for i in range(self.num_segments):
@@ -569,6 +595,19 @@ class ContouringObjective(BaseObjective):
 				parameter_manager.set_parameter(f"path_vel_{i}_d", float(vel_val))
 			#LOG_INFO("Finished setting contouring objective parameters")
 
+	def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
+		"""
+		Return symbolic objective cost expressions for contouring control.
+		
+		CRITICAL: This method returns symbolic CasADi expressions for MPC rollouts.
+		The symbolic_state contains CasADi variables for the predicted state at this stage.
+		
+		Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+		"""
+		# Delegate to get_value for now (it already returns symbolic expressions)
+		# This maintains backward compatibility while ensuring symbolic return
+		return self.get_value(symbolic_state, self.solver.data if hasattr(self, 'solver') and self.solver else None, stage_idx)
+	
 	def get_value(self, state, data, stage_idx):
 		"""Compute contouring objective cost symbolically.
 		
@@ -583,22 +622,45 @@ class ContouringObjective(BaseObjective):
 		if self.solver and hasattr(self.solver, 'parameter_manager'):
 			params_dict = self.solver.parameter_manager.get_all(stage_idx)
 			
-			# HIGH-LEVEL DEBUG: Log parameter availability for first stage
-			if stage_idx == 0:
+			# COMPREHENSIVE LOGGING: Log parameter availability for all stages (detailed for first few)
+			if stage_idx <= 2:
 				path_params = [k for k in params_dict.keys() if 'path' in k]
-				LOG_DEBUG(f"ContouringObjective.get_value stage {stage_idx}: Retrieved {len(params_dict)} total parameters, {len(path_params)} path-related")
+				LOG_INFO(f"ContouringObjective.get_value stage {stage_idx}: Retrieved {len(params_dict)} total parameters, {len(path_params)} path-related")
+				
+				# Check for critical path parameters
+				has_path_0_start = "path_0_start" in params_dict
+				has_path_x_0_a = "path_x_0_a" in params_dict
+				has_path_y_0_a = "path_y_0_a" in params_dict
+				LOG_INFO(f"  Critical params check: path_0_start={has_path_0_start}, path_x_0_a={has_path_x_0_a}, path_y_0_a={has_path_y_0_a}")
+				
 				if not path_params:
-					LOG_WARN(f"  NO PATH PARAMETERS FOUND in stage {stage_idx}!")
-					LOG_DEBUG(f"  All param keys: {list(params_dict.keys())[:10]}...")  # Show first 10
+					LOG_WARN(f"  ⚠️ NO PATH PARAMETERS FOUND in stage {stage_idx}!")
+					LOG_INFO(f"  All param keys (first 20): {list(params_dict.keys())[:20]}")
+				else:
+					# Log sample of path parameters
+					LOG_INFO(f"  Sample path params: {path_params[:5]}")
+					if has_path_0_start:
+						LOG_INFO(f"    path_0_start value: {params_dict['path_0_start']}")
+					if has_path_x_0_a:
+						LOG_INFO(f"    path_x_0_a value: {params_dict['path_x_0_a']}")
 			
 			# Create a wrapper dict that has .get() method for compatibility with Spline2D
+			# This matches the reference codebase pattern where Spline2D expects a params object with .get() method
 			class ParamDictWrapper:
 				def __init__(self, d):
 					self._dict = d
 				def get(self, key, default=None):
-					return self._dict.get(key, default)
+					value = self._dict.get(key, default)
+					# Log missing parameters for debugging (only for first few stages to avoid spam)
+					if value is None and key.startswith('path_') and stage_idx <= 2:
+						LOG_DEBUG(f"    ParamDictWrapper.get('{key}') returned None (not found in dict)")
+					return value
 				def has_parameter(self, key):
-					return key in self._dict
+					has_it = key in self._dict
+					# Log parameter checks for debugging (only for first few stages)
+					if not has_it and key.startswith('path_') and stage_idx <= 2:
+						LOG_DEBUG(f"    ParamDictWrapper.has_parameter('{key}') = False")
+					return has_it
 			params = ParamDictWrapper(params_dict)
 		else:
 			LOG_WARN(f"ContouringObjective.get_value stage {stage_idx}: No solver or parameter_manager available!")
@@ -686,42 +748,82 @@ class ContouringObjective(BaseObjective):
 			reference_velocity = path_velocity.at(s)
 			velocity_weight = params.get("velocity") or 0.0
 
-		# Preferred: parametric spline path; fallback to reference_path splines
-		try:
-			# HIGH-LEVEL DEBUG: Check if parameters are available
-			if stage_idx <= 2:
-				has_path_x = any(params.has_parameter(f"path_x_{i}_a") for i in range(self.num_segments))
-				has_path_y = any(params.has_parameter(f"path_y_{i}_a") for i in range(self.num_segments))
-				has_path_start = params.has_parameter("path_0_start")
-				LOG_INFO(f"ContouringObjective stage {stage_idx}: Spline2D params - path_x={has_path_x}, path_y={has_path_y}, path_0_start={has_path_start}, num_segments={self.num_segments}")
-				if not has_path_x or not has_path_y or not has_path_start:
-					LOG_WARN(f"  Missing parameters! path_x={has_path_x}, path_y={has_path_y}, path_0_start={has_path_start}")
-					# Debug: show what parameters we DO have
-					if hasattr(params, '_dict'):
-						param_keys = list(params._dict.keys())
-						path_params = [k for k in param_keys if 'path' in k]
-						LOG_DEBUG(f"  Available path-related params ({len(path_params)}): {path_params[:10]}...")  # Show first 10
-			
-			path = Spline2D(params, self.num_segments, s)
-			path_x, path_y = path.at(s)
-			path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)
-			
-			# HIGH-LEVEL DEBUG: Log path evaluation for first stages
-			if stage_idx <= 2:
-				try:
-					import casadi as cd
-					if not isinstance(path_x, (cd.MX, cd.SX)):
-						LOG_INFO(f"  Path evaluation: path_x={float(path_x):.4f}, path_y={float(path_y):.4f}, s={float(s):.4f}")
-				except Exception:
-					LOG_DEBUG(f"  Path evaluation: symbolic")
-		except Exception as e:
-			# HIGH-LEVEL DEBUG: Log fallback usage
-			if stage_idx <= 2:
-				LOG_WARN(f"ContouringObjective stage {stage_idx}: Spline2D failed ({type(e).__name__}: {e}), using fallback reference_path splines")
+		# Use Spline2D class from reference codebase pattern
+		# CRITICAL: s must be normalized [0,1] for Spline2D
+		# Spline2D uses s for sigmoid blending between segments
+		import casadi as cd
+		import numpy as np
+		
+		# Check if path parameters are available
+		# CRITICAL: Check for all required parameters for Spline2D
+		# Spline2D needs: path_x_{i}_a, path_x_{i}_b, path_x_{i}_c, path_x_{i}_d for each segment
+		#                path_y_{i}_a, path_y_{i}_b, path_y_{i}_c, path_y_{i}_d for each segment
+		#                path_{i}_start for each segment
+		has_path_params = True
+		missing_params = []
+		
+		# Check for path_0_start (required for all segments)
+		if not params.has_parameter("path_0_start"):
+			has_path_params = False
+			missing_params.append("path_0_start")
+		
+		# Check for at least one segment's parameters
+		for i in range(self.num_segments):
+			required_params = [
+				f"path_x_{i}_a", f"path_x_{i}_b", f"path_x_{i}_c", f"path_x_{i}_d",
+				f"path_y_{i}_a", f"path_y_{i}_b", f"path_y_{i}_c", f"path_y_{i}_d",
+				f"path_{i}_start"
+			]
+			for param_name in required_params:
+				if not params.has_parameter(param_name):
+					has_path_params = False
+					if param_name not in missing_params:
+						missing_params.append(param_name)
+		
+		# Log parameter availability check
+		if stage_idx <= 2:
+			if has_path_params:
+				LOG_INFO(f"  ✓ All required path parameters available for Spline2D (num_segments={self.num_segments})")
+			else:
+				LOG_WARN(f"  ✗ Missing path parameters for Spline2D: {missing_params[:10]}... (showing first 10)")
+				LOG_WARN(f"    Total missing: {len(missing_params)} parameters")
+		
+		if has_path_params:
+			# Use Spline2D with parametric spline (preferred method matching reference codebase)
+			try:
+				# HIGH-LEVEL DEBUG: Log parameter usage for first stages
+				if stage_idx <= 2:
+					s_val_str = f"{float(s):.4f}" if not isinstance(s, (cd.MX, cd.SX)) else "symbolic"
+					LOG_INFO(f"  → Using Spline2D with normalized s={s_val_str}, num_segments={self.num_segments}")
+				
+				# Create Spline2D instance - it expects normalized [0,1] s parameter
+				# The s parameter is used for sigmoid blending between segments
+				# Reference: https://github.com/tud-amr/mpc_planner - Spline2D(params, num_segments, s)
+				path = Spline2D(params, self.num_segments, s)
+				path_x, path_y = path.at(s)
+				path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)
+				
+				# HIGH-LEVEL DEBUG: Log path evaluation for first stages
+				if stage_idx <= 2:
+					try:
+						if not isinstance(path_x, (cd.MX, cd.SX)):
+							LOG_INFO(f"  ✓ Spline2D evaluation successful: path_x={float(path_x):.4f}, path_y={float(path_y):.4f}, s={float(s):.4f}")
+						else:
+							LOG_DEBUG(f"  ✓ Spline2D evaluation successful (symbolic)")
+					except Exception as e:
+						LOG_DEBUG(f"  ✓ Spline2D evaluation successful (could not extract numeric values: {e})")
+			except Exception as e:
+				# If Spline2D fails, fall back to reference_path splines
+				if stage_idx <= 2:
+					LOG_WARN(f"  ✗ Spline2D failed ({type(e).__name__}: {e}), falling back to reference_path splines")
+					import traceback
+					LOG_DEBUG(f"  Spline2D error traceback:\n{traceback.format_exc()}")
+				has_path_params = False  # Force fallback
+		
+		if not has_path_params:
 			# Fallback: use reference_path splines; support both numeric and CasADi symbolic s
-			import casadi as cd
-			s_min, s_max = self._get_arc_length_bounds()
 			# Denormalize: s is [0,1], convert back to actual arc length
+			s_min, s_max = self._get_arc_length_bounds()
 			cur_s = s * (s_max - s_min) + s_min
 			
 			# HIGH-LEVEL DEBUG: Log denormalization
@@ -731,6 +833,7 @@ class ContouringObjective(BaseObjective):
 						LOG_INFO(f"  Fallback: normalized_s={float(s):.4f} -> arc_length={float(cur_s):.4f} (s_min={float(s_min):.4f}, s_max={float(s_max):.4f})")
 				except Exception:
 					LOG_DEBUG(f"  Fallback: denormalizing symbolic s")
+			
 			# If cur_s is symbolic, use CasADi interpolants; else use scipy splines directly
 			if isinstance(cur_s, (cd.MX, cd.SX)):
 				# Sample along s for interpolants

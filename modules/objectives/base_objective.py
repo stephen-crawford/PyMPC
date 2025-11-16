@@ -16,16 +16,52 @@ class BaseObjective(Module):
         LOG_DEBUG(f"BaseObjective.__init__: name={self.name}, module_type={self.module_type}")
 
     def get_objective(self, state, data, stage_idx):
-        # Default adapter: call legacy get_value if implemented
+        """
+        Get objective cost terms for this stage.
+        
+        CRITICAL: This method should return symbolic CasADi expressions for MPC rollouts.
+        The state parameter is symbolic for future stages (stage_idx > 0).
+        
+        Priority:
+        1. get_stage_cost_symbolic() - preferred method returning symbolic expressions
+        2. get_value() - legacy method (still supported for backward compatibility)
+        
+        Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+        """
         LOG_DEBUG(f"BaseObjective.get_objective: {self.name}, stage_idx={stage_idx}")
+        
+        # Prefer get_stage_cost_symbolic if implemented (matches C++ pattern)
+        if hasattr(self, 'get_stage_cost_symbolic'):
+            try:
+                result = self.get_stage_cost_symbolic(state, stage_idx)
+                if result is not None:
+                    LOG_DEBUG(f"  Using get_stage_cost_symbolic method, returned {len(result) if isinstance(result, (list, tuple)) else 1 if result else 0} term(s)")
+                    return result
+            except Exception as e:
+                LOG_DEBUG(f"  get_stage_cost_symbolic failed: {e}, falling back to get_value")
+        
+        # Fallback to legacy get_value if implemented
         if hasattr(self, 'get_value'):
             LOG_DEBUG(f"  Using legacy get_value method")
             result = self.get_value(state, data, stage_idx)
             LOG_DEBUG(f"  get_value returned {len(result) if isinstance(result, (list, tuple)) else 1 if result else 0} term(s)")
             return result
-        LOG_DEBUG(f"  No get_value method, returning empty list")
+        
+        LOG_DEBUG(f"  No objective method found, returning empty list")
         return []
 
     @abstractmethod
     def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
-    	pass
+        """
+        Return symbolic objective cost expressions for this stage.
+        
+        CRITICAL: This method MUST return symbolic CasADi expressions (MX or SX) for MPC rollouts.
+        The symbolic_state contains CasADi variables for the predicted state at this stage.
+        
+        Returns:
+            dict: Dictionary mapping cost term names to symbolic CasADi expressions.
+                 Example: {"contouring_lag_cost": cd.MX(...), "contouring_contour_cost": cd.MX(...)}
+        
+        Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+        """
+        pass

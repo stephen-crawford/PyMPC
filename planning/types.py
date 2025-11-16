@@ -141,6 +141,67 @@ class State:
         state._state_vector = self._state_vector.copy()
         return state
 
+    def propagate(self, control_dict, timestep):
+        """
+        Propagate state forward using the dynamics model.
+        
+        Args:
+            control_dict: Dictionary of control inputs (e.g., {'a': 0.5, 'w': 0.1})
+            timestep: Time step for integration
+        
+        Returns:
+            New State object with propagated values
+        """
+        if self._model_type is None:
+            LOG_WARN("State.propagate: No dynamics model available, returning copy of current state")
+            return self.copy()
+        
+        # Create new state for result
+        new_state = self.copy()
+        
+        # Get current state values as a vector
+        state_vars = self._model_type.get_dependent_vars()
+        x_current = []
+        for var in state_vars:
+            x_current.append(self.get(var))
+        x_current = np.array(x_current, dtype=float)
+        
+        # Get control inputs in order
+        input_vars = self._model_type.get_inputs()
+        u_current = []
+        for var in input_vars:
+            u_current.append(control_dict.get(var, 0.0))
+        u_current = np.array(u_current, dtype=float)
+        
+        # Use simple Euler integration (matching test framework approach)
+        # This matches the integration used in integration_test_framework.py
+        try:
+            v = x_current[3] if len(x_current) > 3 else 0.0
+            psi = x_current[2] if len(x_current) > 2 else 0.0
+            a = u_current[0] if len(u_current) > 0 else 0.0
+            w = u_current[1] if len(u_current) > 1 else 0.0
+            
+            x_next = x_current.copy()
+            x_next[0] += v * np.cos(psi) * timestep  # x
+            x_next[1] += v * np.sin(psi) * timestep  # y
+            x_next[2] += w * timestep  # psi
+            x_next[3] += a * timestep  # v
+            
+            # CRITICAL: Integrate spline variable if present (s_next = s + v * dt)
+            if len(x_next) > 4:
+                x_next[4] += v * timestep  # spline
+            
+            # Update new_state with propagated values
+            for i, var in enumerate(state_vars):
+                if i < len(x_next):
+                    new_state.set(var, float(x_next[i]))
+                    
+        except Exception as e:
+            LOG_WARN(f"State.propagate: Error in integration ({e}), returning copy of current state")
+            return self.copy()
+        
+        return new_state
+
 
 class Disc:
     def __init__(self, offset: float, radius: float):

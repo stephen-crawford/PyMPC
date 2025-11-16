@@ -1,0 +1,1754 @@
+2025-11-16 13:46:10,773 - INFO - Created vehicle dynamics model: SecondOrderUnicycleModel
+2025-11-16 13:46:10,773 - INFO - Creating objective module: goal
+2025-11-16 13:46:10,777 - INFO - Objective module 'goal' created: goal_objective
+2025-11-16 13:46:10,777 - INFO - Creating 0 constraint module(s): []
+2025-11-16 13:46:10,777 - INFO - Created 0 constraint module(s)
+2025-11-16 13:46:10,778 - INFO - Setting solver on all modules...
+2025-11-16 13:46:10,778 - INFO - Goal objective: Using goal_sequence, setting goal to (10.000, 10.000)
+2025-11-16 13:46:10,778 - INFO - Goal objective: goal_received=True, goal=[10. 10.]
+2025-11-16 13:46:10,778 - WARNING - Error shaping obstacles: 'max_obstacles'
+2025-11-16 13:46:10,778 - WARNING - Error in on_data_received: 'Planner' object has no attribute 'on_data_received'
+2025-11-16 13:46:10,778 - INFO - Initial vehicle state (before spline): [0. 0. 0. 1.]
+2025-11-16 13:46:10,778 - INFO - Vehicle starting position: (0.00, 0.00)
+2025-11-16 13:46:10,778 - INFO - Non-contouring dynamics: no spline variable needed
+2025-11-16 13:46:10,778 - INFO - Step 0/200
+2025-11-16 13:46:10,787 - INFO - === Calling planner.solve_mpc() at step 0 ===
+2025-11-16 13:46:10,789 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:10,789 - INFO - Warmstart k=0: x0=0.0 , y0=0.0 , psi0=0.0 , v0=1.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:10,789 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:10,789 - INFO - Dyn residual k=0: pred=[0.1, 0.0, 0.0, 1.0], ws=[0.1, 0.0, 0.0, 1.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:10,790 - INFO - Dyn residual k=1: pred=[0.2, 0.0, 0.0, 1.0], ws=[0.2, 0.0, 0.0, 1.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:10,791 - INFO - Dyn residual k=2: pred=[0.30000000000000004, 0.0, 0.0, 1.0], ws=[0.30000000000000004, 0.0, 0.0, 1.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:10,791 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,791 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,792 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,792 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,792 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,792 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,792 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,792 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,793 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,793 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,793 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,793 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,794 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,794 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,794 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,794 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,794 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,794 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,795 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,795 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:10,795 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:10,795 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,179 - INFO - Step 0: MPC solve successful
+2025-11-16 13:46:11,182 - INFO - === Applying control at step 0 ===
+2025-11-16 13:46:11,182 - INFO -   Control dict from planner: {'a': 2.000000019999836, 'w': 2.000000019999445}
+2025-11-16 13:46:11,182 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,182 - INFO -   Planner output success: True
+2025-11-16 13:46:11,182 - INFO - Step 0 completed in 0.404s
+2025-11-16 13:46:11,184 - INFO - Step 1/200
+2025-11-16 13:46:11,194 - INFO - === Calling planner.solve_mpc() at step 1 ===
+2025-11-16 13:46:11,196 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,196 - INFO - Warmstart k=0: x0=0.1 , y0=0.0 , psi0=0.20000000199994453 , v0=1.2000000019999837 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,196 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,197 - INFO - Dyn residual k=0: pred=[0.2176079894892814, 0.023840319970350344, 0.20000000199994453, 1.2000000019999837], ws=[0.2176079894892814, 0.023840319970350344, 0.20000000199994453, 1.2000000019999837], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,197 - INFO - Dyn residual k=1: pred=[0.3352159789785628, 0.04768063994070069, 0.20000000199994453, 1.2000000019999837], ws=[0.3352159789785628, 0.04768063994070069, 0.20000000199994453, 1.2000000019999837], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,198 - INFO - Dyn residual k=2: pred=[0.45282396846784423, 0.07152095991105104, 0.20000000199994453, 1.2000000019999837], ws=[0.45282396846784423, 0.07152095991105104, 0.20000000199994453, 1.2000000019999837], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,199 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,199 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,199 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,199 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,200 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,200 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,200 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,200 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,200 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,201 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,201 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,201 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,201 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,201 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,202 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,202 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,202 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,202 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,203 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,203 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,203 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,203 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,268 - INFO - Step 1: MPC solve successful
+2025-11-16 13:46:11,271 - INFO - === Applying control at step 1 ===
+2025-11-16 13:46:11,271 - INFO -   Control dict from planner: {'a': 2.000000019999837, 'w': 2.000000019999082}
+2025-11-16 13:46:11,271 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,271 - INFO -   Planner output success: True
+2025-11-16 13:46:11,271 - INFO - Step 1 completed in 0.087s
+2025-11-16 13:46:11,273 - INFO - Step 2/200
+2025-11-16 13:46:11,282 - INFO - === Calling planner.solve_mpc() at step 2 ===
+2025-11-16 13:46:11,283 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,283 - INFO - Warmstart k=0: x0=0.2176079894892814 , y0=0.023840319970350344 , psi0=0.4000000039998527 , v0=1.4000000039999674 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,283 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,284 - INFO - Dyn residual k=0: pred=[0.3465565288000405, 0.07835888856510263, 0.4000000039998527, 1.4000000039999674], ws=[0.3465565288000405, 0.07835888856510263, 0.4000000039998527, 1.4000000039999674], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,284 - INFO - Dyn residual k=1: pred=[0.4755050681107996, 0.13287745715985494, 0.4000000039998527, 1.4000000039999674], ws=[0.4755050681107996, 0.13287745715985494, 0.4000000039998527, 1.4000000039999674], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,285 - INFO - Dyn residual k=2: pred=[0.6044536074215587, 0.18739602575460723, 0.4000000039998527, 1.4000000039999674], ws=[0.6044536074215587, 0.18739602575460723, 0.4000000039998527, 1.4000000039999674], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,285 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,285 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,286 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,286 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,286 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,286 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,287 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,287 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,287 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,287 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,288 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,288 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,289 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,289 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,289 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,289 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,290 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,290 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,290 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,290 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,290 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,291 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,355 - INFO - Step 2: MPC solve successful
+2025-11-16 13:46:11,359 - INFO - === Applying control at step 2 ===
+2025-11-16 13:46:11,359 - INFO -   Control dict from planner: {'a': 2.000000019999832, 'w': 2.00000001999777}
+2025-11-16 13:46:11,360 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,360 - INFO -   Planner output success: True
+2025-11-16 13:46:11,360 - INFO - Step 2 completed in 0.087s
+2025-11-16 13:46:11,362 - INFO - Step 3/200
+2025-11-16 13:46:11,372 - INFO - === Calling planner.solve_mpc() at step 3 ===
+2025-11-16 13:46:11,373 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,374 - INFO - Warmstart k=0: x0=0.3465565288000405 , y0=0.07835888856510263 , psi0=0.6000000059996298 , v0=1.6000000059999506 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,374 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,374 - INFO - Dyn residual k=0: pred=[0.478610227138763, 0.1687016854393643, 0.6000000059996298, 1.6000000059999506], ws=[0.478610227138763, 0.1687016854393643, 0.6000000059996298, 1.6000000059999506], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,375 - INFO - Dyn residual k=1: pred=[0.6106639254774855, 0.259044482313626, 0.6000000059996298, 1.6000000059999506], ws=[0.6106639254774855, 0.259044482313626, 0.6000000059996298, 1.6000000059999506], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,375 - INFO - Dyn residual k=2: pred=[0.742717623816208, 0.34938727918788764, 0.6000000059996298, 1.6000000059999506], ws=[0.742717623816208, 0.34938727918788764, 0.6000000059996298, 1.6000000059999506], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,376 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,376 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,376 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,376 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,377 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,377 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,377 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,377 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,378 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,378 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,378 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,378 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,378 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,378 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,379 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,379 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,379 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,379 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,380 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,380 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,380 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,380 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,458 - INFO - Step 3: MPC solve successful
+2025-11-16 13:46:11,460 - INFO - === Applying control at step 3 ===
+2025-11-16 13:46:11,460 - INFO -   Control dict from planner: {'a': 2.0000000199998214, 'w': 2.000000019986163}
+2025-11-16 13:46:11,460 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,460 - INFO -   Planner output success: True
+2025-11-16 13:46:11,461 - INFO - Step 3 completed in 0.098s
+2025-11-16 13:46:11,462 - INFO - Step 4/200
+2025-11-16 13:46:11,471 - INFO - === Calling planner.solve_mpc() at step 4 ===
+2025-11-16 13:46:11,473 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,473 - INFO - Warmstart k=0: x0=0.478610227138763 , y0=0.1687016854393643 , psi0=0.8000000079982461 , v0=1.8000000079999328 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,473 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,473 - INFO - Dyn residual k=0: pred=[0.6040174343458471, 0.29782578337819615, 0.8000000079982461, 1.8000000079999328], ws=[0.6040174343458472, 0.29782578337819615, 0.8000000079982461, 1.8000000079999328], res=[-1.1102230246251565e-16, 0.0, 0.0, 0.0], res_norm=1.110e-16
+2025-11-16 13:46:11,474 - INFO - Dyn residual k=1: pred=[0.7294246415529313, 0.426949881317028, 0.8000000079982461, 1.8000000079999328], ws=[0.7294246415529314, 0.426949881317028, 0.8000000079982461, 1.8000000079999328], res=[-1.1102230246251565e-16, 0.0, 0.0, 0.0], res_norm=1.110e-16
+2025-11-16 13:46:11,474 - INFO - Dyn residual k=2: pred=[0.8548318487600155, 0.5560739792558598, 0.8000000079982461, 1.8000000079999328], ws=[0.8548318487600156, 0.5560739792558598, 0.8000000079982461, 1.8000000079999328], res=[-1.1102230246251565e-16, 0.0, 0.0, 0.0], res_norm=1.110e-16
+2025-11-16 13:46:11,475 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,475 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,475 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,475 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,476 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,476 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,476 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,476 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,477 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,477 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,477 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,477 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,477 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,477 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,478 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,478 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,478 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,478 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,478 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,479 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,479 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,479 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,533 - INFO - Step 4: MPC solve successful
+2025-11-16 13:46:11,535 - INFO - === Applying control at step 4 ===
+2025-11-16 13:46:11,535 - INFO -   Control dict from planner: {'a': 2.000000019999805, 'w': 0.018071131832551865}
+2025-11-16 13:46:11,535 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,535 - INFO -   Planner output success: True
+2025-11-16 13:46:11,535 - INFO - Step 4 completed in 0.073s
+2025-11-16 13:46:11,537 - INFO - Step 5/200
+2025-11-16 13:46:11,547 - INFO - === Calling planner.solve_mpc() at step 5 ===
+2025-11-16 13:46:11,549 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,549 - INFO - Warmstart k=0: x0=0.6040174343458472 , y0=0.29782578337819615 , psi0=0.8018071211815013 , v0=2.0000000099999133 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,549 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,549 - INFO - Dyn residual k=0: pred=[0.7430992796519504, 0.44154857456402613, 0.8018071211815013, 2.0000000099999133], ws=[0.7430992796519506, 0.44154857456402613, 0.8018071211815013, 2.0000000099999133], res=[-1.1102230246251565e-16, 0.0, 0.0, 0.0], res_norm=1.110e-16
+2025-11-16 13:46:11,550 - INFO - Dyn residual k=1: pred=[0.8821811249580538, 0.585271365749856, 0.8018071211815013, 2.0000000099999133], ws=[0.8821811249580539, 0.585271365749856, 0.8018071211815013, 2.0000000099999133], res=[-1.1102230246251565e-16, 0.0, 0.0, 0.0], res_norm=1.110e-16
+2025-11-16 13:46:11,550 - INFO - Dyn residual k=2: pred=[1.0212629702641571, 0.728994156935686, 0.8018071211815013, 2.0000000099999133], ws=[1.0212629702641571, 0.728994156935686, 0.8018071211815013, 2.0000000099999133], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,551 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,551 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,551 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,551 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,552 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,552 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,552 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,552 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,552 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,553 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,553 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,553 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,553 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,553 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,554 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,554 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,554 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,554 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,555 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,555 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,555 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,555 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,606 - INFO - Step 5: MPC solve successful
+2025-11-16 13:46:11,609 - INFO - === Applying control at step 5 ===
+2025-11-16 13:46:11,609 - INFO -   Control dict from planner: {'a': 2.00000001999978, 'w': -0.004803337199260824}
+2025-11-16 13:46:11,609 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,609 - INFO -   Planner output success: True
+2025-11-16 13:46:11,609 - INFO - Step 5 completed in 0.072s
+2025-11-16 13:46:11,611 - INFO - Step 6/200
+2025-11-16 13:46:11,620 - INFO - === Calling planner.solve_mpc() at step 6 ===
+2025-11-16 13:46:11,621 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,621 - INFO - Warmstart k=0: x0=0.7430992796519506 , y0=0.44154857456402613 , psi0=0.8013267874615753 , v0=2.2000000119998915 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,621 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,622 - INFO - Dyn residual k=0: pred=[0.8961652302995735, 0.5995701404350637, 0.8013267874615753, 2.2000000119998915], ws=[0.8961652302995735, 0.5995701404350637, 0.8013267874615753, 2.2000000119998915], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,622 - INFO - Dyn residual k=1: pred=[1.0492311809471964, 0.7575917063061014, 0.8013267874615753, 2.2000000119998915], ws=[1.0492311809471964, 0.7575917063061014, 0.8013267874615753, 2.2000000119998915], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,623 - INFO - Dyn residual k=2: pred=[1.2022971315948192, 0.9156132721771391, 0.8013267874615753, 2.2000000119998915], ws=[1.2022971315948192, 0.9156132721771391, 0.8013267874615753, 2.2000000119998915], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,623 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,624 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,624 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,624 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,624 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,624 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,625 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,625 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,625 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,625 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,626 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,626 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,626 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,626 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,626 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,626 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,627 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,627 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,627 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,627 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,628 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,628 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,683 - INFO - Step 6: MPC solve successful
+2025-11-16 13:46:11,685 - INFO - === Applying control at step 6 ===
+2025-11-16 13:46:11,686 - INFO -   Control dict from planner: {'a': 2.000000019999741, 'w': 0.0011658630741705224}
+2025-11-16 13:46:11,686 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,686 - INFO -   Planner output success: True
+2025-11-16 13:46:11,686 - INFO - Step 6 completed in 0.074s
+2025-11-16 13:46:11,687 - INFO - Step 7/200
+2025-11-16 13:46:11,697 - INFO - === Calling planner.solve_mpc() at step 7 ===
+2025-11-16 13:46:11,698 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,698 - INFO - Warmstart k=0: x0=0.8961652302995735 , y0=0.5995701404350637 , psi0=0.8014433737689923 , v0=2.4000000139998656 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,698 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,698 - INFO - Dyn residual k=0: pred=[1.0631261683154078, 0.7719767697996746, 0.8014433737689923, 2.4000000139998656], ws=[1.0631261683154078, 0.7719767697996747, 0.8014433737689923, 2.4000000139998656], res=[0.0, -1.1102230246251565e-16, 0.0, 0.0], res_norm=1.110e-16
+2025-11-16 13:46:11,699 - INFO - Dyn residual k=1: pred=[1.2300871063312422, 0.9443833991642855, 0.8014433737689923, 2.4000000139998656], ws=[1.2300871063312422, 0.9443833991642856, 0.8014433737689923, 2.4000000139998656], res=[0.0, -1.1102230246251565e-16, 0.0, 0.0], res_norm=1.110e-16
+2025-11-16 13:46:11,699 - INFO - Dyn residual k=2: pred=[1.3970480443470765, 1.1167900285288965, 0.8014433737689923, 2.4000000139998656], ws=[1.3970480443470765, 1.1167900285288965, 0.8014433737689923, 2.4000000139998656], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,700 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,700 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,700 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,701 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,701 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,701 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,701 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,702 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,702 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,702 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,702 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,702 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,703 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,703 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,703 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,703 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,704 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,704 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,704 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,704 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,705 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,705 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,748 - INFO - Step 7: MPC solve successful
+2025-11-16 13:46:11,751 - INFO - === Applying control at step 7 ===
+2025-11-16 13:46:11,751 - INFO -   Control dict from planner: {'a': 2.0000000199999617, 'w': -0.0002223429004630609}
+2025-11-16 13:46:11,751 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,751 - INFO -   Planner output success: True
+2025-11-16 13:46:11,751 - INFO - Step 7 completed in 0.063s
+2025-11-16 13:46:11,752 - INFO - Step 8/200
+2025-11-16 13:46:11,762 - INFO - === Calling planner.solve_mpc() at step 8 ===
+2025-11-16 13:46:11,764 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,764 - INFO - Warmstart k=0: x0=1.0631261683154078 , y0=0.7719767697996747 , psi0=0.801421139478946 , v0=2.600000015999862 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,764 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,764 - INFO - Dyn residual k=0: pred=[1.244004670629747, 0.9587465966789499, 0.801421139478946, 2.600000015999862], ws=[1.244004670629747, 0.9587465966789499, 0.801421139478946, 2.600000015999862], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,765 - INFO - Dyn residual k=1: pred=[1.424883172944086, 1.1455164235582251, 0.801421139478946, 2.600000015999862], ws=[1.424883172944086, 1.1455164235582251, 0.801421139478946, 2.600000015999862], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,765 - INFO - Dyn residual k=2: pred=[1.6057616752584252, 1.3322862504375004, 0.801421139478946, 2.600000015999862], ws=[1.6057616752584252, 1.3322862504375004, 0.801421139478946, 2.600000015999862], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,766 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,766 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,766 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,766 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,767 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,767 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,767 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,767 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,767 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,767 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,768 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,768 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,768 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,768 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,768 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,769 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,769 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,769 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,769 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,769 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,770 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,770 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,812 - INFO - Step 8: MPC solve successful
+2025-11-16 13:46:11,814 - INFO - === Applying control at step 8 ===
+2025-11-16 13:46:11,814 - INFO -   Control dict from planner: {'a': 2.0000000199842383, 'w': 9.479586979554289e-05}
+2025-11-16 13:46:11,814 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,814 - INFO -   Planner output success: True
+2025-11-16 13:46:11,815 - INFO - Step 8 completed in 0.062s
+2025-11-16 13:46:11,816 - INFO - Step 9/200
+2025-11-16 13:46:11,826 - INFO - === Calling planner.solve_mpc() at step 9 ===
+2025-11-16 13:46:11,827 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,827 - INFO - Warmstart k=0: x0=1.244004670629747 , y0=0.9587465966789499 , psi0=0.8014306190659255 , v0=2.800000017998286 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,827 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,828 - INFO - Dyn residual k=0: pred=[1.4387949972428058, 1.1598851799141956, 0.8014306190659255, 2.800000017998286], ws=[1.4387949972428058, 1.1598851799141956, 0.8014306190659255, 2.800000017998286], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,828 - INFO - Dyn residual k=1: pred=[1.6335853238558646, 1.3610237631494413, 0.8014306190659255, 2.800000017998286], ws=[1.6335853238558646, 1.3610237631494413, 0.8014306190659255, 2.800000017998286], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,829 - INFO - Dyn residual k=2: pred=[1.8283756504689235, 1.562162346384687, 0.8014306190659255, 2.800000017998286], ws=[1.8283756504689235, 1.562162346384687, 0.8014306190659255, 2.800000017998286], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,829 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,829 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,830 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,830 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,830 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,830 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,831 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,831 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,831 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,831 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,832 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,832 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,832 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,832 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,832 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,833 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,833 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,833 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,833 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,833 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,834 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,834 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,881 - INFO - Step 9: MPC solve successful
+2025-11-16 13:46:11,883 - INFO - === Applying control at step 9 ===
+2025-11-16 13:46:11,883 - INFO -   Control dict from planner: {'a': 2.000000019999125, 'w': -3.873945659052675e-05}
+2025-11-16 13:46:11,883 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,883 - INFO -   Planner output success: True
+2025-11-16 13:46:11,883 - INFO - Step 9 completed in 0.067s
+2025-11-16 13:46:11,885 - INFO - Step 10/200
+2025-11-16 13:46:11,895 - INFO - === Calling planner.solve_mpc() at step 10 ===
+2025-11-16 13:46:11,897 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,897 - INFO - Warmstart k=0: x0=1.4387949972428058 , y0=1.1598851799141956 , psi0=0.8014267451202665 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,897 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,897 - INFO - Dyn residual k=0: pred=[1.6474997521279087, 1.3753899949145783, 0.8014267451202665, 3.0], ws=[1.6474997521279087, 1.3753899949145783, 0.8014267451202665, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,898 - INFO - Dyn residual k=1: pred=[1.8562045070130115, 1.590894809914961, 0.8014267451202665, 3.0], ws=[1.8562045070130115, 1.590894809914961, 0.8014267451202665, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,899 - INFO - Dyn residual k=2: pred=[2.0649092618981144, 1.8063996249153436, 0.8014267451202665, 3.0], ws=[2.0649092618981144, 1.8063996249153436, 0.8014267451202665, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,899 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,899 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,900 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,900 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,900 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,900 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,901 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,901 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,901 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,901 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,902 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,902 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,902 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,902 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,903 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,903 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,903 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,903 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,903 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,904 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,904 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,904 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,937 - INFO - Step 10: MPC solve successful
+2025-11-16 13:46:11,939 - INFO - === Applying control at step 10 ===
+2025-11-16 13:46:11,940 - INFO -   Control dict from planner: {'a': 1.0001012870888855e-07, 'w': -5.0666201794451014e-05}
+2025-11-16 13:46:11,940 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,940 - INFO -   Planner output success: True
+2025-11-16 13:46:11,940 - INFO - Step 10 completed in 0.054s
+2025-11-16 13:46:11,942 - INFO - Step 11/200
+2025-11-16 13:46:11,951 - INFO - === Calling planner.solve_mpc() at step 11 ===
+2025-11-16 13:46:11,953 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:11,953 - INFO - Warmstart k=0: x0=1.6474997535191485 , y0=1.3753899963511476 , psi0=0.801421678500087 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:11,953 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:11,953 - INFO - Dyn residual k=0: pred=[1.856205600282617, 1.5908937539210415, 0.801421678500087, 3.0], ws=[1.856205600282617, 1.5908937539210415, 0.801421678500087, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,954 - INFO - Dyn residual k=1: pred=[2.0649114470460854, 1.8063975114909354, 0.801421678500087, 3.0], ws=[2.0649114470460854, 1.8063975114909354, 0.801421678500087, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,954 - INFO - Dyn residual k=2: pred=[2.273617293809554, 2.0219012690608293, 0.801421678500087, 3.0], ws=[2.273617293809554, 2.0219012690608293, 0.801421678500087, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:11,955 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,955 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,956 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,956 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,956 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,956 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,957 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,957 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,957 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,958 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,958 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,958 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,958 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,958 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,959 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,959 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,959 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,959 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,959 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,959 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,960 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:11,960 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:11,994 - INFO - Step 11: MPC solve successful
+2025-11-16 13:46:11,996 - INFO - === Applying control at step 11 ===
+2025-11-16 13:46:11,996 - INFO -   Control dict from planner: {'a': 8.703703735006691e-12, 'w': 4.181837729558256e-05}
+2025-11-16 13:46:11,996 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:11,996 - INFO -   Planner output success: True
+2025-11-16 13:46:11,996 - INFO - Step 11 completed in 0.054s
+2025-11-16 13:46:11,998 - INFO - Step 12/200
+2025-11-16 13:46:12,007 - INFO - === Calling planner.solve_mpc() at step 12 ===
+2025-11-16 13:46:12,009 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,009 - INFO - Warmstart k=0: x0=1.8562056023696205 , y0=1.5908937560760223 , psi0=0.8014258603378166 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,009 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,010 - INFO - Dyn residual k=0: pred=[2.06491054792952, 1.8063983864180162, 0.8014258603378166, 3.0], ws=[2.06491054792952, 1.8063983864180162, 0.8014258603378166, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,010 - INFO - Dyn residual k=1: pred=[2.273615493489419, 2.0219030167600103, 0.8014258603378166, 3.0], ws=[2.273615493489419, 2.0219030167600103, 0.8014258603378166, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,011 - INFO - Dyn residual k=2: pred=[2.4823204390493183, 2.237407647102004, 0.8014258603378166, 3.0], ws=[2.4823204390493183, 2.237407647102004, 0.8014258603378166, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,011 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,011 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,012 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,012 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,012 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,012 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,013 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,013 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,013 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,013 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,014 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,014 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,014 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,014 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,015 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,015 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,015 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,015 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,016 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,016 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,016 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,016 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,044 - INFO - Step 12: MPC solve successful
+2025-11-16 13:46:12,047 - INFO - === Applying control at step 12 ===
+2025-11-16 13:46:12,047 - INFO -   Control dict from planner: {'a': 2.0691108478526623e-11, 'w': -0.00010663002553422056}
+2025-11-16 13:46:12,047 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,047 - INFO -   Planner output success: True
+2025-11-16 13:46:12,047 - INFO - Step 12 completed in 0.049s
+2025-11-16 13:46:12,049 - INFO - Step 13/200
+2025-11-16 13:46:12,058 - INFO - === Calling planner.solve_mpc() at step 13 ===
+2025-11-16 13:46:12,059 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,059 - INFO - Warmstart k=0: x0=2.064910550016575 , y0=1.8063983885730686 , psi0=0.8014151973352632 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,059 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,060 - INFO - Dyn residual k=0: pred=[2.273617793491033, 2.0219007934814437, 0.8014151973352632, 3.0], ws=[2.273617793491033, 2.0219007934814437, 0.8014151973352632, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,060 - INFO - Dyn residual k=1: pred=[2.482325036965491, 2.237403198389819, 0.8014151973352632, 3.0], ws=[2.482325036965491, 2.237403198389819, 0.8014151973352632, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,061 - INFO - Dyn residual k=2: pred=[2.691032280439949, 2.452905603298194, 0.8014151973352632, 3.0], ws=[2.691032280439949, 2.452905603298194, 0.8014151973352632, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,061 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,062 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,062 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,062 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,062 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,062 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,063 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,063 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,063 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,063 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,064 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,064 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,064 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,064 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,064 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,064 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,065 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,065 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,065 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,065 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,066 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,066 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,102 - INFO - Step 13: MPC solve successful
+2025-11-16 13:46:12,104 - INFO - === Applying control at step 13 ===
+2025-11-16 13:46:12,105 - INFO -   Control dict from planner: {'a': -1.0385495798192019e-11, 'w': 0.00013138550581223344}
+2025-11-16 13:46:12,105 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,105 - INFO -   Planner output success: True
+2025-11-16 13:46:12,105 - INFO - Step 13 completed in 0.056s
+2025-11-16 13:46:12,106 - INFO - Step 14/200
+2025-11-16 13:46:12,115 - INFO - === Calling planner.solve_mpc() at step 14 ===
+2025-11-16 13:46:12,117 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,117 - INFO - Warmstart k=0: x0=2.2736177955782555 , y0=2.0219007956366224 , psi0=0.8014283358858445 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,117 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,117 - INFO - Dyn residual k=0: pred=[2.4823222076454527, 2.2374059426370723, 0.8014283358858445, 3.0], ws=[2.4823222076454527, 2.2374059426370723, 0.8014283358858445, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,118 - INFO - Dyn residual k=1: pred=[2.69102661971265, 2.452911089637522, 0.8014283358858445, 3.0], ws=[2.69102661971265, 2.452911089637522, 0.8014283358858445, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,118 - INFO - Dyn residual k=2: pred=[2.8997310317798473, 2.668416236637972, 0.8014283358858445, 3.0], ws=[2.8997310317798473, 2.668416236637972, 0.8014283358858445, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,119 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,119 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,119 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,119 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,119 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,120 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,120 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,120 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,120 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,120 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,121 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,121 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,121 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,121 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,121 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,122 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,122 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,122 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,122 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,122 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,123 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,123 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,150 - INFO - Step 14: MPC solve successful
+2025-11-16 13:46:12,152 - INFO - === Applying control at step 14 ===
+2025-11-16 13:46:12,152 - INFO -   Control dict from planner: {'a': -2.5500629612598727e-12, 'w': -0.00026518173284711597}
+2025-11-16 13:46:12,152 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,153 - INFO -   Planner output success: True
+2025-11-16 13:46:12,153 - INFO - Step 14 completed in 0.046s
+2025-11-16 13:46:12,154 - INFO - Step 15/200
+2025-11-16 13:46:12,163 - INFO - === Calling planner.solve_mpc() at step 15 ===
+2025-11-16 13:46:12,164 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,164 - INFO - Warmstart k=0: x0=2.4823222097325743 , y0=2.2374059447922034 , psi0=0.8014018177125598 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,165 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,165 - INFO - Dyn residual k=0: pred=[2.691032336529221, 2.4529055572571163, 0.8014018177125598, 3.0], ws=[2.691032336529221, 2.4529055572571163, 0.8014018177125598, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,166 - INFO - Dyn residual k=1: pred=[2.8997424633258673, 2.6684051697220292, 0.8014018177125598, 3.0], ws=[2.8997424633258673, 2.6684051697220292, 0.8014018177125598, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,166 - INFO - Dyn residual k=2: pred=[3.1084525901225137, 2.883904782186942, 0.8014018177125598, 3.0], ws=[3.1084525901225137, 2.883904782186942, 0.8014018177125598, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,166 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,167 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,167 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,167 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,167 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,167 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,168 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,168 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,168 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,168 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,169 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,169 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,169 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,169 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,169 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,170 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,170 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,170 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,170 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,170 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,171 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,171 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,206 - INFO - Step 15: MPC solve successful
+2025-11-16 13:46:12,209 - INFO - === Applying control at step 15 ===
+2025-11-16 13:46:12,209 - INFO -   Control dict from planner: {'a': -1.5436742825459308e-12, 'w': 0.00032970567116360377}
+2025-11-16 13:46:12,209 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,209 - INFO -   Planner output success: True
+2025-11-16 13:46:12,209 - INFO - Step 15 completed in 0.054s
+2025-11-16 13:46:12,211 - INFO - Step 16/200
+2025-11-16 13:46:12,219 - INFO - === Calling planner.solve_mpc() at step 16 ===
+2025-11-16 13:46:12,221 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,221 - INFO - Warmstart k=0: x0=2.691032338616382 , y0=2.4529055594121743 , psi0=0.8014347882796762 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,221 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,221 - INFO - Dyn residual k=0: pred=[2.8997353601551534, 2.668412053051199, 0.8014347882796762, 3.0], ws=[2.8997353601551534, 2.668412053051199, 0.8014347882796762, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,222 - INFO - Dyn residual k=1: pred=[3.108438381693925, 2.8839185466902237, 0.8014347882796762, 3.0], ws=[3.108438381693925, 2.8839185466902237, 0.8014347882796762, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,222 - INFO - Dyn residual k=2: pred=[3.3171414032326965, 3.0994250403292485, 0.8014347882796762, 3.0], ws=[3.3171414032326965, 3.0994250403292485, 0.8014347882796762, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,223 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,223 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,223 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,223 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,223 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,224 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,224 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,224 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,224 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,224 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,225 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,225 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,225 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,225 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,225 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,226 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,226 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,226 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,226 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,226 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,227 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,227 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,262 - INFO - Step 16: MPC solve successful
+2025-11-16 13:46:12,265 - INFO - === Applying control at step 16 ===
+2025-11-16 13:46:12,265 - INFO -   Control dict from planner: {'a': -3.548660568625803e-13, 'w': -0.0001309216089873171}
+2025-11-16 13:46:12,265 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,265 - INFO -   Planner output success: True
+2025-11-16 13:46:12,265 - INFO - Step 16 completed in 0.054s
+2025-11-16 13:46:12,267 - INFO - Step 17/200
+2025-11-16 13:46:12,275 - INFO - === Calling planner.solve_mpc() at step 17 ===
+2025-11-16 13:46:12,277 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,277 - INFO - Warmstart k=0: x0=2.8997353622422324 , y0=2.6684120552063146 , psi0=0.8014216961187774 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,277 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,277 - INFO - Dyn residual k=0: pred=[3.108441205208807, 2.883915816453332, 0.8014216961187774, 3.0], ws=[3.108441205208807, 2.883915816453332, 0.8014216961187774, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,278 - INFO - Dyn residual k=1: pred=[3.3171470481753813, 3.0994195777003495, 0.8014216961187774, 3.0], ws=[3.3171470481753813, 3.0994195777003495, 0.8014216961187774, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,278 - INFO - Dyn residual k=2: pred=[3.5258528911419558, 3.314923338947367, 0.8014216961187774, 3.0], ws=[3.5258528911419558, 3.314923338947367, 0.8014216961187774, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,279 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,279 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,279 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,279 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,280 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,280 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,280 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,280 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,280 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,280 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,281 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,281 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,281 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,281 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,281 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,282 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,282 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,282 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,282 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,282 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,283 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,283 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,315 - INFO - Step 17: MPC solve successful
+2025-11-16 13:46:12,317 - INFO - === Applying control at step 17 ===
+2025-11-16 13:46:12,317 - INFO -   Control dict from planner: {'a': -1.2192647312869456e-12, 'w': 4.913011824891339e-05}
+2025-11-16 13:46:12,317 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,317 - INFO -   Planner output success: True
+2025-11-16 13:46:12,317 - INFO - Step 17 completed in 0.050s
+2025-11-16 13:46:12,319 - INFO - Step 18/200
+2025-11-16 13:46:12,328 - INFO - === Calling planner.solve_mpc() at step 18 ===
+2025-11-16 13:46:12,329 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,329 - INFO - Warmstart k=0: x0=3.1084412072959116 , y0=2.8839158186084175 , psi0=0.8014266091306024 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,329 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,330 - INFO - Dyn residual k=0: pred=[3.3171459914874397, 3.0994206052271087, 0.8014266091306024, 3.0], ws=[3.3171459914874397, 3.0994206052271087, 0.8014266091306024, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,330 - INFO - Dyn residual k=1: pred=[3.5258507756789683, 3.3149253918458, 0.8014266091306024, 3.0], ws=[3.5258507756789683, 3.3149253918458, 0.8014266091306024, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,331 - INFO - Dyn residual k=2: pred=[3.734555559870497, 3.530430178464491, 0.8014266091306024, 3.0], ws=[3.734555559870497, 3.530430178464491, 0.8014266091306024, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,331 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,331 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,332 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,332 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,332 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,332 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,332 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,333 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,333 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,333 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,333 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,333 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,334 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,334 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,334 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,334 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,334 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,334 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,335 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,335 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,335 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,335 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,363 - INFO - Step 18: MPC solve successful
+2025-11-16 13:46:12,365 - INFO - === Applying control at step 18 ===
+2025-11-16 13:46:12,366 - INFO -   Control dict from planner: {'a': 1.1985911366895858e-11, 'w': -5.290688610748347e-05}
+2025-11-16 13:46:12,366 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,366 - INFO -   Planner output success: True
+2025-11-16 13:46:12,366 - INFO - Step 18 completed in 0.047s
+2025-11-16 13:46:12,367 - INFO - Step 19/200
+2025-11-16 13:46:12,376 - INFO - === Calling planner.solve_mpc() at step 19 ===
+2025-11-16 13:46:12,377 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,377 - INFO - Warmstart k=0: x0=3.3171459935745258 , y0=3.0994206073821955 , psi0=0.8014213184419916 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,377 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,378 - INFO - Dyn residual k=0: pred=[3.5258519179318535, 3.3149242898058455, 0.8014213184419916, 3.0], ws=[3.5258519179318535, 3.3149242898058455, 0.8014213184419916, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,378 - INFO - Dyn residual k=1: pred=[3.734557842289181, 3.5304279722294956, 0.8014213184419916, 3.0], ws=[3.734557842289181, 3.5304279722294956, 0.8014213184419916, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,379 - INFO - Dyn residual k=2: pred=[3.943263766646509, 3.7459316546531456, 0.8014213184419916, 3.0], ws=[3.943263766646509, 3.7459316546531456, 0.8014213184419916, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,379 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,379 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,380 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,380 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,380 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,380 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,381 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,381 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,381 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,381 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,381 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,381 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,382 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,382 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,382 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,382 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,382 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,383 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,383 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,383 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,383 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,383 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,415 - INFO - Step 19: MPC solve successful
+2025-11-16 13:46:12,417 - INFO - === Applying control at step 19 ===
+2025-11-16 13:46:12,417 - INFO -   Control dict from planner: {'a': -8.19633624220513e-12, 'w': 5.789086308874574e-05}
+2025-11-16 13:46:12,417 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,417 - INFO -   Planner output success: True
+2025-11-16 13:46:12,417 - INFO - Step 19 completed in 0.050s
+2025-11-16 13:46:12,419 - INFO - Step 20/200
+2025-11-16 13:46:12,428 - INFO - === Calling planner.solve_mpc() at step 20 ===
+2025-11-16 13:46:12,429 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,430 - INFO - Warmstart k=0: x0=3.5258519200190337 , y0=3.314924291961008 , psi0=0.8014271075283005 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,430 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,430 - INFO - Dyn residual k=0: pred=[3.7345565968034466, 3.530429182597656, 0.8014271075283005, 3.0], ws=[3.7345565968034466, 3.530429182597656, 0.8014271075283005, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,431 - INFO - Dyn residual k=1: pred=[3.9432612735878596, 3.745934073234304, 0.8014271075283005, 3.0], ws=[3.9432612735878596, 3.745934073234304, 0.8014271075283005, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,431 - INFO - Dyn residual k=2: pred=[4.151965950372272, 3.961438963870952, 0.8014271075283005, 3.0], ws=[4.151965950372272, 3.961438963870952, 0.8014271075283005, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,432 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,432 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,432 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,432 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,432 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,432 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,433 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,433 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,433 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,433 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,434 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,434 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,434 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,434 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,434 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,434 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,435 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,435 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,435 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,435 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,436 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,436 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,463 - INFO - Step 20: MPC solve successful
+2025-11-16 13:46:12,466 - INFO - === Applying control at step 20 ===
+2025-11-16 13:46:12,466 - INFO -   Control dict from planner: {'a': -3.623240737320253e-12, 'w': -4.265978039663133e-05}
+2025-11-16 13:46:12,466 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,466 - INFO -   Planner output success: True
+2025-11-16 13:46:12,466 - INFO - Step 20 completed in 0.047s
+2025-11-16 13:46:12,467 - INFO - Step 21/200
+2025-11-16 13:46:12,476 - INFO - === Calling planner.solve_mpc() at step 21 ===
+2025-11-16 13:46:12,478 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,478 - INFO - Warmstart k=0: x0=3.7345565988905576 , y0=3.5304291847527716 , psi0=0.8014228415502608 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,478 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,478 - INFO - Dyn residual k=0: pred=[3.943262195012202, 3.745933185057891, 0.8014228415502608, 3.0], ws=[3.943262195012202, 3.745933185057891, 0.8014228415502608, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,479 - INFO - Dyn residual k=1: pred=[4.151967791133847, 3.961437185363011, 0.8014228415502608, 3.0], ws=[4.151967791133847, 3.961437185363011, 0.8014228415502608, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,479 - INFO - Dyn residual k=2: pred=[4.360673387255492, 4.17694118566813, 0.8014228415502608, 3.0], ws=[4.360673387255492, 4.17694118566813, 0.8014228415502608, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,480 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,480 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,480 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,480 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,480 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,481 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,481 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,481 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,481 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,481 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,482 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,482 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,482 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,482 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,482 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,483 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,483 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,483 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,483 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,483 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,484 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,484 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,514 - INFO - Step 21: MPC solve successful
+2025-11-16 13:46:12,516 - INFO - === Applying control at step 21 ===
+2025-11-16 13:46:12,516 - INFO -   Control dict from planner: {'a': 1.170224142634219e-12, 'w': -1.4246004507438089e-06}
+2025-11-16 13:46:12,516 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,516 - INFO -   Planner output success: True
+2025-11-16 13:46:12,516 - INFO - Step 21 completed in 0.049s
+2025-11-16 13:46:12,518 - INFO - Step 22/200
+2025-11-16 13:46:12,527 - INFO - === Calling planner.solve_mpc() at step 22 ===
+2025-11-16 13:46:12,528 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,528 - INFO - Warmstart k=0: x0=3.943262197099297 , y0=3.7459331872129713 , psi0=0.8014226990902157 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,528 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,529 - INFO - Dyn residual k=0: pred=[4.151967823921649, 3.96143715778588, 0.8014226990902157, 3.0], ws=[4.151967823921649, 3.96143715778588, 0.8014226990902157, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,529 - INFO - Dyn residual k=1: pred=[4.3606734507440015, 4.176941128358789, 0.8014226990902157, 3.0], ws=[4.3606734507440015, 4.176941128358789, 0.8014226990902157, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,530 - INFO - Dyn residual k=2: pred=[4.569379077566354, 4.392445098931697, 0.8014226990902157, 3.0], ws=[4.569379077566354, 4.392445098931697, 0.8014226990902157, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,530 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,530 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,531 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,531 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,531 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,531 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,531 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,532 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,532 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,532 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,532 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,532 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,533 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,533 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,533 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,533 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,533 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,534 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,534 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,534 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,534 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,534 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,564 - INFO - Step 22: MPC solve successful
+2025-11-16 13:46:12,567 - INFO - === Applying control at step 22 ===
+2025-11-16 13:46:12,567 - INFO -   Control dict from planner: {'a': 4.521366025735081e-13, 'w': -1.0105955792638909e-06}
+2025-11-16 13:46:12,567 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,567 - INFO -   Planner output success: True
+2025-11-16 13:46:12,567 - INFO - Step 22 completed in 0.049s
+2025-11-16 13:46:12,568 - INFO - Step 23/200
+2025-11-16 13:46:12,577 - INFO - === Calling planner.solve_mpc() at step 23 ===
+2025-11-16 13:46:12,578 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,578 - INFO - Warmstart k=0: x0=4.151967826008753 , y0=3.9614371599409686 , psi0=0.8014225980306577 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,578 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,579 - INFO - Dyn residual k=0: pred=[4.36067347460984, 4.176941109422177, 0.8014225980306577, 3.0], ws=[4.36067347460984, 4.176941109422177, 0.8014225980306577, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,579 - INFO - Dyn residual k=1: pred=[4.569379123210926, 4.3924450589033865, 0.8014225980306577, 3.0], ws=[4.569379123210926, 4.3924450589033865, 0.8014225980306577, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,580 - INFO - Dyn residual k=2: pred=[4.778084771812013, 4.607949008384596, 0.8014225980306577, 3.0], ws=[4.778084771812013, 4.607949008384596, 0.8014225980306577, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,580 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,580 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,581 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,581 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,581 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,581 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,581 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,582 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,582 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,582 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,582 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,582 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,583 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,583 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,583 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,583 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,583 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,583 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,584 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,584 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,584 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,584 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,615 - INFO - Step 23: MPC solve successful
+2025-11-16 13:46:12,617 - INFO - === Applying control at step 23 ===
+2025-11-16 13:46:12,617 - INFO -   Control dict from planner: {'a': 7.35834355120537e-14, 'w': 1.797042290068789e-06}
+2025-11-16 13:46:12,617 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,618 - INFO -   Planner output success: True
+2025-11-16 13:46:12,618 - INFO - Step 23 completed in 0.049s
+2025-11-16 13:46:12,619 - INFO - Step 24/200
+2025-11-16 13:46:12,628 - INFO - === Calling planner.solve_mpc() at step 24 ===
+2025-11-16 13:46:12,629 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,629 - INFO - Warmstart k=0: x0=4.360673476696947 , y0=4.176941111577269 , psi0=0.8014227777348868 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,629 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,630 - INFO - Dyn residual k=0: pred=[4.569379086571059, 4.392445098563763, 0.8014227777348868, 3.0], ws=[4.569379086571059, 4.392445098563763, 0.8014227777348868, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,630 - INFO - Dyn residual k=1: pred=[4.7780846964451715, 4.607949085550256, 0.8014227777348868, 3.0], ws=[4.7780846964451715, 4.607949085550256, 0.8014227777348868, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,631 - INFO - Dyn residual k=2: pred=[4.986790306319284, 4.82345307253675, 0.8014227777348868, 3.0], ws=[4.986790306319284, 4.82345307253675, 0.8014227777348868, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,631 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,631 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,632 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,632 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,632 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,632 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,633 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,633 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,633 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,633 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,633 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,633 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,634 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,634 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,634 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,634 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,634 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,635 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,635 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,635 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,635 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,635 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,665 - INFO - Step 24: MPC solve successful
+2025-11-16 13:46:12,668 - INFO - === Applying control at step 24 ===
+2025-11-16 13:46:12,668 - INFO -   Control dict from planner: {'a': 1.0694489454492516e-12, 'w': -1.082214385335345e-06}
+2025-11-16 13:46:12,668 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,668 - INFO -   Planner output success: True
+2025-11-16 13:46:12,668 - INFO - Step 24 completed in 0.048s
+2025-11-16 13:46:12,669 - INFO - Step 25/200
+2025-11-16 13:46:12,678 - INFO - === Calling planner.solve_mpc() at step 25 ===
+2025-11-16 13:46:12,680 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,680 - INFO - Warmstart k=0: x0=4.569379088658167 , y0=4.392445100718855 , psi0=0.8014226695134482 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,680 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,680 - INFO - Dyn residual k=0: pred=[4.778084721854429, 4.607949065118926, 0.8014226695134482, 3.0], ws=[4.778084721854429, 4.607949065118926, 0.8014226695134482, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,681 - INFO - Dyn residual k=1: pred=[4.986790355050692, 4.823453029518997, 0.8014226695134482, 3.0], ws=[4.986790355050692, 4.823453029518997, 0.8014226695134482, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,681 - INFO - Dyn residual k=2: pred=[5.195495988246955, 5.038956993919068, 0.8014226695134482, 3.0], ws=[5.195495988246955, 5.038956993919068, 0.8014226695134482, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,682 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,682 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,682 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,682 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,683 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,683 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,683 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,683 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,684 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,684 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,684 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,684 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,684 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,684 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,685 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,685 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,685 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,685 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,686 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,686 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,686 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,686 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,719 - INFO - Step 25: MPC solve successful
+2025-11-16 13:46:12,721 - INFO - === Applying control at step 25 ===
+2025-11-16 13:46:12,721 - INFO -   Control dict from planner: {'a': 6.809894675769018e-13, 'w': 1.5825707722388253e-06}
+2025-11-16 13:46:12,722 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,722 - INFO -   Planner output success: True
+2025-11-16 13:46:12,722 - INFO - Step 25 completed in 0.052s
+2025-11-16 13:46:12,725 - INFO - Step 26/200
+2025-11-16 13:46:12,734 - INFO - === Calling planner.solve_mpc() at step 26 ===
+2025-11-16 13:46:12,735 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,735 - INFO - Warmstart k=0: x0=4.778084723941544 , y0=4.607949067274026 , psi0=0.8014228277705254 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,735 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,736 - INFO - Dyn residual k=0: pred=[4.986790323032777, 4.823453064703237, 0.8014228277705254, 3.0], ws=[4.986790323032777, 4.823453064703237, 0.8014228277705254, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,736 - INFO - Dyn residual k=1: pred=[5.195495922124009, 5.038957062132448, 0.8014228277705254, 3.0], ws=[5.195495922124009, 5.038957062132448, 0.8014228277705254, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,737 - INFO - Dyn residual k=2: pred=[5.404201521215242, 5.25446105956166, 0.8014228277705254, 3.0], ws=[5.404201521215242, 5.25446105956166, 0.8014228277705254, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,737 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,737 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,738 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,738 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,738 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,738 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,739 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,739 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,739 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,739 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,740 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,740 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,740 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,740 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,740 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,740 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,741 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,741 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,741 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,741 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,742 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,742 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,773 - INFO - Step 26: MPC solve successful
+2025-11-16 13:46:12,776 - INFO - === Applying control at step 26 ===
+2025-11-16 13:46:12,776 - INFO -   Control dict from planner: {'a': 4.609575315171754e-13, 'w': -6.400765455994118e-06}
+2025-11-16 13:46:12,776 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,776 - INFO -   Planner output success: True
+2025-11-16 13:46:12,776 - INFO - Step 26 completed in 0.051s
+2025-11-16 13:46:12,778 - INFO - Step 27/200
+2025-11-16 13:46:12,787 - INFO - === Calling planner.solve_mpc() at step 27 ===
+2025-11-16 13:46:12,788 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,788 - INFO - Warmstart k=0: x0=4.9867903251198955 , y0=4.823453066858343 , psi0=0.8014221876939798 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,789 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,789 - INFO - Dyn residual k=0: pred=[5.19549606215014, 5.038956930699951, 0.8014221876939798, 3.0], ws=[5.19549606215014, 5.0389569306999515, 0.8014221876939798, 3.0], res=[0.0, -8.881784197001252e-16, 0.0, 0.0], res_norm=8.882e-16
+2025-11-16 13:46:12,790 - INFO - Dyn residual k=1: pred=[5.404201799180384, 5.25446079454156, 0.8014221876939798, 3.0], ws=[5.404201799180384, 5.25446079454156, 0.8014221876939798, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,790 - INFO - Dyn residual k=2: pred=[5.612907536210628, 5.469964658383168, 0.8014221876939798, 3.0], ws=[5.612907536210628, 5.469964658383168, 0.8014221876939798, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,791 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,791 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,791 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,791 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,792 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,792 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,792 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,792 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,793 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,793 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,793 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,793 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,793 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,793 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,794 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,794 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,794 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,794 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,795 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,795 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,795 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,795 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,826 - INFO - Step 27: MPC solve successful
+2025-11-16 13:46:12,828 - INFO - === Applying control at step 27 ===
+2025-11-16 13:46:12,828 - INFO -   Control dict from planner: {'a': 4.0747608331085765e-13, 'w': 1.2561296930403297e-05}
+2025-11-16 13:46:12,828 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,828 - INFO -   Planner output success: True
+2025-11-16 13:46:12,828 - INFO - Step 27 completed in 0.050s
+2025-11-16 13:46:12,830 - INFO - Step 28/200
+2025-11-16 13:46:12,839 - INFO - === Calling planner.solve_mpc() at step 28 ===
+2025-11-16 13:46:12,840 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,840 - INFO - Warmstart k=0: x0=5.195496064237263 , y0=5.038956932855058 , psi0=0.8014234438236728 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,840 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,841 - INFO - Dyn residual k=0: pred=[5.4042015305665405, 5.25446105885797, 0.8014234438236728, 3.0], ws=[5.4042015305665405, 5.25446105885797, 0.8014234438236728, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,841 - INFO - Dyn residual k=1: pred=[5.612906996895818, 5.469965184860882, 0.8014234438236728, 3.0], ws=[5.612906996895818, 5.469965184860882, 0.8014234438236728, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,842 - INFO - Dyn residual k=2: pred=[5.821612463225096, 5.685469310863795, 0.8014234438236728, 3.0], ws=[5.821612463225096, 5.685469310863795, 0.8014234438236728, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,842 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,842 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,843 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,843 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,843 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,843 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,843 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,844 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,844 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,844 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,844 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,844 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,845 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,845 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,845 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,845 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,845 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,845 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,846 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,846 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,846 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,846 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,877 - INFO - Step 28: MPC solve successful
+2025-11-16 13:46:12,879 - INFO - === Applying control at step 28 ===
+2025-11-16 13:46:12,879 - INFO -   Control dict from planner: {'a': 6.809191740852701e-13, 'w': -3.057812034878056e-05}
+2025-11-16 13:46:12,879 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,879 - INFO -   Planner output success: True
+2025-11-16 13:46:12,879 - INFO - Step 28 completed in 0.049s
+2025-11-16 13:46:12,881 - INFO - Step 29/200
+2025-11-16 13:46:12,890 - INFO - === Calling planner.solve_mpc() at step 29 ===
+2025-11-16 13:46:12,891 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,891 - INFO - Warmstart k=0: x0=5.404201532653664 , y0=5.254461061013083 , psi0=0.8014203860116379 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,891 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,892 - INFO - Dyn residual k=0: pred=[5.612907657953076, 5.4699645488329, 0.8014203860116379, 3.0], ws=[5.612907657953076, 5.4699645488329, 0.8014203860116379, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,892 - INFO - Dyn residual k=1: pred=[5.821613783252488, 5.6854680366527175, 0.8014203860116379, 3.0], ws=[5.821613783252488, 5.6854680366527175, 0.8014203860116379, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,893 - INFO - Dyn residual k=2: pred=[6.0303199085519, 5.900971524472535, 0.8014203860116379, 3.0], ws=[6.0303199085519, 5.900971524472535, 0.8014203860116379, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,893 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,893 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,894 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,894 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,894 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,894 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,894 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,895 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,895 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,895 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,895 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,895 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,896 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,896 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,896 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,896 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,896 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,897 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,897 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,897 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,897 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,897 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,928 - INFO - Step 29: MPC solve successful
+2025-11-16 13:46:12,930 - INFO - === Applying control at step 29 ===
+2025-11-16 13:46:12,930 - INFO -   Control dict from planner: {'a': 6.805360805870683e-13, 'w': 5.3431396694294733e-05}
+2025-11-16 13:46:12,930 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,930 - INFO -   Planner output success: True
+2025-11-16 13:46:12,930 - INFO - Step 29 completed in 0.049s
+2025-11-16 13:46:12,932 - INFO - Step 30/200
+2025-11-16 13:46:12,941 - INFO - === Calling planner.solve_mpc() at step 30 ===
+2025-11-16 13:46:12,942 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,942 - INFO - Warmstart k=0: x0=5.612907660040211 , y0=5.469964550988012 , psi0=0.8014257291513073 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,942 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,942 - INFO - Dyn residual k=0: pred=[5.821612633871409, 5.685469153950731, 0.8014257291513073, 3.0], ws=[5.821612633871409, 5.685469153950731, 0.8014257291513073, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,943 - INFO - Dyn residual k=1: pred=[6.030317607702607, 5.90097375691345, 0.8014257291513073, 3.0], ws=[6.030317607702607, 5.90097375691345, 0.8014257291513073, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,943 - INFO - Dyn residual k=2: pred=[6.2390225815338045, 6.116478359876169, 0.8014257291513073, 3.0], ws=[6.2390225815338045, 6.116478359876169, 0.8014257291513073, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,944 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,944 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,944 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,944 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,945 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,945 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,945 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,945 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,945 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,946 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,946 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,946 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,946 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,946 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,947 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,947 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,947 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,947 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,947 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,947 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,948 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,948 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,978 - INFO - Step 30: MPC solve successful
+2025-11-16 13:46:12,981 - INFO - === Applying control at step 30 ===
+2025-11-16 13:46:12,981 - INFO -   Control dict from planner: {'a': -4.837481819690818e-12, 'w': 7.046810083726458e-06}
+2025-11-16 13:46:12,981 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:12,981 - INFO -   Planner output success: True
+2025-11-16 13:46:12,981 - INFO - Step 30 completed in 0.049s
+2025-11-16 13:46:12,983 - INFO - Step 31/200
+2025-11-16 13:46:12,991 - INFO - === Calling planner.solve_mpc() at step 31 ===
+2025-11-16 13:46:12,992 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:12,992 - INFO - Warmstart k=0: x0=5.8216126359585365 , y0=5.6854691561058575 , psi0=0.8014264338323156 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:12,993 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:12,993 - INFO - Dyn residual k=0: pred=[6.030317457927682, 5.900973906138954, 0.8014264338323156, 3.0], ws=[6.030317457927682, 5.900973906138955, 0.8014264338323156, 3.0], res=[0.0, -8.881784197001252e-16, 0.0, 0.0], res_norm=8.882e-16
+2025-11-16 13:46:12,994 - INFO - Dyn residual k=1: pred=[6.239022279896827, 6.116478656172051, 0.8014264338323156, 3.0], ws=[6.239022279896827, 6.116478656172051, 0.8014264338323156, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,994 - INFO - Dyn residual k=2: pred=[6.447727101865972, 6.331983406205147, 0.8014264338323156, 3.0], ws=[6.447727101865972, 6.331983406205147, 0.8014264338323156, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:12,995 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,995 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,995 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,995 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,995 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,995 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,996 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,996 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,996 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,996 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,997 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,997 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,997 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,997 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,997 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,997 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,998 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,998 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,998 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,998 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:12,998 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:12,999 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,029 - INFO - Step 31: MPC solve successful
+2025-11-16 13:46:13,031 - INFO - === Applying control at step 31 ===
+2025-11-16 13:46:13,031 - INFO -   Control dict from planner: {'a': 3.5163179508856004e-12, 'w': 8.681750442358514e-05}
+2025-11-16 13:46:13,031 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,031 - INFO -   Planner output success: True
+2025-11-16 13:46:13,031 - INFO - Step 31 completed in 0.049s
+2025-11-16 13:46:13,033 - INFO - Step 32/200
+2025-11-16 13:46:13,042 - INFO - === Calling planner.solve_mpc() at step 32 ===
+2025-11-16 13:46:13,043 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,043 - INFO - Warmstart k=0: x0=6.030317460014775 , y0=5.900973908294048 , psi0=0.8014351155827579 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,043 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,044 - INFO - Dyn residual k=0: pred=[6.239020411017596, 6.1164804702422035, 0.8014351155827579, 3.0], ws=[6.239020411017596, 6.1164804702422035, 0.8014351155827579, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,044 - INFO - Dyn residual k=1: pred=[6.447723362020417, 6.331987032190359, 0.8014351155827579, 3.0], ws=[6.447723362020417, 6.331987032190359, 0.8014351155827579, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,044 - INFO - Dyn residual k=2: pred=[6.656426313023238, 6.547493594138514, 0.8014351155827579, 3.0], ws=[6.656426313023238, 6.547493594138514, 0.8014351155827579, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,045 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,045 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,045 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,045 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,046 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,046 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,046 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,046 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,047 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,047 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,047 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,047 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,047 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,048 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,048 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,048 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,048 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,048 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,049 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,049 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,049 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,049 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,078 - INFO - Step 32: MPC solve successful
+2025-11-16 13:46:13,080 - INFO - === Applying control at step 32 ===
+2025-11-16 13:46:13,080 - INFO -   Control dict from planner: {'a': 1.7212819144619056e-12, 'w': -0.0001336684281401958}
+2025-11-16 13:46:13,080 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,080 - INFO -   Planner output success: True
+2025-11-16 13:46:13,080 - INFO - Step 32 completed in 0.047s
+2025-11-16 13:46:13,082 - INFO - Step 33/200
+2025-11-16 13:46:13,091 - INFO - === Calling planner.solve_mpc() at step 33 ===
+2025-11-16 13:46:13,092 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,092 - INFO - Warmstart k=0: x0=6.2390204131046945 , y0=6.116480472397341 , psi0=0.8014217487399439 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,092 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,092 - INFO - Dyn residual k=0: pred=[6.44772624473121, 6.331984244626703, 0.8014217487399439, 3.0], ws=[6.44772624473121, 6.331984244626703, 0.8014217487399439, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,093 - INFO - Dyn residual k=1: pred=[6.656432076357725, 6.547488016856065, 0.8014217487399439, 3.0], ws=[6.656432076357725, 6.547488016856065, 0.8014217487399439, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,093 - INFO - Dyn residual k=2: pred=[6.8651379079842405, 6.762991789085428, 0.8014217487399439, 3.0], ws=[6.8651379079842405, 6.762991789085428, 0.8014217487399439, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,094 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,094 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,094 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,094 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,095 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,095 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,095 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,095 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,095 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,096 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,096 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,096 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,096 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,096 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,097 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,097 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,097 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,097 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,097 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,098 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,098 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,098 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,128 - INFO - Step 33: MPC solve successful
+2025-11-16 13:46:13,131 - INFO - === Applying control at step 33 ===
+2025-11-16 13:46:13,131 - INFO -   Control dict from planner: {'a': -3.2303488678427115e-13, 'w': 6.435803344295873e-07}
+2025-11-16 13:46:13,131 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,131 - INFO -   Planner output success: True
+2025-11-16 13:46:13,131 - INFO - Step 33 completed in 0.049s
+2025-11-16 13:46:13,132 - INFO - Step 34/200
+2025-11-16 13:46:13,141 - INFO - === Calling planner.solve_mpc() at step 34 ===
+2025-11-16 13:46:13,143 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,143 - INFO - Warmstart k=0: x0=6.447726246818349 , y0=6.331984246781825 , psi0=0.8014218130979773 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,143 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,143 - INFO - Dyn residual k=0: pred=[6.656432064575465, 6.547488032443083, 0.8014218130979773, 3.0], ws=[6.656432064575465, 6.547488032443083, 0.8014218130979773, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,144 - INFO - Dyn residual k=1: pred=[6.86513788233258, 6.762991818104342, 0.8014218130979773, 3.0], ws=[6.86513788233258, 6.762991818104342, 0.8014218130979773, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,144 - INFO - Dyn residual k=2: pred=[7.073843700089696, 6.978495603765601, 0.8014218130979773, 3.0], ws=[7.073843700089696, 6.978495603765601, 0.8014218130979773, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,145 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,145 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,145 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,145 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,145 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,146 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,146 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,146 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,146 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,146 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,147 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,147 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,147 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,147 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,147 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,147 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,148 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,148 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,148 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,148 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,149 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,149 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,179 - INFO - Step 34: MPC solve successful
+2025-11-16 13:46:13,181 - INFO - === Applying control at step 34 ===
+2025-11-16 13:46:13,181 - INFO -   Control dict from planner: {'a': -5.792391489408095e-13, 'w': -4.74999493837136e-06}
+2025-11-16 13:46:13,181 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,181 - INFO -   Planner output success: True
+2025-11-16 13:46:13,181 - INFO - Step 34 completed in 0.048s
+2025-11-16 13:46:13,183 - INFO - Step 35/200
+2025-11-16 13:46:13,191 - INFO - === Calling planner.solve_mpc() at step 35 ===
+2025-11-16 13:46:13,193 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,193 - INFO - Warmstart k=0: x0=6.656432066662602 , y0=6.547488034598203 , psi0=0.8014213380984835 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,193 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,193 - INFO - Dyn residual k=0: pred=[6.865137986783883, 6.76299172112428, 0.8014213380984835, 3.0], ws=[6.865137986783884, 6.76299172112428, 0.8014213380984835, 3.0], res=[-8.881784197001252e-16, 0.0, 0.0, 0.0], res_norm=8.882e-16
+2025-11-16 13:46:13,194 - INFO - Dyn residual k=1: pred=[7.073843906905164, 6.978495407650357, 0.8014213380984835, 3.0], ws=[7.073843906905164, 6.978495407650357, 0.8014213380984835, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,194 - INFO - Dyn residual k=2: pred=[7.282549827026445, 7.193999094176434, 0.8014213380984835, 3.0], ws=[7.282549827026445, 7.193999094176434, 0.8014213380984835, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,195 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,195 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,195 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,195 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,195 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,195 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,196 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,196 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,196 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,196 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,197 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,197 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,197 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,197 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,197 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,197 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,198 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,198 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,198 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,198 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,199 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,199 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,225 - INFO - Step 35: MPC solve successful
+2025-11-16 13:46:13,228 - INFO - === Applying control at step 35 ===
+2025-11-16 13:46:13,228 - INFO -   Control dict from planner: {'a': -1.593825185274208e-10, 'w': -0.00027679904871948753}
+2025-11-16 13:46:13,228 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,228 - INFO -   Planner output success: True
+2025-11-16 13:46:13,228 - INFO - Step 35 completed in 0.045s
+2025-11-16 13:46:13,230 - INFO - Step 36/200
+2025-11-16 13:46:13,238 - INFO - === Calling planner.solve_mpc() at step 36 ===
+2025-11-16 13:46:13,240 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,240 - INFO - Warmstart k=0: x0=6.865137988871018 , y0=6.762991723279394 , psi0=0.8013936581936115 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,240 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,241 - INFO - Dyn residual k=0: pred=[7.073849874033888, 6.9784896327629, 0.8013936581936115, 3.0], ws=[7.073849874033888, 6.9784896327629, 0.8013936581936115, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,241 - INFO - Dyn residual k=1: pred=[7.282561759196758, 7.193987542246405, 0.8013936581936115, 3.0], ws=[7.282561759196758, 7.193987542246405, 0.8013936581936115, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,242 - INFO - Dyn residual k=2: pred=[7.491273644359628, 7.4094854517299105, 0.8013936581936115, 3.0], ws=[7.491273644359628, 7.4094854517299105, 0.8013936581936115, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,242 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,242 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,243 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,243 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,243 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,243 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,244 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,244 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,244 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,244 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,244 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,245 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,245 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,245 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,245 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,245 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,246 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,246 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,246 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,246 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,247 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,247 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,277 - INFO - Step 36: MPC solve successful
+2025-11-16 13:46:13,280 - INFO - === Applying control at step 36 ===
+2025-11-16 13:46:13,280 - INFO -   Control dict from planner: {'a': 1.1801731377278415e-10, 'w': 0.0006792088674153117}
+2025-11-16 13:46:13,280 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,280 - INFO -   Planner output success: True
+2025-11-16 13:46:13,280 - INFO - Step 36 completed in 0.050s
+2025-11-16 13:46:13,282 - INFO - Step 37/200
+2025-11-16 13:46:13,291 - INFO - === Calling planner.solve_mpc() at step 37 ===
+2025-11-16 13:46:13,292 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,292 - INFO - Warmstart k=0: x0=7.073849876119973 , y0=6.978489634916811 , psi0=0.8014615790803531 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,292 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,293 - INFO - Dyn residual k=0: pred=[7.282547123992331, 7.194001719799546, 0.8014615790803531, 3.0], ws=[7.282547123992332, 7.194001719799546, 0.8014615790803531, 3.0], res=[-8.881784197001252e-16, 0.0, 0.0, 0.0], res_norm=8.882e-16
+2025-11-16 13:46:13,293 - INFO - Dyn residual k=1: pred=[7.49124437186469, 7.409513804682281, 0.8014615790803531, 3.0], ws=[7.49124437186469, 7.409513804682281, 0.8014615790803531, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,294 - INFO - Dyn residual k=2: pred=[7.699941619737048, 7.625025889565016, 0.8014615790803531, 3.0], ws=[7.699941619737048, 7.625025889565016, 0.8014615790803531, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,294 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,294 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,295 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,295 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,295 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,295 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,296 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,296 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,296 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,296 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,296 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,297 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,297 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,297 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,297 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,297 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,298 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,298 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,298 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,298 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,299 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,299 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,332 - INFO - Step 37: MPC solve successful
+2025-11-16 13:46:13,334 - INFO - === Applying control at step 37 ===
+2025-11-16 13:46:13,334 - INFO -   Control dict from planner: {'a': 3.383891591189903e-11, 'w': -0.000596087776086848}
+2025-11-16 13:46:13,334 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,334 - INFO -   Planner output success: True
+2025-11-16 13:46:13,334 - INFO - Step 37 completed in 0.052s
+2025-11-16 13:46:13,336 - INFO - Step 38/200
+2025-11-16 13:46:13,345 - INFO - === Calling planner.solve_mpc() at step 38 ===
+2025-11-16 13:46:13,346 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,346 - INFO - Warmstart k=0: x0=7.282547126079091 , y0=7.194001721954448 , psi0=0.8014019703027444 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,346 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,347 - INFO - Dyn residual k=0: pred=[7.49125721999261, 7.4095013662664755, 0.8014019703027444, 3.0], ws=[7.49125721999261, 7.4095013662664755, 0.8014019703027444, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,347 - INFO - Dyn residual k=1: pred=[7.699967313906129, 7.625001010578503, 0.8014019703027444, 3.0], ws=[7.699967313906129, 7.625001010578503, 0.8014019703027444, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,348 - INFO - Dyn residual k=2: pred=[7.908677407819647, 7.84050065489053, 0.8014019703027444, 3.0], ws=[7.908677407819647, 7.84050065489053, 0.8014019703027444, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,348 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,348 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,349 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,349 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,349 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,349 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,349 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,349 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,350 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,350 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,350 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,350 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,350 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,351 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,351 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,351 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,351 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,351 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,352 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,352 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,352 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,352 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,382 - INFO - Step 38: MPC solve successful
+2025-11-16 13:46:13,384 - INFO - === Applying control at step 38 ===
+2025-11-16 13:46:13,384 - INFO -   Control dict from planner: {'a': 1.7226751159321364e-11, 'w': 0.00047712615893656543}
+2025-11-16 13:46:13,384 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,384 - INFO -   Planner output success: True
+2025-11-16 13:46:13,384 - INFO - Step 38 completed in 0.048s
+2025-11-16 13:46:13,386 - INFO - Step 39/200
+2025-11-16 13:46:13,395 - INFO - === Calling planner.solve_mpc() at step 39 ===
+2025-11-16 13:46:13,396 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,396 - INFO - Warmstart k=0: x0=7.491257222079733 , y0=7.409501368421496 , psi0=0.801449682918638 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,396 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,396 - INFO - Dyn residual k=0: pred=[7.699957033703938, 7.625010970592771, 0.801449682918638, 3.0], ws=[7.699957033703938, 7.625010970592771, 0.801449682918638, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,397 - INFO - Dyn residual k=1: pred=[7.908656845328142, 7.840520572764047, 0.801449682918638, 3.0], ws=[7.908656845328142, 7.840520572764047, 0.801449682918638, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,397 - INFO - Dyn residual k=2: pred=[8.117356656952346, 8.056030174935323, 0.801449682918638, 3.0], ws=[8.117356656952346, 8.056030174935323, 0.801449682918638, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,398 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,398 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,398 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,398 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,399 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,399 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,399 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,399 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,399 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,399 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,400 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,400 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,400 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,400 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,401 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,401 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,401 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,401 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,401 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,401 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,402 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,402 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,432 - INFO - Step 39: MPC solve successful
+2025-11-16 13:46:13,434 - INFO - === Applying control at step 39 ===
+2025-11-16 13:46:13,434 - INFO -   Control dict from planner: {'a': 6.47657249882055e-11, 'w': -0.0004186424453978527}
+2025-11-16 13:46:13,434 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,434 - INFO -   Planner output success: True
+2025-11-16 13:46:13,434 - INFO - Step 39 completed in 0.048s
+2025-11-16 13:46:13,436 - INFO - Step 40/200
+2025-11-16 13:46:13,445 - INFO - === Calling planner.solve_mpc() at step 40 ===
+2025-11-16 13:46:13,446 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,446 - INFO - Warmstart k=0: x0=7.699957035791078 , y0=7.625010972748015 , psi0=0.8014078186740983 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,446 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,447 - INFO - Dyn residual k=0: pred=[7.908665869379081, 7.840511837670491, 0.8014078186740983, 3.0], ws=[7.908665869379081, 7.840511837670491, 0.8014078186740983, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,447 - INFO - Dyn residual k=1: pred=[8.117374702967084, 8.056012702592968, 0.8014078186740983, 3.0], ws=[8.117374702967084, 8.056012702592968, 0.8014078186740983, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,448 - INFO - Dyn residual k=2: pred=[8.326083536555085, 8.271513567515445, 0.8014078186740983, 3.0], ws=[8.326083536555085, 8.271513567515445, 0.8014078186740983, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,448 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,448 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,448 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,449 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,449 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,449 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,449 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,449 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,450 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,450 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,450 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,450 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,450 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,450 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,451 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,451 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,451 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,451 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,451 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,452 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,452 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,452 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,486 - INFO - Step 40: MPC solve successful
+2025-11-16 13:46:13,488 - INFO - === Applying control at step 40 ===
+2025-11-16 13:46:13,488 - INFO -   Control dict from planner: {'a': -5.1745553355962017e-11, 'w': 0.0003328147540954737}
+2025-11-16 13:46:13,488 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:13,488 - INFO -   Planner output success: True
+2025-11-16 13:46:13,488 - INFO - Step 40 completed in 0.052s
+2025-11-16 13:46:13,492 - INFO - Step 41/200
+2025-11-16 13:46:13,500 - INFO - === Calling planner.solve_mpc() at step 41 ===
+2025-11-16 13:46:13,502 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:13,502 - INFO - Warmstart k=0: x0=7.908665871466762 , y0=7.840511839826113 , psi0=0.8014411001495079 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:13,502 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:13,502 - INFO - Dyn residual k=0: pred=[8.117367532752441, 8.05601965076715, 0.8014411001495079, 3.0], ws=[8.117367532752441, 8.05601965076715, 0.8014411001495079, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,503 - INFO - Dyn residual k=1: pred=[8.32606919403812, 8.271527461708187, 0.8014411001495079, 3.0], ws=[8.32606919403812, 8.271527461708187, 0.8014411001495079, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,503 - INFO - Dyn residual k=2: pred=[8.534770855323798, 8.487035272649225, 0.8014411001495079, 3.0], ws=[8.534770855323798, 8.487035272649225, 0.8014411001495079, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:13,504 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,504 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,504 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,504 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,504 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,505 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,505 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,505 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,505 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,505 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,506 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,506 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,506 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,506 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,506 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,507 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,507 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,507 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,507 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,507 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:13,508 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:13,508 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,381 - WARNING - Step 41: MPC solve failed
+2025-11-16 13:46:17,381 - WARNING -   Consecutive MPC failures: 1/50
+2025-11-16 13:46:17,381 - INFO - === Applying control at step 41 ===
+2025-11-16 13:46:17,381 - INFO -   Control dict from planner: {'a': -5.1745553355962017e-11, 'w': 0.0003328147540954737}
+2025-11-16 13:46:17,381 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:17,381 - INFO -   Planner output success: False
+2025-11-16 13:46:17,381 - INFO - Step 41 completed in 3.890s
+2025-11-16 13:46:17,383 - INFO - Step 42/200
+2025-11-16 13:46:17,392 - INFO - === Calling planner.solve_mpc() at step 42 ===
+2025-11-16 13:46:17,393 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:17,393 - INFO - Warmstart k=0: x0=8.11736753483969 , y0=8.056019652922469 , psi0=0.8014743816249175 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:17,393 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:17,394 - INFO - Dyn residual k=0: pred=[8.326062023591875, 8.271534409643358, 0.8014743816249175, 3.0], ws=[8.326062023591875, 8.271534409643358, 0.8014743816249175, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:17,395 - INFO - Dyn residual k=1: pred=[8.53475651234406, 8.487049166364248, 0.8014743816249175, 3.0], ws=[8.53475651234406, 8.487049166364248, 0.8014743816249175, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:17,395 - INFO - Dyn residual k=2: pred=[8.743451001096245, 8.702563923085137, 0.8014743816249175, 3.0], ws=[8.743451001096245, 8.702563923085137, 0.8014743816249175, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:17,396 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,396 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,396 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,396 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,396 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,397 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,397 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,397 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,397 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,397 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,398 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,398 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,398 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,398 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,399 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,399 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,399 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,399 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,399 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,400 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:17,400 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:17,400 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,272 - WARNING - Step 42: MPC solve failed
+2025-11-16 13:46:18,272 - WARNING -   Consecutive MPC failures: 2/50
+2025-11-16 13:46:18,272 - INFO - === Applying control at step 42 ===
+2025-11-16 13:46:18,272 - INFO -   Control dict from planner: {'a': -5.1745553355962017e-11, 'w': 0.0003328147540954737}
+2025-11-16 13:46:18,272 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:18,272 - INFO -   Planner output success: False
+2025-11-16 13:46:18,272 - INFO - Step 42 completed in 0.889s
+2025-11-16 13:46:18,275 - INFO - Step 43/200
+2025-11-16 13:46:18,284 - INFO - === Calling planner.solve_mpc() at step 43 ===
+2025-11-16 13:46:18,286 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:18,286 - INFO - Warmstart k=0: x0=8.326062025678693 , y0=8.271534411798376 , psi0=0.8015076631003271 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:18,286 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:18,286 - INFO - Dyn residual k=0: pred=[8.534749341666222, 8.487056114060401, 0.8015076631003271, 3.0], ws=[8.534749341666222, 8.487056114060401, 0.8015076631003271, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:18,287 - INFO - Dyn residual k=1: pred=[8.743436657653751, 8.702577816322426, 0.8015076631003271, 3.0], ws=[8.743436657653751, 8.702577816322426, 0.8015076631003271, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:18,287 - INFO - Dyn residual k=2: pred=[8.95212397364128, 8.918099518584452, 0.8015076631003271, 3.0], ws=[8.95212397364128, 8.918099518584452, 0.8015076631003271, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:18,288 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,288 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,288 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,288 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,289 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,289 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,289 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,289 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,290 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,290 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,290 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,290 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,290 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,291 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,291 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,291 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,291 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,291 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,292 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,292 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:18,292 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:18,292 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,107 - WARNING - Step 43: MPC solve failed
+2025-11-16 13:46:22,107 - WARNING -   Consecutive MPC failures: 3/50
+2025-11-16 13:46:22,107 - INFO - === Applying control at step 43 ===
+2025-11-16 13:46:22,107 - INFO -   Control dict from planner: {'a': -5.1745553355962017e-11, 'w': 0.0003328147540954737}
+2025-11-16 13:46:22,107 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:22,107 - INFO -   Planner output success: False
+2025-11-16 13:46:22,107 - INFO - Step 43 completed in 3.832s
+2025-11-16 13:46:22,109 - INFO - Step 44/200
+2025-11-16 13:46:22,118 - INFO - === Calling planner.solve_mpc() at step 44 ===
+2025-11-16 13:46:22,119 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:22,119 - INFO - Warmstart k=0: x0=8.534749343752608 , y0=8.487056116215117 , psi0=0.8015409445757367 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:22,119 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:22,120 - INFO - Dyn residual k=0: pred=[8.743429486744327, 8.702584763779555, 0.8015409445757367, 3.0], ws=[8.743429486744327, 8.702584763779555, 0.8015409445757367, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:22,120 - INFO - Dyn residual k=1: pred=[8.952109629736047, 8.918113411343993, 0.8015409445757367, 3.0], ws=[8.952109629736047, 8.918113411343993, 0.8015409445757367, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:22,120 - INFO - Dyn residual k=2: pred=[9.160789772727766, 9.133642058908432, 0.8015409445757367, 3.0], ws=[9.160789772727766, 9.133642058908432, 0.8015409445757367, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:22,121 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,121 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,121 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,121 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,122 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,122 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,122 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,122 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,123 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,123 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,123 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,123 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,123 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,123 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,124 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,124 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,124 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,124 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,125 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,125 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:22,125 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:22,125 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,238 - WARNING - Step 44: MPC solve failed
+2025-11-16 13:46:23,239 - WARNING -   Consecutive MPC failures: 4/50
+2025-11-16 13:46:23,239 - INFO - === Applying control at step 44 ===
+2025-11-16 13:46:23,239 - INFO -   Control dict from planner: {'a': -5.1745553355962017e-11, 'w': 0.0003328147540954737}
+2025-11-16 13:46:23,239 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:23,239 - INFO -   Planner output success: False
+2025-11-16 13:46:23,239 - INFO - Step 44 completed in 1.130s
+2025-11-16 13:46:23,241 - INFO - Step 45/200
+2025-11-16 13:46:23,250 - INFO - === Calling planner.solve_mpc() at step 45 ===
+2025-11-16 13:46:23,251 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:23,251 - INFO - Warmstart k=0: x0=8.743429488830282 , y0=8.702584765933967 , psi0=0.8015742260511463 , v0=3.0 , a0=0.0 , w0=0.0
+2025-11-16 13:46:23,251 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:23,252 - INFO - Dyn residual k=0: pred=[8.952102458595045, 8.918120358562085, 0.8015742260511463, 3.0], ws=[8.952102458595045, 8.918120358562085, 0.8015742260511463, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,252 - INFO - Dyn residual k=1: pred=[9.160775428359807, 9.133655951190203, 0.8015742260511463, 3.0], ws=[9.160775428359807, 9.133655951190203, 0.8015742260511463, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,253 - INFO - Dyn residual k=2: pred=[9.36944839812457, 9.349191543818321, 0.8015742260511463, 3.0], ws=[9.36944839812457, 9.349191543818321, 0.8015742260511463, 3.0], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,253 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,254 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,254 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,254 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,254 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,254 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,255 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,255 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,255 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,255 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,256 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,256 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,256 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,256 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,256 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,256 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,257 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,257 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,257 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,257 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,258 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,258 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,308 - INFO - Step 45: MPC solve successful
+2025-11-16 13:46:23,311 - INFO - === Applying control at step 45 ===
+2025-11-16 13:46:23,311 - INFO -   Control dict from planner: {'a': -2.000000019992147, 'w': -0.02347545728521067}
+2025-11-16 13:46:23,311 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:23,311 - INFO -   Planner output success: True
+2025-11-16 13:46:23,311 - INFO - Step 45 completed in 0.070s
+2025-11-16 13:46:23,313 - INFO - Step 46/200
+2025-11-16 13:46:23,322 - INFO - === Calling planner.solve_mpc() at step 46 ===
+2025-11-16 13:46:23,323 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:23,323 - INFO - Warmstart k=0: x0=8.952102460680567 , y0=8.918120360716195 , psi0=0.7992266803226252 , v0=2.8000000279834385 , a0=0.0 , w0=0.0
+2025-11-16 13:46:23,324 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:23,324 - INFO - Dyn residual k=0: pred=[9.147335611665529, 9.118829150567452, 0.7992266803226252, 2.8000000279834385], ws=[9.147335611665529, 9.118829150567452, 0.7992266803226252, 2.8000000279834385], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,325 - INFO - Dyn residual k=1: pred=[9.34256876265049, 9.319537940418709, 0.7992266803226252, 2.8000000279834385], ws=[9.34256876265049, 9.319537940418709, 0.7992266803226252, 2.8000000279834385], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,325 - INFO - Dyn residual k=2: pred=[9.537801913635452, 9.520246730269966, 0.7992266803226252, 2.8000000279834385], ws=[9.537801913635452, 9.520246730269966, 0.7992266803226252, 2.8000000279834385], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,326 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,326 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,326 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,326 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,327 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,327 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,327 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,327 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,327 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,328 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,328 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,328 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,328 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,328 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,329 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,329 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,329 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,329 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,330 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,330 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,330 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,330 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,376 - INFO - Step 46: MPC solve successful
+2025-11-16 13:46:23,379 - INFO - === Applying control at step 46 ===
+2025-11-16 13:46:23,379 - INFO -   Control dict from planner: {'a': -2.000000019985899, 'w': -0.7796974192902306}
+2025-11-16 13:46:23,379 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:23,379 - INFO -   Planner output success: True
+2025-11-16 13:46:23,379 - INFO - Step 46 completed in 0.065s
+2025-11-16 13:46:23,381 - INFO - Step 47/200
+2025-11-16 13:46:23,390 - INFO - === Calling planner.solve_mpc() at step 47 ===
+2025-11-16 13:46:23,391 - INFO - Solver solve: module_manager has 1 modules: ['goal_objective'], data=True
+2025-11-16 13:46:23,391 - INFO - Warmstart k=0: x0=9.147335611665529 , y0=9.118829150567452 , psi0=0.7212569383936022 , v0=2.6000000259848486 , a0=0.0 , w0=0.0
+2025-11-16 13:46:23,391 - INFO - Bounds: x∈[-200.0,200.0] , y∈[-200.0,200.0] , psi∈[-12.566370614359172,12.566370614359172] , v∈[-2.0,3.0] , a∈[-2.0,2.0] , w∈[-2.0,2.0]
+2025-11-16 13:46:23,392 - INFO - Dyn residual k=0: pred=[9.342589459303083, 9.290514724608904, 0.7212569383936022, 2.6000000259848486], ws=[9.342589459303083, 9.290514724608904, 0.7212569383936022, 2.6000000259848486], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,393 - INFO - Dyn residual k=1: pred=[9.537843306940637, 9.462200298650357, 0.7212569383936022, 2.6000000259848486], ws=[9.537843306940637, 9.462200298650357, 0.7212569383936022, 2.6000000259848486], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,393 - INFO - Dyn residual k=2: pred=[9.733097154578191, 9.63388587269181, 0.7212569383936022, 2.6000000259848486], ws=[9.733097154578191, 9.63388587269181, 0.7212569383936022, 2.6000000259848486], res=[0.0, 0.0, 0.0, 0.0], res_norm=0.000e+00
+2025-11-16 13:46:23,394 - INFO - Stage 0: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,394 - INFO - Stage 0: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,394 - INFO - Stage 1: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,394 - INFO - Stage 1: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,395 - INFO - Stage 2: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,395 - INFO - Stage 2: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,395 - INFO - Stage 3: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,395 - INFO - Stage 3: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,395 - INFO - Stage 4: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,395 - INFO - Stage 4: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,396 - INFO - Stage 5: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,396 - INFO - Stage 5: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,396 - INFO - Stage 6: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,396 - INFO - Stage 6: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,397 - INFO - Stage 7: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,397 - INFO - Stage 7: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,397 - INFO - Stage 8: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,397 - INFO - Stage 8: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,397 - INFO - Stage 9: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,398 - INFO - Stage 9: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,398 - INFO - Stage 10: 1 objective(s) with keys: ['goal_pos_cost', 'goal_angle_cost']
+2025-11-16 13:46:23,398 - INFO - Stage 10: constraints count=0 (linearized=0, contouring=0, other=0)
+2025-11-16 13:46:23,438 - INFO - Step 47: MPC solve successful
+2025-11-16 13:46:23,440 - INFO - === Applying control at step 47 ===
+2025-11-16 13:46:23,440 - INFO -   Control dict from planner: {'a': -2.00000001999517, 'w': -2.0000000199472807}
+2025-11-16 13:46:23,440 - INFO -   Expected input names: ['a', 'w']
+2025-11-16 13:46:23,440 - INFO -   Planner output success: True
+2025-11-16 13:46:23,440 - INFO - Step 47 completed in 0.059s
+2025-11-16 13:46:23,443 - INFO - Step 48/200
+2025-11-16 13:46:23,452 - INFO - Goal 1 reached at step 48!
+2025-11-16 13:46:23,452 - INFO - All goals reached at step 48!
+2025-11-16 13:46:23,452 - INFO - Saving test results...
+2025-11-16 13:46:23,452 - INFO - Saved state history: 49 vehicle states, 0 obstacles
+2025-11-16 13:46:23,452 - INFO - Creating animation...
+2025-11-16 13:46:28,809 - INFO - Saved animation with 49 frames at 9.80 fps to test_outputs/20251116_134610_goal__unicycle/animation.gif (duration: 5.00s)
+2025-11-16 13:46:28,818 - INFO - Animation created successfully
+2025-11-16 13:46:28,818 - INFO - Test completed successfully

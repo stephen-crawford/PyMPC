@@ -31,9 +31,26 @@ class PathReferenceVelocityObjective(BaseObjective):
 
         return params
 
+    def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
+        """
+        Return symbolic objective cost expressions for path reference velocity.
+        
+        CRITICAL: This method returns symbolic CasADi expressions for MPC rollouts.
+        The symbolic_state contains CasADi variables for the predicted state at this stage.
+        
+        Note: The velocity cost is typically computed in the contouring objective,
+        so this returns zero cost here.
+        
+        Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+        """
+        # The cost is computed in the contouring cost
+        import casadi as cd
+        return {"path_reference_velocity_cost": cd.MX(0.0)}
+    
     def get_value(self, state, params, stage_idx):
         # The cost is computed in the contouring cost
-        return 0.0
+        # Return dict format for compatibility
+        return {"path_reference_velocity_cost": 0.0}
 
     def set_parameters(self, parameter_manager, data, k):
         print("Trying to set parameters")

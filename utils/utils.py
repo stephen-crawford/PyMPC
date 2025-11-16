@@ -109,6 +109,7 @@ def PROFILE_SCOPE(name):
 
 # Optional named logger for your module
 logger = logging.getLogger("PyMPC")
+logger.setLevel(logging.INFO)  # Set logger level to INFO to ensure INFO messages are shown
 
 # Create a handler that outputs to the console (stdout)
 console_handler = logging.StreamHandler()

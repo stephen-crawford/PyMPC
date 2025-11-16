@@ -2,6 +2,7 @@ from planning.modules_manager import Module
 from utils.const import CONSTRAINT
 from utils.utils import read_config_file, LOG_DEBUG, LOG_INFO
 import casadi as cd
+from abc import abstractmethod
 
 
 class BaseConstraint(Module):
@@ -15,6 +16,27 @@ class BaseConstraint(Module):
             self.settings = settings
         LOG_INFO(f"Initializing {self.name.title()} Constraints")
         LOG_DEBUG(f"BaseConstraint.__init__: name={self.name}, module_type={self.module_type}")
+
+    def calculate_constraints(self, state, data, stage_idx):
+        """
+        Calculate constraint expressions for this stage.
+        
+        CRITICAL: This method should return symbolic CasADi expressions for MPC rollouts.
+        The state parameter is symbolic for future stages (stage_idx > 0).
+        
+        Returns:
+            list: List of constraint expressions or dicts containing constraint information.
+                 Each constraint should be either:
+                 - A CasADi expression (MX or SX) directly
+                 - A dict with 'type': 'symbolic_expression' and 'expression': CasADi expression
+                 - A dict with constraint parameters (a1, a2, b, etc.) for linear constraints
+        
+        Reference: https://github.com/tud-amr/mpc_planner - constraints are evaluated symbolically.
+        """
+        # Default implementation: return empty list
+        # Subclasses should override this method
+        LOG_DEBUG(f"BaseConstraint.calculate_constraints: {self.name}, stage_idx={stage_idx} (no implementation)")
+        return []
 
     def get_visualizer(self):
         """Return a visualizer for this constraint module. Override in subclasses."""

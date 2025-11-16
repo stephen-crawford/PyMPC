@@ -11,6 +11,8 @@ class ContouringConstraints(BaseConstraint):
 	def __init__(self):
 		super().__init__()
 		self.name = "contouring_constraints"
+		# Solver will be set by framework later
+		self.solver = None
 		# use robot discs if provided in Data
 		self.num_discs = int(self.get_config_value("num_discs", 1))
 		# Get slack parameter (adaptive slack increases with horizon)
@@ -478,8 +480,13 @@ class ContouringConstraints(BaseConstraint):
 		# Compute constraint b values symbolically
 		# Right boundary: A·p <= A·path_point + width_right - w_cur
 		# Left boundary: -A·p <= -A·path_point + width_left - w_cur
+		# Where A = [path_dy_norm, -path_dx_norm] points LEFT
+		# A·path_point = path_dy_norm * path_x - path_dx_norm * path_y
 		path_point_dot_A = path_dy_norm_sym * path_x_sym - path_dx_norm_sym * path_y_sym
 		b_right_sym = path_point_dot_A + width_right - w_cur_estimate
+		# For left boundary: -A·p <= -A·path_point + width_left - w_cur
+		# -A = [-path_dy_norm, path_dx_norm] points RIGHT
+		# -A·path_point = -path_dy_norm * path_x + path_dx_norm * path_y
 		b_left_sym = -path_point_dot_A + width_left - w_cur_estimate
 		
 		# Create constraints symbolically

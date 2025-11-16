@@ -1,0 +1,8 @@
+{
+  "objective_module": "goal",
+  "constraint_modules": [],
+  "vehicle_dynamics": "unicycle",
+  "horizon": 10,
+  "timestep": 0.1,
+  "solver": "casadi"
+}

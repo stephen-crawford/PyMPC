@@ -31,6 +31,19 @@ class GoalObjective(BaseObjective):
     params.add("goal_x")
     params.add("goal_y")
 
+  def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
+    """
+    Return symbolic objective cost expressions for goal reaching.
+    
+    CRITICAL: This method returns symbolic CasADi expressions for MPC rollouts.
+    The symbolic_state contains CasADi variables for the predicted state at this stage.
+    
+    Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+    """
+    # Delegate to get_value for now (it already returns symbolic expressions)
+    # This maintains backward compatibility while ensuring symbolic return
+    return self.get_value(symbolic_state, self.solver.data if hasattr(self, 'solver') and self.solver else None, stage_idx)
+
   def get_value(self, state, data, stage_idx):
     """Compute goal objective cost symbolically.
     
