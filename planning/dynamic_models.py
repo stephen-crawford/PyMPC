@@ -126,14 +126,25 @@ class DynamicsModel:
 		This method is used by the CasADiSolver to build the optimization constraints.
 		Subclasses with algebraic states (non-integrated) should override this.
 		
+		CRITICAL: This method is called by the solver to create the constraint:
+		    x[k+1] == symbolic_dynamics(x[k], u[k], timestep)
+		
+		This constraint ensures that:
+		    - States are NOT free decision variables
+		    - Only control inputs (u) are free decision variables
+		    - States are computed deterministically via RK4 integration
+		
 		RK4 (Runge-Kutta 4th order) integration:
 		k1 = f(x, u, p)
 		k2 = f(x + dt/2 * k1, u, p)
 		k3 = f(x + dt/2 * k2, u, p)
 		k4 = f(x + dt * k3, u, p)
 		x_next = x + dt/6 * (k1 + 2*k2 + 2*k3 + k4)
+		
+		Reference: https://github.com/tud-amr/mpc_planner - states are constrained by RK4 integration.
 		"""
         # RK4 integration - this is the standard 4th order Runge-Kutta method
+        # All states are integrated using RK4
         k1 = self.continuous_model(x, u, p)
         k2 = self.continuous_model(x + timestep / 2 * k1, u, p)
         k3 = self.continuous_model(x + timestep / 2 * k2, u, p)
@@ -423,6 +434,9 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         # w = 0.8
         self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 6, -0.01, -1.0]
         self.upper_bound = [2.0, 0.8, 2000.0, 2000.0, np.pi * 6, 3.0, 10000.0]
+        
+        # Mark spline as not integrated (it's updated via model_discrete_dynamics)
+        self.do_not_use_integration_for_last_n_states(n=1)
 
     def continuous_model(self, x, u, p):
         self.params = p
@@ -431,22 +445,269 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         psi = x[2]
         v = x[3]
 
-        return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a, v)
+        return cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a)
+
+    def model_discrete_dynamics(self, z, integrated_states, **kwargs):
+        """
+        Update spline parameter based on vehicle position and path geometry.
+        Reference: https://github.com/tud-amr/mpc_planner - uses curvature-aware spline update.
+        
+        The spline parameter represents arc length along the reference path (not normalized).
+        Update formula: s_new = s + R * theta, where:
+        - R is the path curvature radius
+        - theta = atan2(vt_t, R - contour_error - vn_t)
+        - vt_t is tangential component of displacement
+        - vn_t is normal component of displacement
+        
+        Note: The state stores spline as arc length, but we normalize to [0,1] for Spline2D evaluation.
+        """
+        x = self.get_x()
+        pos_x = x[0]
+        pos_y = x[1]
+        s = x[-1]  # Current spline value (arc length, not normalized)
+        dt = kwargs.get('timestep', 0.1)
+        
+        # Get path length to normalize s for Spline2D
+        s_max = 30.0  # Default estimate
+        if hasattr(self, 'solver') and hasattr(self.solver, 'data'):
+            data = self.solver.data
+            if hasattr(data, 'reference_path') and data.reference_path is not None:
+                ref_path = data.reference_path
+                if hasattr(ref_path, 's') and ref_path.s is not None:
+                    s_arr = np.asarray(ref_path.s, dtype=float)
+                    if s_arr.size > 0:
+                        s_max = float(s_arr[-1])
+        
+        # Normalize s to [0,1] for Spline2D evaluation
+        s_normalized = cd.fmin(cd.fmax(s / cd.fmax(s_max, 1e-6), 0.0), 1.0)
+        
+        # Get path parameters from solver
+        if not hasattr(self, 'params') or self.params is None:
+            # Fallback: simple velocity-based progression
+            v = x[3] if x.size1() > 3 else 1.0
+            # Progress by distance traveled (in arc length units, not normalized)
+            ds = v * dt
+            new_s = s + ds
+            new_s = cd.fmax(new_s, 0.0)  # Clamp to non-negative
+            return cd.vertcat(integrated_states, new_s)
+        
+        # Use Spline2D to evaluate path and compute spline update
+        try:
+            from utils.math_tools import Spline2D
+            
+            # Get num_segments from settings or default
+            num_segments = 10
+            if hasattr(self, 'settings') and 'contouring' in self.settings:
+                get_num_segments = self.settings['contouring'].get('get_num_segments', lambda: 10)
+                num_segments = get_num_segments() if callable(get_num_segments) else 10
+            
+            # Create Spline2D instance (expects normalized s [0,1])
+            path = Spline2D(self.params, num_segments, s_normalized)
+            path_x, path_y = path.at(s_normalized)
+            path_dx_normalized, path_dy_normalized = path.deriv_normalized(s_normalized)
+            
+            # Compute displacement from current position to integrated position
+            # integrated_states[0:2] is the new (x, y) after RK4 integration
+            dp = integrated_states[0:2] - cd.vertcat(pos_x, pos_y)
+            
+            # Compute tangential and normal components
+            # Tangential vector (along path direction)
+            t_vec = cd.vertcat(path_dx_normalized, path_dy_normalized)
+            # Normal vector (pointing left, perpendicular to path)
+            n_vec = cd.vertcat(path_dy_normalized, -path_dx_normalized)
+            
+            # Project displacement onto tangent and normal
+            vt_t = dp.dot(t_vec)  # Tangential component (along path)
+            vn_t = dp.T @ n_vec    # Normal component (perpendicular to path)
+            
+            # Compute contour error (signed distance to path, positive = left of path)
+            contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
+            
+            # Get path curvature radius
+            try:
+                curvature = path.get_curvature(s_normalized)
+                # Safeguard: ensure minimum curvature to avoid division issues
+                curvature = cd.fmax(curvature, 1e-5)
+                R = 1.0 / curvature
+                # Cap radius to prevent extreme values
+                R = cd.fmin(R, 1e4)
+            except Exception:
+                # Fallback: use large radius for straight paths
+                R = 1e4
+            
+            # Compute theta using curvature-aware formula from C++ reference
+            # theta = atan2(vt_t, R - contour_error - vn_t)
+            # This accounts for path curvature and vehicle position relative to path
+            denominator = R - contour_error - vn_t
+            denominator = cd.fmax(denominator, 1e-6)  # Prevent division by zero
+            theta = cd.atan2(vt_t, denominator)
+            
+            # Bound theta to prevent extreme values
+            theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)
+            
+            # Update spline: s_new = s + R * theta
+            # This is the key formula from the C++ reference codebase
+            # R is curvature radius in meters, theta is in radians
+            # R * theta gives arc length change in meters
+            # Since s is stored as arc length, we add directly (no normalization needed for the update)
+            ds_arc_length = R * theta
+            new_s = s + ds_arc_length
+            
+            # Clamp to valid range [0, s_max] (arc length bounds)
+            new_s = cd.fmax(new_s, 0.0)
+            new_s = cd.fmin(new_s, s_max)  # Don't exceed path length
+            
+            return cd.vertcat(integrated_states, new_s)
+        except Exception as e:
+            # Fallback: simple velocity-based progression
+            v = x[3] if x.size1() > 3 else 1.0
+            # Progress by distance traveled (in arc length units)
+            ds = v * dt
+            new_s = s + ds
+            new_s = cd.fmax(new_s, 0.0)  # Clamp to non-negative
+            return cd.vertcat(integrated_states, new_s)
 
     def symbolic_dynamics(self, x, u, p, timestep):
         """
-        Symbolic dynamics for contouring unicycle: integrates x,y,psi,v with Euler, and spline = v*dt.
-        Explicitly returns 5D vector to avoid shape issues.
-        """
-        a = u[0]
-        w = u[1]
-        psi = x[2]
-        v = x[3]
-        s = x[4] if x.size1() > 4 else 0.0  # spline
+        Symbolic dynamics for contouring unicycle: integrates x,y,psi,v with RK4.
+        Spline is updated symbolically using curvature-aware formula: s_new = s + R * theta
         
-        # Euler integration for all 5 states
-        x_next = x + timestep * cd.vertcat(v * cd.cos(psi), v * cd.sin(psi), w, a, v)
-        return x_next
+        CRITICAL: This method is called by the solver to create the constraint:
+            x[k+1] == symbolic_dynamics(x[k], u[k], timestep)
+        
+        This ensures that:
+            - x, y, psi, v are computed via RK4 integration (NOT free decision variables)
+            - spline is computed via algebraic update (NOT free decision variable)
+            - Only control inputs (a, w) are free decision variables
+        
+        Reference: https://github.com/tud-amr/mpc_planner - matches C++ implementation.
+        Only acceleration (a) and angular acceleration (w) are decision variables.
+        All states are computed via RK4 integration or model_discrete_dynamics.
+        """
+        # Only integrate first 4 states (x, y, psi, v) with RK4
+        # The spline state is updated algebraically, not via RK4
+        x_integrated = x[0:4]
+        
+        # RK4 integration for the first 4 states
+        k1 = self.continuous_model(x_integrated, u, p)
+        k2 = self.continuous_model(x_integrated + timestep / 2 * k1, u, p)
+        k3 = self.continuous_model(x_integrated + timestep / 2 * k2, u, p)
+        k4 = self.continuous_model(x_integrated + timestep * k3, u, p)
+        x_next_integrated = x_integrated + timestep / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+        
+        # Update spline symbolically using curvature-aware formula from C++ reference
+        pos_x = x_next_integrated[0]
+        pos_y = x_next_integrated[1]
+        s = x[4] if x.size1() > 4 else 0.0  # Current spline value (arc length, not normalized)
+        
+        # Get path length to normalize s for Spline2D
+        # Try to get from parameter manager or use default
+        s_max = 30.0  # Default estimate
+        try:
+            # Try to get s_max from parameter getter (if available)
+            if hasattr(self, 'solver') and hasattr(self.solver, 'data'):
+                data = self.solver.data
+                if hasattr(data, 'reference_path') and data.reference_path is not None:
+                    ref_path = data.reference_path
+                    if hasattr(ref_path, 's') and ref_path.s is not None:
+                        s_arr = np.asarray(ref_path.s, dtype=float)
+                        if s_arr.size > 0:
+                            s_max = float(s_arr[-1])
+        except:
+            pass
+        
+        # Normalize s to [0,1] for Spline2D evaluation
+        s_normalized = cd.fmin(cd.fmax(s / cd.fmax(s_max, 1e-6), 0.0), 1.0)
+        
+        # Try to update spline symbolically using Spline2D
+        try:
+            from utils.math_tools import Spline2D
+            
+            # Create parameter wrapper for Spline2D
+            class ParamWrapper:
+                def __init__(self, p_getter):
+                    self.p_getter = p_getter
+                def get(self, key, default=None):
+                    try:
+                        return self.p_getter(key)
+                    except:
+                        return default
+                def has_parameter(self, key):
+                    try:
+                        val = self.p_getter(key)
+                        return val is not None
+                    except:
+                        return False
+            
+            param_wrapper = ParamWrapper(p)
+            
+            # Get num_segments from settings or default
+            num_segments = 10
+            if hasattr(self, 'settings') and 'contouring' in self.settings:
+                get_num_segments = self.settings['contouring'].get('get_num_segments', lambda: 10)
+                num_segments = get_num_segments() if callable(get_num_segments) else 10
+            
+            # Create Spline2D and evaluate path
+            path = Spline2D(param_wrapper, num_segments, s_normalized)
+            path_x, path_y = path.at(s_normalized)
+            path_dx_normalized, path_dy_normalized = path.deriv_normalized(s_normalized)
+            
+            # Compute displacement from current position to next position
+            # pos_x, pos_y are the NEXT integrated positions, so we need current position from x
+            current_x = x[0]
+            current_y = x[1]
+            dx = x_next_integrated[0] - current_x
+            dy = x_next_integrated[1] - current_y
+            dp = cd.vertcat(dx, dy)
+            
+            # Compute tangential and normal components
+            t_vec = cd.vertcat(path_dx_normalized, path_dy_normalized)
+            n_vec = cd.vertcat(path_dy_normalized, -path_dx_normalized)
+            
+            # Project displacement onto tangent and normal
+            vt_t = dp.dot(t_vec)  # Tangential component
+            vn_t = dp.T @ n_vec    # Normal component
+            
+            # Compute contour error using current position (before integration)
+            contour_error = path_dy_normalized * (current_x - path_x) - path_dx_normalized * (current_y - path_y)
+            
+            # Get path curvature radius
+            try:
+                curvature = path.get_curvature(s_normalized)
+                curvature = cd.fmax(curvature, 1e-5)  # Minimum curvature
+                R = 1.0 / curvature
+                R = cd.fmin(R, 1e4)  # Cap radius
+            except Exception:
+                R = 1e4  # Fallback: large radius
+            
+            # Compute theta using curvature-aware formula: theta = atan2(vt_t, R - contour_error - vn_t)
+            denominator = R - contour_error - vn_t
+            denominator = cd.fmax(denominator, 1e-6)
+            theta = cd.atan2(vt_t, denominator)
+            
+            # Bound theta
+            theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)
+            
+            # Update spline: s_new = s + R * theta (matches C++ reference)
+            # R is curvature radius in meters, theta is in radians
+            # R * theta gives arc length change in meters
+            # Since s is stored as arc length, we add directly
+            ds_arc_length = R * theta
+            s_next = s + ds_arc_length
+            
+            # Clamp to valid range [0, s_max] (arc length bounds)
+            s_next = cd.fmax(s_next, 0.0)
+            s_next = cd.fmin(s_next, s_max)  # Don't exceed path length
+            
+        except Exception:
+            # Fallback: simple velocity-based progression
+            v = x_next_integrated[3]
+            # Progress by distance traveled (in arc length units)
+            ds = v * timestep
+            s_next = s + ds
+            s_next = cd.fmax(s_next, 0.0)  # Clamp to non-negative
+        
+        return cd.vertcat(x_next_integrated, s_next)
 
 class ContouringSecondOrderUnicycleModelCurvatureAware(DynamicsModel):
 

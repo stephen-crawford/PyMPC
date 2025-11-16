@@ -377,58 +377,103 @@ class ContouringObjective(BaseObjective):
 		else:
 			LOG_DEBUG(f"  Skipping path parameter setup for stage {k} (already done at stage 0)")
 
-	def _fit_cubic_spline_coefficients(self, x_data, y_data):
+	def _fit_cubic_spline_coefficients(self, s_data, y_data):
 		"""
-		Fit cubic spline coefficients for the given data points.
-		Returns coefficients for each segment: [a, b, c, d] where:
-		y = a*t^3 + b*t^2 + c*t + d, where t is normalized within each segment
+		Fit cubic spline coefficients for the given data points using arc length parameterization.
+		Reference: https://github.com/tud-amr/mpc_planner - uses arc length parameterization.
+		
+		Args:
+			s_data: Arc length parameter values (normalized [0,1] for the entire path)
+			y_data: Function values at those arc length parameters
+		
+		Returns:
+			segments: List of [a, b, c, d] coefficients for each segment
+			segment_starts: List of arc length values at the start of each segment (normalized [0,1])
+		
+		For each segment i, the spline is: y = a*t^3 + b*t^2 + c*t + d
+		where t is normalized within the segment [0,1], computed as:
+		t = (s - s_start) / (s_end - s_start)
 		"""
-		n = len(x_data)
+		n = len(s_data)
 		if n < 2:
 			raise ValueError("Need at least 2 points for spline fitting")
 
-		# Normalize x_data to [0, 1] range for each segment
 		segments = []
 		segment_starts = []
 
 		for i in range(n - 1):
-			# Create normalized parameter t within segment [0, 1]
-			x_start = x_data[i]
-			x_end = x_data[i + 1]
+			# Arc length parameters for this segment
+			s_start = s_data[i]
+			s_end = s_data[i + 1]
+			segment_length = s_end - s_start
+			
+			# Store the start arc length (normalized [0,1])
+			segment_starts.append(s_start)
+
+			# Function values at segment boundaries
 			y_start = y_data[i]
 			y_end = y_data[i + 1]
 
-			segment_starts.append(x_start)
-
-			# For cubic spline, we need to estimate derivatives
-			# Use finite differences for derivative estimation
+			# Estimate derivatives at segment boundaries using finite differences
+			# Derivative with respect to normalized arc length parameter
 			if i == 0:  # First segment
 				if n > 2:
-					dy_start = (y_data[i + 1] - y_data[i]) / (x_data[i + 1] - x_data[i])
+					# Forward difference
+					ds = s_data[i + 1] - s_data[i]
+					dy_ds = (y_data[i + 1] - y_data[i]) / ds if ds > 1e-10 else 0.0
 				else:
-					dy_start = 0
+					dy_ds = 0.0
 			else:
-				dy_start = (y_data[i + 1] - y_data[i - 1]) / (x_data[i + 1] - x_data[i - 1])
+				# Central difference
+				ds = s_data[i + 1] - s_data[i - 1]
+				dy_ds = (y_data[i + 1] - y_data[i - 1]) / ds if ds > 1e-10 else 0.0
 
 			if i == n - 2:  # Last segment
 				if n > 2:
-					dy_end = (y_data[i + 1] - y_data[i]) / (x_data[i + 1] - x_data[i])
+					# Backward difference
+					ds = s_data[i + 1] - s_data[i]
+					dy_ds_end = (y_data[i + 1] - y_data[i]) / ds if ds > 1e-10 else 0.0
 				else:
-					dy_end = 0
+					dy_ds_end = 0.0
 			else:
-				dy_end = (y_data[i + 2] - y_data[i]) / (x_data[i + 2] - x_data[i])
+				# Central difference
+				ds = s_data[i + 2] - s_data[i]
+				dy_ds_end = (y_data[i + 2] - y_data[i]) / ds if ds > 1e-10 else 0.0
 
-			# Scale derivatives by segment length
-			dx = x_end - x_start
-			dy_start_scaled = dy_start * dx
-			dy_end_scaled = dy_end * dx
+			# Scale derivatives by segment length to get derivatives with respect to normalized t
+			# t = (s - s_start) / segment_length, so dt/ds = 1/segment_length
+			# dy/dt = dy/ds * ds/dt = dy/ds * segment_length
+			dy_dt_start = dy_ds * segment_length if segment_length > 1e-10 else 0.0
+			dy_dt_end = dy_ds_end * segment_length if segment_length > 1e-10 else 0.0
 
 			# Solve for cubic coefficients: y = a*t^3 + b*t^2 + c*t + d
-			# Conditions: y(0) = y_start, y(1) = y_end, y'(0) = dy_start_scaled, y'(1) = dy_end_scaled
+			# Conditions:
+			#   y(0) = y_start
+			#   y(1) = y_end
+			#   y'(0) = dy_dt_start
+			#   y'(1) = dy_dt_end
+			#
+			# y = a*t^3 + b*t^2 + c*t + d
+			# y' = 3*a*t^2 + 2*b*t + c
+			#
+			# At t=0: d = y_start, c = dy_dt_start
+			# At t=1: a + b + c + d = y_end, 3*a + 2*b + c = dy_dt_end
+			#
+			# Solving:
+			#   a + b = y_end - y_start - dy_dt_start
+			#   3*a + 2*b = dy_dt_end - dy_dt_start
+			#
+			#   3*a + 2*b = dy_dt_end - dy_dt_start
+			#   2*a + 2*b = 2*(y_end - y_start - dy_dt_start)
+			#   a = dy_dt_end - dy_dt_start - 2*(y_end - y_start - dy_dt_start)
+			#     = dy_dt_end - dy_dt_start - 2*y_end + 2*y_start + 2*dy_dt_start
+			#     = dy_dt_end + dy_dt_start - 2*y_end + 2*y_start
+			#   b = y_end - y_start - dy_dt_start - a
+			
 			d = y_start
-			c = dy_start_scaled
-			a = 2 * y_start - 2 * y_end + dy_start_scaled + dy_end_scaled
-			b = -3 * y_start + 3 * y_end - 2 * dy_start_scaled - dy_end_scaled
+			c = dy_dt_start
+			a = dy_dt_end + dy_dt_start - 2.0 * y_end + 2.0 * y_start
+			b = y_end - y_start - dy_dt_start - a
 
 			segments.append([float(a), float(b), float(c), float(d)])
 
@@ -463,40 +508,48 @@ class ContouringObjective(BaseObjective):
 			path_z = self.reference_path.z
 
 
-		# Prepare interpolated data for the number of segments
-		if len(path_x) < self.num_segments + 1:
-			# Get lists of evenly spaced partitions over the provided interval
-			s_original = np.linspace(0, 1, len(path_x))
-			s_new = np.linspace(0, 1, self.num_segments + 1)
-
-			# Interpolate path coordinates
-			path_x_interp = np.interp(s_new, s_original, path_x)
-			path_y_interp = np.interp(s_new, s_original, path_y)
-
-
-			if self.three_dimensional_contouring:
-				path_z_interp = np.interp(s_new, s_original, path_z)
-		else:
-			# Compute cumulative arc length
+		# CRITICAL: Use actual arc length from reference_path.s if available
+		# Reference: https://github.com/tud-amr/mpc_planner - uses arc length parameterization
+		s_arr = None
+		if hasattr(self.reference_path, 's') and self.reference_path.s is not None:
+			s_arr = np.asarray(self.reference_path.s, dtype=float)
+			if s_arr.size > 0:
+				s_min = float(s_arr[0])
+				s_max = float(s_arr[-1])
+				# Normalize arc length to [0,1] for spline fitting
+				s_normalized = (s_arr - s_min) / max(s_max - s_min, 1e-10)
+			else:
+				s_arr = None
+		
+		# If arc length not available, compute it from path points
+		if s_arr is None or s_arr.size < 2:
+			# Compute cumulative arc length from path points
 			dx = np.diff(path_x)
 			dy = np.diff(path_y)
-
 			arc_lengths = np.sqrt(dx ** 2 + dy ** 2)
-			if self.three_dimensional_contouring:
+			if self.three_dimensional_contouring and path_z is not None:
 				dz = np.diff(path_z)
 				arc_lengths = np.sqrt(dx ** 2 + dy ** 2 + dz ** 2)
-
-			s = np.concatenate([[0], np.cumsum(arc_lengths)])
-			s /= s[-1]  # Normalize to [0, 1]
-
-			# Resample at evenly spaced points in [0, 1]
-			s_new = np.linspace(0, 1, self.num_segments + 1)
-
-			path_x_interp = np.interp(s_new, s, path_x)
-			path_y_interp = np.interp(s_new, s, path_y)
-
-			if self.three_dimensional_contouring:
-				path_z_interp = np.interp(s_new, s, path_z)
+			
+			s_cumulative = np.concatenate([[0], np.cumsum(arc_lengths)])
+			s_min = s_cumulative[0]
+			s_max = s_cumulative[-1]
+			# Normalize to [0, 1]
+			s_normalized = (s_cumulative - s_min) / max(s_max - s_min, 1e-10)
+		else:
+			# Use existing normalized arc length
+			s_normalized = (s_arr - s_min) / max(s_max - s_min, 1e-10)
+		
+		# Resample at evenly spaced points in normalized arc length [0, 1]
+		# This creates num_segments + 1 points, which gives num_segments segments
+		s_new = np.linspace(0, 1, self.num_segments + 1)
+		
+		# Interpolate path coordinates at the resampled arc length points
+		path_x_interp = np.interp(s_new, s_normalized, path_x)
+		path_y_interp = np.interp(s_new, s_normalized, path_y)
+		
+		if self.three_dimensional_contouring and path_z is not None:
+			path_z_interp = np.interp(s_new, s_normalized, path_z)
 
 		# Fit cubic spline coefficients for each variable
 		try:

@@ -1254,10 +1254,34 @@ class Spline2D:
         return self.spline_x.deriv2(s), self.spline_y.deriv2(s)
 
     def get_curvature(self, s):
+        """
+        Compute path curvature using the standard formula:
+        curvature = |x'y'' - y'x''| / (x'^2 + y'^2)^(3/2)
+        
+        Reference: https://github.com/tud-amr/mpc_planner
+        """
+        # First derivatives
+        path_x_deriv = self.spline_x.deriv(s)
+        path_y_deriv = self.spline_y.deriv(s)
+        
+        # Second derivatives
         path_x_deriv2 = self.spline_x.deriv2(s)
         path_y_deriv2 = self.spline_y.deriv2(s)
-
-        return cd.sqrt(path_x_deriv2 * path_x_deriv2 + path_y_deriv2 * path_y_deriv2)  # + 0.0000000001) # Max = 1e2
+        
+        # Curvature formula: |x'y'' - y'x''| / (x'^2 + y'^2)^(3/2)
+        numerator = cd.fabs(path_x_deriv * path_y_deriv2 - path_y_deriv * path_x_deriv2)
+        denominator = cd.sqrt((path_x_deriv * path_x_deriv + path_y_deriv * path_y_deriv) ** 3)
+        
+        # Add small epsilon to denominator to prevent division by zero
+        denominator = cd.fmax(denominator, 1e-10)
+        
+        curvature = numerator / denominator
+        
+        # Clamp curvature to reasonable bounds
+        curvature = cd.fmax(curvature, 1e-5)  # Minimum curvature (maximum radius)
+        curvature = cd.fmin(curvature, 10.0)   # Maximum curvature (minimum radius)
+        
+        return curvature
 
 
 class DouglasRachford:

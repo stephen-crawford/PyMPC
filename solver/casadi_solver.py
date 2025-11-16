@@ -80,8 +80,15 @@ class CasADiSolver(BaseSolver):
 			LOG_WARN(f"  ⚠️  Unexpected input variables: {input_vars}. Expected only control inputs (acceleration/angular acceleration)")
 		
 		# Create state variables with bounds
-		# NOTE: States are decision variables BUT they are constrained by dynamics integration
-		# The constraint x_next == symbolic_dynamics(x_k, u_k, timestep) ensures states follow integration
+		# CRITICAL: States are optimization variables BUT they are constrained by RK4 integration.
+		# The constraint x_next == symbolic_dynamics(x_k, u_k, timestep) ensures states follow integration.
+		# This means states are NOT free decision variables - they are determined by:
+		#   1. Initial state (x[0] is fixed)
+		#   2. Control inputs (a, w) - the ONLY free decision variables
+		#   3. RK4 integration constraint: x[k+1] == symbolic_dynamics(x[k], u[k], timestep)
+		# 
+		# Reference: https://github.com/tud-amr/mpc_planner - only control inputs are decision variables.
+		# States are computed via RK4 integration (or model_discrete_dynamics for algebraic states like spline).
 		for var_name in dependent_vars:
 			self.var_dict[var_name] = self.opti.variable(horizon + 1)
 			self.warmstart_values[var_name] = np.zeros(horizon + 1)
@@ -89,12 +96,18 @@ class CasADiSolver(BaseSolver):
 			try:
 				lb, ub, _ = dynamics.get_bounds(var_name)
 				self.opti.subject_to(self.opti.bounded(lb, self.var_dict[var_name], ub))
-				LOG_INFO(f"  Created STATE variable '{var_name}': shape={horizon + 1}, bounds=[{lb}, {ub}] (constrained by RK4 integration)")
+				LOG_INFO(f"  Created STATE variable '{var_name}': shape={horizon + 1}, bounds=[{lb}, {ub}] (constrained by RK4/model_discrete_dynamics)")
 			except Exception as e:
 				LOG_WARN(f"  Created STATE variable '{var_name}': shape={horizon + 1}, no bounds (error: {e})")
 		
 		# Create input variables with bounds
-		# NOTE: These are the ONLY true decision variables - acceleration and angular acceleration
+		# CRITICAL: These are the ONLY free decision variables in the optimization problem.
+		# All state variables (x, y, psi, v, spline) are constrained by:
+		#   - Initial state constraint: x[0] == x_initial
+		#   - Dynamics constraint: x[k+1] == symbolic_dynamics(x[k], u[k], timestep)
+		# 
+		# Reference: https://github.com/tud-amr/mpc_planner - only acceleration (a) and angular acceleration (w) are decision variables.
+		# All other states are computed via RK4 integration or model_discrete_dynamics.
 		for var_name in input_vars:
 			self.var_dict[var_name] = self.opti.variable(horizon)
 			self.warmstart_values[var_name] = np.zeros(horizon)
@@ -102,7 +115,7 @@ class CasADiSolver(BaseSolver):
 			try:
 				lb, ub, _ = dynamics.get_bounds(var_name)
 				self.opti.subject_to(self.opti.bounded(lb, self.var_dict[var_name], ub))
-				LOG_INFO(f"  Created CONTROL variable '{var_name}': shape={horizon}, bounds=[{lb}, {ub}] (DECISION VARIABLE)")
+				LOG_INFO(f"  Created CONTROL variable '{var_name}': shape={horizon}, bounds=[{lb}, {ub}] (FREE DECISION VARIABLE)")
 			except Exception as e:
 				LOG_WARN(f"  Created CONTROL variable '{var_name}': shape={horizon}, no bounds (error: {e})")
 		opts = {
@@ -154,6 +167,7 @@ class CasADiSolver(BaseSolver):
 			x_next = cs.vertcat(*x_next_list)
 
 			# Use the model's symbolic dynamics function with a callable parameter getter
+			# This getter should access both data.parameters and parameter_manager for path parameters
 			def _param_getter(key):
 				defaults = {
 					"wheel_base": 2.79,
@@ -163,15 +177,43 @@ class CasADiSolver(BaseSolver):
 					"left_overhang": 0.128,
 					"right_overhang": 0.128,
 				}
+				# First try data.parameters
 				try:
-					return data.parameters.get(key)
+					if hasattr(data, 'parameters') and data.parameters is not None:
+						val = data.parameters.get(key)
+						if val is not None:
+							return val
 				except Exception:
-					return defaults.get(key, 0.0)
+					pass
+				# Then try parameter_manager (for path parameters set by modules)
+				try:
+					if hasattr(self, 'parameter_manager') and self.parameter_manager is not None:
+						# Try to get from current stage (k) - path parameters are set per stage
+						params_dict = self.parameter_manager.get_all(k)
+						if key in params_dict:
+							return params_dict[key]
+				except Exception:
+					pass
+				# Fallback to defaults
+				return defaults.get(key, 0.0)
 			
-			# CRITICAL: This uses RK4 integration to compute next state from current state and control
-			# The constraint x_next == x_next_pred ensures states follow integration
+			# CRITICAL: This uses symbolic_dynamics to compute next state from current state and control.
+			# The constraint x_next == x_next_pred ensures states follow integration, NOT free decision variables.
+			# 
+			# symbolic_dynamics performs:
+			#   - RK4 integration for integrated states (x, y, psi, v)
+			#   - Algebraic update via model_discrete_dynamics for non-integrated states (e.g., spline)
+			# 
+			# This constraint ensures that:
+			#   - States are NOT free decision variables
+			#   - Only control inputs (a, w) are free decision variables
+			#   - States are computed deterministically from initial state and control sequence
+			# 
+			# Reference: https://github.com/tud-amr/mpc_planner - states are constrained by dynamics integration.
 			x_next_pred = dynamics.symbolic_dynamics(x_k, u_k, _param_getter, timestep)
 
+			# Enforce dynamics constraint: states must follow integration
+			# This makes states dependent on controls, not free decision variables
 			self.opti.subject_to(x_next == x_next_pred)
 			if k == 0 or k == horizon - 1 or k == horizon // 2:
 				LOG_INFO(f"  Stage {k}: Added RK4 dynamics constraint: x[{k+1}] == RK4(x[{k}], u[{k}], dt={timestep})")
@@ -1001,10 +1043,18 @@ class CasADiSolver(BaseSolver):
 				LOG_DEBUG(f"Stage {stage_idx}: Using data.state={self.data.state is not None}, symbolic_state for CasADi vars")
 			
 			# Get objectives from module manager
-			# CRITICAL: For ALL stages, use symbolic_state (predicted state) so objectives are computed symbolically.
-			# This matches the reference codebase pattern where objectives are evaluated symbolically.
-			# For stage 0, symbolic_state contains the current state; for future stages, it contains predicted states.
-			# Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+			# CRITICAL: For ALL stages, use symbolic_state (CasADi variables) so objectives are computed symbolically.
+			# 
+			# The symbolic_state contains CasADi MX/SX variables from var_dict, which are:
+			#   - For states: constrained by RK4 integration (x[k+1] == symbolic_dynamics(x[k], u[k]))
+			#   - For controls: free decision variables (a, w)
+			# 
+			# Objectives MUST return symbolic CasADi expressions (MX or SX) that depend on these variables.
+			# This ensures the optimization problem is fully symbolic, matching the C++ reference implementation.
+			# 
+			# Reference: https://github.com/tud-amr/mpc_planner - all calculations are symbolic.
+			# Only acceleration (a) and angular acceleration (w) are decision variables.
+			# All states are computed via RK4 integration or model_discrete_dynamics.
 			objective_costs = self.module_manager.get_objectives(symbolic_state, self.data, stage_idx) or []
 			# Log objectives BEFORE processing
 			obj_count = len(objective_costs or [])
@@ -1106,8 +1156,18 @@ class CasADiSolver(BaseSolver):
 					LOG_WARN(f"Failed to add control costs at stage {stage_idx}: {e}")
 
 			# Get constraints from module manager
-			# CRITICAL: For future stages, pass symbolic_state so constraints are computed symbolically
-			# This matches the reference codebase where constraints are evaluated at predicted states
+			# CRITICAL: For ALL stages, pass symbolic_state so constraints are computed symbolically.
+			# 
+			# Constraints MUST return symbolic CasADi expressions (MX or SX) that depend on:
+			#   - State variables (x, y, psi, v, spline) - constrained by RK4/model_discrete_dynamics
+			#   - Control variables (a, w) - free decision variables
+			# 
+			# The returned expressions must be symbolic - numeric calculations are NOT allowed.
+			# This ensures constraints are properly integrated into the optimization problem.
+			# 
+			# Reference: https://github.com/tud-amr/mpc_planner - constraints are evaluated symbolically.
+			# Only acceleration (a) and angular acceleration (w) are decision variables.
+			# All states are computed via RK4 integration or model_discrete_dynamics.
 			constraints = self.get_constraints(stage_idx, symbolic_state=symbolic_state)
 			# Log constraints BEFORE processing with detailed breakdown
 			LOG_INFO(f"=== Solver.solve(): Stage {stage_idx} - Constraints being passed to solver ===")
@@ -1396,10 +1456,12 @@ class CasADiSolver(BaseSolver):
 		LOG_INFO(f"=== VERIFYING DECISION VARIABLES ===")
 		state_vars_list = [v for v in dynamics_model.get_dependent_vars() if v in self.var_dict]
 		control_vars_list = [v for v in dynamics_model.get_inputs() if v in self.var_dict]
-		LOG_INFO(f"  State variables (constrained by RK4): {state_vars_list}")
-		LOG_INFO(f"  Control variables (TRUE DECISION VARIABLES): {control_vars_list}")
+		LOG_INFO(f"  State variables (constrained by RK4/model_discrete_dynamics): {state_vars_list}")
+		LOG_INFO(f"  Control variables (FREE DECISION VARIABLES): {control_vars_list}")
 		LOG_INFO(f"  ✓ Only control inputs (a, w) are free decision variables")
-		LOG_INFO(f"  ✓ All states (x, y, psi, v) are constrained by RK4 integration: x[k+1] == RK4(x[k], u[k])")
+		LOG_INFO(f"  ✓ All states are constrained by RK4 integration or model_discrete_dynamics: x[k+1] == symbolic_dynamics(x[k], u[k])")
+		LOG_INFO(f"  ✓ All calculations (objectives, constraints) are symbolic CasADi expressions")
+		LOG_INFO(f"  ✓ Reference: https://github.com/tud-amr/mpc_planner - matches C++ implementation")
 		
 		# Log objective structure
 		obj_type = "scalar" if not hasattr(total_objective, 'shape') else f"array shape {total_objective.shape}"

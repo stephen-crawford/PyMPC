@@ -21,8 +21,13 @@ class BaseConstraint(Module):
         """
         Calculate constraint expressions for this stage.
         
-        CRITICAL: This method should return symbolic CasADi expressions for MPC rollouts.
-        The state parameter is symbolic for future stages (stage_idx > 0).
+        CRITICAL: This method MUST return symbolic CasADi expressions (MX or SX) for MPC rollouts.
+        The state parameter contains CasADi variables from the solver's var_dict:
+            - State variables (x, y, psi, v, spline) - constrained by RK4/model_discrete_dynamics
+            - Control variables (a, w) - free decision variables
+        
+        The returned expressions must be symbolic and depend on these variables.
+        Numeric calculations are NOT allowed - all computations must be symbolic.
         
         Returns:
             list: List of constraint expressions or dicts containing constraint information.
@@ -32,6 +37,8 @@ class BaseConstraint(Module):
                  - A dict with constraint parameters (a1, a2, b, etc.) for linear constraints
         
         Reference: https://github.com/tud-amr/mpc_planner - constraints are evaluated symbolically.
+        Only acceleration (a) and angular acceleration (w) are decision variables.
+        All states are computed via RK4 integration or model_discrete_dynamics.
         """
         # Default implementation: return empty list
         # Subclasses should override this method

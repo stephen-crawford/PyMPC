@@ -33,6 +33,15 @@ class LinearizedConstraints(BaseConstraint):
 			self.use_guidance = True
 
 		self.disc_radius = self.get_config_value("disc_radius", 1.0)
+		
+		# Get halfspace offset from obstacles (additional safety margin for constraints)
+		# This offset is added to the safe_distance when computing constraint b values
+		self.halfspace_offset = self.get_config_value("linearized_constraints.halfspace_offset", 0.0)
+		if self.halfspace_offset is None:
+			self.halfspace_offset = 0.0
+		else:
+			self.halfspace_offset = float(self.halfspace_offset)
+		LOG_DEBUG(f"LinearizedConstraints: halfspace_offset={self.halfspace_offset:.3f}m")
 
 		# Use horizon with fallback - solver will be set later by framework
 		horizon_val = 10  # Default, will be updated when solver is set
@@ -527,13 +536,17 @@ class LinearizedConstraints(BaseConstraint):
 
 				# Compute b value (C++: _b[d][k](obs_id) = _a1[d][k](obs_id) * obstacle_pos(0) + 
 				#                                    _a2[d][k](obs_id) * obstacle_pos(1) - 
-				#                                    (radius + CONFIG["robot_radius"]))
+				#                                    (radius + CONFIG["robot_radius"] + halfspace_offset))
 				# The constraint a1*x + a2*y <= b means the vehicle must satisfy this inequality.
 				# Since (a1, a2) points FROM vehicle TO obstacle, and b = a·obstacle - safe_distance,
 				# the constraint keeps the vehicle at least safe_distance away from the obstacle.
+				# The halfspace_offset adds an additional safety margin to the constraint.
+				safe_distance = target_obstacle_radius + robot_radius + self.halfspace_offset
+				if step == 0 and obs_id == 0 and self.halfspace_offset > 1e-6:
+					LOG_INFO(f"  Using halfspace_offset={self.halfspace_offset:.3f}m (safe_distance={safe_distance:.3f}m = {target_obstacle_radius:.3f} + {robot_radius:.3f} + {self.halfspace_offset:.3f})")
 				self._b[disc_id][step][obs_id] = (self._a1[disc_id][step][obs_id] * target_obstacle_pos[0] +
 												  self._a2[disc_id][step][obs_id] * target_obstacle_pos[1] -
-												  (target_obstacle_radius + robot_radius))
+												  safe_distance)
 
 				# Store obstacle position for this step (for verification in calculate_constraints)
 				if len(self._obstacle_positions[step]) <= obs_id:
@@ -751,9 +764,10 @@ class LinearizedConstraints(BaseConstraint):
 				obstacle_radius = obstacle.radius if hasattr(obstacle, 'radius') else 0.35
 				# Get obstacle radius (matching C++: radius = _use_guidance ? 1e-3 : obstacle.radius)
 				target_obstacle_radius = 1e-3 if self.use_guidance else obstacle_radius
-				# Compute safe_distance (matching C++: radius + CONFIG["robot_radius"])
+				# Compute safe_distance (matching C++: radius + CONFIG["robot_radius"] + halfspace_offset)
 				# Note: safety_margin (0.3) is used in projection logic, not in constraint b value
-				safe_distance = robot_radius + target_obstacle_radius
+				# The halfspace_offset adds an additional safety margin to the constraint
+				safe_distance = robot_radius + target_obstacle_radius + self.halfspace_offset
 				
 				# Compute constraint symbolically: a·p_disc <= b
 				# CRITICAL: Normal vector points FROM vehicle TO obstacle (matching reference C++ implementation)

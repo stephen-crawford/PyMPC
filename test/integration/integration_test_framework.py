@@ -360,6 +360,24 @@ class IntegrationTestFramework:
                     logger.warning(f"  Vehicle dynamics '{dyn_type}' is not automatically converted. Ensure it supports contouring (has 'spline' state variable)")
             vehicle_dynamics = self.create_vehicle_dynamics(dyn_type)
             logger.info(f"Created vehicle dynamics model: {vehicle_dynamics.__class__.__name__}")
+            
+            # CRITICAL VALIDATION: If contouring objective is used, dynamics model MUST have spline state
+            if test_config.objective_module == "contouring":
+                dependent_vars = vehicle_dynamics.get_dependent_vars()
+                if "spline" not in dependent_vars:
+                    error_msg = (
+                        f"CRITICAL ERROR: Contouring objective requires a dynamics model with 'spline' state variable.\n"
+                        f"  Current dynamics model: {vehicle_dynamics.__class__.__name__}\n"
+                        f"  Current state variables: {dependent_vars}\n"
+                        f"  Required: dynamics model must include 'spline' in dependent_vars\n"
+                        f"  Solution: Use 'contouring_unicycle' or 'contouring_bicycle' for vehicle_dynamics\n"
+                        f"  Example: vehicle_dynamics='contouring_unicycle'"
+                    )
+                    logger.error(error_msg)
+                    raise ValueError(error_msg)
+                else:
+                    logger.info(f"✓ Validation passed: Contouring objective with dynamics model that has 'spline' state")
+            
             objective_module = self.create_objective_module(test_config.objective_module)
             constraint_modules = self.create_constraint_modules(test_config.constraint_modules)
             
@@ -1329,8 +1347,10 @@ class IntegrationTestFramework:
                                                     # This is an "other_halfspace" constraint, assign to obstacle 0 for visualization
                                                     obstacle_id = 0
                                                 
-                                                # Store as (A, b, obstacle_id) tuple for visualization
-                                                step_linearized_halfspaces.append((A, b, obstacle_id))
+                                                # Store as (A, b, obstacle_id, halfspace_offset) tuple for visualization
+                                                # Get halfspace_offset from module if available
+                                                halfspace_offset = getattr(linearized_module, 'halfspace_offset', 0.0)
+                                                step_linearized_halfspaces.append((A, b, obstacle_id, halfspace_offset))
                             
                             # Fallback: try to get constraints from calculate_constraints if internal arrays not available
                             if len(step_linearized_halfspaces) == 0:
@@ -1373,7 +1393,9 @@ class IntegrationTestFramework:
                                                 else:
                                                     obstacle_id = 0
                                                 
-                                                step_linearized_halfspaces.append((A, b, obstacle_id))
+                                                # Get halfspace_offset from module if available
+                                                halfspace_offset = getattr(linearized_module, 'halfspace_offset', 0.0)
+                                                step_linearized_halfspaces.append((A, b, obstacle_id, halfspace_offset))
                                             constraint_idx += 1
                                 except Exception as e:
                                     logger.debug(f"Could not extract constraints from calculate_constraints: {e}")
@@ -1407,32 +1429,109 @@ class IntegrationTestFramework:
                                 logger.warning(f"  MPC solved but control dict is empty!")
                         
                         if control_dict and u_names:
-                            # Build control in expected order and do simple Euler integration for known models
-                            a = float(control_dict.get('a', 0.0)) if 'a' in u_names else 0.0
-                            w = float(control_dict.get('w', 0.0)) if 'w' in u_names else 0.0
-                            dt = self.solver.timestep
-                            # Current state
-                            x = float(planner.state.get('x')) if planner.state.has('x') else vehicle_state[0]
-                            y = float(planner.state.get('y')) if planner.state.has('y') else vehicle_state[1]
-                            psi = float(planner.state.get('psi')) if planner.state.has('psi') else vehicle_state[2]
-                            v = float(planner.state.get('v')) if planner.state.has('v') else vehicle_state[3]
-                            # Euler step consistent with unicycle/bicycle front-axle models
-                            x_next = x + v * np.cos(psi) * dt
-                            y_next = y + v * np.sin(psi) * dt
-                            psi_next = psi + w * dt
-                            v_next = v + a * dt
-                            new_state = np.array([x_next, y_next, psi_next, v_next])
-                            # Optional states
-                            if 'spline' in vehicle_dynamics.get_all_vars():
-                                s_val = float(planner.state.get('spline')) if planner.state.has('spline') else (vehicle_state[4] if len(vehicle_state) > 4 else 0.0)
-                                s_next = s_val + v * dt
-                                new_state = np.append(new_state, s_next)
-                            if 'delta' in vehicle_dynamics.get_all_vars():
-                                d_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
-                                d_val = float(planner.state.get('delta')) if planner.state.has('delta') else (vehicle_state[d_idx] if (d_idx is not None and len(vehicle_state) > d_idx) else 0.0)
-                                d_next = d_val + w * dt
-                                new_state = np.append(new_state, d_next)
-                            vehicle_state = new_state
+                            # Use the dynamics model's discrete_dynamics method for proper state update
+                            # This ensures contouring models update the spline parameter correctly
+                            try:
+                                from planning.dynamic_models import numeric_rk4
+                                import casadi as cd
+                                
+                                a = float(control_dict.get('a', 0.0)) if 'a' in u_names else 0.0
+                                w = float(control_dict.get('w', 0.0)) if 'w' in u_names else 0.0
+                                dt = self.solver.timestep
+                                
+                                # Build z vector: [u, x] = [a, w, x, y, psi, v, ...]
+                                u_vec = [a, w]
+                                x_vec = []
+                                for var_name in vehicle_dynamics.dependent_vars:
+                                    if planner.state.has(var_name):
+                                        x_vec.append(float(planner.state.get(var_name)))
+                                    elif var_name in ['x', 'y', 'psi', 'v']:
+                                        idx_map = {'x': 0, 'y': 1, 'psi': 2, 'v': 3}
+                                        if idx_map[var_name] < len(vehicle_state):
+                                            x_vec.append(float(vehicle_state[idx_map[var_name]]))
+                                        else:
+                                            x_vec.append(0.0)
+                                    else:
+                                        # For other states like spline, delta, etc.
+                                        var_idx = vehicle_dynamics.dependent_vars.index(var_name) if var_name in vehicle_dynamics.dependent_vars else None
+                                        if var_idx is not None and var_idx < len(vehicle_state):
+                                            x_vec.append(float(vehicle_state[var_idx]))
+                                        else:
+                                            x_vec.append(0.0)
+                                
+                                z_vec = u_vec + x_vec
+                                z_k = cd.vertcat(*z_vec)
+                                
+                                # Load into dynamics model
+                                vehicle_dynamics.load(z_k)
+                                
+                                # Set parameters for the dynamics model
+                                if hasattr(self.solver, 'parameter_manager') and self.solver.parameter_manager is not None:
+                                    # Create a parameter getter that accesses parameter_manager
+                                    def param_getter(key):
+                                        try:
+                                            # Try to get from parameter_manager (stage 0 for current step)
+                                            params = self.solver.parameter_manager.get_all(0)
+                                            if key in params:
+                                                return params[key]
+                                        except:
+                                            pass
+                                        # Fallback to data.parameters
+                                        try:
+                                            if hasattr(data, 'parameters') and data.parameters is not None:
+                                                return data.parameters.get(key)
+                                        except:
+                                            pass
+                                        return 0.0
+                                    
+                                    # Update dynamics model params
+                                    vehicle_dynamics.params = param_getter
+                                
+                                # Use discrete_dynamics to get next state (includes proper spline update)
+                                # discrete_dynamics handles RK4 integration and calls model_discrete_dynamics for spline
+                                next_state = vehicle_dynamics.discrete_dynamics(z_k, vehicle_dynamics.params, dt, timestep=dt)
+                                
+                                # Convert CasADi DM to numpy array
+                                if hasattr(next_state, '__iter__'):
+                                    new_state = np.array([float(next_state[i]) for i in range(len(next_state))])
+                                else:
+                                    new_state = np.array([float(next_state)])
+                                
+                                vehicle_state = new_state
+                                
+                                # Update planner state with new values
+                                for i, var_name in enumerate(vehicle_dynamics.dependent_vars):
+                                    if i < len(new_state):
+                                        planner.state.set(var_name, float(new_state[i]))
+                                
+                            except Exception as e:
+                                # Fallback to simple Euler integration if dynamics model fails
+                                logger.warning(f"  Error using dynamics model discrete_dynamics: {e}, falling back to Euler integration")
+                                a = float(control_dict.get('a', 0.0)) if 'a' in u_names else 0.0
+                                w = float(control_dict.get('w', 0.0)) if 'w' in u_names else 0.0
+                                dt = self.solver.timestep
+                                # Current state
+                                x = float(planner.state.get('x')) if planner.state.has('x') else vehicle_state[0]
+                                y = float(planner.state.get('y')) if planner.state.has('y') else vehicle_state[1]
+                                psi = float(planner.state.get('psi')) if planner.state.has('psi') else vehicle_state[2]
+                                v = float(planner.state.get('v')) if planner.state.has('v') else vehicle_state[3]
+                                # Euler step consistent with unicycle/bicycle front-axle models
+                                x_next = x + v * np.cos(psi) * dt
+                                y_next = y + v * np.sin(psi) * dt
+                                psi_next = psi + w * dt
+                                v_next = v + a * dt
+                                new_state = np.array([x_next, y_next, psi_next, v_next])
+                                # Optional states
+                                if 'spline' in vehicle_dynamics.get_all_vars():
+                                    s_val = float(planner.state.get('spline')) if planner.state.has('spline') else (vehicle_state[4] if len(vehicle_state) > 4 else 0.0)
+                                    s_next = s_val + v * dt
+                                    new_state = np.append(new_state, s_next)
+                                if 'delta' in vehicle_dynamics.get_all_vars():
+                                    d_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
+                                    d_val = float(planner.state.get('delta')) if planner.state.has('delta') else (vehicle_state[d_idx] if (d_idx is not None and len(vehicle_state) > d_idx) else 0.0)
+                                    d_next = d_val + w * dt
+                                    new_state = np.append(new_state, d_next)
+                                vehicle_state = new_state
                         else:
                             # No MPC control available: if fallback disabled, hold state (no movement)
                             if not bool(self.config.get("planner", {}).get("fallback_control_enabled", False)):
@@ -2436,17 +2535,24 @@ class IntegrationTestFramework:
                         
                         # Group constraints by obstacle
                         obstacle_constraints = {}
+                        halfspace_offset = 0.0  # Default offset
                         for constraint_data in frame_linearized_halfspaces:
-                            if len(constraint_data) >= 3:
+                            if len(constraint_data) >= 4:
+                                # New format: (A, b, obstacle_id, halfspace_offset)
+                                A, b, obstacle_id, halfspace_offset = constraint_data[0], constraint_data[1], constraint_data[2], constraint_data[3]
+                            elif len(constraint_data) >= 3:
+                                # Old format: (A, b, obstacle_id)
                                 A, b, obstacle_id = constraint_data[0], constraint_data[1], constraint_data[2]
+                                halfspace_offset = 0.0
                             else:
-                                # Fallback for old format
+                                # Fallback for very old format
                                 A, b = constraint_data[0], constraint_data[1]
                                 obstacle_id = 0
+                                halfspace_offset = 0.0
                             
                             if obstacle_id not in obstacle_constraints:
                                 obstacle_constraints[obstacle_id] = []
-                            obstacle_constraints[obstacle_id].append((A, b))
+                            obstacle_constraints[obstacle_id].append((A, b, halfspace_offset))
                         
                         # Draw constraints for each obstacle with distinct colors
                         for obstacle_id, constraints_list in obstacle_constraints.items():
@@ -2461,7 +2567,12 @@ class IntegrationTestFramework:
                                     obs_state = obstacle_history[frame]
                                     obstacle_pos = np.array([obs_state[0], obs_state[1]])
                             
-                            for idx, (A, b) in enumerate(constraints_list):
+                            for idx, constraint_tuple in enumerate(constraints_list):
+                                if len(constraint_tuple) >= 3:
+                                    A, b, halfspace_offset = constraint_tuple[0], constraint_tuple[1], constraint_tuple[2]
+                                else:
+                                    A, b = constraint_tuple[0], constraint_tuple[1]
+                                    halfspace_offset = 0.0
                                 a1, a2 = float(A[0]), float(A[1])
                                 norm = np.sqrt(a1**2 + a2**2)
                                 if norm < 1e-6:
@@ -2562,19 +2673,47 @@ class IntegrationTestFramework:
                                 linearized_halfspace_lines.append(arrow)
                                 
                                 # Add connecting line from constraint to obstacle
+                                # This line shows the offset distance from obstacle surface to constraint line
+                                # The constraint line is at distance (obstacle_radius + robot_radius + halfspace_offset) from obstacle center
                                 if obstacle_pos is not None:
                                     # Find closest point on constraint line to obstacle
                                     # Project obstacle position onto constraint line
+                                    # The signed distance from obstacle center to constraint line
+                                    # b = A·obstacle_pos - (obstacle_radius + robot_radius + halfspace_offset)
+                                    # So: A·obstacle_pos - b = obstacle_radius + robot_radius + halfspace_offset
                                     obstacle_to_line_dist = (a1_norm * obstacle_pos[0] + a2_norm * obstacle_pos[1] - b_norm)
                                     closest_point_x = obstacle_pos[0] - obstacle_to_line_dist * a1_norm
                                     closest_point_y = obstacle_pos[1] - obstacle_to_line_dist * a2_norm
                                     
                                     # Draw connecting line from obstacle to closest point on constraint line
+                                    # This visualizes the offset distance (obstacle_radius + robot_radius + halfspace_offset)
                                     connection_line, = ax.plot([obstacle_pos[0], closest_point_x], 
                                                               [obstacle_pos[1], closest_point_y],
                                                               color=color, linestyle=':', 
                                                               linewidth=0.8, alpha=alpha * 0.7, zorder=0)
                                     linearized_halfspace_lines.append(connection_line)
+                                    
+                                    # Add text annotation showing the safe distance (includes offset)
+                                    # The offset is already included in b, so obstacle_to_line_dist shows total safe distance
+                                    if abs(obstacle_to_line_dist) > 0.1:  # Only show if distance is significant
+                                        # Calculate midpoint for text
+                                        text_x = (obstacle_pos[0] + closest_point_x) / 2
+                                        text_y = (obstacle_pos[1] + closest_point_y) / 2
+                                        # Offset text slightly perpendicular to the line
+                                        text_offset_x = -a2_norm * 0.3
+                                        text_offset_y = a1_norm * 0.3
+                                        text_x += text_offset_x
+                                        text_y += text_offset_y
+                                        # Show total safe distance (includes offset)
+                                        # Format: "1.30m" or "1.30m (+0.30m)" if offset is significant
+                                        safe_dist_text = f'{abs(obstacle_to_line_dist):.2f}m'
+                                        if halfspace_offset > 0.01:  # Show offset if significant
+                                            safe_dist_text += f'\n(+{halfspace_offset:.2f}m offset)'
+                                        text_annotation = ax.text(text_x, text_y, safe_dist_text,
+                                                                 fontsize=7, color=color, alpha=alpha * 0.8,
+                                                                 ha='center', va='center', zorder=3,
+                                                                 bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor=color, linewidth=0.5))
+                                        linearized_halfspace_lines.append(text_annotation)
                 
                 # Goals update
                 artists_extra = []

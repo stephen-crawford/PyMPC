@@ -383,44 +383,97 @@ class ContouringConstraints(BaseConstraint):
 	def _compute_symbolic_constraints(self, spline_sym, state, data, stage_idx):
 		"""Compute constraints symbolically using the symbolic spline value.
 		
-		CRITICAL: This uses CasADi interpolants to evaluate path points and tangents symbolically,
-		matching the approach used in ContouringObjective. This ensures constraints are evaluated
-		at the actual predicted spline value, not a numeric estimate.
+		CRITICAL: This uses Spline2D with path parameters when available (matching ContouringObjective),
+		or falls back to CasADi interpolants. This ensures constraints are evaluated at the actual
+		predicted spline value, matching the C++ reference implementation.
 		
 		Reference: https://github.com/tud-amr/mpc_planner - constraints are evaluated symbolically.
 		"""
 		import casadi as cd
+		from utils.math_tools import Spline2D
 		
 		# Get path bounds
 		s_arr = np.asarray(self._reference_path.s, dtype=float)
 		s_min = float(s_arr[0])
 		s_max = float(s_arr[-1])
 		
-		# Clamp symbolic spline to valid range
+		# Clamp symbolic spline to valid range (in arc length units)
 		spline_clamped = cd.fmax(s_min, cd.fmin(s_max, spline_sym))
 		
-		# CRITICAL: Create CasADi interpolants from scipy splines (same approach as ContouringObjective)
-		# Sample path at discrete points for interpolation
-		s_vals = s_arr if s_arr.size > 0 else np.linspace(s_min, s_max, 100)
-		x_vals = np.array([float(self._reference_path.x_spline(si)) for si in s_vals])
-		y_vals = np.array([float(self._reference_path.y_spline(si)) for si in s_vals])
+		# Normalize spline to [0,1] for Spline2D evaluation
+		s_normalized = (spline_clamped - s_min) / cd.fmax(s_max - s_min, 1e-6)
+		s_normalized = cd.fmax(0.0, cd.fmin(1.0, s_normalized))
 		
-		# Create CasADi interpolants for path position
-		x_interp = cd.interpolant('x_interp', 'linear', [s_vals], x_vals)
-		y_interp = cd.interpolant('y_interp', 'linear', [s_vals], y_vals)
+		# Try to use Spline2D with path parameters (preferred method, matches C++ reference)
+		use_spline2d = False
+		if hasattr(self, 'solver') and self.solver is not None:
+			if hasattr(self.solver, 'parameter_manager') and self.solver.parameter_manager is not None:
+				try:
+					# Get parameters for current stage
+					params_dict = self.solver.parameter_manager.get_all(stage_idx)
+					
+					# Check if path parameters are available
+					has_path_params = params_dict.get('path_0_start') is not None
+					if has_path_params:
+						# Create parameter wrapper for Spline2D
+						class ParamWrapper:
+							def __init__(self, params_dict):
+								self.params_dict = params_dict
+							def get(self, key, default=None):
+								return self.params_dict.get(key, default)
+							def has_parameter(self, key):
+								return key in self.params_dict
+						
+						param_wrapper = ParamWrapper(params_dict)
+						
+						# Get num_segments from config or default
+						num_segments = 10
+						if hasattr(self, 'solver') and hasattr(self.solver, 'data'):
+							if hasattr(self.solver.data, 'reference_path'):
+								# Try to get from contouring objective config
+								try:
+									from modules.objectives.contouring_objective import ContouringObjective
+									if hasattr(self.solver, 'module_manager'):
+										for module in self.solver.module_manager.modules:
+											if isinstance(module, ContouringObjective):
+												num_segments = module.num_segments
+												break
+								except:
+									pass
+						
+						# Create Spline2D instance
+						path = Spline2D(param_wrapper, num_segments, s_normalized)
+						path_x_sym, path_y_sym = path.at(s_normalized)
+						path_dx_norm_sym, path_dy_norm_sym = path.deriv_normalized(s_normalized)
+						
+						use_spline2d = True
+						LOG_DEBUG(f"  Stage {stage_idx}: Using Spline2D with path parameters for symbolic constraints")
+				except Exception as e:
+					LOG_DEBUG(f"  Stage {stage_idx}: Failed to use Spline2D, falling back to interpolants: {e}")
 		
-		# Evaluate path point symbolically
-		path_x_sym = x_interp(spline_clamped)
-		path_y_sym = y_interp(spline_clamped)
-		
-		# Compute path tangent using finite differences (same as ContouringObjective)
-		eps = 1e-3
-		dx_sym = (x_interp(spline_clamped + eps) - x_interp(spline_clamped - eps)) / (2 * eps)
-		dy_sym = (y_interp(spline_clamped + eps) - y_interp(spline_clamped - eps)) / (2 * eps)
-		norm_sym = cd.sqrt(dx_sym*dx_sym + dy_sym*dy_sym)
-		norm_sym = cd.fmax(norm_sym, 1e-6)
-		path_dx_norm_sym = dx_sym / norm_sym
-		path_dy_norm_sym = dy_sym / norm_sym
+		if not use_spline2d:
+			# Fallback: Create CasADi interpolants from scipy splines
+			# Sample path at discrete points for interpolation
+			s_vals = s_arr if s_arr.size > 0 else np.linspace(s_min, s_max, 100)
+			x_vals = np.array([float(self._reference_path.x_spline(si)) for si in s_vals])
+			y_vals = np.array([float(self._reference_path.y_spline(si)) for si in s_vals])
+			
+			# Create CasADi interpolants for path position
+			x_interp = cd.interpolant('x_interp', 'linear', [s_vals], x_vals)
+			y_interp = cd.interpolant('y_interp', 'linear', [s_vals], y_vals)
+			
+			# Evaluate path point symbolically (using arc length, not normalized)
+			path_x_sym = x_interp(spline_clamped)
+			path_y_sym = y_interp(spline_clamped)
+			
+			# Compute path tangent using finite differences
+			eps = 1e-3
+			dx_sym = (x_interp(spline_clamped + eps) - x_interp(spline_clamped - eps)) / (2 * eps)
+			dy_sym = (y_interp(spline_clamped + eps) - y_interp(spline_clamped - eps)) / (2 * eps)
+			norm_sym = cd.sqrt(dx_sym*dx_sym + dy_sym*dy_sym)
+			norm_sym = cd.fmax(norm_sym, 1e-6)
+			path_dx_norm_sym = dx_sym / norm_sym
+			path_dy_norm_sym = dy_sym / norm_sym
 		
 		# Normal vector pointing left: A = [path_dy_norm, -path_dx_norm]
 		A_sym = cd.vertcat(path_dy_norm_sym, -path_dx_norm_sym)

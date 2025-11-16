@@ -19,14 +19,20 @@ class BaseObjective(Module):
         """
         Get objective cost terms for this stage.
         
-        CRITICAL: This method should return symbolic CasADi expressions for MPC rollouts.
-        The state parameter is symbolic for future stages (stage_idx > 0).
+        CRITICAL: This method MUST return symbolic CasADi expressions (MX or SX) for MPC rollouts.
+        The state parameter contains CasADi variables from the solver's var_dict:
+            - State variables (x, y, psi, v, spline) - constrained by RK4/model_discrete_dynamics
+            - Control variables (a, w) - free decision variables
+        
+        The returned expressions must be symbolic and depend on these variables.
+        Numeric calculations are NOT allowed - all computations must be symbolic.
         
         Priority:
         1. get_stage_cost_symbolic() - preferred method returning symbolic expressions
-        2. get_value() - legacy method (still supported for backward compatibility)
+        2. get_value() - legacy method (must also return symbolic expressions)
         
         Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
+        Only acceleration (a) and angular acceleration (w) are decision variables.
         """
         LOG_DEBUG(f"BaseObjective.get_objective: {self.name}, stage_idx={stage_idx}")
         
