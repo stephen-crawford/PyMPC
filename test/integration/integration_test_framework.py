@@ -380,6 +380,24 @@ class IntegrationTestFramework:
             
             objective_module = self.create_objective_module(test_config.objective_module)
             constraint_modules = self.create_constraint_modules(test_config.constraint_modules)
+
+            # Always include control-effort penalties to mirror reference MPCBaseModule
+            from modules.objectives.control_effort_objective import ControlEffortObjective
+            from modules.objectives.control_jerk_objective import ControlJerkObjective
+            control_effort_module = ControlEffortObjective()
+            control_jerk_module = ControlJerkObjective()
+
+            auxiliary_objectives = [control_effort_module, control_jerk_module]
+
+            # For contouring-style tests, also include the path reference velocity objective
+            if test_config.objective_module in ("contouring", "path_reference_velocity"):
+                from modules.objectives.path_reference_velocity_objective import PathReferenceVelocityObjective
+                auxiliary_objectives.append(PathReferenceVelocityObjective())
+
+            for aux_module in auxiliary_objectives:
+                if hasattr(aux_module, "config") and aux_module.config is None:
+                    aux_module.config = self.config
+                    aux_module.settings = self.config
             
             # Configure solver with dynamics and modules
             # Dynamics model is set via problem.model_type which planner uses
@@ -390,7 +408,7 @@ class IntegrationTestFramework:
             problem.model_type = vehicle_dynamics
             
             # Set problem modules directly (no temporary solver)
-            problem.modules = constraint_modules + [objective_module]
+            problem.modules = constraint_modules + auxiliary_objectives + [objective_module]
             # obstacles/data/x0 set below
 
             # Create planner using problem (planner creates its own solver, but we'll update modules after)

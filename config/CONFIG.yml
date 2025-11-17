@@ -28,6 +28,13 @@ weights:
   goal_angle_weight: 1.0
   goal_terminal_weight: 10.0
   goal_terminal_angle: 1.0
+  acceleration_weight: 0.5
+  angular_velocity: 5.0
+  slack_weight: 5.0
+  velocity_tracking_weight: 3.0
+  reference_velocity: 2.0
+  acceleration_jerk_weight: 2.0
+  angular_jerk_weight: 4.0
 recording:
   enable: false
   file: planner_test_output

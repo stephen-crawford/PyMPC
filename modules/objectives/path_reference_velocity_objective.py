@@ -1,84 +1,102 @@
-from scipy.interpolate import CubicSpline
+import casadi as cd
+import numpy as np
 
 from modules.objectives.base_objective import BaseObjective
-from utils.utils import LOG_DEBUG
+from utils.utils import LOG_DEBUG, LOG_INFO
+
 
 class PathReferenceVelocityObjective(BaseObjective):
 
 	def __init__(self):
 		super().__init__()
-        self.name = 'path_reference_velocity'
-        self.num_segments = self.get_config_value("contouring.get_num_segments")
-        self.velocity_spline = None
+		self.name = "path_reference_velocity_objective"
+		self.velocity_weight = float(self.get_config_value("weights.velocity_tracking_weight", 0.0))
+		self.default_reference_velocity = float(self.get_config_value("weights.reference_velocity", 1.0))
+		self.reference_path = None
 
-    def update(self, state, data, module_data):
-        if module_data.path_velocity is None and self.velocity_spline is not None:
-            module_data.path_velocity = self.velocity_spline
+	def define_parameters(self, parameter_manager):
+		if hasattr(parameter_manager, "add"):
+			parameter_manager.add("reference_velocity")
+			parameter_manager.add("velocity_tracking_weight")
 
-    def on_data_received(self, data):
-        LOG_DEBUG("Received Reference Path")
-        if data.reference_path.has_velocity():
-            self.velocity_spline = CubicSpline()
-            self.velocity_spline.set_points(data.reference_path.s, data.reference_path.v)
+	def update(self, state, data):
+		if data is not None and hasattr(data, "reference_path") and data.reference_path is not None:
+			if self.reference_path is None:
+				LOG_INFO("PathReferenceVelocityObjective: reference path received")
+			self.reference_path = data.reference_path
 
-    def define_parameters(self, params):
+	def set_parameters(self, parameter_manager, data, k):
+		if self.velocity_weight <= 0.0:
+			return
+		v_ref = self._compute_reference_velocity(data, k)
+		parameter_manager.set_parameter("reference_velocity", v_ref, stage_index=k)
+		parameter_manager.set_parameter("velocity_tracking_weight", self.velocity_weight, stage_index=k)
+		if k == 0:
+			LOG_DEBUG(
+				f"PathReferenceVelocityObjective: stage {k} reference velocity set to {v_ref:.3f} m/s (weight={self.velocity_weight})"
+			)
 
-        for i in range(self.num_segments):
-            params.add(f"spline_{i}_va")
-            params.add(f"spline_{i}_vb")
-            params.add(f"spline_{i}_vc")
-            params.add(f"spline_{i}_vd")
+	def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
+		if self.velocity_weight <= 0.0:
+			return {}
+		if not symbolic_state.has("v"):
+			return {}
 
-        return params
+		v = symbolic_state.get("v")
+		weight = self._get_stage_weight(stage_idx)
+		if weight <= 0.0:
+			return {}
 
-    def get_stage_cost_symbolic(self, symbolic_state, stage_idx):
-        """
-        Return symbolic objective cost expressions for path reference velocity.
-        
-        CRITICAL: This method returns symbolic CasADi expressions for MPC rollouts.
-        The symbolic_state contains CasADi variables for the predicted state at this stage.
-        
-        Note: The velocity cost is typically computed in the contouring objective,
-        so this returns zero cost here.
-        
-        Reference: https://github.com/tud-amr/mpc_planner - objectives are evaluated symbolically.
-        """
-        # The cost is computed in the contouring cost
-        import casadi as cd
-        return {"path_reference_velocity_cost": cd.MX(0.0)}
-    
-    def get_value(self, state, params, stage_idx):
-        # The cost is computed in the contouring cost
-        # Return dict format for compatibility
-        return {"path_reference_velocity_cost": 0.0}
+		v_ref = self._get_stage_reference_velocity(stage_idx)
+		cost = weight * cd.sqr(v - v_ref)
+		return {"path_reference_velocity_cost": cost}
 
-    def set_parameters(self, parameter_manager, data, k):
-        print("Trying to set parameters")
-        reference_velocity = 0.0
-        if k == 0:
-            reference_velocity = self.get_config_value("weights.reference_velocity")
+	def _get_stage_weight(self, stage_idx):
+		if self.solver and hasattr(self.solver, "parameter_manager"):
+			params = self.solver.parameter_manager.get_all(stage_idx)
+			if "velocity_tracking_weight" in params:
+				try:
+					return float(params["velocity_tracking_weight"])
+				except Exception:
+					return self.velocity_weight
+		return self.velocity_weight
 
-        if data.reference_path.has_velocity():  # Use a spline-based velocity reference
-            LOG_DEBUG("Using spline-based reference velocity")
-            for i in range(self.num_segments):
-                index = data.current_path_segment + i
+	def _get_stage_reference_velocity(self, stage_idx):
+		if self.solver and hasattr(self.solver, "parameter_manager"):
+			params = self.solver.parameter_manager.get_all(stage_idx)
+			ref_val = params.get("reference_velocity")
+			if ref_val is not None:
+				try:
+					return float(ref_val)
+				except Exception:
+					pass
+		return self.default_reference_velocity
 
-                if index < self.velocity_spline.m_x_.size() - 1:
-                    a, b, c, d = self.velocity_spline.get_parameters(index)
-                else:
-                    # Brake at the end
-                    a = b = c = d = 0.0
+	def _compute_reference_velocity(self, data, stage_idx):
+		# Prefer explicit velocity samples along the reference path if available
+		ref_path = getattr(data, "reference_path", None)
+		if ref_path is None:
+			ref_path = self.reference_path
 
-                parameter_manager.set_parameter(f"spline_{i}_va", a)
-                parameter_manager.set_parameter(f"spline_{i}_vb", b)
-                parameter_manager.set_parameter(f"spline_{i}_vc", c)
-                parameter_manager.set_parameter(f"spline_{i}_vd", d)
+		if ref_path is not None:
+			if hasattr(ref_path, "v") and ref_path.v:
+				idx = min(stage_idx, len(ref_path.v) - 1)
+				try:
+					return float(max(0.0, ref_path.v[idx]))
+				except Exception:
+					pass
 
-        else:
-            a = b = c = 0.0
-            d = reference_velocity
-            for i in range(self.num_segments):
-                parameter_manager.set_parameter(f"spline_{i}_va", a)
-                parameter_manager.set_parameter(f"spline_{i}_vb", b)
-                parameter_manager.set_parameter(f"spline_{i}_vc", c)
-                parameter_manager.set_parameter(f"spline_{i}_vd", d)
+			# Fallback: derive average speed from arc length over horizon duration
+			if hasattr(ref_path, "s") and ref_path.s is not None and len(ref_path.s) > 1:
+				try:
+					s_arr = np.asarray(ref_path.s, dtype=float)
+					total_length = float(s_arr[-1] - s_arr[0])
+					horizon = self.get_horizon(data=data, default=10)
+					dt = self.get_timestep(data=data, default=0.1)
+					duration = horizon * dt
+					if total_length > 1e-6 and duration > 1e-6:
+						return max(0.2, total_length / duration)
+				except Exception:
+					pass
+
+		return self.default_reference_velocity
