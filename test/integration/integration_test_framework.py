@@ -1442,25 +1442,34 @@ class IntegrationTestFramework:
                                 # Build z vector: [u, x] = [a, w, x, y, psi, v, ...]
                                 u_vec = [a, w]
                                 x_vec = []
-                                for var_name in vehicle_dynamics.dependent_vars:
+                                dep_vars = vehicle_dynamics.dependent_vars
+                                for idx, var_name in enumerate(dep_vars):
+                                    value = None
+                                    
+                                    # Prefer planner.state numeric value if available
                                     if planner.state.has(var_name):
-                                        x_vec.append(float(planner.state.get(var_name)))
-                                    elif var_name in ['x', 'y', 'psi', 'v']:
-                                        idx_map = {'x': 0, 'y': 1, 'psi': 2, 'v': 3}
-                                        if idx_map[var_name] < len(vehicle_state):
-                                            x_vec.append(float(vehicle_state[idx_map[var_name]]))
-                                        else:
-                                            x_vec.append(0.0)
-                                    else:
-                                        # For other states like spline, delta, etc.
-                                        var_idx = vehicle_dynamics.dependent_vars.index(var_name) if var_name in vehicle_dynamics.dependent_vars else None
-                                        if var_idx is not None and var_idx < len(vehicle_state):
-                                            x_vec.append(float(vehicle_state[var_idx]))
-                                        else:
-                                            x_vec.append(0.0)
+                                        try:
+                                            value = float(planner.state.get(var_name))
+                                        except Exception:
+                                            value = None
+                                    
+                                    # Fallback to vehicle_state (always numeric) using same ordering as dependent_vars
+                                    if value is None:
+                                        if idx < len(vehicle_state):
+                                            try:
+                                                value = float(vehicle_state[idx])
+                                            except Exception:
+                                                value = None
+                                    
+                                    if value is None:
+                                        value = 0.0
+                                    
+                                    x_vec.append(value)
                                 
                                 z_vec = u_vec + x_vec
-                                z_k = cd.vertcat(*z_vec)
+                                # CRITICAL: For numeric evaluation, use CasADi DM (not MX)
+                                # This ensures discrete_dynamics uses numeric RK4 path
+                                z_k = cd.DM(z_vec)  # Use DM for numeric evaluation
                                 
                                 # Load into dynamics model
                                 vehicle_dynamics.load(z_k)
@@ -1484,16 +1493,58 @@ class IntegrationTestFramework:
                                             pass
                                         return 0.0
                                     
-                                    # Update dynamics model params
-                                    vehicle_dynamics.params = param_getter
+                                    # Create parameter wrapper for discrete_dynamics
+                                    # discrete_dynamics expects a parameter object with get_p() method
+                                    class ParamWrapper:
+                                        def __init__(self, p_getter):
+                                            self.p_getter = p_getter
+                                        def get(self, key, default=None):
+                                            val = self.p_getter(key)
+                                            return val if val is not None else default
+                                        def get_p(self):
+                                            # Return self for compatibility with discrete_dynamics signature
+                                            return self
+                                    
+                                    params = ParamWrapper(param_getter)
+                                else:
+                                    # No parameter manager - create empty wrapper
+                                    class ParamWrapper:
+                                        def get(self, key, default=None):
+                                            return default
+                                        def get_p(self):
+                                            return self
+                                    params = ParamWrapper()
                                 
                                 # Use discrete_dynamics to get next state (includes proper spline update)
                                 # discrete_dynamics handles RK4 integration and calls model_discrete_dynamics for spline
-                                next_state = vehicle_dynamics.discrete_dynamics(z_k, vehicle_dynamics.params, dt, timestep=dt)
+                                next_state_result = vehicle_dynamics.discrete_dynamics(z_k, params, dt)
                                 
-                                # Convert CasADi DM to numpy array
-                                if hasattr(next_state, '__iter__'):
-                                    new_state = np.array([float(next_state[i]) for i in range(len(next_state))])
+                                # CRITICAL: discrete_dynamics may return symbolic (MX) or numeric (DM)
+                                # Check if it's symbolic and evaluate numerically if needed
+                                
+                                if isinstance(next_state_result, (cd.MX, cd.SX)):
+                                    # Symbolic result - evaluate using numeric_rk4
+                                    next_state = numeric_rk4(next_state_result, vehicle_dynamics, params, dt)
+                                else:
+                                    # Already numeric (DM or numpy)
+                                    next_state = next_state_result
+                                
+                                # Convert CasADi DM or numpy array to numpy array
+                                if isinstance(next_state, cd.DM):
+                                    new_state = np.array(next_state).flatten()
+                                elif isinstance(next_state, np.ndarray):
+                                    new_state = next_state.flatten()
+                                elif hasattr(next_state, '__iter__'):
+                                    try:
+                                        new_state = np.array([float(next_state[i]) for i in range(len(next_state))])
+                                    except:
+                                        # If conversion fails, try numeric_rk4
+                                        logger.warning(f"  Could not convert next_state to numeric, trying numeric_rk4")
+                                        next_state = numeric_rk4(next_state_result, vehicle_dynamics, params, dt)
+                                        if isinstance(next_state, cd.DM):
+                                            new_state = np.array(next_state).flatten()
+                                        else:
+                                            new_state = np.array(next_state).flatten()
                                 else:
                                     new_state = np.array([float(next_state)])
                                 
@@ -1505,33 +1556,51 @@ class IntegrationTestFramework:
                                         planner.state.set(var_name, float(new_state[i]))
                                 
                             except Exception as e:
-                                # Fallback to simple Euler integration if dynamics model fails
-                                logger.warning(f"  Error using dynamics model discrete_dynamics: {e}, falling back to Euler integration")
-                                a = float(control_dict.get('a', 0.0)) if 'a' in u_names else 0.0
-                                w = float(control_dict.get('w', 0.0)) if 'w' in u_names else 0.0
-                                dt = self.solver.timestep
-                                # Current state
-                                x = float(planner.state.get('x')) if planner.state.has('x') else vehicle_state[0]
-                                y = float(planner.state.get('y')) if planner.state.has('y') else vehicle_state[1]
-                                psi = float(planner.state.get('psi')) if planner.state.has('psi') else vehicle_state[2]
-                                v = float(planner.state.get('v')) if planner.state.has('v') else vehicle_state[3]
-                                # Euler step consistent with unicycle/bicycle front-axle models
-                                x_next = x + v * np.cos(psi) * dt
-                                y_next = y + v * np.sin(psi) * dt
-                                psi_next = psi + w * dt
-                                v_next = v + a * dt
-                                new_state = np.array([x_next, y_next, psi_next, v_next])
-                                # Optional states
-                                if 'spline' in vehicle_dynamics.get_all_vars():
-                                    s_val = float(planner.state.get('spline')) if planner.state.has('spline') else (vehicle_state[4] if len(vehicle_state) > 4 else 0.0)
-                                    s_next = s_val + v * dt
-                                    new_state = np.append(new_state, s_next)
-                                if 'delta' in vehicle_dynamics.get_all_vars():
-                                    d_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
-                                    d_val = float(planner.state.get('delta')) if planner.state.has('delta') else (vehicle_state[d_idx] if (d_idx is not None and len(vehicle_state) > d_idx) else 0.0)
-                                    d_next = d_val + w * dt
-                                    new_state = np.append(new_state, d_next)
-                                vehicle_state = new_state
+                                # Attempt symbolic_dynamics evaluation before falling back to Euler
+                                logger.warning(f"  Error using dynamics model discrete_dynamics: {e}, attempting symbolic_dynamics fallback")
+                                try:
+                                    def _param_call(key):
+                                        if 'param_getter' in locals():
+                                            return param_getter(key)
+                                        return 0.0
+                                    
+                                    x_input = cd.DM(x_vec)
+                                    u_input = cd.DM(u_vec)
+                                    sym_next = vehicle_dynamics.symbolic_dynamics(
+                                        x_input,
+                                        u_input,
+                                        _param_call,
+                                        dt
+                                    )
+                                    new_state = np.array(sym_next).flatten()
+                                    vehicle_state = new_state
+                                except Exception as sym_e:
+                                    logger.warning(f"  symbolic_dynamics fallback failed: {sym_e}, reverting to Euler integration")
+                                    a = float(control_dict.get('a', 0.0)) if 'a' in u_names else 0.0
+                                    w = float(control_dict.get('w', 0.0)) if 'w' in u_names else 0.0
+                                    dt = self.solver.timestep
+                                    # Current state
+                                    x = float(planner.state.get('x')) if planner.state.has('x') else vehicle_state[0]
+                                    y = float(planner.state.get('y')) if planner.state.has('y') else vehicle_state[1]
+                                    psi = float(planner.state.get('psi')) if planner.state.has('psi') else vehicle_state[2]
+                                    v = float(planner.state.get('v')) if planner.state.has('v') else vehicle_state[3]
+                                    # Euler step consistent with unicycle/bicycle front-axle models
+                                    x_next = x + v * np.cos(psi) * dt
+                                    y_next = y + v * np.sin(psi) * dt
+                                    psi_next = psi + w * dt
+                                    v_next = v + a * dt
+                                    new_state = np.array([x_next, y_next, psi_next, v_next])
+                                    # Optional states
+                                    if 'spline' in vehicle_dynamics.get_all_vars():
+                                        s_val = float(planner.state.get('spline')) if planner.state.has('spline') else (vehicle_state[4] if len(vehicle_state) > 4 else 0.0)
+                                        s_next = s_val + v * dt
+                                        new_state = np.append(new_state, s_next)
+                                    if 'delta' in vehicle_dynamics.get_all_vars():
+                                        d_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
+                                        d_val = float(planner.state.get('delta')) if planner.state.has('delta') else (vehicle_state[d_idx] if (d_idx is not None and len(vehicle_state) > d_idx) else 0.0)
+                                        d_next = d_val + w * dt
+                                        new_state = np.append(new_state, d_next)
+                                    vehicle_state = new_state
                         else:
                             # No MPC control available: if fallback disabled, hold state (no movement)
                             if not bool(self.config.get("planner", {}).get("fallback_control_enabled", False)):

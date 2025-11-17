@@ -225,8 +225,20 @@ class Planner:
           before_x = self.state.get('x') if self.state.has('x') else None
           before_y = self.state.get('y') if self.state.has('y') else None
           
-          # Propagate state
-          self.state = self.problem.get_state().propagate(mpc_output.control, self.solver.timestep)
+          # Propagate state using dynamics model (ensuring spline/state updates match solver)
+          dynamics_model = None
+          if hasattr(self.solver, 'dynamics_model') and self.solver.dynamics_model is not None:
+            dynamics_model = self.solver.dynamics_model
+          else:
+            dynamics_model = self.model_type
+          parameter_manager = getattr(self.solver, 'parameter_manager', None)
+          
+          self.state = self.problem.get_state().propagate(
+            mpc_output.control,
+            self.solver.timestep,
+            dynamics_model=dynamics_model,
+            parameter_manager=parameter_manager
+          )
           
           # Log state after propagation
           after_x = self.state.get('x') if self.state.has('x') else None

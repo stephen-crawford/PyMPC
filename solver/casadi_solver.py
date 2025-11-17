@@ -330,225 +330,185 @@ class CasADiSolver(BaseSolver):
 			return
 		
 		if has_reference_path and 'spline' in dynamics_model.get_dependent_vars():
-			# Initialize warmstart to follow reference path
-			LOG_DEBUG("Initializing warmstart to follow reference path")
+			LOG_DEBUG("Initializing warmstart to follow reference path (mpc_planner style)")
 			ref_path = self.data.reference_path
 			
-			# Get arc length bounds
+			# === Helper utilities ===================================================
+			def _wrap_angle(angle_val):
+				return (angle_val + np.pi) % (2 * np.pi) - np.pi
+			
+			def _build_warmstart_config():
+				if not isinstance(self.config, dict):
+					return {}
+				solver_cfg = self.config.get("solver", {})
+				if not isinstance(solver_cfg, dict):
+					return {}
+				warm_cfg = solver_cfg.get("warmstart", {})
+				return warm_cfg if isinstance(warm_cfg, dict) else {}
+			
+			warm_cfg = _build_warmstart_config()
+			
+			heading_gain = float(warm_cfg.get("heading_gain", 0.75))
+			cross_track_gain = float(warm_cfg.get("cross_track_gain", 0.45))
+			lag_gain = float(warm_cfg.get("lag_gain", 0.25))
+			speed_gain = float(warm_cfg.get("speed_gain", 1.25))
+			centerline_blend = float(warm_cfg.get("centerline_blend", 0.2))
+			
+			# === Reference path sampling ============================================
 			s_arr = np.asarray(ref_path.s, dtype=float) if hasattr(ref_path, 's') and ref_path.s is not None else None
 			if s_arr is None or len(s_arr) == 0:
-				# Fallback: estimate arc length from path points
 				x_arr = np.asarray(ref_path.x, dtype=float)
 				y_arr = np.asarray(ref_path.y, dtype=float)
 				dx = np.diff(x_arr)
 				dy = np.diff(y_arr)
 				arc_lengths = np.sqrt(dx**2 + dy**2)
-				s_arr = np.concatenate([[0], np.cumsum(arc_lengths)])
+				s_arr = np.concatenate([[0.0], np.cumsum(arc_lengths)])
 			
 			s_min = float(s_arr[0])
 			s_max = float(s_arr[-1])
 			
-			# Initialize spline variable: start at closest point on path
+			def _clamp_s(val):
+				return float(np.clip(val, s_min, s_max))
+			
+			def _eval_path(s_val):
+				s_clamped = _clamp_s(s_val)
+				x_c = float(ref_path.x_spline(s_clamped))
+				y_c = float(ref_path.y_spline(s_clamped))
+				dx_val = float(ref_path.x_spline.derivative()(s_clamped))
+				dy_val = float(ref_path.y_spline.derivative()(s_clamped))
+				norm = np.hypot(dx_val, dy_val)
+				if norm < 1e-9:
+					norm = 1.0
+					dx_val = np.cos(current_psi)
+					dy_val = np.sin(current_psi)
+				tangent = np.array([dx_val / norm, dy_val / norm])
+				normal = np.array([-tangent[1], tangent[0]])
+				ddx_val = float(ref_path.x_spline.derivative(2)(s_clamped))
+				ddy_val = float(ref_path.y_spline.derivative(2)(s_clamped))
+				den = max((dx_val * dx_val + dy_val * dy_val) ** 1.5, 1e-6)
+				curvature = (dx_val * ddy_val - dy_val * ddx_val) / den
+				curvature = float(np.clip(curvature, -2.5, 2.5))
+				heading = float(np.arctan2(dy_val, dx_val))
+				return x_c, y_c, heading, curvature, tangent, normal
+			
+			# === Determine initial spline position =================================
 			current_spline = state.get('spline')
 			if current_spline is None:
-				# Find closest point on path to current position
 				try:
-					# Sample path at discrete points
-					s_sample = np.linspace(s_min, s_max, min(100, len(s_arr)))
-					x_sample = np.array([float(ref_path.x_spline(s)) for s in s_sample])
-					y_sample = np.array([float(ref_path.y_spline(s)) for s in s_sample])
-					# Find closest point
+					s_sample = np.linspace(s_min, s_max, min(200, len(s_arr)))
+					x_sample = np.array([float(ref_path.x_spline(sv)) for sv in s_sample])
+					y_sample = np.array([float(ref_path.y_spline(sv)) for sv in s_sample])
 					distances = np.sqrt((x_sample - current_x)**2 + (y_sample - current_y)**2)
-					closest_idx = np.argmin(distances)
-					current_spline = float(s_sample[closest_idx])
-					LOG_DEBUG(f"  Initialized spline to {current_spline:.4f} (closest point on path)")
-				except Exception as e:
-					LOG_DEBUG(f"  Could not find closest point: {e}, using s_min={s_min}")
+					current_spline = float(s_sample[np.argmin(distances)])
+					LOG_DEBUG(f"  Initialized spline to closest path point: {current_spline:.4f}")
+				except Exception as exc:
+					LOG_WARN(f"  Could not project state onto path ({exc}); using s_min")
 					current_spline = s_min
 			else:
-				current_spline = float(current_spline)
+				current_spline = float(np.clip(current_spline, s_min, s_max))
 			
-			# Initialize spline profile: advance along path at current velocity
-			spline_profile = np.zeros(horizon_val + 1)
-			spline_profile[0] = current_spline
-			
-			# Use constant velocity profile, but ensure it's within bounds
+			# === Pull bounds for dynamics variables ================================
 			try:
 				v_lb, v_ub, _ = dynamics_model.get_bounds('v')
 			except Exception:
-				v_lb, v_ub = -0.01, 3.0  # Default bounds
+				v_lb, v_ub = -0.01, 3.0
 			
-			if current_vel > 5.0:
-				v_profile = np.maximum(v_lb, np.minimum(v_ub, current_vel + DEFAULT_BRAKING * np.arange(horizon_val + 1) * timestep_val * 0.5))
-			else:
-				v_profile = np.full(horizon_val + 1, np.clip(current_vel, v_lb, v_ub))
+			try:
+				a_lb, a_ub, _ = dynamics_model.get_bounds('a')
+			except Exception:
+				a_lb, a_ub = -2.0, 2.0
 			
-			# Initialize position and heading by following reference path
+			try:
+				w_lb, w_ub, _ = dynamics_model.get_bounds('w')
+			except Exception:
+				w_lb, w_ub = -0.8, 0.8
+			
+			target_speed = float(warm_cfg.get("target_speed", min(v_ub, max(0.5, current_vel if current_vel > 0.1 else 1.5))))
+			
+			# === Allocate profiles ==================================================
+			spline_profile = np.zeros(horizon_val + 1)
 			x_pos = np.zeros(horizon_val + 1)
 			y_pos = np.zeros(horizon_val + 1)
 			psi_profile = np.zeros(horizon_val + 1)
-			
-			x_pos[0] = current_x
-			y_pos[0] = current_y
-			psi_profile[0] = current_psi
-			
-			# Initialize control inputs to guide along path
+			v_profile = np.zeros(horizon_val + 1)
 			a_profile = np.zeros(horizon_val)
 			w_profile = np.zeros(horizon_val)
 			
+			spline_profile[0] = current_spline
+			x_pos[0] = current_x
+			y_pos[0] = current_y
+			psi_profile[0] = current_psi
+			v_profile[0] = np.clip(current_vel, v_lb, v_ub)
+			
+			# === Iteratively roll out dynamics =====================================
 			for k in range(1, horizon_val + 1):
-				# Advance spline along path based on velocity
-				ds = v_profile[k - 1] * timestep_val
-				spline_profile[k] = min(s_max, spline_profile[k - 1] + ds)
-				
-				# Get desired position and heading from path at this spline value
-				# CRITICAL: Apply lateral offset to avoid obstacles (like reference implementation)
+				s_prev = spline_profile[k - 1]
 				try:
-					s_k = spline_profile[k]
-					x_centerline = float(ref_path.x_spline(s_k))
-					y_centerline = float(ref_path.y_spline(s_k))
-					# Get desired heading from path tangent
-					dx_path = float(ref_path.x_spline.derivative()(s_k))
-					dy_path = float(ref_path.y_spline.derivative()(s_k))
-					norm = np.sqrt(dx_path**2 + dy_path**2)
-					if norm > 1e-6:
-						tangent = np.array([dx_path / norm, dy_path / norm])
-						normal = np.array([-tangent[1], tangent[0]])  # Left normal (perpendicular to path)
-						psi_desired = np.arctan2(dy_path, dx_path)
-					else:
-						normal = np.array([0.0, 1.0])  # Default normal
-						psi_desired = psi_profile[k - 1]
-					
-					# CRITICAL: Warmstart follows reference path centerline (matching reference implementation)
-					# The warmstart should follow the path - obstacle avoidance is handled by linearized constraints
-					# during optimization. This ensures the vehicle follows the path while constraints prevent collisions.
-					# Reference: https://github.com/tud-amr/mpc_planner
-					x_desired = x_centerline
-					y_desired = y_centerline
+					x_c, y_c, psi_des, curvature, tangent_vec, normal_vec = _eval_path(s_prev)
+				except Exception as exc:
+					LOG_WARN(f"  Path evaluation failed at s={s_prev:.4f}: {exc}; falling back to straight propagation")
+					x_c, y_c = x_pos[k - 1], y_pos[k - 1]
+					psi_des = psi_profile[k - 1]
+					curvature = 0.0
+					tangent_vec = np.array([np.cos(psi_profile[k - 1]), np.sin(psi_profile[k - 1])])
+					normal_vec = np.array([-tangent_vec[1], tangent_vec[0]])
 				
-					# CRITICAL: Compute dynamics-consistent next state from previous state and control
-					# The dynamics constraint for transition k->k+1 uses: x[k+1] = x[k] + dt * v[k] * cos(psi[k])
-					# So we need to ensure that when we compute x[k], we use the correct values from k-1
-					# Then when the solver checks x[k+1] = x[k] + dt * v[k] * cos(psi[k]), it will be satisfied
-					
-					# Get state at k-1 (already computed in previous iteration)
-					x_km1 = x_pos[k - 1]
-					y_km1 = y_pos[k - 1]
-					psi_km1 = psi_profile[k - 1]
-					v_km1 = v_profile[k - 1]
-					
-					# Calculate steering input to turn toward desired heading
-					psi_error = psi_desired - psi_km1
-					# Normalize angle error to [-pi, pi]
-					while psi_error > np.pi:
-						psi_error -= 2 * np.pi
-					while psi_error < -np.pi:
-						psi_error += 2 * np.pi
-					
-					# Proportional control for steering: w[k-1] should produce psi[k] ≈ psi_desired
-					# For Euler: psi[k] = psi[k-1] + dt * w[k-1], so w[k-1] = (psi_desired - psi[k-1]) / dt
-					w_max = 0.8  # From bounds
-					w_desired = psi_error / timestep_val  # Direct calculation to achieve desired heading
-					w_km1 = np.clip(w_desired, -w_max, w_max)
-					w_profile[k - 1] = w_km1
-					
-					# Calculate acceleration to maintain/reach desired velocity
-					# For now, use zero acceleration (can be improved)
-					a_km1 = 0.0
-					a_profile[k - 1] = a_km1
-					
-					# Propagate dynamics: Euler integration
-					# Compute state at k using state at k-1 and control u[k-1]
-					# This matches the dynamics constraint: x[k] = x[k-1] + dt * v[k-1] * cos(psi[k-1])
-					psi_k = psi_km1 + timestep_val * w_km1
-					v_k = v_km1 + timestep_val * a_km1
-					x_k = x_km1 + timestep_val * v_km1 * np.cos(psi_km1)
-					y_k = y_km1 + timestep_val * v_km1 * np.sin(psi_km1)
-					
-					# Store computed state at k
-					x_pos[k] = x_k
-					y_pos[k] = y_k
-					psi_profile[k] = psi_k
-					v_profile[k] = v_k
-					
-				except Exception as e:
-					LOG_DEBUG(f"  Could not evaluate path at s={spline_profile[k]:.4f}: {e}, using dynamics propagation")
-					# Fallback: propagate using zero control
-					x_km1 = x_pos[k - 1]
-					y_km1 = y_pos[k - 1]
-					psi_km1 = psi_profile[k - 1]
-					v_km1 = v_profile[k - 1]
-					
-					# Propagate with zero control: u[k-1] = [0, 0]
-					psi_k = psi_km1
-					v_k = v_km1
-					x_k = x_km1 + timestep_val * v_km1 * np.cos(psi_km1)
-					y_k = y_km1 + timestep_val * v_km1 * np.sin(psi_km1)
-					
-					x_pos[k] = x_k
-					y_pos[k] = y_k
-					psi_profile[k] = psi_k
-					v_profile[k] = v_k
-					a_profile[k - 1] = 0.0
-					w_profile[k - 1] = 0.0
+				error_vec = np.array([x_pos[k - 1] - x_c, y_pos[k - 1] - y_c])
+				cross_track_err = float(np.dot(error_vec, normal_vec))
+				lag_err = float(np.dot(error_vec, tangent_vec))
+				
+				psi_error = _wrap_angle(psi_des - psi_profile[k - 1])
+				w_ff = v_profile[k - 1] * curvature
+				w_fb = heading_gain * psi_error - cross_track_gain * cross_track_err
+				w_cmd = np.clip(w_ff + w_fb, w_lb, w_ub)
+				w_profile[k - 1] = w_cmd
+				
+				a_cmd = np.clip(speed_gain * (target_speed - v_profile[k - 1]), a_lb, a_ub)
+				a_profile[k - 1] = a_cmd
+				
+				psi_next = _wrap_angle(psi_profile[k - 1] + w_cmd * timestep_val)
+				v_next = np.clip(v_profile[k - 1] + a_cmd * timestep_val, v_lb, v_ub)
+				ds = v_profile[k - 1] * timestep_val - lag_gain * lag_err
+				ds = max(ds, 0.0)
+				s_next = _clamp_s(s_prev + ds)
+				
+				x_next = x_pos[k - 1] + v_profile[k - 1] * np.cos(psi_profile[k - 1]) * timestep_val
+				y_next = y_pos[k - 1] + v_profile[k - 1] * np.sin(psi_profile[k - 1]) * timestep_val
+				
+				if centerline_blend > 0.0:
+					try:
+						x_center_next, y_center_next, _, _, _, _ = _eval_path(s_next)
+						x_next = (1.0 - centerline_blend) * x_next + centerline_blend * x_center_next
+						y_next = (1.0 - centerline_blend) * y_next + centerline_blend * y_center_next
+					except Exception:
+						pass
+				
+				spline_profile[k] = s_next
+				x_pos[k] = x_next
+				y_pos[k] = y_next
+				psi_profile[k] = psi_next
+				v_profile[k] = v_next
 			
-			# CRITICAL: After clipping velocity, we need to recompute positions to maintain dynamics consistency
-			# Store original values before clipping
-			v_profile_original = v_profile.copy()
-			
-			# Ensure velocity is within bounds
 			try:
-				v_lb, v_ub, _ = dynamics_model.get_bounds('v')
-				v_profile = np.clip(v_profile, v_lb, v_ub)
-				# If velocity was clipped, positions might need adjustment, but we'll keep them as-is
-				# since they were computed from the original velocity profile
+				s_lb, s_ub, _ = dynamics_model.get_bounds('spline')
+				spline_profile = np.clip(spline_profile, s_lb, s_ub)
 			except Exception:
-				pass
-			
-			# CRITICAL: Recompute positions using the clipped velocity to ensure dynamics consistency
-			# The dynamics constraint for transition k->k+1 uses: x[k+1] = x[k] + dt * v[k] * cos(psi[k])
-			# So we need to ensure: x_pos[k+1] = x_pos[k] + dt * v_profile[k] * cos(psi_profile[k])
-			# We already computed x_pos[k] using v_profile[k-1], so we need to recompute using v_profile[k]
-			# But wait - we computed x_pos[k] using v_profile[k-1], which is correct for the transition (k-1)->k
-			# For the transition k->(k+1), we need x_pos[k+1] = x_pos[k] + dt * v_profile[k] * cos(psi_profile[k])
-			# So we should NOT recompute - the positions are already correct!
-			# The issue is that we're clipping v_profile AFTER computing positions, which breaks consistency
-			# Solution: Don't clip velocity after computing positions - clip it during the computation loop
-			# Actually, we already clip it, so the positions should be consistent. Let's verify instead of recomputing.
+				spline_profile = np.clip(spline_profile, s_min, s_max)
 			
 			self.warmstart_values['x'] = x_pos
 			self.warmstart_values['y'] = y_pos
 			self.warmstart_values['v'] = v_profile
 			self.warmstart_values['psi'] = psi_profile
-			# Ensure spline is within bounds
-			try:
-				s_lb, s_ub, _ = dynamics_model.get_bounds('spline')
-				spline_profile = np.clip(spline_profile, s_lb, s_ub)
-			except Exception:
-				# Fallback: clip to path bounds
-				spline_profile = np.clip(spline_profile, s_min, s_max)
 			self.warmstart_values['spline'] = spline_profile
-			
-			# Set control inputs in warmstart
 			self.warmstart_values['a'] = a_profile
 			self.warmstart_values['w'] = w_profile
 			
-			LOG_DEBUG(f"  Warmstart initialized: dynamics-consistent trajectory with steering inputs")
-			
-			# Verify dynamics consistency for first few transitions
-			for k_check in range(min(5, horizon_val)):
-				x_k = x_pos[k_check]
-				x_kp1 = x_pos[k_check + 1]
-				v_k = v_profile[k_check]
-				psi_k = psi_profile[k_check]
-				x_pred = x_k + timestep_val * v_k * np.cos(psi_k)
-				violation = x_kp1 - x_pred
-				if abs(violation) > 1e-3:
-					LOG_WARN(f"  WARMSTART WARNING: Transition {k_check}->{k_check+1}: x[{k_check+1}]={x_kp1:.6f}, predicted={x_pred:.6f}, violation={violation:.6f}")
-				else:
-					LOG_DEBUG(f"  Warmstart transition {k_check}->{k_check+1}: dynamics consistent (violation={violation:.6f})")
-			
-			LOG_DEBUG(f"  Warmstart initialized: spline range [{spline_profile[0]:.4f}, {spline_profile[-1]:.4f}], positions follow path")
+			LOG_DEBUG(
+				f"  Warmstart initialized (path-aligned): "
+				f"s=[{spline_profile[0]:.3f}->{spline_profile[-1]:.3f}], "
+				f"v=[{v_profile.min():.3f},{v_profile.max():.3f}], "
+				f"w_range=[{w_profile.min():.3f},{w_profile.max():.3f}]"
+			)
 		else:
 			# Fallback: straight-line motion (original behavior)
 			LOG_DEBUG("Initializing warmstart with straight-line motion (no reference path available)")

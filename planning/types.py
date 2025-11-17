@@ -1,5 +1,6 @@
 import os
 import random
+import traceback
 from dataclasses import dataclass
 from enum import Enum
 
@@ -141,18 +142,32 @@ class State:
         state._state_vector = self._state_vector.copy()
         return state
 
-    def propagate(self, control_dict, timestep):
+    def propagate(self, control_dict, timestep, dynamics_model=None, parameter_manager=None):
         """
-        Propagate state forward using the dynamics model.
+        Propagate state forward using the dynamics model's discrete_dynamics method.
+        
+        CRITICAL: This method MUST use the dynamics model's discrete_dynamics to properly
+        handle RK4 integration and model-specific updates (e.g., spline progression for contouring).
+        
+        Reference: https://github.com/tud-amr/mpc_planner - state propagation uses discrete_dynamics.
         
         Args:
             control_dict: Dictionary of control inputs (e.g., {'a': 0.5, 'w': 0.1})
             timestep: Time step for integration
+            dynamics_model: Optional dynamics model instance. If None, uses self._model_type.
+            parameter_manager: Optional parameter manager for path parameters (needed for contouring).
         
         Returns:
             New State object with propagated values
         """
-        if self._model_type is None:
+        if self._model_type is None and dynamics_model is None:
+            LOG_WARN("State.propagate: No dynamics model available, returning copy of current state")
+            return self.copy()
+        
+        # Use provided dynamics_model or try to get from _model_type
+        model = dynamics_model if dynamics_model is not None else self._model_type
+        
+        if model is None:
             LOG_WARN("State.propagate: No dynamics model available, returning copy of current state")
             return self.copy()
         
@@ -160,45 +175,134 @@ class State:
         new_state = self.copy()
         
         # Get current state values as a vector
-        state_vars = self._model_type.get_dependent_vars()
+        state_vars = model.get_dependent_vars()
         x_current = []
         for var in state_vars:
             x_current.append(self.get(var))
         x_current = np.array(x_current, dtype=float)
         
         # Get control inputs in order
-        input_vars = self._model_type.get_inputs()
+        input_vars = model.get_inputs()
         u_current = []
         for var in input_vars:
             u_current.append(control_dict.get(var, 0.0))
         u_current = np.array(u_current, dtype=float)
         
-        # Use simple Euler integration (matching test framework approach)
-        # This matches the integration used in integration_test_framework.py
+        # CRITICAL: Use dynamics model's discrete_dynamics method for proper state propagation
+        # This ensures RK4 integration and model-specific updates (e.g., spline progression)
+        # Reference: test files use vehicle.discrete_dynamics() and numeric_rk4()
         try:
-            v = x_current[3] if len(x_current) > 3 else 0.0
-            psi = x_current[2] if len(x_current) > 2 else 0.0
-            a = u_current[0] if len(u_current) > 0 else 0.0
-            w = u_current[1] if len(u_current) > 1 else 0.0
+            import casadi as cd
+            from planning.dynamic_models import numeric_rk4
             
-            x_next = x_current.copy()
-            x_next[0] += v * np.cos(psi) * timestep  # x
-            x_next[1] += v * np.sin(psi) * timestep  # y
-            x_next[2] += w * timestep  # psi
-            x_next[3] += a * timestep  # v
+            # Construct z vector: [u, x] = [control inputs, state variables]
+            z_k = np.concatenate([u_current, x_current])
+            # CRITICAL: For numeric evaluation, use CasADi DM (not MX)
+            # This ensures discrete_dynamics uses numeric RK4 path instead of symbolic
+            z_k = cd.DM(z_k)  # Use DM for numeric evaluation
             
-            # CRITICAL: Integrate spline variable if present (s_next = s + v * dt)
-            if len(x_next) > 4:
-                x_next[4] += v * timestep  # spline
+            # Load state into model
+            model.load(z_k)
+            
+            # Get parameter getter for discrete_dynamics
+            # If parameter_manager is provided, use it; otherwise create a simple getter
+            if parameter_manager is not None:
+                def param_getter(key):
+                    try:
+                        if hasattr(parameter_manager, "get_all"):
+                            params_stage = parameter_manager.get_all(0)
+                            if key in params_stage:
+                                return params_stage[key]
+                    except Exception:
+                        pass
+                    try:
+                        # Some parameter managers may expose direct get(stage, key)
+                        return parameter_manager.get(0, key)  # type: ignore[attr-defined]
+                    except Exception:
+                        return None
+            else:
+                def param_getter(key):
+                    return None
+            
+            # Create parameter wrapper for discrete_dynamics
+            class ParamWrapper:
+                def __init__(self, p_getter):
+                    self.p_getter = p_getter
+                def get(self, key, default=None):
+                    val = self.p_getter(key)
+                    return val if val is not None else default
+                def get_p(self):
+                    # Return self for compatibility with discrete_dynamics signature
+                    return self
+            
+            params = ParamWrapper(param_getter)
+            
+            # Call discrete_dynamics to get next state (symbolic)
+            # discrete_dynamics performs RK4 integration and calls model_discrete_dynamics for spline updates
+            next_state_symbolic = model.discrete_dynamics(z_k, params, timestep)
+            
+            # Evaluate numerically using numeric_rk4
+            next_state = numeric_rk4(next_state_symbolic, model, params, timestep)
+            
+            # Extract numeric values from CasADi DM or numpy array
+            if isinstance(next_state, cd.DM):
+                next_state = np.array(next_state).flatten()
+            elif isinstance(next_state, np.ndarray):
+                next_state = next_state.flatten()
+            else:
+                # Fallback: try to convert to numpy
+                try:
+                    next_state = np.array([float(v) for v in next_state]).flatten()
+                except:
+                    LOG_WARN(f"State.propagate: Could not convert next_state to numpy array, using Euler fallback")
+                    # Fallback to Euler integration
+                    v = x_current[3] if len(x_current) > 3 else 0.0
+                    psi = x_current[2] if len(x_current) > 2 else 0.0
+                    a = u_current[0] if len(u_current) > 0 else 0.0
+                    w = u_current[1] if len(u_current) > 1 else 0.0
+                    
+                    x_next = x_current.copy()
+                    x_next[0] += v * np.cos(psi) * timestep
+                    x_next[1] += v * np.sin(psi) * timestep
+                    x_next[2] += w * timestep
+                    x_next[3] += a * timestep
+                    if len(x_next) > 4:
+                        x_next[4] += v * timestep
+                    next_state = x_next
             
             # Update new_state with propagated values
             for i, var in enumerate(state_vars):
-                if i < len(x_next):
-                    new_state.set(var, float(x_next[i]))
+                if i < len(next_state):
+                    new_state.set(var, float(next_state[i]))
+                else:
+                    LOG_WARN(f"State.propagate: next_state has {len(next_state)} elements, but need {len(state_vars)}. Missing {var}.")
                     
         except Exception as e:
-            LOG_WARN(f"State.propagate: Error in integration ({e}), returning copy of current state")
-            return self.copy()
+            LOG_WARN(f"State.propagate: Error using discrete_dynamics ({e}), falling back to Euler integration")
+            import traceback
+            LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+            
+            # Fallback to Euler integration
+            try:
+                v = x_current[3] if len(x_current) > 3 else 0.0
+                psi = x_current[2] if len(x_current) > 2 else 0.0
+                a = u_current[0] if len(u_current) > 0 else 0.0
+                w = u_current[1] if len(u_current) > 1 else 0.0
+                
+                x_next = x_current.copy()
+                x_next[0] += v * np.cos(psi) * timestep
+                x_next[1] += v * np.sin(psi) * timestep
+                x_next[2] += w * timestep
+                x_next[3] += a * timestep
+                if len(x_next) > 4:
+                    x_next[4] += v * timestep
+                
+                for i, var in enumerate(state_vars):
+                    if i < len(x_next):
+                        new_state.set(var, float(x_next[i]))
+            except Exception as e2:
+                LOG_WARN(f"State.propagate: Error in Euler fallback ({e2}), returning copy of current state")
+                return self.copy()
         
         return new_state
 
