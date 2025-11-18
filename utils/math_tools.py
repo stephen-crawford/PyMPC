@@ -1344,6 +1344,9 @@ class TKSpline:
         """
         Evaluate spline at point x_val.
         Supports both scalar and array inputs.
+        
+        When x_val is beyond the spline bounds, returns the final point (C++ reference behavior).
+        This allows vehicle to progress beyond path length while path evaluation stays valid.
         """
         x_val = np.asarray(x_val)
         scalar_input = x_val.ndim == 0
@@ -1351,18 +1354,29 @@ class TKSpline:
         
         result = np.zeros_like(x_val)
         for i, x in enumerate(x_val):
-            seg_idx = self._find_segment(x)
-            t = (x - self.x[seg_idx]) / (self.x[seg_idx + 1] - self.x[seg_idx])
-            result[i] = (self.a[seg_idx] + 
-                        self.b[seg_idx] * t + 
-                        self.c[seg_idx] * t * t + 
-                        self.d[seg_idx] * t * t * t)
+            # Clamp x to valid range for evaluation (C++ reference: return final point beyond bounds)
+            if x >= self.x[-1]:
+                # Beyond end: return final point
+                result[i] = self.y[-1]
+            elif x <= self.x[0]:
+                # Before start: return first point
+                result[i] = self.y[0]
+            else:
+                # Within bounds: evaluate normally
+                seg_idx = self._find_segment(x)
+                t = (x - self.x[seg_idx]) / (self.x[seg_idx + 1] - self.x[seg_idx])
+                result[i] = (self.a[seg_idx] + 
+                            self.b[seg_idx] * t + 
+                            self.c[seg_idx] * t * t + 
+                            self.d[seg_idx] * t * t * t)
         
         return result[0] if scalar_input else result
     
     def deriv(self, x_val):
         """
         Evaluate first derivative at point x_val.
+        
+        When x_val is beyond the spline bounds, returns derivative at final point (C++ reference behavior).
         """
         x_val = np.asarray(x_val)
         scalar_input = x_val.ndim == 0
@@ -1370,13 +1384,32 @@ class TKSpline:
         
         result = np.zeros_like(x_val)
         for i, x in enumerate(x_val):
-            seg_idx = self._find_segment(x)
-            h = self.x[seg_idx + 1] - self.x[seg_idx]
-            t = (x - self.x[seg_idx]) / h
-            # Derivative: b + 2*c*t + 3*d*t^2, scaled by 1/h
-            result[i] = (self.b[seg_idx] + 
-                        2 * self.c[seg_idx] * t + 
-                        3 * self.d[seg_idx] * t * t) / h
+            # Clamp x to valid range for evaluation (C++ reference: return final derivative beyond bounds)
+            if x >= self.x[-1]:
+                # Beyond end: return derivative at final point
+                seg_idx = self.n - 1
+                h = self.x[seg_idx + 1] - self.x[seg_idx]
+                t = 1.0  # Final point of last segment
+                result[i] = (self.b[seg_idx] + 
+                            2 * self.c[seg_idx] * t + 
+                            3 * self.d[seg_idx] * t * t) / h
+            elif x <= self.x[0]:
+                # Before start: return derivative at first point
+                seg_idx = 0
+                h = self.x[seg_idx + 1] - self.x[seg_idx]
+                t = 0.0  # First point of first segment
+                result[i] = (self.b[seg_idx] + 
+                            2 * self.c[seg_idx] * t + 
+                            3 * self.d[seg_idx] * t * t) / h
+            else:
+                # Within bounds: evaluate normally
+                seg_idx = self._find_segment(x)
+                h = self.x[seg_idx + 1] - self.x[seg_idx]
+                t = (x - self.x[seg_idx]) / h
+                # Derivative: b + 2*c*t + 3*d*t^2, scaled by 1/h
+                result[i] = (self.b[seg_idx] + 
+                            2 * self.c[seg_idx] * t + 
+                            3 * self.d[seg_idx] * t * t) / h
         
         return result[0] if scalar_input else result
     

@@ -752,7 +752,14 @@ class ContouringObjective(BaseObjective):
 		
 		# Normalize spline to [0,1] for Spline2D evaluation
 		# spline_val should represent arc length, s_max is total path arc length
-		s = spline_val / s_max
+		# Clamp s to [0, s_max] for path evaluation (even if spline_val > s_max in state)
+		# This allows vehicle to progress beyond path length while path evaluation stays valid
+		import casadi as cd
+		if isinstance(spline_val, (cd.MX, cd.SX)):
+			s_clamped = cd.fmin(cd.fmax(spline_val, 0.0), s_max)  # Clamp for path evaluation
+		else:
+			s_clamped = max(0.0, min(float(spline_val), float(s_max)))  # Numeric clamp
+		s = s_clamped / s_max
 		
 		# HIGH-LEVEL DEBUG: Log spline math for first few stages
 		if stage_idx <= 2:
@@ -783,7 +790,16 @@ class ContouringObjective(BaseObjective):
 		remaining_distance = 0
 		if self.goal_reaching_contouring:
 			goal_weight = params.get("contouring_goal_weight") or self._w_goal
-			remaining_distance = s_max - s * s_max
+			# Use actual spline_val (not clamped s) for remaining_distance calculation
+			# This allows vehicle to progress beyond s_max and still compute correct remaining distance
+			import casadi as cd
+			if isinstance(spline_val, (cd.MX, cd.SX)):
+				# For symbolic: remaining_distance = max(0, s_max - spline_val)
+				# When spline_val > s_max, remaining_distance becomes 0 (reached end)
+				remaining_distance = cd.fmax(s_max - spline_val, 0.0)
+			else:
+				# For numeric: use actual spline_val
+				remaining_distance = max(0.0, float(s_max) - float(spline_val))
 			LOG_DEBUG("Remaining distance: " + str(remaining_distance))
 
 		# From path
@@ -1021,7 +1037,33 @@ class ContouringObjective(BaseObjective):
 		# Cost components
 		lag_cost = lag_weight * lag_error ** 2
 		contour_cost = contour_weight * contour_error ** 2
-		goal_cost = goal_weight * remaining_distance ** 2
+		# Goal cost: penalize remaining distance along path
+		# When near path end (s > 0.9), increase weight to encourage reaching final point
+		goal_cost_base = goal_weight * remaining_distance ** 2
+		
+		# Add stronger goal-reaching cost when near path end
+		# This helps vehicle turn toward final point instead of just following path curvature
+		if self.goal_reaching_contouring:
+			# Normalized progress: 0 = start, 1 = end
+			path_progress = s  # s is already normalized [0, 1]
+			
+			# When > 80% along path, increase goal weight significantly
+			if isinstance(path_progress, (cd.MX, cd.SX)):
+				# Symbolic: use conditional to increase weight near end
+				end_threshold = 0.8
+				end_weight_multiplier = cd.if_else(path_progress > end_threshold,
+				                                    1.0 + 5.0 * ((path_progress - end_threshold) / (1.0 - end_threshold)),  # Scale from 1x to 6x
+				                                    1.0)
+				goal_cost = goal_weight * remaining_distance ** 2 * end_weight_multiplier
+			else:
+				# Numeric: simple multiplier
+				if path_progress > 0.8:
+					end_weight_multiplier = 1.0 + 5.0 * ((path_progress - 0.8) / 0.2)  # Scale from 1x to 6x
+					goal_cost = goal_weight * remaining_distance ** 2 * end_weight_multiplier
+				else:
+					goal_cost = goal_cost_base
+		else:
+			goal_cost = goal_cost_base
 		
 		# Log cost values for all stages (try to extract numeric if possible)
 		try:
@@ -1043,6 +1085,79 @@ class ContouringObjective(BaseObjective):
 
 		terminal_cost = 0
 		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10
+		
+		# Add direct distance-to-final-point cost when near path end (not just at horizon end)
+		# This encourages vehicle to turn toward final point when approaching path end
+		direct_goal_cost = 0
+		if self.goal_reaching_contouring:
+			# Use actual spline_val (not clamped s) for path_progress calculation
+			# This allows vehicle to progress beyond s_max and still compute correct progress
+			import casadi as cd
+			if isinstance(spline_val, (cd.MX, cd.SX)):
+				# For symbolic: path_progress = spline_val / s_max (can be > 1.0)
+				path_progress = spline_val / s_max
+			else:
+				# For numeric: use actual spline_val
+				path_progress = float(spline_val) / float(s_max)
+			
+			# When > 85% along path, add direct Euclidean distance-to-final-point cost
+			# This helps vehicle turn toward final point instead of just following path curvature
+			end_threshold = 0.85
+			s_min, s_max = self._get_arc_length_bounds()
+			
+			if s_max is not None:
+				try:
+					# Get final point on path (evaluate at s_max)
+					# Use the same Spline2D/path evaluation as used for current point
+					if has_path_params and isinstance(path_progress, (cd.MX, cd.SX)):
+						# Symbolic: evaluate path at final s (s_max normalized)
+						final_s_normalized = 1.0  # Final point is at s = s_max, normalized = 1.0
+						path_final = Spline2D(params, self.num_segments, cd.MX(final_s_normalized))
+						path_x_final, path_y_final = path_final.at(final_s_normalized)
+						
+						# Compute direct Euclidean distance to final point
+						dx_final = pos_x - path_x_final
+						dy_final = pos_y - path_y_final
+						distance_to_final = cd.sqrt(dx_final ** 2 + dy_final ** 2)
+						
+						# Weight increases quadratically as vehicle approaches path end
+						progress_weight = cd.if_else(path_progress > end_threshold,
+						                              ((path_progress - end_threshold) / (1.0 - end_threshold)) ** 2,  # Quadratic increase
+						                              0.0)
+						direct_goal_weight = float(self.get_config_value("contouring.terminal_contouring", 10.0)) * 3.0
+						direct_goal_cost = direct_goal_weight * progress_weight * distance_to_final ** 2
+					elif isinstance(path_progress, (cd.MX, cd.SX)):
+						# Symbolic but no path params: use lag_error as proxy (fallback)
+						progress_weight = cd.if_else(path_progress > end_threshold,
+						                              ((path_progress - end_threshold) / (1.0 - end_threshold)) ** 2,
+						                              0.0)
+						direct_goal_weight = float(self.get_config_value("contouring.terminal_contouring", 10.0)) * 2.0
+						direct_goal_cost = direct_goal_weight * progress_weight * lag_error ** 2
+					else:
+						# Numeric: compute direct distance to final point
+						if path_progress > end_threshold:
+							# Get final point numerically
+							final_s = s_max
+							try:
+								path_x_final = float(self.reference_path.x_spline(final_s))
+								path_y_final = float(self.reference_path.y_spline(final_s))
+								
+								# Compute direct Euclidean distance
+								dx_final = float(pos_x) - path_x_final
+								dy_final = float(pos_y) - path_y_final
+								distance_to_final = np.sqrt(dx_final ** 2 + dy_final ** 2)
+								
+								progress_weight = ((path_progress - end_threshold) / (1.0 - end_threshold)) ** 2
+								direct_goal_weight = float(self.get_config_value("contouring.terminal_contouring", 10.0)) * 3.0
+								direct_goal_cost = direct_goal_weight * progress_weight * distance_to_final ** 2
+							except Exception:
+								# Fallback to lag_error
+								progress_weight = ((path_progress - end_threshold) / (1.0 - end_threshold)) ** 2
+								direct_goal_weight = float(self.get_config_value("contouring.terminal_contouring", 10.0)) * 2.0
+								direct_goal_cost = direct_goal_weight * progress_weight * lag_error ** 2
+				except Exception as e:
+					LOG_DEBUG(f"Could not compute direct goal cost: {e}")
+		
 		if self.goal_reaching_contouring and stage_idx == horizon_val - 1:
 
 			terminal_angle_weight = float(self.get_config_value("contouring.terminal_angle", 1.0))
@@ -1061,7 +1176,7 @@ class ContouringObjective(BaseObjective):
 			"contouring_lag_cost": lag_cost,
 			"contouring_contour_cost": contour_cost,
 			"contouring_velocity_cost": velocity_cost,
-			"contouring_goal_cost": goal_cost,
+			"contouring_goal_cost": goal_cost + direct_goal_cost,  # Include direct goal cost
 			"contouring_terminal_cost": terminal_cost
 		}
 

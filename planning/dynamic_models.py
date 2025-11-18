@@ -479,7 +479,10 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
                         s_max = float(s_arr[-1])
         
         # Normalize s to [0,1] for Spline2D evaluation
-        s_normalized = cd.fmin(cd.fmax(s / cd.fmax(s_max, 1e-6), 0.0), 1.0)
+        # Clamp s to [0, s_max] for path evaluation (even if s > s_max in state)
+        # This allows vehicle to progress beyond path length while path evaluation stays valid
+        s_clamped = cd.fmin(cd.fmax(s, 0.0), s_max)  # Clamp for path evaluation
+        s_normalized = cd.fmin(cd.fmax(s_clamped / cd.fmax(s_max, 1e-6), 0.0), 1.0)
         
         # Get path parameters from solver
         if not hasattr(self, 'params') or self.params is None:
@@ -542,47 +545,37 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             denominator = cd.fmax(denominator, 1e-6)  # Prevent division by zero
             theta = cd.atan2(vt_t, denominator)
             
-            # Bound theta to prevent extreme values
+            # Bound theta to prevent extreme values (C++ reference uses similar bounds)
             theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)
             
-            # CRITICAL FIX: Scale R * theta to prevent oversteering
-            # The formula s_new = s + R * theta can produce excessive progression when:
-            # 1. R is very large (nearly straight path) -> R * theta becomes huge
-            # 2. R is moderate but theta is large -> still excessive
-            # Reference: Use velocity-based progression as primary, curvature-aware as correction
+            # C++ reference formula: s_new = s + R * theta
+            # Reference: https://github.com/tud-amr/mpc_planner - uses s_new = s + R * theta directly
+            # This directly uses curvature-aware progression matching the C++ implementation
+            # The formula naturally handles both curved and straight paths:
+            # - For curved paths (small R): R * theta provides curvature-aware progression
+            # - For straight paths (large R): R is capped at 1e4, so progression is reasonable
             
+            # Cap R to prevent excessive progression on very straight paths (matches C++ safeguard)
+            R_max = 1e4  # Cap radius at 10km (matches C++ safeguard in CurvatureAwareSecondOrderBicycleModel)
+            R_used = cd.fmin(R, R_max)
+            
+            # Apply C++ formula: s_new = s + R * theta
+            ds_arc_length = R_used * theta
+            
+            # Bound total progression to prevent extreme updates (safeguard for numerical stability)
+            # This should rarely trigger if R and theta are properly bounded, but provides safety
             v = x[3] if x.size1() > 3 else 1.0
-            ds_velocity = v * dt  # Base progression from velocity
-            
-            # Compute curvature-aware correction term
-            # Cap R to prevent excessive contribution
-            R_effective = cd.fmin(R, 20.0)  # Cap at 20m for curvature correction (much more conservative)
-            ds_curvature_correction = R_effective * theta
-            
-            # Blend: use velocity-based as primary, add curvature correction only when R is small
-            # For large R (straight paths), use pure velocity-based
-            # For small R (curved paths), add curvature correction
-            R_threshold = 30.0  # Start using curvature correction when R < 30m
-            
-            # Blend factor: 0 = pure velocity-based, 1 = velocity + curvature correction
-            blend_factor = cd.if_else(R < R_threshold,
-                                    1.0 - (R / cd.fmax(R_threshold, 1.0)),  # More correction for smaller R
-                                    0.0)  # Pure velocity-based for large R
-            
-            # Combine: velocity-based progression + curvature correction (when applicable)
-            ds_arc_length = ds_velocity + blend_factor * ds_curvature_correction
-            
-            # CRITICAL: Bound the total progression to prevent excessive updates
-            # Maximum progression should be reasonable relative to velocity
-            ds_max = v * dt * 2.0  # Maximum 2x velocity-based progression
+            ds_max = v * dt * 5.0  # Allow up to 5x velocity-based progression (for sharp turns)
             ds_min = -v * dt * 0.5  # Allow some backward progression if needed
             ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min), ds_max)
             
             new_s = s + ds_arc_length
             
-            # Clamp to valid range [0, s_max] (arc length bounds)
+            # Allow progression beyond s_max to reach final point (C++ reference behavior)
+            # Clamp only to non-negative (allow s > s_max to reach path end)
             new_s = cd.fmax(new_s, 0.0)
-            new_s = cd.fmin(new_s, s_max)  # Don't exceed path length
+            # NOTE: Do NOT clamp to s_max - allow vehicle to progress beyond path length
+            # to reach the final point. Path evaluation will clamp s to s_max internally.
             
             return cd.vertcat(integrated_states, new_s)
         except Exception as e:
@@ -707,52 +700,43 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             except Exception:
                 R = 1e4  # Fallback: large radius
             
-            # Compute theta using curvature-aware formula: theta = atan2(vt_t, R - contour_error - vn_t)
+            # Compute theta using curvature-aware formula from C++ reference: theta = atan2(vt_t, R - contour_error - vn_t)
+            # Reference: https://github.com/tud-amr/mpc_planner - uses s_new = s + R * theta directly
             denominator = R - contour_error - vn_t
-            denominator = cd.fmax(denominator, 1e-6)
+            denominator = cd.fmax(denominator, 1e-6)  # Prevent division by zero
             theta = cd.atan2(vt_t, denominator)
             
-            # Bound theta to prevent extreme values
+            # Bound theta to prevent extreme values (C++ reference uses similar bounds)
             theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)
             
-            # CRITICAL FIX: Scale R * theta to prevent oversteering
-            # The formula s_new = s + R * theta can produce excessive progression when:
-            # 1. R is very large (nearly straight path) -> R * theta becomes huge
-            # 2. R is moderate but theta is large -> still excessive
-            # Reference: Use velocity-based progression as primary, curvature-aware as correction
+            # C++ reference formula: s_new = s + R * theta
+            # Reference: https://github.com/tud-amr/mpc_planner - uses s_new = s + R * theta directly
+            # This directly uses curvature-aware progression matching the C++ implementation
+            # The formula naturally handles both curved and straight paths:
+            # - For curved paths (small R): R * theta provides curvature-aware progression
+            # - For straight paths (large R): R is capped at 1e4, so progression is reasonable
             
+            # Cap R to prevent excessive progression on very straight paths (matches C++ safeguard)
+            R_max = 1e4  # Cap radius at 10km (matches C++ safeguard in CurvatureAwareSecondOrderBicycleModel)
+            R_used = cd.fmin(R, R_max)
+            
+            # Apply C++ formula: s_new = s + R * theta
+            ds_arc_length = R_used * theta
+            
+            # Bound total progression to prevent extreme updates (safeguard for numerical stability)
+            # This should rarely trigger if R and theta are properly bounded, but provides safety
             v = x_next_integrated[3] if x_next_integrated.size1() > 3 else 1.0
-            ds_velocity = v * timestep  # Base progression from velocity
-            
-            # Compute curvature-aware correction term
-            # Cap R to prevent excessive contribution
-            R_effective = cd.fmin(R, 20.0)  # Cap at 20m for curvature correction (much more conservative)
-            ds_curvature_correction = R_effective * theta
-            
-            # Blend: use velocity-based as primary, add curvature correction only when R is small
-            # For large R (straight paths), use pure velocity-based
-            # For small R (curved paths), add curvature correction
-            R_threshold = 30.0  # Start using curvature correction when R < 30m
-            
-            # Blend factor: 0 = pure velocity-based, 1 = velocity + curvature correction
-            blend_factor = cd.if_else(R < R_threshold,
-                                    1.0 - (R / cd.fmax(R_threshold, 1.0)),  # More correction for smaller R
-                                    0.0)  # Pure velocity-based for large R
-            
-            # Combine: velocity-based progression + curvature correction (when applicable)
-            ds_arc_length = ds_velocity + blend_factor * ds_curvature_correction
-            
-            # CRITICAL: Bound the total progression to prevent excessive updates
-            # Maximum progression should be reasonable relative to velocity
-            ds_max = v * timestep * 2.0  # Maximum 2x velocity-based progression
+            ds_max = v * timestep * 5.0  # Allow up to 5x velocity-based progression (for sharp turns)
             ds_min = -v * timestep * 0.5  # Allow some backward progression if needed
             ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min), ds_max)
             
             s_next = s + ds_arc_length
             
-            # Clamp to valid range [0, s_max] (arc length bounds)
+            # Allow progression beyond s_max to reach final point (C++ reference behavior)
+            # Clamp only to non-negative (allow s > s_max to reach path end)
             s_next = cd.fmax(s_next, 0.0)
-            s_next = cd.fmin(s_next, s_max)  # Don't exceed path length
+            # NOTE: Do NOT clamp to s_max - allow vehicle to progress beyond path length
+            # to reach the final point. Path evaluation will clamp s to s_max internally.
             
         except Exception:
             # Fallback: simple velocity-based progression
