@@ -1505,16 +1505,25 @@ class ContouringObjective(BaseObjective):
 		ax.plot(self.reference_path.x, self.reference_path.y, label="Reference Path", linewidth=2)
 
 		# Plot static bounds if available (boundary splines are tuples of (x_spline, y_spline))
+		# Updated to work with TKSpline formulations
 		if self.bound_left_spline is not None and self.bound_right_spline is not None:
-			s_vals = np.linspace(self.reference_path.s[0], self.reference_path.s[-1], 200)
-			left_x_spline, left_y_spline = self.bound_left_spline
-			right_x_spline, right_y_spline = self.bound_right_spline
-			left_x_vals = left_x_spline(s_vals)
-			left_y_vals = left_y_spline(s_vals)
-			right_x_vals = right_x_spline(s_vals)
-			right_y_vals = right_y_spline(s_vals)
-			ax.plot(left_x_vals, left_y_vals, '--', color='blue', label='Left Bound')
-			ax.plot(right_x_vals, right_y_vals, '--', color='green', label='Right Bound')
+			s_arr = np.asarray(self.reference_path.s, dtype=float)
+			if len(s_arr) > 0:
+				s_min = float(s_arr[0])
+				s_max = float(s_arr[-1])
+				s_vals = np.linspace(s_min, s_max, 200)
+				
+				left_x_spline, left_y_spline = self.bound_left_spline
+				right_x_spline, right_y_spline = self.bound_right_spline
+				
+				# TKSpline supports __call__ for evaluation
+				left_x_vals = [float(left_x_spline(s)) for s in s_vals]
+				left_y_vals = [float(left_y_spline(s)) for s in s_vals]
+				right_x_vals = [float(right_x_spline(s)) for s in s_vals]
+				right_y_vals = [float(right_y_spline(s)) for s in s_vals]
+				
+				ax.plot(left_x_vals, left_y_vals, '--', color='blue', linewidth=1.5, alpha=0.7, label='Left Bound')
+				ax.plot(right_x_vals, right_y_vals, '--', color='green', linewidth=1.5, alpha=0.7, label='Right Bound')
 
 		ax.set_aspect('equal')
 		ax.set_xlabel('X')

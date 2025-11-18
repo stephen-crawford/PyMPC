@@ -1200,12 +1200,54 @@ class IntegrationTestFramework:
                                     break
                         
                         if contouring_module is not None:
-                            # Get constraints for stage 0 (current vehicle position)
-                            constraints = contouring_module.calculate_constraints(planner.state, data, 0)
-                            
-                            # Extract halfspace information from constraint dictionaries
+                            # For visualization, we need numeric constraints with a1, a2, b format
+                            # Get current spline value and compute numeric constraints directly
                             step_halfspaces = []
+                            try:
+                                # Get current spline value
+                                cur_s = None
+                                if planner.state is not None and planner.state.has('spline'):
+                                    try:
+                                        spline_val = planner.state.get('spline')
+                                        # Check if it's symbolic - if so, try to get numeric value
+                                        import casadi as cd
+                                        if isinstance(spline_val, (cd.MX, cd.SX)):
+                                            # Try to get numeric value from warmstart or use path start
+                                            if hasattr(planner, 'solver') and planner.solver is not None:
+                                                if hasattr(planner.solver, 'warmstart_values') and 'spline' in planner.solver.warmstart_values:
+                                                    if len(planner.solver.warmstart_values['spline']) > 0:
+                                                        cur_s = float(planner.solver.warmstart_values['spline'][0])
+                                            if cur_s is None:
+                                                # Use path start as fallback
+                                                ref_path = getattr(contouring_module, '_reference_path', None)
+                                                if ref_path is not None and hasattr(ref_path, 's'):
+                                                    s_arr = np.asarray(ref_path.s, dtype=float)
+                                                    if len(s_arr) > 0:
+                                                        cur_s = float(s_arr[0])
+                                        else:
+                                            cur_s = float(spline_val)
+                                    except Exception as e:
+                                        logger.debug(f"Could not get spline value: {e}")
+                                
+                                # Compute numeric constraints for visualization
+                                if cur_s is not None:
+                                    constraints = contouring_module._compute_numeric_constraints(cur_s, planner.state, data, 0)
+                                    
+                                    if len(constraints) > 0:
+                                        logger.info(f"Step {step}: Computed {len(constraints)} numeric contouring constraints for visualization (s={cur_s:.3f})")
+                                    else:
+                                        logger.debug(f"Step {step}: No numeric constraints computed (s={cur_s:.3f})")
+                                else:
+                                    logger.debug(f"Step {step}: Cannot compute constraints - no spline value available")
+                                    constraints = []
+                            except Exception as e:
+                                logger.warning(f"Step {step}: Error computing numeric constraints for visualization: {e}")
+                                import traceback
+                                logger.debug(traceback.format_exc())
+                                constraints = []
+                            
                             if constraints:
+                                
                                 # Get the reference path and road width for accurate visualization
                                 ref_path = getattr(contouring_module, '_reference_path', None)
                                 road_width_half = getattr(contouring_module, '_road_width_half', None)
@@ -1301,6 +1343,11 @@ class IntegrationTestFramework:
                                 
                                 # Convert to list of tuples (A, b, is_left, spline_s)
                                 step_halfspaces = list(seen_halfspaces.values())
+                                
+                                if len(step_halfspaces) > 0:
+                                    logger.debug(f"Step {step}: Captured {len(step_halfspaces)} contouring constraint halfspaces for visualization")
+                                else:
+                                    logger.debug(f"Step {step}: No contouring constraint halfspaces captured (constraints may be symbolic)")
                             
                             halfspaces_per_step.append(step_halfspaces)
                         else:
@@ -2073,33 +2120,71 @@ class IntegrationTestFramework:
             pass
         
         # Plot reference path boundaries (left and right bounds) if they exist
+        # Updated to work with new TKSpline formulations
         try:
             if hasattr(self, 'last_data') and self.last_data is not None:
-                # Plot left boundary
-                if hasattr(self.last_data, 'left_boundary_x') and hasattr(self.last_data, 'left_boundary_y'):
+                ref_path = None
+                if hasattr(self.last_data, 'reference_path') and self.last_data.reference_path is not None:
+                    ref_path = self.last_data.reference_path
+                
+                # Try to use boundary splines first (most accurate, uses TKSpline)
+                if (hasattr(self.last_data, 'left_spline_x') and self.last_data.left_spline_x is not None and
+                    hasattr(self.last_data, 'left_spline_y') and self.last_data.left_spline_y is not None and
+                    hasattr(self.last_data, 'right_spline_x') and self.last_data.right_spline_x is not None and
+                    hasattr(self.last_data, 'right_spline_y') and self.last_data.right_spline_y is not None and
+                    ref_path is not None and hasattr(ref_path, 's') and ref_path.s is not None):
+                    # Use TKSpline for smooth boundary visualization
+                    s_arr = np.asarray(ref_path.s, dtype=float)
+                    if len(s_arr) > 0:
+                        s_min = float(s_arr[0])
+                        s_max = float(s_arr[-1])
+                        s_sample = np.linspace(s_min, s_max, 200)  # Smooth sampling
+                        
+                        left_x_spline = self.last_data.left_spline_x
+                        left_y_spline = self.last_data.left_spline_y
+                        right_x_spline = self.last_data.right_spline_x
+                        right_y_spline = self.last_data.right_spline_y
+                        
+                        left_x_vals = [float(left_x_spline(s)) for s in s_sample]
+                        left_y_vals = [float(left_y_spline(s)) for s in s_sample]
+                        right_x_vals = [float(right_x_spline(s)) for s in s_sample]
+                        right_y_vals = [float(right_y_spline(s)) for s in s_sample]
+                        
+                        # Road boundaries: gray dashed (distinct from orange/cyan contouring constraints)
+                        ax.plot(left_x_vals, left_y_vals, 'gray', linestyle='--', linewidth=1.5, alpha=0.7, label='Left Road Boundary')
+                        ax.plot(right_x_vals, right_y_vals, 'gray', linestyle='--', linewidth=1.5, alpha=0.7, label='Right Road Boundary')
+                
+                # Fallback to array-based boundaries
+                elif hasattr(self.last_data, 'left_boundary_x') and hasattr(self.last_data, 'left_boundary_y'):
                     if (self.last_data.left_boundary_x is not None and self.last_data.left_boundary_y is not None and
                         len(self.last_data.left_boundary_x) > 0 and len(self.last_data.left_boundary_y) > 0):
+                        # Road boundaries: gray dashed (distinct from orange/cyan contouring constraints)
                         ax.plot(np.asarray(self.last_data.left_boundary_x, dtype=float),
                                np.asarray(self.last_data.left_boundary_y, dtype=float),
-                               'g:', linewidth=1.5, alpha=0.5, label='Left Boundary')
+                               'gray', linestyle='--', linewidth=1.5, alpha=0.7, label='Left Road Boundary')
+                
                 elif hasattr(self.last_data, 'left_bound') and self.last_data.left_bound is not None:
                     if hasattr(self.last_data.left_bound, 'x') and hasattr(self.last_data.left_bound, 'y'):
+                        # Road boundaries: gray dashed (distinct from orange/cyan contouring constraints)
                         ax.plot(np.asarray(self.last_data.left_bound.x, dtype=float),
                                np.asarray(self.last_data.left_bound.y, dtype=float),
-                               'g:', linewidth=1.5, alpha=0.5, label='Left Boundary')
+                               'gray', linestyle='--', linewidth=1.5, alpha=0.7, label='Left Road Boundary')
                 
-                # Plot right boundary
-                if hasattr(self.last_data, 'right_boundary_x') and hasattr(self.last_data, 'right_boundary_y'):
-                    if (self.last_data.right_boundary_x is not None and self.last_data.right_boundary_y is not None and
-                        len(self.last_data.right_boundary_x) > 0 and len(self.last_data.right_boundary_y) > 0):
-                        ax.plot(np.asarray(self.last_data.right_boundary_x, dtype=float),
-                               np.asarray(self.last_data.right_boundary_y, dtype=float),
-                               'g:', linewidth=1.5, alpha=0.5, label='Right Boundary')
-                elif hasattr(self.last_data, 'right_bound') and self.last_data.right_bound is not None:
-                    if hasattr(self.last_data.right_bound, 'x') and hasattr(self.last_data.right_bound, 'y'):
-                        ax.plot(np.asarray(self.last_data.right_bound.x, dtype=float),
-                               np.asarray(self.last_data.right_bound.y, dtype=float),
-                               'g:', linewidth=1.5, alpha=0.5, label='Right Boundary')
+                # Right boundary fallback
+                if (not (hasattr(self.last_data, 'right_spline_x') and self.last_data.right_spline_x is not None)):
+                    if hasattr(self.last_data, 'right_boundary_x') and hasattr(self.last_data, 'right_boundary_y'):
+                        if (self.last_data.right_boundary_x is not None and self.last_data.right_boundary_y is not None and
+                            len(self.last_data.right_boundary_x) > 0 and len(self.last_data.right_boundary_y) > 0):
+                            # Road boundaries: gray dashed (distinct from orange/cyan contouring constraints)
+                            ax.plot(np.asarray(self.last_data.right_boundary_x, dtype=float),
+                                   np.asarray(self.last_data.right_boundary_y, dtype=float),
+                                   'gray', linestyle='--', linewidth=1.5, alpha=0.7, label='Right Road Boundary')
+                    elif hasattr(self.last_data, 'right_bound') and self.last_data.right_bound is not None:
+                        if hasattr(self.last_data.right_bound, 'x') and hasattr(self.last_data.right_bound, 'y'):
+                            # Road boundaries: gray dashed (distinct from orange/cyan contouring constraints)
+                            ax.plot(np.asarray(self.last_data.right_bound.x, dtype=float),
+                                   np.asarray(self.last_data.right_bound.y, dtype=float),
+                                   'gray', linestyle='--', linewidth=1.5, alpha=0.7, label='Right Road Boundary')
         except Exception as e:
             logging.getLogger("integration_test").debug(f"Could not plot reference path boundaries: {e}")
 
@@ -2246,7 +2331,10 @@ class IntegrationTestFramework:
                 # Draw new halfspace constraints for this frame
                 if halfspaces_per_step is not None and frame < len(halfspaces_per_step):
                     frame_halfspaces = halfspaces_per_step[frame]
-                    if frame_halfspaces:
+                    if frame_halfspaces and len(frame_halfspaces) > 0:
+                        # Debug: log constraint count for first few frames
+                        if frame < 3:
+                            logging.getLogger("integration_test").debug(f"Frame {frame}: Drawing {len(frame_halfspaces)} contouring constraint halfspaces")
                         # Get plot bounds for line extension
                         xlim = ax.get_xlim()
                         ylim = ax.get_ylim()
@@ -2307,6 +2395,7 @@ class IntegrationTestFramework:
                                 a1_norm, a2_norm, b_norm = constraint_data[:3]
                                 spline_s = None
                             
+                            # Contouring constraints: orange (distinct from gray road boundaries)
                             color = 'orange'
                             alpha = 0.7
                             
@@ -2457,6 +2546,7 @@ class IntegrationTestFramework:
                                 a1_norm, a2_norm, b_norm = constraint_data[:3]
                                 spline_s = None
                             
+                            # Contouring constraints: cyan (distinct from gray road boundaries)
                             color = 'cyan'
                             alpha = 0.7
                             

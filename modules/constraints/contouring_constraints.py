@@ -749,41 +749,96 @@ class ContouringConstraints(BaseConstraint):
 				ref = data.reference_path
 				if not hasattr(ref, 'x_spline') or not hasattr(ref, 'y_spline'):
 					return
-				# Determine width
-				width = float(self.module.get_config_value("road.width", 7.0))
-				half_w = 0.5 * width
+				
 				# Sample along arc length
-				s_vals = ref.s if hasattr(ref, 's') else np.linspace(0.0, 1.0, 100)
-				xc = []
-				yc = []
+				s_vals = ref.s if hasattr(ref, 's') and ref.s is not None else np.linspace(0.0, 1.0, 100)
+				if len(s_vals) == 0:
+					return
+				
+				# Determine sampling range
+				if len(s_vals) > 0 and (np.max(s_vals) <= 1.001):
+					s_min = float(s_vals[0])
+					s_max = float(s_vals[-1])
+					s_sample = np.linspace(s_min, s_max, 200)  # More points for smoother visualization
+				else:
+					s_sample = np.linspace(float(s_vals[0]), float(s_vals[-1]), 200)
+				
 				xl = []
 				yl = []
 				xr = []
 				yr = []
-				# If s is normalized, attempt to map to arc length
-				if len(s_vals) > 0 and (np.max(s_vals) <= 1.001):
-					s_min = float(s_vals[0])
-					s_max = float(s_vals[-1])
-					s_sample = np.linspace(s_min, s_max, 100)
+				
+				# Check if width splines are available (more accurate)
+				if (hasattr(self.module, '_width_left_spline') and self.module._width_left_spline is not None and
+					hasattr(self.module, '_width_right_spline') and self.module._width_right_spline is not None):
+					# Use width splines for accurate boundary visualization
+					for s in s_sample:
+						try:
+							# Get centerline position using TKSpline
+							x = ref.x_spline(s)  # TKSpline supports __call__
+							y = ref.y_spline(s)
+							
+							# Get path tangent using TKSpline derivative
+							dx = ref.x_spline.derivative()(s)
+							dy = ref.y_spline.derivative()(s)
+							norm = np.hypot(float(dx), float(dy))
+							if norm < 1e-6:
+								continue
+							
+							# Normalize tangent
+							dx_norm = float(dx) / norm
+							dy_norm = float(dy) / norm
+							
+							# Normal vector pointing left: [dy_norm, -dx_norm]
+							nx = float(dy_norm)
+							ny = float(-dx_norm)
+							
+							# Get widths from width splines (TKSpline supports __call__)
+							width_left = float(self.module._width_left_spline(s))
+							width_right = float(self.module._width_right_spline(s))
+							
+							# Compute boundary points
+							xl.append(float(x) + width_left * nx)
+							yl.append(float(y) + width_left * ny)
+							xr.append(float(x) - width_right * nx)
+							yr.append(float(y) - width_right * ny)
+						except Exception as e:
+							LOG_DEBUG(f"RoadBoundsVisualizer: Error evaluating at s={s:.3f}: {e}")
+							continue
 				else:
-					s_sample = np.linspace(float(s_vals[0]), float(s_vals[-1]), 100)
-				for s in s_sample:
-					x = ref.x_spline(s)
-					y = ref.y_spline(s)
-					dx = ref.x_spline.derivative()(s)
-					dy = ref.y_spline.derivative()(s)
-					norm = np.hypot(float(dx), float(dy))
-					if norm < 1e-6:
-						continue
-					nx = -dy / norm
-					ny = dx / norm
-					xc.append(float(x))
-					yc.append(float(y))
-					xl.append(float(x) + half_w * float(nx))
-					yl.append(float(y) + half_w * float(ny))
-					xr.append(float(x) - half_w * float(nx))
-					yr.append(float(y) - half_w * float(ny))
-				ax = plt.gca()
-				ax.plot(xl, yl, 'k--', linewidth=1.0, alpha=0.7)
-				ax.plot(xr, yr, 'k--', linewidth=1.0, alpha=0.7)
+					# Fallback: use fixed width
+					width = float(self.module.get_config_value("road.width", 7.0))
+					half_w = 0.5 * width
+					
+					for s in s_sample:
+						try:
+							# Get centerline position using TKSpline
+							x = ref.x_spline(s)  # TKSpline supports __call__
+							y = ref.y_spline(s)
+							
+							# Get path tangent using TKSpline derivative
+							dx = ref.x_spline.derivative()(s)
+							dy = ref.y_spline.derivative()(s)
+							norm = np.hypot(float(dx), float(dy))
+							if norm < 1e-6:
+								continue
+							
+							# Normalize tangent
+							nx = -float(dy) / norm
+							ny = float(dx) / norm
+							
+							# Compute boundary points with fixed width
+							xl.append(float(x) + half_w * nx)
+							yl.append(float(y) + half_w * ny)
+							xr.append(float(x) - half_w * nx)
+							yr.append(float(y) - half_w * ny)
+						except Exception as e:
+							LOG_DEBUG(f"RoadBoundsVisualizer: Error evaluating at s={s:.3f}: {e}")
+							continue
+				
+				# Plot boundaries (using gray to distinguish from orange/cyan contouring constraints)
+				if len(xl) > 0 and len(yl) > 0:
+					ax = plt.gca()
+					ax.plot(xl, yl, 'gray', linestyle='--', linewidth=1.5, alpha=0.7, label='Left Road Boundary')
+					ax.plot(xr, yr, 'gray', linestyle='--', linewidth=1.5, alpha=0.7, label='Right Road Boundary')
 		return RoadBoundsVisualizer(self)
