@@ -472,7 +472,7 @@ class IntegrationTestFramework:
                         if isinstance(test_config.reference_path, np.ndarray):
                             # Convert numpy array to ReferencePath object
                             from planning.types import ReferencePath
-                            from scipy.interpolate import CubicSpline
+                            from utils.math_tools import TKSpline
                             ref_path = ReferencePath()
                             # Ensure numpy arrays for arithmetic operations
                             x_arr = np.asarray(test_config.reference_path[:, 0], dtype=float)
@@ -489,10 +489,11 @@ class IntegrationTestFramework:
                             ref_path.y = y_arr
                             ref_path.z = z_arr
                             ref_path.s = s
-                            # Build splines
-                            ref_path.x_spline = CubicSpline(s, x_arr)
-                            ref_path.y_spline = CubicSpline(s, y_arr)
-                            ref_path.z_spline = CubicSpline(s, z_arr)
+                            # Build numeric splines using TKSpline (for post-optimization evaluation)
+                            from utils.math_tools import TKSpline
+                            ref_path.x_spline = TKSpline(s, x_arr)
+                            ref_path.y_spline = TKSpline(s, y_arr)
+                            ref_path.z_spline = TKSpline(s, z_arr)
                             ref_path.length = float(s[-1])
                             data.reference_path = ref_path
                             start_pt = [float(x_arr[0]), float(y_arr[0]), 0.0]
@@ -577,13 +578,13 @@ class IntegrationTestFramework:
                     data.left_bound = Bound(left_x, left_y, ref_path.s)
                     data.right_bound = Bound(right_x, right_y, ref_path.s)
                     
-                    # Create boundary splines for obstacle path_intersect behavior
-                    from scipy.interpolate import CubicSpline
+                    # Create boundary splines for obstacle path_intersect behavior (numeric evaluation)
+                    from utils.math_tools import TKSpline
                     s_arr = np.asarray(ref_path.s, dtype=float)
-                    data.left_spline_x = CubicSpline(s_arr, np.array(left_x))
-                    data.left_spline_y = CubicSpline(s_arr, np.array(left_y))
-                    data.right_spline_x = CubicSpline(s_arr, np.array(right_x))
-                    data.right_spline_y = CubicSpline(s_arr, np.array(right_y))
+                    data.left_spline_x = TKSpline(s_arr, np.array(left_x))
+                    data.left_spline_y = TKSpline(s_arr, np.array(left_y))
+                    data.right_spline_x = TKSpline(s_arr, np.array(right_x))
+                    data.right_spline_y = TKSpline(s_arr, np.array(right_y))
                     logger.debug(f"Created boundary splines for path_intersect behavior")
             except Exception:
                 # Minimal fallback (only set goal for Goal objective)
@@ -723,13 +724,13 @@ class IntegrationTestFramework:
                         data.reference_path.x = np.asarray(data.reference_path.x, dtype=float) + x_offset
                         data.reference_path.y = np.asarray(data.reference_path.y, dtype=float) + y_offset
                         
-                        # Rebuild splines with adjusted coordinates
-                        from scipy.interpolate import CubicSpline
+                        # Rebuild numeric splines with adjusted coordinates using TKSpline
+                        from utils.math_tools import TKSpline
                         s_arr = np.asarray(data.reference_path.s, dtype=float)
-                        data.reference_path.x_spline = CubicSpline(s_arr, data.reference_path.x)
-                        data.reference_path.y_spline = CubicSpline(s_arr, data.reference_path.y)
+                        data.reference_path.x_spline = TKSpline(s_arr, data.reference_path.x)
+                        data.reference_path.y_spline = TKSpline(s_arr, data.reference_path.y)
                         if hasattr(data.reference_path, 'z') and data.reference_path.z is not None:
-                            data.reference_path.z_spline = CubicSpline(s_arr, data.reference_path.z)
+                            data.reference_path.z_spline = TKSpline(s_arr, data.reference_path.z)
                         
                         logger.info(f"Adjusted reference path to start at vehicle position: "
                                   f"({data.reference_path.x[0]:.2f}, {data.reference_path.y[0]:.2f})")
@@ -1053,13 +1054,13 @@ class IntegrationTestFramework:
                                 data.reference_path.x = np.asarray(data.reference_path.x, dtype=float) + x_offset
                                 data.reference_path.y = np.asarray(data.reference_path.y, dtype=float) + y_offset
                                 
-                                # Rebuild splines with adjusted coordinates
-                                from scipy.interpolate import CubicSpline
+                                # Rebuild numeric splines with adjusted coordinates using TKSpline
+                                from utils.math_tools import TKSpline
                                 s_arr = np.asarray(data.reference_path.s, dtype=float)
-                                data.reference_path.x_spline = CubicSpline(s_arr, data.reference_path.x)
-                                data.reference_path.y_spline = CubicSpline(s_arr, data.reference_path.y)
+                                data.reference_path.x_spline = TKSpline(s_arr, data.reference_path.x)
+                                data.reference_path.y_spline = TKSpline(s_arr, data.reference_path.y)
                                 if hasattr(data.reference_path, 'z') and data.reference_path.z is not None:
-                                    data.reference_path.z_spline = CubicSpline(s_arr, data.reference_path.z)
+                                    data.reference_path.z_spline = TKSpline(s_arr, data.reference_path.z)
                                 
                                 logger.info(f"Step {step}: Updated reference path to start at vehicle position: "
                                            f"({data.reference_path.x[0]:.2f}, {data.reference_path.y[0]:.2f}), "

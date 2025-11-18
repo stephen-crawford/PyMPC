@@ -1166,9 +1166,245 @@ class IterativeDecomp(EllipsoidDecomp):
         return new_path
 
 ###### Spline Utils ######
+"""
+Python implementation of spline utilities based on:
+- https://github.com/ttk592/spline (cubic spline library)
+- https://github.com/tud-amr/mpc_planner (MPC planner with Spline2D)
+- https://github.com/oscardegroot/ros_tools (ROS tools)
+"""
+
+
+class TKSpline:
+    """
+    Python implementation of cubic spline interpolation (NUMERIC ONLY).
+    Based on ttk592/spline library (https://github.com/ttk592/spline).
+    
+    This implements natural cubic splines with C2 continuity.
+    
+    IMPORTANT: This class is for NUMERIC evaluation only. For symbolic computation
+    (CasADi MX/SX), use Spline2D with parameter dictionaries instead.
+    
+    Usage:
+        - Numeric evaluation: Use TKSpline for post-optimization evaluation
+        - Symbolic optimization: Use Spline2D(params, num_segments, s) with CasADi symbols
+    """
+    
+    def __init__(self, x, y, boundary_type='natural'):
+        """
+        Initialize cubic spline from data points.
+        
+        Args:
+            x: Array of x-coordinates (parameter values, must be strictly increasing)
+            y: Array of y-coordinates (function values)
+            boundary_type: 'natural' (default), 'clamped', or 'periodic'
+        """
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+        
+        if len(x) != len(y):
+            raise ValueError("x and y must have the same length")
+        if len(x) < 2:
+            raise ValueError("Need at least 2 points for spline interpolation")
+        
+        # Check that x is strictly increasing
+        if np.any(np.diff(x) <= 0):
+            raise ValueError("x must be strictly increasing")
+        
+        self.x = x.copy()
+        self.y = y.copy()
+        self.n = len(x) - 1  # Number of intervals
+        self.boundary_type = boundary_type
+        
+        # Compute spline coefficients
+        self._compute_coefficients()
+    
+    def _compute_coefficients(self):
+        """Compute cubic spline coefficients using tridiagonal matrix algorithm."""
+        n = self.n
+        h = np.diff(self.x)  # Interval lengths
+        delta = np.diff(self.y) / h  # Divided differences
+        
+        # Set up tridiagonal system: A * m = b
+        # where m are second derivatives at knots
+        A = np.zeros((n + 1, n + 1))
+        b = np.zeros(n + 1)
+        
+        # Interior points
+        for i in range(1, n):
+            A[i, i - 1] = h[i - 1] / 6.0
+            A[i, i] = (h[i - 1] + h[i]) / 3.0
+            A[i, i + 1] = h[i] / 6.0
+            b[i] = delta[i] - delta[i - 1]
+        
+        # Boundary conditions
+        if self.boundary_type == 'natural':
+            # Natural spline: second derivative = 0 at endpoints
+            A[0, 0] = 1.0
+            A[n, n] = 1.0
+            b[0] = 0.0
+            b[n] = 0.0
+        elif self.boundary_type == 'clamped':
+            # Clamped spline: first derivative specified at endpoints
+            # For now, use natural as default (can be extended)
+            A[0, 0] = 1.0
+            A[n, n] = 1.0
+            b[0] = 0.0
+            b[n] = 0.0
+        elif self.boundary_type == 'periodic':
+            # Periodic spline: C2 continuity at endpoints
+            A[0, 0] = (h[n - 1] + h[0]) / 3.0
+            A[0, 1] = h[0] / 6.0
+            A[0, n] = h[n - 1] / 6.0
+            b[0] = delta[0] - delta[n - 1]
+            
+            A[n, 0] = h[n - 1] / 6.0
+            A[n, n - 1] = h[n - 2] / 6.0
+            A[n, n] = (h[n - 2] + h[n - 1]) / 3.0
+            b[n] = delta[n - 1] - delta[n - 2]
+        
+        # Solve tridiagonal system
+        self.m = self._solve_tridiagonal(A, b)
+        
+        # Compute polynomial coefficients for each segment
+        # For segment i: S_i(t) = a_i + b_i*t + c_i*t^2 + d_i*t^3
+        # where t = (x - x[i]) / h[i] is normalized parameter in [0, 1]
+        self.a = self.y[:-1].copy()
+        self.b = np.zeros(n)
+        self.c = np.zeros(n)
+        self.d = np.zeros(n)
+        
+        for i in range(n):
+            self.b[i] = delta[i] - h[i] * (2 * self.m[i] + self.m[i + 1]) / 6.0
+            self.c[i] = self.m[i] / 2.0
+            self.d[i] = (self.m[i + 1] - self.m[i]) / (6.0 * h[i])
+    
+    def _solve_tridiagonal(self, A, b):
+        """Solve tridiagonal system using Thomas algorithm."""
+        n = len(b)
+        # Forward elimination
+        for i in range(1, n):
+            if abs(A[i - 1, i - 1]) < 1e-10:
+                raise ValueError("Singular matrix in tridiagonal solve")
+            factor = A[i, i - 1] / A[i - 1, i - 1]
+            A[i, i] -= factor * A[i - 1, i]
+            if i < n - 1:
+                A[i, i + 1] -= factor * A[i - 1, i + 1]
+            b[i] -= factor * b[i - 1]
+        
+        # Back substitution
+        x = np.zeros(n)
+        x[n - 1] = b[n - 1] / A[n - 1, n - 1]
+        for i in range(n - 2, -1, -1):
+            x[i] = (b[i] - A[i, i + 1] * x[i + 1]) / A[i, i]
+        
+        return x
+    
+    def _find_segment(self, x_val):
+        """Find which segment contains x_val."""
+        # Handle boundary cases
+        if x_val <= self.x[0]:
+            return 0
+        if x_val >= self.x[-1]:
+            return self.n - 1
+        
+        # Binary search for efficiency
+        left = 0
+        right = self.n
+        while right - left > 1:
+            mid = (left + right) // 2
+            if x_val < self.x[mid]:
+                right = mid
+            else:
+                left = mid
+        
+        return left
+    
+    def __call__(self, x_val):
+        """Evaluate spline at point x_val (callable interface for compatibility)."""
+        return self.at(x_val)
+    
+    def derivative(self, n=1):
+        """
+        Return derivative function (for compatibility with scipy CubicSpline interface).
+        
+        Args:
+            n: Derivative order (1 or 2)
+        
+        Returns:
+            Callable derivative function
+        """
+        if n == 1:
+            return self.deriv
+        elif n == 2:
+            return self.deriv2
+        else:
+            raise ValueError(f"TKSpline only supports derivatives of order 1 or 2, got {n}")
+    
+    def at(self, x_val):
+        """
+        Evaluate spline at point x_val.
+        Supports both scalar and array inputs.
+        """
+        x_val = np.asarray(x_val)
+        scalar_input = x_val.ndim == 0
+        x_val = np.atleast_1d(x_val)
+        
+        result = np.zeros_like(x_val)
+        for i, x in enumerate(x_val):
+            seg_idx = self._find_segment(x)
+            t = (x - self.x[seg_idx]) / (self.x[seg_idx + 1] - self.x[seg_idx])
+            result[i] = (self.a[seg_idx] + 
+                        self.b[seg_idx] * t + 
+                        self.c[seg_idx] * t * t + 
+                        self.d[seg_idx] * t * t * t)
+        
+        return result[0] if scalar_input else result
+    
+    def deriv(self, x_val):
+        """
+        Evaluate first derivative at point x_val.
+        """
+        x_val = np.asarray(x_val)
+        scalar_input = x_val.ndim == 0
+        x_val = np.atleast_1d(x_val)
+        
+        result = np.zeros_like(x_val)
+        for i, x in enumerate(x_val):
+            seg_idx = self._find_segment(x)
+            h = self.x[seg_idx + 1] - self.x[seg_idx]
+            t = (x - self.x[seg_idx]) / h
+            # Derivative: b + 2*c*t + 3*d*t^2, scaled by 1/h
+            result[i] = (self.b[seg_idx] + 
+                        2 * self.c[seg_idx] * t + 
+                        3 * self.d[seg_idx] * t * t) / h
+        
+        return result[0] if scalar_input else result
+    
+    def deriv2(self, x_val):
+        """
+        Evaluate second derivative at point x_val.
+        """
+        x_val = np.asarray(x_val)
+        scalar_input = x_val.ndim == 0
+        x_val = np.atleast_1d(x_val)
+        
+        result = np.zeros_like(x_val)
+        for i, x in enumerate(x_val):
+            seg_idx = self._find_segment(x)
+            h = self.x[seg_idx + 1] - self.x[seg_idx]
+            t = (x - self.x[seg_idx]) / h
+            # Second derivative: 2*c + 6*d*t, scaled by 1/h^2
+            result[i] = (2 * self.c[seg_idx] + 
+                        6 * self.d[seg_idx] * t) / (h * h)
+        
+        return result[0] if scalar_input else result
 
 
 class SplineSegment:
+    """
+    Legacy spline segment class for backward compatibility.
+    Used when spline coefficients are provided via parameter dictionary.
+    """
 
     def __init__(self, param, name, spline_nr):
         # Retrieve spline values from the parameters (stored as multi parameter by name)
@@ -1201,17 +1437,41 @@ class SplineSegment:
 
 
 class Spline:
+    """
+    Multi-segment spline with sigmoid blending between segments.
+    
+    This class is used for SYMBOLIC computation (CasADi MX/SX) during optimization.
+    It works with parameter dictionaries that contain spline coefficients.
+    
+    For numeric evaluation, use TKSpline directly.
+    
+    Reference: https://github.com/tud-amr/mpc_planner
+    """
+    
     def __init__(self, params, name, num_segments, s):
+        """
+        Initialize spline from parameter dictionary.
+        
+        Args:
+            params: Parameter dictionary containing spline coefficients
+            name: Parameter name prefix (e.g., "path_x")
+            num_segments: Number of spline segments
+            s: Current s value for sigmoid blending (can be CasADi symbolic)
+        """
         self.splines = []  # Classes containing the splines
         self.lambdas = []  # Merges splines
         for i in range(num_segments):
             self.splines.append(SplineSegment(params, f"{name}", i))
 
             # No lambda for the first segment (it is not glued to anything prior)
-            if i > 0:
+            if i > 0 and s is not None:
                 self.lambdas.append(1.0 / (1.0 + np.exp((s - self.splines[-1].s_start + 0.02) / 0.1)))  # Sigmoid
 
     def at(self, s):
+        """
+        Evaluate spline at parameter s.
+        Supports both numeric and CasADi symbolic s.
+        """
         # Iteratively glue segments together
         value = self.splines[-1].at(s)
         for k in range(len(self.splines) - 1, 0, -1):
@@ -1219,12 +1479,20 @@ class Spline:
         return value
 
     def deriv(self, s):
+        """
+        Evaluate first derivative at parameter s.
+        Supports both numeric and CasADi symbolic s.
+        """
         value = self.splines[-1].deriv(s)
         for k in range(len(self.splines) - 1, 0, -1):
             value = self.lambdas[k - 1] * self.splines[k - 1].deriv(s) + (1.0 - self.lambdas[k - 1]) * value
         return value
 
     def deriv2(self, s):
+        """
+        Evaluate second derivative at parameter s.
+        Supports both numeric and CasADi symbolic s.
+        """
         value = self.splines[-1].deriv2(s)
         for k in range(len(self.splines) - 1, 0, -1):
             value = self.lambdas[k - 1] * self.splines[k - 1].deriv2(s) + (1.0 - self.lambdas[k - 1]) * value
@@ -1232,25 +1500,63 @@ class Spline:
 
 
 class Spline2D:
+    """
+    2D spline combining x and y splines for SYMBOLIC computation.
+    Based on tud-amr/mpc_planner implementation.
+    
+    This class is designed for use with CasADi symbolic variables (MX/SX) during
+    optimization. It uses parameter dictionaries containing spline coefficients.
+    
+    Usage:
+        - Symbolic optimization: Spline2D(params, num_segments, s) where s is CasADi symbolic
+        - Numeric evaluation: Use TKSpline directly or create separate numeric splines
+    
+    Reference: https://github.com/tud-amr/mpc_planner
+    """
 
     def __init__(self, params, num_segments, s):
+        """
+        Initialize 2D spline from parameter dictionary.
+        
+        Args:
+            params: Parameter dictionary containing spline coefficients
+                   (path_x_{i}_a, path_x_{i}_b, path_x_{i}_c, path_x_{i}_d,
+                    path_y_{i}_a, path_y_{i}_b, path_y_{i}_c, path_y_{i}_d,
+                    path_{i}_start for each segment i)
+            num_segments: Number of spline segments
+            s: Current s value (can be CasADi symbolic MX/SX for optimization)
+        """
         self.spline_x = Spline(params, "path_x", num_segments, s)
         self.spline_y = Spline(params, "path_y", num_segments, s)
 
     def at(self, s):
+        """Evaluate spline at parameter s, returns (x, y)."""
         return self.spline_x.at(s), self.spline_y.at(s)
 
     def deriv(self, s):
+        """Evaluate first derivative at parameter s, returns (dx, dy)."""
         return self.spline_x.deriv(s), self.spline_y.deriv(s)
 
     def deriv_normalized(self, s):
+        """
+        Evaluate normalized first derivative (unit tangent vector).
+        Returns (dx_norm, dy_norm) where ||(dx_norm, dy_norm)|| = 1.
+        """
         dx = self.spline_x.deriv(s)
         dy = self.spline_y.deriv(s)
-        path_norm = cd.sqrt(dx * dx + dy * dy)
-
-        return dx / path_norm, dy / path_norm
+        
+        # Handle both CasADi symbolic and numeric types
+        if isinstance(dx, (cd.MX, cd.SX)) or isinstance(dy, (cd.MX, cd.SX)):
+            path_norm = cd.sqrt(dx * dx + dy * dy)
+            path_norm = cd.fmax(path_norm, 1e-6)  # Prevent division by zero
+            return dx / path_norm, dy / path_norm
+        else:
+            path_norm = np.sqrt(dx * dx + dy * dy)
+            path_norm = max(path_norm, 1e-6)  # Prevent division by zero
+            return dx / path_norm, dy / path_norm
 
     def deriv2(self, s):
+        """Evaluate second derivative at parameter s, returns (d2x, d2y)."""
         return self.spline_x.deriv2(s), self.spline_y.deriv2(s)
 
     def get_curvature(self, s):
@@ -1268,20 +1574,265 @@ class Spline2D:
         path_x_deriv2 = self.spline_x.deriv2(s)
         path_y_deriv2 = self.spline_y.deriv2(s)
         
-        # Curvature formula: |x'y'' - y'x''| / (x'^2 + y'^2)^(3/2)
-        numerator = cd.fabs(path_x_deriv * path_y_deriv2 - path_y_deriv * path_x_deriv2)
-        denominator = cd.sqrt((path_x_deriv * path_x_deriv + path_y_deriv * path_y_deriv) ** 3)
-        
-        # Add small epsilon to denominator to prevent division by zero
-        denominator = cd.fmax(denominator, 1e-10)
-        
-        curvature = numerator / denominator
-        
-        # Clamp curvature to reasonable bounds
-        curvature = cd.fmax(curvature, 1e-5)  # Minimum curvature (maximum radius)
-        curvature = cd.fmin(curvature, 10.0)   # Maximum curvature (minimum radius)
+        # Handle both CasADi symbolic and numeric types
+        if isinstance(path_x_deriv, (cd.MX, cd.SX)) or isinstance(path_y_deriv, (cd.MX, cd.SX)):
+            # CasADi symbolic mode
+            # Curvature formula: |x'y'' - y'x''| / (x'^2 + y'^2)^(3/2)
+            numerator = cd.fabs(path_x_deriv * path_y_deriv2 - path_y_deriv * path_x_deriv2)
+            denominator = cd.sqrt((path_x_deriv * path_x_deriv + path_y_deriv * path_y_deriv) ** 3)
+            
+            # Add small epsilon to denominator to prevent division by zero
+            denominator = cd.fmax(denominator, 1e-10)
+            
+            curvature = numerator / denominator
+            
+            # Clamp curvature to reasonable bounds
+            curvature = cd.fmax(curvature, 1e-5)  # Minimum curvature (maximum radius)
+            curvature = cd.fmin(curvature, 10.0)   # Maximum curvature (minimum radius)
+        else:
+            # Numeric mode
+            numerator = abs(path_x_deriv * path_y_deriv2 - path_y_deriv * path_x_deriv2)
+            denominator = (path_x_deriv * path_x_deriv + path_y_deriv * path_y_deriv) ** 1.5
+            
+            # Add small epsilon to denominator to prevent division by zero
+            denominator = max(denominator, 1e-10)
+            
+            curvature = numerator / denominator
+            
+            # Clamp curvature to reasonable bounds
+            curvature = max(curvature, 1e-5)  # Minimum curvature (maximum radius)
+            curvature = min(curvature, 10.0)   # Maximum curvature (minimum radius)
         
         return curvature
+
+
+class Spline3D:
+    """
+    3D spline combining x, y, and z splines for SYMBOLIC computation.
+    Based on tud-amr/mpc_planner implementation, extended for 3D paths.
+    
+    This class is designed for use with CasADi symbolic variables (MX/SX) during
+    optimization. It uses parameter dictionaries containing spline coefficients.
+    
+    Usage:
+        - Symbolic optimization: Spline3D(params, num_segments, s) where s is CasADi symbolic
+        - Numeric evaluation: Use TKSpline directly or create separate numeric splines
+    
+    Reference: https://github.com/tud-amr/mpc_planner (extended to 3D)
+    """
+
+    def __init__(self, params, num_segments, s):
+        """
+        Initialize 3D spline from parameter dictionary.
+        
+        Args:
+            params: Parameter dictionary containing spline coefficients
+                   (path_x_{i}_a, path_x_{i}_b, path_x_{i}_c, path_x_{i}_d,
+                    path_y_{i}_a, path_y_{i}_b, path_y_{i}_c, path_y_{i}_d,
+                    path_z_{i}_a, path_z_{i}_b, path_z_{i}_c, path_z_{i}_d,
+                    path_{i}_start for each segment i)
+            num_segments: Number of spline segments
+            s: Current s value (can be CasADi symbolic MX/SX for optimization)
+        """
+        self.spline_x = Spline(params, "path_x", num_segments, s)
+        self.spline_y = Spline(params, "path_y", num_segments, s)
+        self.spline_z = Spline(params, "path_z", num_segments, s)
+
+    def at(self, s):
+        """Evaluate spline at parameter s, returns (x, y, z)."""
+        return self.spline_x.at(s), self.spline_y.at(s), self.spline_z.at(s)
+
+    def deriv(self, s):
+        """Evaluate first derivative at parameter s, returns (dx, dy, dz)."""
+        return self.spline_x.deriv(s), self.spline_y.deriv(s), self.spline_z.deriv(s)
+
+    def deriv_normalized(self, s):
+        """
+        Evaluate normalized first derivative (unit tangent vector).
+        Returns (dx_norm, dy_norm, dz_norm) where ||(dx_norm, dy_norm, dz_norm)|| = 1.
+        """
+        dx = self.spline_x.deriv(s)
+        dy = self.spline_y.deriv(s)
+        dz = self.spline_z.deriv(s)
+        
+        # Handle both CasADi symbolic and numeric types
+        if isinstance(dx, (cd.MX, cd.SX)) or isinstance(dy, (cd.MX, cd.SX)) or isinstance(dz, (cd.MX, cd.SX)):
+            path_norm = cd.sqrt(dx * dx + dy * dy + dz * dz)
+            path_norm = cd.fmax(path_norm, 1e-6)  # Prevent division by zero
+            return dx / path_norm, dy / path_norm, dz / path_norm
+        else:
+            path_norm = np.sqrt(dx * dx + dy * dy + dz * dz)
+            path_norm = max(path_norm, 1e-6)  # Prevent division by zero
+            return dx / path_norm, dy / path_norm, dz / path_norm
+
+    def deriv2(self, s):
+        """Evaluate second derivative at parameter s, returns (d2x, d2y, d2z)."""
+        return self.spline_x.deriv2(s), self.spline_y.deriv2(s), self.spline_z.deriv2(s)
+
+    def get_curvature(self, s):
+        """
+        Compute 3D path curvature using the formula:
+        curvature = ||r' × r''|| / ||r'||^3
+        
+        where r' = (x', y', z') and r'' = (x'', y'', z'')
+        
+        Reference: https://github.com/tud-amr/mpc_planner (extended to 3D)
+        """
+        # First derivatives
+        path_x_deriv = self.spline_x.deriv(s)
+        path_y_deriv = self.spline_y.deriv(s)
+        path_z_deriv = self.spline_z.deriv(s)
+        
+        # Second derivatives
+        path_x_deriv2 = self.spline_x.deriv2(s)
+        path_y_deriv2 = self.spline_y.deriv2(s)
+        path_z_deriv2 = self.spline_z.deriv2(s)
+        
+        # Handle both CasADi symbolic and numeric types
+        if isinstance(path_x_deriv, (cd.MX, cd.SX)) or isinstance(path_y_deriv, (cd.MX, cd.SX)) or isinstance(path_z_deriv, (cd.MX, cd.SX)):
+            # CasADi symbolic mode
+            # Cross product: r' × r''
+            cross_x = path_y_deriv * path_z_deriv2 - path_z_deriv * path_y_deriv2
+            cross_y = path_z_deriv * path_x_deriv2 - path_x_deriv * path_z_deriv2
+            cross_z = path_x_deriv * path_y_deriv2 - path_y_deriv * path_x_deriv2
+            
+            # Magnitude of cross product
+            cross_mag = cd.sqrt(cross_x * cross_x + cross_y * cross_y + cross_z * cross_z)
+            
+            # Magnitude of first derivative
+            deriv_mag = cd.sqrt(path_x_deriv * path_x_deriv + path_y_deriv * path_y_deriv + path_z_deriv * path_z_deriv)
+            deriv_mag_cubed = deriv_mag ** 3
+            
+            # Add small epsilon to denominator to prevent division by zero
+            deriv_mag_cubed = cd.fmax(deriv_mag_cubed, 1e-10)
+            
+            curvature = cross_mag / deriv_mag_cubed
+            
+            # Clamp curvature to reasonable bounds
+            curvature = cd.fmax(curvature, 1e-5)  # Minimum curvature (maximum radius)
+            curvature = cd.fmin(curvature, 10.0)   # Maximum curvature (minimum radius)
+        else:
+            # Numeric mode
+            # Cross product: r' × r''
+            cross_x = path_y_deriv * path_z_deriv2 - path_z_deriv * path_y_deriv2
+            cross_y = path_z_deriv * path_x_deriv2 - path_x_deriv * path_z_deriv2
+            cross_z = path_x_deriv * path_y_deriv2 - path_y_deriv * path_x_deriv2
+            
+            # Magnitude of cross product
+            cross_mag = np.sqrt(cross_x * cross_x + cross_y * cross_y + cross_z * cross_z)
+            
+            # Magnitude of first derivative
+            deriv_mag = np.sqrt(path_x_deriv * path_x_deriv + path_y_deriv * path_y_deriv + path_z_deriv * path_z_deriv)
+            deriv_mag_cubed = deriv_mag ** 3
+            
+            # Add small epsilon to denominator to prevent division by zero
+            deriv_mag_cubed = max(deriv_mag_cubed, 1e-10)
+            
+            curvature = cross_mag / deriv_mag_cubed
+            
+            # Clamp curvature to reasonable bounds
+            curvature = max(curvature, 1e-5)  # Minimum curvature (maximum radius)
+            curvature = min(curvature, 10.0)   # Maximum curvature (minimum radius)
+        
+        return curvature
+
+
+def create_numeric_spline2d(s_vals, x_vals, y_vals):
+    """
+    Helper function to create numeric 2D splines from path data.
+    Uses TKSpline for numeric evaluation (post-optimization).
+    
+    IMPORTANT: This is for NUMERIC evaluation only. For symbolic optimization,
+    use Spline2D(params, num_segments, s) with parameter dictionaries.
+    
+    Args:
+        s_vals: Array of parameter values (arc length or normalized [0,1])
+        x_vals: Array of x-coordinates
+        y_vals: Array of y-coordinates
+    
+    Returns:
+        Tuple of (TKSpline for x, TKSpline for y)
+    """
+    return TKSpline(s_vals, x_vals), TKSpline(s_vals, y_vals)
+
+
+def create_numeric_spline3d(s_vals, x_vals, y_vals, z_vals):
+    """
+    Helper function to create numeric 3D splines from path data.
+    Uses TKSpline for numeric evaluation (post-optimization).
+    
+    IMPORTANT: This is for NUMERIC evaluation only. For symbolic optimization,
+    use Spline3D(params, num_segments, s) with parameter dictionaries.
+    
+    Args:
+        s_vals: Array of parameter values (arc length or normalized [0,1])
+        x_vals: Array of x-coordinates
+        y_vals: Array of y-coordinates
+        z_vals: Array of z-coordinates
+    
+    Returns:
+        Tuple of (TKSpline for x, TKSpline for y, TKSpline for z)
+    """
+    return TKSpline(s_vals, x_vals), TKSpline(s_vals, y_vals), TKSpline(s_vals, z_vals)
+
+
+def evaluate_path_at(s_val, reference_path, symbolic=False):
+    """
+    Evaluate reference path at parameter s_val.
+    Automatically uses the appropriate spline type based on context.
+    
+    Args:
+        s_val: Parameter value (arc length or normalized [0,1])
+        reference_path: ReferencePath object with x_spline and y_spline
+        symbolic: If True, expects s_val to be CasADi symbolic and returns symbolic expressions
+    
+    Returns:
+        Tuple of (x, y) coordinates
+    """
+    import casadi as cd
+    
+    if symbolic or isinstance(s_val, (cd.MX, cd.SX)):
+        # Symbolic evaluation: should use Spline2D with parameter dictionaries
+        # This function is for numeric evaluation only
+        raise ValueError("For symbolic evaluation, use Spline2D(params, num_segments, s) with parameter dictionaries")
+    
+    # Numeric evaluation: use TKSpline
+    x = reference_path.x_spline.at(float(s_val))
+    y = reference_path.y_spline.at(float(s_val))
+    return x, y
+
+
+def evaluate_path_derivative_at(s_val, reference_path, order=1, symbolic=False):
+    """
+    Evaluate reference path derivative at parameter s_val.
+    Automatically uses the appropriate spline type based on context.
+    
+    Args:
+        s_val: Parameter value (arc length or normalized [0,1])
+        reference_path: ReferencePath object with x_spline and y_spline
+        order: Derivative order (1 or 2)
+        symbolic: If True, expects s_val to be CasADi symbolic and returns symbolic expressions
+    
+    Returns:
+        Tuple of (dx, dy) derivatives
+    """
+    import casadi as cd
+    
+    if symbolic or isinstance(s_val, (cd.MX, cd.SX)):
+        # Symbolic evaluation: should use Spline2D with parameter dictionaries
+        raise ValueError("For symbolic evaluation, use Spline2D(params, num_segments, s).deriv(s)")
+    
+    # Numeric evaluation: use TKSpline
+    if order == 1:
+        dx = reference_path.x_spline.deriv(float(s_val))
+        dy = reference_path.y_spline.deriv(float(s_val))
+    elif order == 2:
+        dx = reference_path.x_spline.deriv2(float(s_val))
+        dy = reference_path.y_spline.deriv2(float(s_val))
+    else:
+        raise ValueError(f"Derivative order must be 1 or 2, got {order}")
+    
+    return dx, dy
 
 
 class DouglasRachford:

@@ -1,7 +1,6 @@
 import logging
 
 import numpy as np
-from scipy.interpolate import CubicSpline
 
 from modules.constraints.base_constraint import BaseConstraint
 from utils.utils import LOG_DEBUG

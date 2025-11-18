@@ -1,6 +1,6 @@
 import numpy as np
 import casadi as cd
-from scipy.interpolate import CubicSpline
+from utils.math_tools import TKSpline, Spline2D, Spline3D
 
 from modules.constraints.base_constraint import BaseConstraint
 from utils.utils import LOG_DEBUG, LOG_INFO, LOG_WARN
@@ -155,10 +155,10 @@ class ContouringConstraints(BaseConstraint):
 						widths_left.append(width_left)
 						widths_right.append(width_right)
 					
-					# Create splines for widths (analogous to C++ _width_left->set_points(s, widths_left))
+					# Create numeric splines for widths using TKSpline (analogous to C++ _width_left->set_points(s, widths_left))
 					if len(widths_left) > 0 and len(widths_right) > 0:
-						self._width_left_spline = CubicSpline(s_arr, np.array(widths_left))
-						self._width_right_spline = CubicSpline(s_arr, np.array(widths_right))
+						self._width_left_spline = TKSpline(s_arr, np.array(widths_left))
+						self._width_right_spline = TKSpline(s_arr, np.array(widths_right))
 						LOG_DEBUG(f"ContouringConstraints: Created width splines from road boundaries ({len(widths_left)} points)")
 			
 			# Fallback to fixed width if boundaries not available
@@ -191,12 +191,13 @@ class ContouringConstraints(BaseConstraint):
 		cur_s = max(s0, min(s_end, float(cur_s)))
 		
 		# Get path point and derivatives (analogous to C++ module_data.path->getPoint(cur_s) and getOrthogonal(cur_s))
+		# Use TKSpline's callable interface (compatible with scipy CubicSpline)
 		try:
-			path_point_x = ref_path.x_spline(cur_s)
+			path_point_x = ref_path.x_spline(cur_s)  # TKSpline supports __call__
 			path_point_y = ref_path.y_spline(cur_s)
 			path_point = np.array([float(path_point_x), float(path_point_y)])
 			
-			# Get path tangent and normalize
+			# Get path tangent and normalize using TKSpline's derivative() method
 			path_dx = float(ref_path.x_spline.derivative()(cur_s))
 			path_dy = float(ref_path.y_spline.derivative()(cur_s))
 			
@@ -426,8 +427,9 @@ class ContouringConstraints(BaseConstraint):
 						
 						param_wrapper = ParamWrapper(params_dict)
 						
-						# Get num_segments from config or default
+						# Get num_segments and check for 3D contouring from config or default
 						num_segments = 10
+						three_dimensional = False
 						if hasattr(self, 'solver') and hasattr(self.solver, 'data'):
 							if hasattr(self.solver.data, 'reference_path'):
 								# Try to get from contouring objective config
@@ -437,26 +439,39 @@ class ContouringConstraints(BaseConstraint):
 										for module in self.solver.module_manager.modules:
 											if isinstance(module, ContouringObjective):
 												num_segments = module.num_segments
+												three_dimensional = module.three_dimensional_contouring
 												break
 								except:
 									pass
 						
-						# Create Spline2D instance
-						path = Spline2D(param_wrapper, num_segments, s_normalized)
-						path_x_sym, path_y_sym = path.at(s_normalized)
-						path_dx_norm_sym, path_dy_norm_sym = path.deriv_normalized(s_normalized)
+						# Check if z parameters are available for 3D
+						has_z_params = three_dimensional and params_dict.get('path_z_0_a') is not None
+						
+						# Create Spline2D or Spline3D instance
+						if has_z_params:
+							path = Spline3D(param_wrapper, num_segments, s_normalized)
+							path_x_sym, path_y_sym, path_z_sym = path.at(s_normalized)
+							path_dx_norm_sym, path_dy_norm_sym, path_dz_norm_sym = path.deriv_normalized(s_normalized)
+							LOG_DEBUG(f"  Stage {stage_idx}: Using Spline3D with path parameters for symbolic constraints")
+						else:
+							path = Spline2D(param_wrapper, num_segments, s_normalized)
+							path_x_sym, path_y_sym = path.at(s_normalized)
+							path_dx_norm_sym, path_dy_norm_sym = path.deriv_normalized(s_normalized)
+							path_z_sym = None
+							path_dz_norm_sym = None
+							LOG_DEBUG(f"  Stage {stage_idx}: Using Spline2D with path parameters for symbolic constraints")
 						
 						use_spline2d = True
-						LOG_DEBUG(f"  Stage {stage_idx}: Using Spline2D with path parameters for symbolic constraints")
 				except Exception as e:
 					LOG_DEBUG(f"  Stage {stage_idx}: Failed to use Spline2D, falling back to interpolants: {e}")
 		
 		if not use_spline2d:
-			# Fallback: Create CasADi interpolants from scipy splines
+			# Fallback: Create CasADi interpolants from TKSpline (numeric sampling)
 			# Sample path at discrete points for interpolation
 			s_vals = s_arr if s_arr.size > 0 else np.linspace(s_min, s_max, 100)
-			x_vals = np.array([float(self._reference_path.x_spline(si)) for si in s_vals])
-			y_vals = np.array([float(self._reference_path.y_spline(si)) for si in s_vals])
+			# Use TKSpline for numeric sampling (reference_path.x_spline is now TKSpline)
+			x_vals = np.array([float(self._reference_path.x_spline.at(si)) for si in s_vals])
+			y_vals = np.array([float(self._reference_path.y_spline.at(si)) for si in s_vals])
 			
 			# Create CasADi interpolants for path position
 			x_interp = cd.interpolant('x_interp', 'linear', [s_vals], x_vals)

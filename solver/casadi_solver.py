@@ -1015,9 +1015,11 @@ class CasADiSolver(BaseSolver):
 			# Reference: https://github.com/tud-amr/mpc_planner - all calculations are symbolic.
 			# Only acceleration (a) and angular acceleration (w) are decision variables.
 			# All states are computed via RK4 integration or model_discrete_dynamics.
+			LOG_DEBUG(f"[OBJECTIVES] Stage {stage_idx}: Getting objectives from module_manager")
 			objective_costs = self.module_manager.get_objectives(symbolic_state, self.data, stage_idx) or []
 			# Log objectives BEFORE processing
 			obj_count = len(objective_costs or [])
+			LOG_DEBUG(f"[OBJECTIVES] Stage {stage_idx}: Received {obj_count} objective cost dict(s)")
 			if obj_count > 0:
 				try:
 					import logging as _logging
@@ -1051,6 +1053,7 @@ class CasADiSolver(BaseSolver):
 					LOG_DEBUG(f"Stage {stage_idx}: No objectives")
 			for cost_dict in objective_costs:
 				for cost_name, cost_val in cost_dict.items():
+					LOG_DEBUG(f"[OBJECTIVES] Stage {stage_idx}: Adding cost '{cost_name}' (type={type(cost_val).__name__}, symbolic={isinstance(cost_val, (cs.MX, cs.SX))})")
 					total_objective += cost_val
 					# Log angle cost specifically for goal objective debugging
 					if stage_idx == 0 and cost_name == 'goal_angle_cost':
@@ -1128,7 +1131,9 @@ class CasADiSolver(BaseSolver):
 			# Reference: https://github.com/tud-amr/mpc_planner - constraints are evaluated symbolically.
 			# Only acceleration (a) and angular acceleration (w) are decision variables.
 			# All states are computed via RK4 integration or model_discrete_dynamics.
+			LOG_DEBUG(f"[CONSTRAINTS] Stage {stage_idx}: Getting constraints from module_manager")
 			constraints = self.get_constraints(stage_idx, symbolic_state=symbolic_state)
+			LOG_DEBUG(f"[CONSTRAINTS] Stage {stage_idx}: Received {len(constraints or [])} constraint(s)")
 			# Log constraints BEFORE processing with detailed breakdown
 			LOG_INFO(f"=== Solver.solve(): Stage {stage_idx} - Constraints being passed to solver ===")
 			try:
@@ -1486,7 +1491,7 @@ class CasADiSolver(BaseSolver):
 			
 			# Log solution details
 			if self.solution:
-				LOG_DEBUG("Extracting solution values...")
+				LOG_DEBUG("[SOLUTION] Extracting solution values...")
 				# Log first state values
 				try:
 					for var_name in dynamics_model.get_dependent_vars():

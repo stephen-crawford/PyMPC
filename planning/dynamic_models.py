@@ -545,12 +545,39 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             # Bound theta to prevent extreme values
             theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)
             
-            # Update spline: s_new = s + R * theta
-            # This is the key formula from the C++ reference codebase
-            # R is curvature radius in meters, theta is in radians
-            # R * theta gives arc length change in meters
-            # Since s is stored as arc length, we add directly (no normalization needed for the update)
-            ds_arc_length = R * theta
+            # CRITICAL FIX: Scale R * theta to prevent oversteering
+            # The formula s_new = s + R * theta can produce excessive progression when:
+            # 1. R is very large (nearly straight path) -> R * theta becomes huge
+            # 2. R is moderate but theta is large -> still excessive
+            # Reference: Use velocity-based progression as primary, curvature-aware as correction
+            
+            v = x[3] if x.size1() > 3 else 1.0
+            ds_velocity = v * dt  # Base progression from velocity
+            
+            # Compute curvature-aware correction term
+            # Cap R to prevent excessive contribution
+            R_effective = cd.fmin(R, 20.0)  # Cap at 20m for curvature correction (much more conservative)
+            ds_curvature_correction = R_effective * theta
+            
+            # Blend: use velocity-based as primary, add curvature correction only when R is small
+            # For large R (straight paths), use pure velocity-based
+            # For small R (curved paths), add curvature correction
+            R_threshold = 30.0  # Start using curvature correction when R < 30m
+            
+            # Blend factor: 0 = pure velocity-based, 1 = velocity + curvature correction
+            blend_factor = cd.if_else(R < R_threshold,
+                                    1.0 - (R / cd.fmax(R_threshold, 1.0)),  # More correction for smaller R
+                                    0.0)  # Pure velocity-based for large R
+            
+            # Combine: velocity-based progression + curvature correction (when applicable)
+            ds_arc_length = ds_velocity + blend_factor * ds_curvature_correction
+            
+            # CRITICAL: Bound the total progression to prevent excessive updates
+            # Maximum progression should be reasonable relative to velocity
+            ds_max = v * dt * 2.0  # Maximum 2x velocity-based progression
+            ds_min = -v * dt * 0.5  # Allow some backward progression if needed
+            ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min), ds_max)
+            
             new_s = s + ds_arc_length
             
             # Clamp to valid range [0, s_max] (arc length bounds)
@@ -685,14 +712,42 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             denominator = cd.fmax(denominator, 1e-6)
             theta = cd.atan2(vt_t, denominator)
             
-            # Bound theta
+            # Bound theta to prevent extreme values
             theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)
             
-            # Update spline: s_new = s + R * theta (matches C++ reference)
-            # R is curvature radius in meters, theta is in radians
-            # R * theta gives arc length change in meters
-            # Since s is stored as arc length, we add directly
-            ds_arc_length = R * theta
+            # CRITICAL FIX: Scale R * theta to prevent oversteering
+            # The formula s_new = s + R * theta can produce excessive progression when:
+            # 1. R is very large (nearly straight path) -> R * theta becomes huge
+            # 2. R is moderate but theta is large -> still excessive
+            # Reference: Use velocity-based progression as primary, curvature-aware as correction
+            
+            v = x_next_integrated[3] if x_next_integrated.size1() > 3 else 1.0
+            ds_velocity = v * timestep  # Base progression from velocity
+            
+            # Compute curvature-aware correction term
+            # Cap R to prevent excessive contribution
+            R_effective = cd.fmin(R, 20.0)  # Cap at 20m for curvature correction (much more conservative)
+            ds_curvature_correction = R_effective * theta
+            
+            # Blend: use velocity-based as primary, add curvature correction only when R is small
+            # For large R (straight paths), use pure velocity-based
+            # For small R (curved paths), add curvature correction
+            R_threshold = 30.0  # Start using curvature correction when R < 30m
+            
+            # Blend factor: 0 = pure velocity-based, 1 = velocity + curvature correction
+            blend_factor = cd.if_else(R < R_threshold,
+                                    1.0 - (R / cd.fmax(R_threshold, 1.0)),  # More correction for smaller R
+                                    0.0)  # Pure velocity-based for large R
+            
+            # Combine: velocity-based progression + curvature correction (when applicable)
+            ds_arc_length = ds_velocity + blend_factor * ds_curvature_correction
+            
+            # CRITICAL: Bound the total progression to prevent excessive updates
+            # Maximum progression should be reasonable relative to velocity
+            ds_max = v * timestep * 2.0  # Maximum 2x velocity-based progression
+            ds_min = -v * timestep * 0.5  # Allow some backward progression if needed
+            ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min), ds_max)
+            
             s_next = s + ds_arc_length
             
             # Clamp to valid range [0, s_max] (arc length bounds)

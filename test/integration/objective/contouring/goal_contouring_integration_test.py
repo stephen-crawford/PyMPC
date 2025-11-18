@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Rectangle
 from matplotlib.transforms import Affine2D
-from scipy.interpolate import CubicSpline
+from utils.math_tools import TKSpline
 import casadi as ca
 
 from planner_modules.src.objectives.contouring_objective import ContouringObjective
@@ -68,10 +68,10 @@ def run(dt=0.1, horizon=10, model=ContouringSecondOrderUnicycleModel, start=(0.0
 		right_y.append(data.reference_path.y[i] - ny * quarter_width)
 
 	# Create splines for the boundaries if needed
-	left_boundary_spline_x = CubicSpline(data.reference_path.s, np.array(left_x))
-	left_boundary_spline_y = CubicSpline(data.reference_path.s, np.array(left_y))
-	right_boundary_spline_x = CubicSpline(data.reference_path.s, np.array(right_x))
-	right_boundary_spline_y = CubicSpline(data.reference_path.s, np.array(right_y))
+	left_boundary_spline_x = TKSpline(data.reference_path.s, np.array(left_x))
+	left_boundary_spline_y = TKSpline(data.reference_path.s, np.array(left_y))
+	right_boundary_spline_x = TKSpline(data.reference_path.s, np.array(right_x))
+	right_boundary_spline_y = TKSpline(data.reference_path.s, np.array(right_y))
 
 	# Store boundary data
 	data.left_boundary_x = left_x

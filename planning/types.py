@@ -6,7 +6,7 @@ from enum import Enum
 
 import numpy as np
 from matplotlib import pyplot as plt
-from scipy.interpolate import CubicSpline
+from utils.math_tools import TKSpline
 from typing import List, Optional
 
 from planning.dynamic_models import DynamicsModel
@@ -239,10 +239,14 @@ class State:
             
             # Call discrete_dynamics to get next state (symbolic)
             # discrete_dynamics performs RK4 integration and calls model_discrete_dynamics for spline updates
+            LOG_DEBUG(f"[PROPAGATE] Calling discrete_dynamics: z_k shape={z_k.shape if hasattr(z_k, 'shape') else len(z_k)}, timestep={timestep}")
             next_state_symbolic = model.discrete_dynamics(z_k, params, timestep)
+            LOG_DEBUG(f"[PROPAGATE] discrete_dynamics returned: type={type(next_state_symbolic)}, shape={next_state_symbolic.shape if hasattr(next_state_symbolic, 'shape') else 'N/A'}")
             
             # Evaluate numerically using numeric_rk4
+            LOG_DEBUG(f"[PROPAGATE] Calling numeric_rk4 to evaluate symbolic result")
             next_state = numeric_rk4(next_state_symbolic, model, params, timestep)
+            LOG_DEBUG(f"[PROPAGATE] numeric_rk4 returned: type={type(next_state)}, shape={next_state.shape if hasattr(next_state, 'shape') else len(next_state) if isinstance(next_state, (list, np.ndarray)) else 'N/A'}")
             
             # Extract numeric values from CasADi DM or numpy array
             if isinstance(next_state, cd.DM):
@@ -677,10 +681,10 @@ class ReferencePath:
         self.v = [] # list of velocities
         self.s = [] # list of arc length progress for aligning with other attributes
 
-        self.x_spline = None # a CubicSpline with x as the dependent val
-        self.y_spline = None # a CubicSpline with Y as the dependent val
-        self.z_spline = None # a CubicSpline with Z as the dependent val
-        self.v_spline = None # a CubicSpline with v as the dependent val
+        self.x_spline = None # TKSpline for numeric evaluation (x as dependent variable)
+        self.y_spline = None # TKSpline for numeric evaluation (y as dependent variable)
+        self.z_spline = None # TKSpline for numeric evaluation (z as dependent variable)
+        self.v_spline = None # TKSpline for numeric evaluation (v as dependent variable)
 
     def clear(self):
         self.x = []
@@ -688,10 +692,10 @@ class ReferencePath:
         self.psi = []
         self.v = []
         self.s = []
-        self.x_spline = None # a CubicSpline with x as the dependent val
-        self.y_spline = None # a CubicSpline with Y as the dependent val
-        self.z_spline = None # a CubicSpline with Z as the dependent val
-        self.v_spline = None # a CubicSpline with v as the dependent val
+        self.x_spline = None # TKSpline for numeric evaluation (x as dependent variable)
+        self.y_spline = None # TKSpline for numeric evaluation (y as dependent variable)
+        self.z_spline = None # TKSpline for numeric evaluation (z as dependent variable)
+        self.v_spline = None # TKSpline for numeric evaluation (v as dependent variable)
 
     def empty(self) -> bool:
         return len(self.x) == 0
@@ -750,10 +754,11 @@ def generate_reference_path(start, goal, path_type="curved", num_points=11) -> R
         start_np = np.array(start[:2])
         goal_np = np.array(goal[:2])
         mid = 0.5 * (start_np + goal_np) + np.array([0.0, goal_np[1]])
-        x_spline = CubicSpline([0, 0.5, 1.0], [start_np[0], mid[0], goal_np[0]])
-        y_spline = CubicSpline([0, 0.5, 1.0], [start_np[1], mid[1], goal_np[1]])
-        x = x_spline(t)
-        y = y_spline(t)
+        # Use TKSpline for intermediate computation
+        x_spline = TKSpline([0, 0.5, 1.0], [start_np[0], mid[0], goal_np[0]])
+        y_spline = TKSpline([0, 0.5, 1.0], [start_np[1], mid[1], goal_np[1]])
+        x = x_spline.at(t)
+        y = y_spline.at(t)
         z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
 
 
@@ -782,10 +787,11 @@ def generate_reference_path(start, goal, path_type="curved", num_points=11) -> R
         dz = z[i] - z[i - 1]
         s[i] = s[i - 1] + np.sqrt(dx**2 + dy**2 + dz**2)
 
-    # Build splines
-    spline_x = CubicSpline(s, x)
-    spline_y = CubicSpline(s, y)
-    spline_z = CubicSpline(s, z)
+    # Build numeric splines using TKSpline (for post-optimization evaluation)
+    # Note: For symbolic optimization, use Spline2D with parameter dictionaries
+    spline_x = TKSpline(s, x)
+    spline_y = TKSpline(s, y)
+    spline_z = TKSpline(s, z)
 
     # Store in ReferencePath object
     path = ReferencePath()
@@ -931,11 +937,11 @@ def create_improved_boundaries(data, reference_path):
     left_x, left_y = smooth_boundaries(left_x, left_y, reference_path.s)
     right_x, right_y = smooth_boundaries(right_x, right_y, reference_path.s)
 
-    # Create splines for the boundaries
-    left_boundary_spline_x = CubicSpline(reference_path.s, np.array(left_x))
-    left_boundary_spline_y = CubicSpline(reference_path.s, np.array(left_y))
-    right_boundary_spline_x = CubicSpline(reference_path.s, np.array(right_x))
-    right_boundary_spline_y = CubicSpline(reference_path.s, np.array(right_y))
+    # Create numeric splines for the boundaries using TKSpline
+    left_boundary_spline_x = TKSpline(reference_path.s, np.array(left_x))
+    left_boundary_spline_y = TKSpline(reference_path.s, np.array(left_y))
+    right_boundary_spline_x = TKSpline(reference_path.s, np.array(right_x))
+    right_boundary_spline_y = TKSpline(reference_path.s, np.array(right_y))
 
     # Store boundary data
     data.left_boundary_x = left_x
@@ -962,9 +968,9 @@ def calculate_spline_normals(reference_path):
     Calculate normals using spline derivatives for smoother results.
     """
     if not hasattr(reference_path, 'x_spline') or not hasattr(reference_path, 'y_spline'):
-        # Create splines if they don't exist
-        reference_path.x_spline = CubicSpline(reference_path.s, reference_path.x)
-        reference_path.y_spline = CubicSpline(reference_path.s, reference_path.y)
+        # Create numeric splines if they don't exist using TKSpline
+        reference_path.x_spline = TKSpline(reference_path.s, reference_path.x)
+        reference_path.y_spline = TKSpline(reference_path.s, reference_path.y)
 
     normals = []
 

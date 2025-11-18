@@ -3,12 +3,12 @@ import casadi as cd
 from docutils.nodes import reference
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
-from scipy.interpolate import CubicSpline
+from utils.math_tools import TKSpline
 
 from modules.objectives.base_objective import BaseObjective
 from planning.types import StaticObstacle, ReferencePath
 from utils.const import CONSTRAINT
-from utils.math_tools import distance, haar_difference_without_abs, safe_norm, Spline, Spline2D
+from utils.math_tools import distance, haar_difference_without_abs, safe_norm, Spline, Spline2D, Spline3D
 from utils.utils import LOG_DEBUG, LOG_INFO, LOG_WARN
 
 class ContouringObjective(BaseObjective):
@@ -287,11 +287,7 @@ class ContouringObjective(BaseObjective):
 				params.add(f"path_z_{i}_b")
 				params.add(f"path_z_{i}_c")
 				params.add(f"path_z_{i}_d")
-
-				params.add(f"path_dz_{i}_a")
-				params.add(f"path_dz_{i}_b")
-				params.add(f"path_dz_{i}_c")
-				params.add(f"path_dz_{i}_d")
+				# Note: Derivatives are computed from the spline coefficients, no separate derivative parameters needed
 
 
 			# Derivatives at segment boundaries (needed for normal vectors)
@@ -821,12 +817,18 @@ class ContouringObjective(BaseObjective):
 			missing_params.append("path_0_start")
 		
 		# Check for at least one segment's parameters
+		# Include z parameters if 3D contouring is enabled
 		for i in range(self.num_segments):
 			required_params = [
 				f"path_x_{i}_a", f"path_x_{i}_b", f"path_x_{i}_c", f"path_x_{i}_d",
 				f"path_y_{i}_a", f"path_y_{i}_b", f"path_y_{i}_c", f"path_y_{i}_d",
 				f"path_{i}_start"
 			]
+			# Add z parameters for 3D contouring
+			if self.three_dimensional_contouring:
+				required_params.extend([
+					f"path_z_{i}_a", f"path_z_{i}_b", f"path_z_{i}_c", f"path_z_{i}_d"
+				])
 			for param_name in required_params:
 				if not params.has_parameter(param_name):
 					has_path_params = False
@@ -834,44 +836,57 @@ class ContouringObjective(BaseObjective):
 						missing_params.append(param_name)
 		
 		# Log parameter availability check
+		spline_type = "Spline3D" if self.three_dimensional_contouring else "Spline2D"
 		if stage_idx <= 2:
 			if has_path_params:
-				LOG_INFO(f"  ✓ All required path parameters available for Spline2D (num_segments={self.num_segments})")
+				LOG_INFO(f"  ✓ All required path parameters available for {spline_type} (num_segments={self.num_segments})")
 			else:
-				LOG_WARN(f"  ✗ Missing path parameters for Spline2D: {missing_params[:10]}... (showing first 10)")
+				LOG_WARN(f"  ✗ Missing path parameters for {spline_type}: {missing_params[:10]}... (showing first 10)")
 				LOG_WARN(f"    Total missing: {len(missing_params)} parameters")
 		
 		if has_path_params:
-			# Use Spline2D with parametric spline (preferred method matching reference codebase)
+			# Use Spline2D or Spline3D with parametric spline (preferred method matching reference codebase)
 			try:
 				# HIGH-LEVEL DEBUG: Log parameter usage for first stages
 				if stage_idx <= 2:
 					s_val_str = f"{float(s):.4f}" if not isinstance(s, (cd.MX, cd.SX)) else "symbolic"
-					LOG_INFO(f"  → Using Spline2D with normalized s={s_val_str}, num_segments={self.num_segments}")
+					LOG_INFO(f"  → Using {spline_type} with normalized s={s_val_str}, num_segments={self.num_segments}")
 				
-				# Create Spline2D instance - it expects normalized [0,1] s parameter
+				# Create Spline2D or Spline3D instance - it expects normalized [0,1] s parameter
 				# The s parameter is used for sigmoid blending between segments
-				# Reference: https://github.com/tud-amr/mpc_planner - Spline2D(params, num_segments, s)
-				path = Spline2D(params, self.num_segments, s)
-				path_x, path_y = path.at(s)
-				path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)
+				# Reference: https://github.com/tud-amr/mpc_planner - Spline2D/Spline3D(params, num_segments, s)
+				if self.three_dimensional_contouring:
+					path = Spline3D(params, self.num_segments, s)
+					path_x, path_y, path_z = path.at(s)
+					path_dx_normalized, path_dy_normalized, path_dz_normalized = path.deriv_normalized(s)
+				else:
+					path = Spline2D(params, self.num_segments, s)
+					path_x, path_y = path.at(s)
+					path_dx_normalized, path_dy_normalized = path.deriv_normalized(s)
+					path_z = None
+					path_dz_normalized = None
 				
 				# HIGH-LEVEL DEBUG: Log path evaluation for first stages
 				if stage_idx <= 2:
 					try:
 						if not isinstance(path_x, (cd.MX, cd.SX)):
-							LOG_INFO(f"  ✓ Spline2D evaluation successful: path_x={float(path_x):.4f}, path_y={float(path_y):.4f}, s={float(s):.4f}")
+							if self.three_dimensional_contouring:
+								LOG_INFO(f"  ✓ {spline_type} evaluation successful: path_x={float(path_x):.4f}, path_y={float(path_y):.4f}, path_z={float(path_z):.4f}, s={float(s):.4f}")
+							else:
+								LOG_INFO(f"  ✓ {spline_type} evaluation successful: path_x={float(path_x):.4f}, path_y={float(path_y):.4f}, s={float(s):.4f}")
 						else:
-							LOG_DEBUG(f"  ✓ Spline2D evaluation successful (symbolic)")
+							LOG_DEBUG(f"  ✓ {spline_type} evaluation successful (symbolic)")
 					except Exception as e:
-						LOG_DEBUG(f"  ✓ Spline2D evaluation successful (could not extract numeric values: {e})")
+						LOG_DEBUG(f"  ✓ {spline_type} evaluation successful (could not extract numeric values: {e})")
 			except Exception as e:
-				# If Spline2D fails, fall back to reference_path splines
+				# If Spline2D/Spline3D fails, fall back to reference_path splines
 				if stage_idx <= 2:
-					LOG_WARN(f"  ✗ Spline2D failed ({type(e).__name__}: {e}), falling back to reference_path splines")
+					LOG_WARN(f"  ✗ {spline_type} failed ({type(e).__name__}: {e}), falling back to reference_path splines")
 					import traceback
-					LOG_DEBUG(f"  Spline2D error traceback:\n{traceback.format_exc()}")
+					LOG_DEBUG(f"  {spline_type} error traceback:\n{traceback.format_exc()}")
 				has_path_params = False  # Force fallback
+				path_z = None
+				path_dz_normalized = None
 		
 		if not has_path_params:
 			# Fallback: use reference_path splines; support both numeric and CasADi symbolic s
@@ -887,40 +902,102 @@ class ContouringObjective(BaseObjective):
 				except Exception:
 					LOG_DEBUG(f"  Fallback: denormalizing symbolic s")
 			
-			# If cur_s is symbolic, use CasADi interpolants; else use scipy splines directly
+			# If cur_s is symbolic, use CasADi interpolants; else use TKSpline directly
 			if isinstance(cur_s, (cd.MX, cd.SX)):
-				# Sample along s for interpolants
+				# Sample along s for interpolants (using TKSpline for numeric sampling)
 				s_vals = np.asarray(self.reference_path.s, dtype=float)
 				if s_vals is None or s_vals.size == 0:
 					s_vals = np.linspace(float(s_min), float(s_max), 100)
-				x_vals = np.array([float(self.reference_path.x_spline(si)) for si in s_vals])
-				y_vals = np.array([float(self.reference_path.y_spline(si)) for si in s_vals])
-				# CasADi interpolants
+				# Use TKSpline for numeric sampling (reference_path.x_spline is now TKSpline)
+				x_vals = np.array([float(self.reference_path.x_spline.at(si)) for si in s_vals])
+				y_vals = np.array([float(self.reference_path.y_spline.at(si)) for si in s_vals])
+				# CasADi interpolants for symbolic evaluation
 				x_interp = cd.interpolant('x_interp', 'linear', [s_vals], x_vals)
 				y_interp = cd.interpolant('y_interp', 'linear', [s_vals], y_vals)
 				path_x = x_interp(cur_s)
 				path_y = y_interp(cur_s)
-				# Finite-difference derivatives
-				eps = 1e-3
-				dx = (x_interp(cur_s + eps) - x_interp(cur_s - eps)) / (2 * eps)
-				dy = (y_interp(cur_s + eps) - y_interp(cur_s - eps)) / (2 * eps)
-				nrm = cd.sqrt(dx*dx + dy*dy)
-				nrm = cd.fmax(nrm, 1e-6)
-				path_dx_normalized = dx / nrm
-				path_dy_normalized = dy / nrm
+				
+				# Handle 3D case
+				if self.three_dimensional_contouring and hasattr(self.reference_path, 'z_spline') and self.reference_path.z_spline is not None:
+					z_vals = np.array([float(self.reference_path.z_spline.at(si)) for si in s_vals])
+					z_interp = cd.interpolant('z_interp', 'linear', [s_vals], z_vals)
+					path_z = z_interp(cur_s)
+					# Finite-difference derivatives for 3D
+					eps = 1e-3
+					dx = (x_interp(cur_s + eps) - x_interp(cur_s - eps)) / (2 * eps)
+					dy = (y_interp(cur_s + eps) - y_interp(cur_s - eps)) / (2 * eps)
+					dz = (z_interp(cur_s + eps) - z_interp(cur_s - eps)) / (2 * eps)
+					nrm = cd.sqrt(dx*dx + dy*dy + dz*dz)
+					nrm = cd.fmax(nrm, 1e-6)
+					path_dx_normalized = dx / nrm
+					path_dy_normalized = dy / nrm
+					path_dz_normalized = dz / nrm
+				else:
+					path_z = None
+					path_dz_normalized = None
+					# Finite-difference derivatives for 2D
+					eps = 1e-3
+					dx = (x_interp(cur_s + eps) - x_interp(cur_s - eps)) / (2 * eps)
+					dy = (y_interp(cur_s + eps) - y_interp(cur_s - eps)) / (2 * eps)
+					nrm = cd.sqrt(dx*dx + dy*dy)
+					nrm = cd.fmax(nrm, 1e-6)
+					path_dx_normalized = dx / nrm
+					path_dy_normalized = dy / nrm
 			else:
-				path_x = self.reference_path.x_spline(float(cur_s))
-				path_y = self.reference_path.y_spline(float(cur_s))
-				dx = self.reference_path.x_spline.derivative()(float(cur_s))
-				dy = self.reference_path.y_spline.derivative()(float(cur_s))
-				nrm = np.sqrt(float(dx*dx + dy*dy))
-				nrm = max(float(nrm), 1e-6)
-				path_dx_normalized = dx / nrm
-				path_dy_normalized = dy / nrm
+				# Numeric evaluation: use TKSpline directly (reference_path.x_spline is now TKSpline)
+				path_x = self.reference_path.x_spline.at(float(cur_s))
+				path_y = self.reference_path.y_spline.at(float(cur_s))
+				dx = self.reference_path.x_spline.deriv(float(cur_s))
+				dy = self.reference_path.y_spline.deriv(float(cur_s))
+				
+				# Handle 3D case
+				if self.three_dimensional_contouring and hasattr(self.reference_path, 'z_spline') and self.reference_path.z_spline is not None:
+					path_z = self.reference_path.z_spline.at(float(cur_s))
+					dz = self.reference_path.z_spline.deriv(float(cur_s))
+					nrm = np.sqrt(float(dx*dx + dy*dy + dz*dz))
+					nrm = max(float(nrm), 1e-6)
+					path_dx_normalized = dx / nrm
+					path_dy_normalized = dy / nrm
+					path_dz_normalized = dz / nrm
+				else:
+					path_z = None
+					path_dz_normalized = None
+					nrm = np.sqrt(float(dx*dx + dy*dy))
+					nrm = max(float(nrm), 1e-6)
+					path_dx_normalized = dx / nrm
+					path_dy_normalized = dy / nrm
 
-		# MPCC
-		contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
-		lag_error = path_dx_normalized * (pos_x - path_x) + path_dy_normalized * (pos_y - path_y)
+		# MPCC (Model Predictive Contouring Control)
+		# For 2D: contour error is perpendicular distance to path, lag error is along-path distance
+		# For 3D: extend to include z-coordinate in error calculation
+		if self.three_dimensional_contouring and path_z is not None and path_dz_normalized is not None:
+			# 3D contouring: include z-coordinate
+			# Get z position from state (if available)
+			pos_z = None
+			if hasattr(state, 'position') and len(state.position) >= 3:
+				pos_z = state.position[2]
+			elif isinstance(state, (list, tuple, np.ndarray)) and len(state) >= 3:
+				pos_z = state[2]
+			elif hasattr(state, 'z'):
+				pos_z = state.z
+			elif isinstance(state, dict) and 'z' in state:
+				pos_z = state.get('z')
+			
+			if pos_z is not None:
+				# 3D contour error: perpendicular distance to 3D path
+				# For 3D, contour error is computed in the plane perpendicular to the path tangent
+				# Simplified: use 2D projection (xy-plane) for contour error, include z in lag error
+				contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
+				# lag_error includes z-component (distance along 3D path)
+				lag_error = path_dx_normalized * (pos_x - path_x) + path_dy_normalized * (pos_y - path_y) + path_dz_normalized * (pos_z - path_z)
+			else:
+				# Fallback to 2D if z not available
+				contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
+				lag_error = path_dx_normalized * (pos_x - path_x) + path_dy_normalized * (pos_y - path_y)
+		else:
+			# 2D contouring (standard MPCC)
+			contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
+			lag_error = path_dx_normalized * (pos_x - path_x) + path_dy_normalized * (pos_y - path_y)
 
 		# Log detailed information for diagnosis
 		try:
@@ -931,7 +1008,12 @@ class ContouringObjective(BaseObjective):
 				LOG_DEBUG(f"ContouringObjective.get_value: stage={stage_idx}, computing symbolic costs (x,y,psi,v,spline)")
 			else:
 				# Numeric state - log actual values
-				LOG_INFO(f"ContouringObjective.get_value: stage={stage_idx}, pos=({float(pos_x):.2f},{float(pos_y):.2f}), path=({float(path_x):.2f},{float(path_y):.2f}), spline={float(s):.3f}")
+				if self.three_dimensional_contouring and path_z is not None:
+					pos_z_str = f",{float(pos_z):.2f}" if 'pos_z' in locals() and pos_z is not None else ""
+					path_z_str = f",{float(path_z):.2f}"
+					LOG_INFO(f"ContouringObjective.get_value: stage={stage_idx}, pos=({float(pos_x):.2f},{float(pos_y):.2f}{pos_z_str}), path=({float(path_x):.2f},{float(path_y):.2f}{path_z_str}), spline={float(s):.3f}")
+				else:
+					LOG_INFO(f"ContouringObjective.get_value: stage={stage_idx}, pos=({float(pos_x):.2f},{float(pos_y):.2f}), path=({float(path_x):.2f},{float(path_y):.2f}), spline={float(s):.3f}")
 				LOG_DEBUG(f"  contour_error={float(contour_error):.4f}, lag_error={float(lag_error):.4f}")
 		except Exception:
 			LOG_DEBUG(f"ContouringObjective.get_value: stage={stage_idx}, computing costs")
@@ -999,24 +1081,27 @@ class ContouringObjective(BaseObjective):
 
 		self.reference_path = data.reference_path
 
-		# Create velocity reference spline if available
+		# Create velocity reference spline if available (numeric evaluation using TKSpline)
 		if self.dynamic_velocity_reference and len(data.reference_path.v) > 0:
-			self.reference_path.v_spline = CubicSpline(self.reference_path.s, data.reference_path.v)
+			self.reference_path.v_spline = TKSpline(self.reference_path.s, data.reference_path.v)
 
-		# Process road bounds if available
+		# Process road bounds if available (numeric evaluation using TKSpline)
+		# Note: Boundary splines are stored as separate x and y splines since TKSpline works with 1D arrays
+		# This matches the reference codebase pattern where boundaries are evaluated separately
 		if data.left_bound is not None and data.right_bound is not None:
 			LOG_DEBUG("Processing provided left and right bounds for Contouring Objective")
-			self.bound_left_spline = CubicSpline(self.reference_path.s,
-												 np.column_stack((data.left_bound.x, data.left_bound.y)))
-			self.bound_right_spline = CubicSpline(self.reference_path.s,
-												  np.column_stack((data.right_bound.x, data.right_bound.y)))
+			# Store as tuple of (x_spline, y_spline) for 2D boundaries
+			self.bound_left_spline = (TKSpline(self.reference_path.s, data.left_bound.x),
+									  TKSpline(self.reference_path.s, data.left_bound.y))
+			self.bound_right_spline = (TKSpline(self.reference_path.s, data.right_bound.x),
+									   TKSpline(self.reference_path.s, data.right_bound.y))
 		if self.three_dimensional_contouring:
 			if data.upper_bound is not None and data.lower_bound is not None:
 				LOG_DEBUG("Processing provided lower and upper bounds for Contouring Objective")
-				self.bound_lower_spline = CubicSpline(self.reference_path.s,
-													  np.column_stack((data.lower_bound.x, data.lower_bound.y)))
-				self.bound_upper_spline = CubicSpline(self.reference_path.s,
-													  np.column_stack((data.upper_bound.x, data.upper_bound.y)))
+				self.bound_lower_spline = (TKSpline(self.reference_path.s, data.lower_bound.x),
+										   TKSpline(self.reference_path.s, data.lower_bound.y))
+				self.bound_upper_spline = (TKSpline(self.reference_path.s, data.upper_bound.x),
+										   TKSpline(self.reference_path.s, data.upper_bound.y))
 
 
 	def _find_closest_point(self, position, reference_path: ReferencePath):
@@ -1354,12 +1439,11 @@ class ContouringObjective(BaseObjective):
 			# Create consistent normal vector (pointing left from path direction)
 			path_normal = np.array([-path_dy_norm, path_dx_norm])
 
-			# Get left and right bound points
-			left_bounds = self.bound_left_spline(cur_s)
-			right_bounds = self.bound_right_spline(cur_s)
-
-			left_point = np.array([float(left_bounds[0]), float(left_bounds[1])])
-			right_point = np.array([float(right_bounds[0]), float(right_bounds[1])])
+			# Get left and right bound points (boundary splines are tuples of (x_spline, y_spline))
+			left_x_spline, left_y_spline = self.bound_left_spline
+			right_x_spline, right_y_spline = self.bound_right_spline
+			left_point = np.array([float(left_x_spline(cur_s)), float(left_y_spline(cur_s))])
+			right_point = np.array([float(right_x_spline(cur_s)), float(right_y_spline(cur_s))])
 
 			# Determine which side is actually left/right by checking cross product
 			center_point = np.array([path_point_x, path_point_y])
@@ -1420,13 +1504,17 @@ class ContouringObjective(BaseObjective):
 		fig, ax = plt.subplots()
 		ax.plot(self.reference_path.x, self.reference_path.y, label="Reference Path", linewidth=2)
 
-		# Plot static bounds if available
+		# Plot static bounds if available (boundary splines are tuples of (x_spline, y_spline))
 		if self.bound_left_spline is not None and self.bound_right_spline is not None:
 			s_vals = np.linspace(self.reference_path.s[0], self.reference_path.s[-1], 200)
-			left_pts = self.bound_left_spline(s_vals)
-			right_pts = self.bound_right_spline(s_vals)
-			ax.plot(left_pts[:, 0], left_pts[:, 1], '--', color='blue', label='Left Bound')
-			ax.plot(right_pts[:, 0], right_pts[:, 1], '--', color='green', label='Right Bound')
+			left_x_spline, left_y_spline = self.bound_left_spline
+			right_x_spline, right_y_spline = self.bound_right_spline
+			left_x_vals = left_x_spline(s_vals)
+			left_y_vals = left_y_spline(s_vals)
+			right_x_vals = right_x_spline(s_vals)
+			right_y_vals = right_y_spline(s_vals)
+			ax.plot(left_x_vals, left_y_vals, '--', color='blue', label='Left Bound')
+			ax.plot(right_x_vals, right_y_vals, '--', color='green', label='Right Bound')
 
 		ax.set_aspect('equal')
 		ax.set_xlabel('X')

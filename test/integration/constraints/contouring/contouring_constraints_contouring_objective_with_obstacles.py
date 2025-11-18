@@ -10,7 +10,7 @@ This test uses the new IntegrationTestFramework to run a test with:
 import sys
 import os
 import numpy as np
-from scipy.interpolate import CubicSpline
+from utils.math_tools import TKSpline
 
 # Add project root to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
@@ -45,9 +45,9 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
     ref_path.y = y_arr.tolist()
     ref_path.z = z_arr.tolist()
     ref_path.s = s.tolist()
-    ref_path.x_spline = CubicSpline(s, x_arr)
-    ref_path.y_spline = CubicSpline(s, y_arr)
-    ref_path.z_spline = CubicSpline(s, z_arr)
+    ref_path.x_spline = TKSpline(s, x_arr)
+    ref_path.y_spline = TKSpline(s, y_arr)
+    ref_path.z_spline = TKSpline(s, z_arr)
     ref_path.length = float(s[-1])
     
     # Sample arc length values along the path (avoiding start and end)
