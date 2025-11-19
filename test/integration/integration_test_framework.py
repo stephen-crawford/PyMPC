@@ -2950,71 +2950,102 @@ class IntegrationTestFramework:
                 
                 # Update Gaussian constraint visualizations
                 # Clear old Gaussian constraint artists (orange ellipses and markers)
-                for artist in gaussian_constraint_artists:
+                for artist in gaussian_constraint_artists[:]:  # Use slice copy to avoid modification during iteration
                     try:
-                        artist.remove()
+                        if hasattr(artist, 'remove'):
+                            artist.remove()
                     except Exception:
                         pass
                 gaussian_constraint_artists.clear()
                 
-                # Also remove any orange ellipses/markers that might have been added (cleanup)
-                from matplotlib.patches import Ellipse
-                patches_to_remove = []
-                for patch in ax.patches:
-                    if isinstance(patch, Ellipse):
-                        try:
-                            edge_color = patch.get_edgecolor()
-                            face_color = patch.get_facecolor()
-                            # Check if orange colored (Gaussian constraint ellipses)
-                            is_orange = False
-                            if len(edge_color) >= 3:
-                                is_orange = (abs(edge_color[0] - 1.0) < 0.1 and 
-                                            abs(edge_color[1] - 0.647) < 0.1 and 
-                                            abs(edge_color[2] - 0.0) < 0.1)
-                            if not is_orange and len(face_color) >= 3:
-                                is_orange = (abs(face_color[0] - 1.0) < 0.1 and 
-                                            abs(face_color[1] - 0.647) < 0.1 and 
-                                            abs(face_color[2] - 0.0) < 0.1)
-                            if is_orange:
-                                patches_to_remove.append(patch)
-                        except Exception:
-                            pass
-                for patch in patches_to_remove:
-                    try:
-                        patch.remove()
-                    except Exception:
-                        pass
-                
                 # Draw Gaussian constraints for current frame
                 try:
-                    if hasattr(self, 'solver') and hasattr(self.solver, 'module_manager'):
-                        plt.sca(ax)
+                    # Check if solver is available
+                    if not hasattr(self, 'solver'):
+                        if frame < 3:
+                            logging.getLogger("integration_test").warning(f"Frame {frame}: self.solver not available for Gaussian visualization")
+                    elif not hasattr(self.solver, 'module_manager'):
+                        if frame < 3:
+                            logging.getLogger("integration_test").warning(f"Frame {frame}: solver.module_manager not available for Gaussian visualization")
+                    else:
+                        # Don't use plt.sca() or plt.figure() - animation axes aren't managed by pyplot
+                        # Instead, pass axes directly to visualizer
+                        gaussian_module_found = False
                         for module in self.solver.module_manager.get_modules():
                             module_name = getattr(module, 'name', '')
                             if 'gaussian' in module_name.lower():
+                                gaussian_module_found = True
                                 if hasattr(module, 'get_visualizer'):
                                     viz = module.get_visualizer()
                                     if viz is not None and hasattr(viz, 'visualize') and hasattr(self, 'last_data'):
+                                        # Debug logging
+                                        if frame < 3:
+                                            logging.getLogger("integration_test").info(
+                                                f"Frame {frame}: Found Gaussian module '{module_name}', calling visualizer")
+                                        # Update obstacle positions for current frame before visualizing
+                                        # Create a copy of last_data and update obstacle positions
+                                        if hasattr(self.last_data, 'dynamic_obstacles') and self.last_data.dynamic_obstacles:
+                                            # Update obstacle positions from obstacle_states for current frame
+                                            for i, obs in enumerate(self.last_data.dynamic_obstacles):
+                                                if i < len(obstacle_states) and frame < len(obstacle_states[i]):
+                                                    obs_state = obstacle_states[i][frame]
+                                                    if len(obs_state) >= 2:
+                                                        obs.position = np.array([obs_state[0], obs_state[1]], dtype=float)
+                                            
+                                            # Propagate obstacle predictions for current frame
+                                            # This ensures prediction steps are updated with current positions
+                                            # CRITICAL: Save prediction types before propagation, as propagate_obstacles may reset them
+                                            from planning.types import PredictionType
+                                            saved_prediction_types = []
+                                            for obs in self.last_data.dynamic_obstacles:
+                                                if hasattr(obs, 'prediction') and obs.prediction is not None:
+                                                    saved_prediction_types.append(obs.prediction.type)
+                                                else:
+                                                    saved_prediction_types.append(None)
+                                            
+                                            try:
+                                                from planning.types import propagate_obstacles
+                                                if hasattr(self.solver, 'horizon') and hasattr(self.solver, 'timestep'):
+                                                    horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
+                                                    timestep_val = self.solver.timestep if self.solver.timestep is not None else 0.1
+                                                    propagate_obstacles(self.last_data, dt=timestep_val, horizon=horizon_val)
+                                                
+                                                # CRITICAL: Restore prediction types after propagation
+                                                # propagate_obstacles may reset them to DETERMINISTIC
+                                                for i, obs in enumerate(self.last_data.dynamic_obstacles):
+                                                    if i < len(saved_prediction_types) and saved_prediction_types[i] is not None:
+                                                        if hasattr(obs, 'prediction') and obs.prediction is not None:
+                                                            obs.prediction.type = saved_prediction_types[i]
+                                            except Exception as e:
+                                                logging.getLogger("integration_test").debug(f"Could not propagate obstacles for frame {frame}: {e}")
+                                        
                                         # Debug: Check if obstacles have Gaussian predictions
-                                        if frame < 3:  # Only log for first few frames to avoid spam
+                                        if frame < 5:  # Log for first few frames
                                             if hasattr(self.last_data, 'dynamic_obstacles') and self.last_data.dynamic_obstacles:
                                                 gaussian_count = 0
-                                                for obs in self.last_data.dynamic_obstacles:
+                                                for i, obs in enumerate(self.last_data.dynamic_obstacles):
                                                     if (hasattr(obs, 'prediction') and obs.prediction is not None and
                                                         hasattr(obs.prediction, 'type')):
                                                         from planning.types import PredictionType
-                                                        if obs.prediction.type == PredictionType.GAUSSIAN:
+                                                        pred_type = obs.prediction.type
+                                                        logging.getLogger("integration_test").info(
+                                                            f"Frame {frame}: Obstacle {i} prediction type: {pred_type}")
+                                                        if pred_type == PredictionType.GAUSSIAN:
                                                             gaussian_count += 1
                                                             if hasattr(obs.prediction, 'steps') and len(obs.prediction.steps) > 0:
                                                                 step = obs.prediction.steps[0]
                                                                 logging.getLogger("integration_test").info(
-                                                    f"Frame {frame}: Obstacle {gaussian_count-1} has Gaussian prediction with "
+                                                    f"Frame {frame}: Obstacle {i} has Gaussian prediction with "
                                                     f"major_radius={getattr(step, 'major_radius', 'N/A')}, "
-                                                    f"minor_radius={getattr(step, 'minor_radius', 'N/A')}")
+                                                    f"minor_radius={getattr(step, 'minor_radius', 'N/A')}, "
+                                                    f"position={getattr(step, 'position', 'N/A')}")
+                                                        else:
+                                                            logging.getLogger("integration_test").warning(
+                                                                f"Frame {frame}: Obstacle {i} does NOT have Gaussian prediction (type={pred_type})")
                                                 logging.getLogger("integration_test").info(
-                                                    f"Frame {frame}: Found {gaussian_count} obstacles with Gaussian predictions")
+                                                    f"Frame {frame}: Found {gaussian_count}/{len(self.last_data.dynamic_obstacles)} obstacles with Gaussian predictions, calling visualizer")
                                             else:
-                                                logging.getLogger("integration_test").info(
+                                                logging.getLogger("integration_test").warning(
                                                     f"Frame {frame}: No dynamic_obstacles in last_data")
                                         
                                         # Store current patches/lines/texts count before visualization
@@ -3023,61 +3054,81 @@ class IntegrationTestFramework:
                                         texts_before = list(ax.texts)
                                         
                                         # Call visualizer for current frame (use stage_idx=0 for first prediction step)
-                                        viz.visualize(None, self.last_data, stage_idx=0)
+                                        # Pass axes directly to avoid plt.gca() issues in animation context
+                                        if frame < 5:
+                                            logging.getLogger("integration_test").info(
+                                                f"Frame {frame}: About to call Gaussian visualizer.visualize()")
+                                        try:
+                                            viz.visualize(None, self.last_data, stage_idx=0, ax=ax)
+                                            if frame < 5:
+                                                logging.getLogger("integration_test").info(
+                                                    f"Frame {frame}: Gaussian visualizer.visualize() completed")
+                                        except Exception as viz_err:
+                                            logging.getLogger("integration_test").error(
+                                                f"Frame {frame}: Error calling Gaussian visualizer: {viz_err}")
+                                            import traceback
+                                            logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
                                         
                                         # Track newly added patches, lines, and texts (Gaussian constraint artists)
                                         patches_after = list(ax.patches)
                                         lines_after = list(ax.lines)
                                         texts_after = list(ax.texts)
                                         
-                                        # Find new patches (ellipses)
+                                        # Find new patches (ellipses) - track ALL ellipses added by visualizer
+                                        from matplotlib.patches import Ellipse
                                         new_ellipses = 0
                                         for patch in patches_after:
                                             if patch not in patches_before and isinstance(patch, Ellipse):
                                                 gaussian_constraint_artists.append(patch)
                                                 new_ellipses += 1
                                         
-                                        # Find new lines (mean position markers)
+                                        # Find new lines (mean position markers) - track ALL new lines
                                         new_markers = 0
                                         for line in lines_after:
                                             if line not in lines_before:
-                                                try:
-                                                    if (hasattr(line, 'get_color') and line.get_color() == 'orange' and
-                                                        hasattr(line, 'get_marker') and line.get_marker() == 'o'):
-                                                        gaussian_constraint_artists.append(line)
-                                                        new_markers += 1
-                                                except Exception:
-                                                    pass
+                                                # Track all new lines (markers for mean positions)
+                                                gaussian_constraint_artists.append(line)
+                                                new_markers += 1
                                         
-                                        # Find new texts (uncertainty parameter markers)
+                                        # Find new texts (uncertainty parameter markers) - track ALL new texts
                                         new_texts = 0
                                         for text in texts_after:
                                             if text not in texts_before:
-                                                try:
-                                                    # Check if it's an uncertainty parameter text (has orange edgecolor in bbox)
-                                                    if hasattr(text, '_bbox_patch') and text._bbox_patch is not None:
-                                                        bbox = text._bbox_patch
-                                                        if hasattr(bbox, 'get_edgecolor'):
-                                                            edge_color = bbox.get_edgecolor()
-                                                            # Check if orange colored (Gaussian uncertainty text)
-                                                            if len(edge_color) >= 3:
-                                                                is_orange = (abs(edge_color[0] - 1.0) < 0.1 and 
-                                                                            abs(edge_color[1] - 0.647) < 0.1 and 
-                                                                            abs(edge_color[2] - 0.0) < 0.1)
-                                                                if is_orange:
-                                                                    gaussian_constraint_artists.append(text)
-                                                                    new_texts += 1
-                                                except Exception:
-                                                    pass
+                                                # Track all new text annotations (uncertainty parameters)
+                                                gaussian_constraint_artists.append(text)
+                                                new_texts += 1
                                         
-                                        if frame < 3:  # Debug logging for first few frames
+                                        if frame < 5:  # Debug logging for first few frames
                                             logging.getLogger("integration_test").info(
-                                                f"Frame {frame}: Added {new_ellipses} ellipses, {new_markers} markers, and {new_texts} text annotations for Gaussian constraints")
+                                                f"Frame {frame}: Visualizer added {new_ellipses} ellipses, {new_markers} markers, and {new_texts} text annotations for Gaussian constraints")
+                                            if new_ellipses == 0:
+                                                logging.getLogger("integration_test").warning(
+                                                    f"Frame {frame}: WARNING - No ellipses were added by Gaussian visualizer!")
+                                                # Check what obstacles we have
+                                                if hasattr(self.last_data, 'dynamic_obstacles') and self.last_data.dynamic_obstacles:
+                                                    for i, obs in enumerate(self.last_data.dynamic_obstacles):
+                                                        from planning.types import PredictionType
+                                                        pred_type = getattr(obs.prediction, 'type', None) if hasattr(obs, 'prediction') and obs.prediction else None
+                                                        has_steps = hasattr(obs.prediction, 'steps') and len(obs.prediction.steps) > 0 if hasattr(obs, 'prediction') and obs.prediction else False
+                                                        logging.getLogger("integration_test").warning(
+                                                            f"Frame {frame}:   Obstacle {i}: type={pred_type}, has_steps={has_steps}, steps_count={len(obs.prediction.steps) if hasattr(obs.prediction, 'steps') else 0}")
+                                    else:
+                                        if frame < 3:
+                                            logging.getLogger("integration_test").warning(
+                                                f"Frame {frame}: Gaussian visualizer conditions not met: viz={viz is not None}, has_visualize={hasattr(viz, 'visualize') if viz else False}, has_last_data={hasattr(self, 'last_data')}")
+                                else:
+                                    if frame < 3:
+                                        logging.getLogger("integration_test").warning(
+                                            f"Frame {frame}: Gaussian module '{module_name}' has no get_visualizer method")
+                            else:
+                                if frame < 3 and not gaussian_module_found:
+                                    logging.getLogger("integration_test").warning(
+                                        f"Frame {frame}: No Gaussian module found in solver modules")
                 except Exception as e:
                     # Visualization errors are non-fatal for animation
-                    logging.getLogger("integration_test").debug(f"Error visualizing Gaussian constraints: {e}")
+                    logging.getLogger("integration_test").error(f"Error visualizing Gaussian constraints: {e}")
                     import traceback
-                    logging.getLogger("integration_test").debug(f"Traceback: {traceback.format_exc()}")
+                    logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
                     pass
                 
                 # Goals update
@@ -3095,7 +3146,7 @@ class IntegrationTestFramework:
                     cg = goal_sequence[cur_idx]
                     current_goal_plot.set_data([float(cg[0])], [float(cg[1])])
                     artists_extra.append(current_goal_plot)
-            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles + ([current_goal_plot] if current_goal_plot is not None else []) + reached_goal_plots + halfspace_lines + linearized_halfspace_lines
+            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles + ([current_goal_plot] if current_goal_plot is not None else []) + reached_goal_plots + halfspace_lines + linearized_halfspace_lines + gaussian_constraint_artists
             
         # Create animation - use all frames to show complete trajectory
         total_frames = len(vehicle_states)

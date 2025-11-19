@@ -208,34 +208,85 @@ class GaussianConstraints(BaseConstraint):
 			def __init__(self, module):
 				self.module = module
 			
-			def visualize(self, state, data, stage_idx=0):
+			def visualize(self, state, data, stage_idx=0, ax=None):
 				"""
 				Visualize Gaussian constraints as uncertainty ellipses around obstacles.
 				Plots ellipses directly on the current matplotlib axes.
+				
+				Args:
+					state: Current state (not used)
+					data: Data object containing obstacles
+					stage_idx: Prediction stage index (default 0)
+					ax: Matplotlib axes to plot on (optional, will use plt.gca() if not provided)
 				"""
 				try:
 					import matplotlib.pyplot as plt
 					from matplotlib.patches import Ellipse
+					from planning.types import PredictionType
+					import numpy as np
 				except Exception:
 					return
 				
-				if not data.has("dynamic_obstacles") or data.dynamic_obstacles is None:
+				# Get axes - prefer provided axes, fall back to gca()
+				if ax is None:
+					try:
+						ax = plt.gca()
+					except Exception:
+						try:
+							fig = plt.gcf()
+							if fig is not None and len(fig.axes) > 0:
+								ax = fig.axes[0]
+							else:
+								return
+						except Exception:
+							return
+				
+				# Check if data has dynamic obstacles
+				# Data can store obstacles either as attribute or in _store dictionary
+				if hasattr(data, 'dynamic_obstacles'):
+					copied_dynamic_obstacles = data.dynamic_obstacles
+				elif hasattr(data, 'has') and data.has("dynamic_obstacles"):
+					copied_dynamic_obstacles = data.get("dynamic_obstacles")
+				else:
 					return
 				
-				copied_dynamic_obstacles = data.dynamic_obstacles
+				if copied_dynamic_obstacles is None or len(copied_dynamic_obstacles) == 0:
+					return
+				# Verify axes is valid
+				if ax is None or not hasattr(ax, 'add_patch'):
+					return  # Cannot visualize without valid axes
+				
 				risk_level = float(self.module.get_config_value("gaussian_constraints.risk_level", 0.05))
 				confidence_level = 1.0 - risk_level
 				
-				ax = plt.gca()
 				first_ellipse = True
 				
+				# Debug: Log that visualizer was called
+				if stage_idx == 0:
+					import logging
+					logging.getLogger("integration_test").info(
+						f"Gaussian visualizer called: {len(copied_dynamic_obstacles)} obstacles, stage_idx={stage_idx}")
+				
 				# Visualize each obstacle with Gaussian prediction
+				# Use obstacle colors similar to linearized constraints for consistency
+				obstacle_colors = ['red', 'orange', 'purple', 'brown', 'pink', 'cyan', 'magenta', 'yellow']
+				
 				for obs_id, obstacle in enumerate(copied_dynamic_obstacles[:self.module.max_obstacles]):
 					# Check if obstacle has Gaussian prediction
 					if not hasattr(obstacle, 'prediction') or obstacle.prediction is None:
 						continue
 					
+					# Debug: Log prediction type for first few obstacles
+					if obs_id < 3 and stage_idx == 0:
+						import logging
+						logging.getLogger("integration_test").info(
+							f"Gaussian visualizer: Obstacle {obs_id} prediction type: {obstacle.prediction.type}")
+					
 					if obstacle.prediction.type != PredictionType.GAUSSIAN:
+						if obs_id < 3 and stage_idx == 0:
+							import logging
+							logging.getLogger("integration_test").warning(
+								f"Gaussian visualizer: Skipping obstacle {obs_id} - not GAUSSIAN (type={obstacle.prediction.type})")
 						continue
 					
 					# Get prediction step for this stage
@@ -270,20 +321,33 @@ class GaussianConstraints(BaseConstraint):
 					major_effective = np.sqrt(chi_squared_threshold) * major_radius + safe_distance
 					minor_effective = np.sqrt(chi_squared_threshold) * minor_radius + safe_distance
 					
-					# Draw uncertainty ellipse (constraint boundary)
+					# Use obstacle-specific color (similar to linearized constraints)
+					obstacle_color = obstacle_colors[obs_id % len(obstacle_colors)]
+					alpha_fill = 0.15
+					alpha_edge = 0.6
+					
+					# Draw uncertainty ellipse (constraint boundary) - outer ellipse with safe distance
 					uncertainty_ellipse = Ellipse(
 						xy=(float(mean_pos[0]), float(mean_pos[1])),
 						width=2 * major_effective,
 						height=2 * minor_effective,
 						angle=np.degrees(orientation),
-						edgecolor='orange',
-						facecolor='orange',
-						alpha=0.15,
+						edgecolor=obstacle_color,
+						facecolor=obstacle_color,
+						alpha=alpha_fill,
 						linestyle='--',
 						linewidth=2.0,
+						zorder=1,
 						label=f'Gaussian Constraint ({confidence_level*100:.0f}%)' if first_ellipse else None
 					)
 					ax.add_patch(uncertainty_ellipse)
+					
+					# Debug: Log ellipse creation
+					if obs_id < 3 and stage_idx == 0:
+						import logging
+						logging.getLogger("integration_test").info(
+							f"Gaussian visualizer: Created ellipse for obstacle {obs_id} at ({mean_pos[0]:.2f}, {mean_pos[1]:.2f}), "
+							f"size=({major_effective:.2f}, {minor_effective:.2f}), color={obstacle_color}")
 					
 					# Draw mean position uncertainty ellipse (without safe distance, shows actual uncertainty)
 					uncertainty_only_ellipse = Ellipse(
@@ -291,49 +355,59 @@ class GaussianConstraints(BaseConstraint):
 						width=2 * np.sqrt(chi_squared_threshold) * major_radius,
 						height=2 * np.sqrt(chi_squared_threshold) * minor_radius,
 						angle=np.degrees(orientation),
-						edgecolor='orange',
+						edgecolor=obstacle_color,
 						facecolor='none',
-						alpha=0.5,
+						alpha=alpha_edge,
 						linestyle=':',
-						linewidth=1.5
+						linewidth=1.5,
+						zorder=2
 					)
 					ax.add_patch(uncertainty_only_ellipse)
 					
-					# Draw mean position marker
-					ax.plot(mean_pos[0], mean_pos[1], 'o', color='orange', markersize=6, 
-					       label='Mean Position' if first_ellipse else None)
+					# Draw mean position marker (use obstacle color)
+					mean_marker, = ax.plot(mean_pos[0], mean_pos[1], 'o', color=obstacle_color, markersize=6, 
+					       label='Mean Position' if first_ellipse else None, zorder=3)
 					
 					# Add text marker for uncertainty parameters
+					# Check obstacle for uncertainty params
+					position_std = 0.0
+					uncertainty_growth = 0.0
+					
 					if hasattr(obstacle, 'uncertainty_params') and obstacle.uncertainty_params:
 						position_std = obstacle.uncertainty_params.get('position_std', 0.0)
 						uncertainty_growth = obstacle.uncertainty_params.get('uncertainty_growth', 0.0)
-						
-						# Calculate current uncertainty at this stage
-						current_std = position_std + stage_idx * uncertainty_growth
-						
-						# Position text offset above the obstacle
-						text_offset_y = major_effective + 0.5
-						text_x = float(mean_pos[0])
-						text_y = float(mean_pos[1]) + text_offset_y
-						
-						# Format uncertainty parameters text
-						uncertainty_text = f"σ={position_std:.2f}"
-						if uncertainty_growth > 0:
-							uncertainty_text += f"\n+{uncertainty_growth:.3f}/step"
-						uncertainty_text += f"\nσₜ={current_std:.2f}"
-						
-						# Add text annotation with background box for readability
-						ax.text(text_x, text_y, uncertainty_text,
-						       fontsize=8,
-						       color='orange',
-						       ha='center',
-						       va='bottom',
-						       bbox=dict(boxstyle='round,pad=0.3',
-						                facecolor='white',
-						                edgecolor='orange',
-						                alpha=0.8,
-						                linewidth=1.0),
-						       zorder=10)
+					
+					# Calculate current uncertainty at this stage
+					current_std = position_std + stage_idx * uncertainty_growth
+					
+					# Position text offset above the obstacle (use a fixed offset to ensure visibility)
+					# Use a larger offset to ensure text is clearly visible above the ellipse
+					text_offset_y = max(major_effective, 1.5) + 0.8  # At least 1.5m + 0.8m offset
+					text_x = float(mean_pos[0])
+					text_y = float(mean_pos[1]) + text_offset_y
+					
+					# Format uncertainty parameters text
+					uncertainty_text = f"σ={position_std:.2f}"
+					if uncertainty_growth > 0:
+						uncertainty_text += f"\n+{uncertainty_growth:.3f}/step"
+					uncertainty_text += f"\nσₜ={current_std:.2f}"
+					
+					# Add text annotation with background box (use obstacle color)
+					# Make text more visible with larger font and better contrast
+					# Always add text for Gaussian obstacles to show uncertainty parameters
+					uncertainty_text_obj = ax.text(text_x, text_y, uncertainty_text,
+					       fontsize=10,
+					       color=obstacle_color,
+					       ha='center',
+					       va='bottom',
+					       weight='bold',
+					       bbox=dict(boxstyle='round,pad=0.5',
+					                facecolor='white',
+					                edgecolor=obstacle_color,
+					                alpha=0.95,
+					                linewidth=2.0),
+					       zorder=20,  # Very high zorder to ensure text is always on top
+					       clip_on=False)  # Don't clip text if it goes slightly outside axes
 					
 					first_ellipse = False
 		

@@ -1238,14 +1238,69 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
                           state_vec[1] += vy * dt
               obstacle.prediction.steps = pred_steps
               continue
-      except Exception:
+      except Exception as e:
           # If any issue arises, fall back to legacy behavior
+          # But preserve Gaussian prediction type and regenerate steps with correct radii
+          import logging
+          logging.getLogger("integration_test").debug(f"Exception in propagate_obstacles for obstacle {getattr(obstacle, 'index', 'unknown')}: {e}")
+          # If this was a Gaussian prediction, we need to regenerate steps with correct radii
+          if pred.type == PredictionType.GAUSSIAN:
+              # Get uncertainty params
+              base_std = sigma_pos
+              growth_rate = 0.0
+              if hasattr(obstacle, 'uncertainty_params') and obstacle.uncertainty_params:
+                  base_std = obstacle.uncertainty_params.get('position_std', sigma_pos)
+                  growth_rate = obstacle.uncertainty_params.get('uncertainty_growth', 0.0)
+              
+              # Regenerate prediction steps with Gaussian radii
+              obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+              pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])]) if hasattr(obstacle, 'position') else np.array([0.0, 0.0])
+              angle = float(getattr(obstacle, 'angle', 0.0))
+              velocity = np.array([np.cos(angle), np.sin(angle)]) * speed
+              
+              pred_steps = []
+              for k in range(int(horizon) + 1):
+                  uncertainty_std = base_std + k * growth_rate
+                  major_r = obstacle_radius + uncertainty_std * 2
+                  minor_r = obstacle_radius + uncertainty_std
+                  current_pos = pos + velocity * k * dt
+                  pred_steps.append(PredictionStep(current_pos, angle, major_r, minor_r))
+              
+              obstacle.prediction.steps = pred_steps
+              continue
           pass
 
       # Fallback: constant velocity if no path and no usable dynamics model
       if path is None:
+          # Preserve prediction type before creating new prediction
+          original_pred_type = pred.type if hasattr(pred, 'type') else None
+          original_uncertainty_params = getattr(obstacle, 'uncertainty_params', None)
           velocity = np.array([np.cos(getattr(obstacle, 'angle', 0.0)), np.sin(getattr(obstacle, 'angle', 0.0))]) * speed
           obstacle.prediction = get_constant_velocity_prediction(getattr(obstacle, 'position', np.array([0.0, 0.0])), velocity, dt, horizon)
+          # Restore original prediction type if it was Gaussian and regenerate steps with correct radii
+          if original_pred_type == PredictionType.GAUSSIAN and hasattr(obstacle.prediction, 'type'):
+              obstacle.prediction.type = original_pred_type
+              # Regenerate steps with Gaussian radii
+              if original_uncertainty_params:
+                  base_std = original_uncertainty_params.get('position_std', sigma_pos)
+                  growth_rate = original_uncertainty_params.get('uncertainty_growth', 0.0)
+              else:
+                  base_std = sigma_pos
+                  growth_rate = 0.0
+              
+              obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+              pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])]) if hasattr(obstacle, 'position') else np.array([0.0, 0.0])
+              angle = float(getattr(obstacle, 'angle', 0.0))
+              
+              pred_steps = []
+              for k in range(int(horizon) + 1):
+                  uncertainty_std = base_std + k * growth_rate
+                  major_r = obstacle_radius + uncertainty_std * 2
+                  minor_r = obstacle_radius + uncertainty_std
+                  current_pos = pos + velocity * k * dt
+                  pred_steps.append(PredictionStep(current_pos, angle, major_r, minor_r))
+              
+              obstacle.prediction.steps = pred_steps
           continue
 
       total_length = path.s[-1]
