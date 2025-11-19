@@ -3,7 +3,7 @@ Mathematical utilities for scenario-based constraints.
 """
 import numpy as np
 from typing import List
-from utils.math_utils import Halfspace
+from utils.math_tools import Halfspace
 from utils.utils import LOG_DEBUG, LOG_WARN
 
 

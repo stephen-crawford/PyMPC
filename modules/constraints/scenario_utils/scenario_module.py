@@ -282,12 +282,20 @@ class SafeHorizonModule:
             if not (hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles):
                 return False
             
-            # Check that obstacles have valid predictions
+            # Check that obstacles exist and have prediction types set
+            # Note: predictions.steps may not be populated yet (will be done by propagate_obstacles)
+            # So we only check that obstacles have prediction types configured
             for obstacle in data.dynamic_obstacles:
                 if not hasattr(obstacle, 'prediction') or not obstacle.prediction:
                     return False
                 
-                if obstacle.prediction.type.name not in ['GAUSSIAN', 'MULTIMODAL']:
+                # Check prediction type (PredictionType is an Enum)
+                if not hasattr(obstacle.prediction, 'type'):
+                    return False
+                
+                from planning.types import PredictionType
+                # Allow GAUSSIAN predictions (steps will be populated by propagate_obstacles)
+                if obstacle.prediction.type != PredictionType.GAUSSIAN:
                     return False
             
             return True
