@@ -14,7 +14,7 @@ Test setup:
 - Reference path: Curving path (sine wave) that requires continuous turning
 - Static obstacles: Placed near the reference path centerline
 - Contouring constraints (for road boundaries)
-- Linearized constraints (for obstacle avoidance)
+- Gaussian constraints (for obstacle avoidance)
 - Contouring objective (to follow the path)
 """
 import sys
@@ -122,19 +122,27 @@ def run(dt=0.1, horizon=10, max_iterations=300, num_obstacles=3):
                 velocity=np.array([0.0, 0.0])  # Stationary
             )
             obstacle_config.radius = 0.4  # Obstacle radius (smaller to allow maneuvering room)
-            obstacle_config.prediction_type = PredictionType.DETERMINISTIC
+            obstacle_config.prediction_type = PredictionType.GAUSSIAN  # Use Gaussian prediction for Gaussian constraints
+            
+            # Add uncertainty parameters for Gaussian predictions
+            # These will be used to generate prediction steps with major_radius, minor_radius, orientation
+            obstacle_config.uncertainty_params = {
+                "position_std": 0.1,  # Standard deviation for position uncertainty
+                "uncertainty_growth": 0.01  # Growth rate of uncertainty over time
+            }
+            
             obstacle_configs.append(obstacle_config)
             print(f"Created static obstacle {i} at s={s_pos:.2f}, position=({x_obs:.2f}, {y_obs:.2f}), "
                   f"offset={offset_distance:.2f}m from centerline")
         except Exception as e:
             print(f"Warning: Could not create obstacle {i} at s={s_pos}: {e}")
     
-    # Contouring objective with contouring constraints (for road boundaries) and linearized constraints (for obstacle avoidance)
+    # Contouring objective with contouring constraints (for road boundaries) and Gaussian constraints (for obstacle avoidance)
     # CRITICAL: Use "contouring_unicycle" to get ContouringSecondOrderUnicycleModel with spline state
     config = TestConfig(
         reference_path=ref_path_points,
         objective_module="contouring",
-        constraint_modules=["contouring", "linear"],  # Contouring constraints for road boundaries + linear for obstacles
+        constraint_modules=["contouring", "gaussian"],  # Contouring constraints for road boundaries + gaussian for obstacles
         vehicle_dynamics="contouring_unicycle",  # Use contouring unicycle model with spline state
         num_obstacles=len(obstacle_configs),
         obstacle_dynamics=["point_mass"] * len(obstacle_configs),
@@ -146,7 +154,7 @@ def run(dt=0.1, horizon=10, max_iterations=300, num_obstacles=3):
         max_consecutive_failures=50,
         timeout_seconds=120.0,  # Increase timeout to allow path completion
         obstacle_configs=obstacle_configs,  # Use deterministic obstacle positions
-        obstacle_prediction_types=["deterministic"] * len(obstacle_configs)  # Deterministic for stationary obstacles
+        obstacle_prediction_types=["gaussian"] * len(obstacle_configs)  # Gaussian for probabilistic obstacle avoidance
     )
     
     # Run the test
@@ -159,7 +167,7 @@ def run(dt=0.1, horizon=10, max_iterations=300, num_obstacles=3):
     print(f"Number of obstacles: {len(obstacle_configs)}")
     for i, obs_config in enumerate(obstacle_configs):
         print(f"  Obstacle {i}: position=({obs_config.initial_position[0]:.2f}, {obs_config.initial_position[1]:.2f}), radius={obs_config.radius:.2f}m")
-    print(f"Constraints: Contouring (for road boundaries) + Linear (for obstacle avoidance)")
+    print(f"Constraints: Contouring (for road boundaries) + Gaussian (for obstacle avoidance)")
     print(f"Objective: Contouring (to follow the path)")
     print()
     

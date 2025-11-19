@@ -1904,65 +1904,150 @@ class IntegrationTestFramework:
     def save_state_history(self, output_folder: str, vehicle_states: List[np.ndarray], 
                           obstacle_states: List[List[np.ndarray]]):
         """Save state history to CSV files."""
+        logger = logging.getLogger("integration_test")
+        
+        # Validate inputs
+        if not vehicle_states:
+            logger.warning("No vehicle states to save")
+            return
+        
+        if not hasattr(self, 'solver') or self.solver is None:
+            logger.error("Solver not available for saving state history")
+            return
+        
+        if not hasattr(self.solver, 'timestep') or self.solver.timestep is None:
+            logger.error("Solver timestep not available for saving state history")
+            return
+        
         # Save vehicle states
         vehicle_file = os.path.join(output_folder, "vehicle_states.csv")
-        with open(vehicle_file, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile)
-            writer.writerow(['time', 'x', 'y', 'theta', 'velocity'])
-            
-            for i, state in enumerate(vehicle_states):
-                writer.writerow([i * self.solver.timestep] + state.tolist())
+        try:
+            with open(vehicle_file, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(['time', 'x', 'y', 'theta', 'velocity'])
+                
+                for i, state in enumerate(vehicle_states):
+                    if state is None:
+                        logger.warning(f"Skipping None state at index {i}")
+                        continue
+                    try:
+                        state_list = state.tolist() if hasattr(state, 'tolist') else list(state)
+                        writer.writerow([i * self.solver.timestep] + state_list)
+                    except Exception as e:
+                        logger.error(f"Error writing vehicle state at index {i}: {e}")
+                        raise
+            logger.info(f"Saved {len(vehicle_states)} vehicle states to {vehicle_file}")
+        except Exception as e:
+            logger.error(f"Error saving vehicle states to {vehicle_file}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Remove empty file if it was created
+            if os.path.exists(vehicle_file) and os.path.getsize(vehicle_file) == 0:
+                try:
+                    os.remove(vehicle_file)
+                except Exception:
+                    pass
+            raise
                 
         # Save obstacle states with detailed information from obstacle manager
-        if hasattr(self, 'obstacle_manager'):
-            obstacle_info = self.obstacle_manager.get_obstacle_info()
-            
-            # Save obstacle summary
-            summary_file = os.path.join(output_folder, "obstacle_summary.csv")
-            with open(summary_file, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile)
-                writer.writerow(['obstacle_id', 'dynamics_type', 'radius', 'initial_x', 'initial_y', 'initial_angle'])
+        try:
+            if hasattr(self, 'obstacle_manager') and self.obstacle_manager is not None:
+                obstacle_info = self.obstacle_manager.get_obstacle_info()
                 
-                for obs_info in obstacle_info['obstacle_details']:
-                    writer.writerow([
-                        obs_info['id'],
-                        obs_info['dynamics_type'],
-                        obs_info['radius'],
-                        obs_info['position'][0],
-                        obs_info['position'][1],
-                        obs_info['angle']
-                    ])
-            
-            # Save detailed obstacle states
-            all_obstacle_states = self.obstacle_manager.get_all_obstacle_states()
-            for i, obs_states in enumerate(all_obstacle_states):
-                obstacle_file = os.path.join(output_folder, f"obstacle_{i}_detailed_states.csv")
-                with open(obstacle_file, 'w', newline='', encoding='utf-8') as csvfile:
-                    writer = csv.writer(csvfile)
-                    
-                    # Determine state variables based on dynamics type
-                    dynamics_type = obstacle_info['obstacle_details'][i]['dynamics_type']
-                    if 'Unicycle' in dynamics_type:
-                        writer.writerow(['time', 'x', 'y', 'psi', 'v'])
-                    elif 'Bicycle' in dynamics_type:
-                        writer.writerow(['time', 'x', 'y', 'psi', 'v', 'delta', 'spline'])
-                    elif 'PointMass' in dynamics_type:
-                        writer.writerow(['time', 'x', 'y', 'vx', 'vy'])
-                    else:
-                        writer.writerow(['time', 'x', 'y'])
-                    
-                    for j, state in enumerate(obs_states):
-                        writer.writerow([j * self.solver.timestep] + state.tolist())
-        else:
-            # Fallback to simple obstacle states
-            for i, obs_states in enumerate(obstacle_states):
-                obstacle_file = os.path.join(output_folder, f"obstacle_{i}_states.csv")
-                with open(obstacle_file, 'w', newline='', encoding='utf-8') as csvfile:
-                    writer = csv.writer(csvfile)
-                    writer.writerow(['time', 'x', 'y'])
-                    
-                    for j, state in enumerate(obs_states):
-                        writer.writerow([j * self.solver.timestep] + state.tolist())
+                # Save obstacle summary
+                summary_file = os.path.join(output_folder, "obstacle_summary.csv")
+                try:
+                    with open(summary_file, 'w', newline='', encoding='utf-8') as csvfile:
+                        writer = csv.writer(csvfile)
+                        writer.writerow(['obstacle_id', 'dynamics_type', 'radius', 'initial_x', 'initial_y', 'initial_angle'])
+                        
+                        for idx, obs_info in enumerate(obstacle_info.get('obstacle_details', [])):
+                            writer.writerow([
+                                obs_info.get('id', idx),
+                                obs_info.get('dynamics_type', 'Unknown'),
+                                obs_info.get('radius', 0.0),
+                                obs_info.get('position', [0.0, 0.0])[0],
+                                obs_info.get('position', [0.0, 0.0])[1],
+                                obs_info.get('angle', 0.0)
+                            ])
+                    logger.info(f"Saved obstacle summary to {summary_file}")
+                except Exception as e:
+                    logger.error(f"Error saving obstacle summary: {e}")
+                
+                # Save detailed obstacle states
+                all_obstacle_states = self.obstacle_manager.get_all_obstacle_states()
+                for i, obs_states in enumerate(all_obstacle_states):
+                    if not obs_states:
+                        continue
+                    obstacle_file = os.path.join(output_folder, f"obstacle_{i}_detailed_states.csv")
+                    try:
+                        with open(obstacle_file, 'w', newline='', encoding='utf-8') as csvfile:
+                            writer = csv.writer(csvfile)
+                            
+                            # Determine state variables based on dynamics type
+                            dynamics_type = obstacle_info.get('obstacle_details', [{}])[i].get('dynamics_type', 'PointMass')
+                            if 'Unicycle' in dynamics_type:
+                                writer.writerow(['time', 'x', 'y', 'psi', 'v'])
+                            elif 'Bicycle' in dynamics_type:
+                                writer.writerow(['time', 'x', 'y', 'psi', 'v', 'delta', 'spline'])
+                            elif 'PointMass' in dynamics_type:
+                                writer.writerow(['time', 'x', 'y', 'vx', 'vy'])
+                            else:
+                                writer.writerow(['time', 'x', 'y'])
+                            
+                            for j, state in enumerate(obs_states):
+                                if state is None:
+                                    logger.warning(f"Skipping None obstacle state {i} at index {j}")
+                                    continue
+                                try:
+                                    state_list = state.tolist() if hasattr(state, 'tolist') else list(state)
+                                    writer.writerow([j * self.solver.timestep] + state_list)
+                                except Exception as e:
+                                    logger.error(f"Error writing obstacle {i} state at index {j}: {e}")
+                                    raise
+                        logger.info(f"Saved {len(obs_states)} states for obstacle {i} to {obstacle_file}")
+                    except Exception as e:
+                        logger.error(f"Error saving obstacle {i} states: {e}")
+                        # Remove empty file if it was created
+                        if os.path.exists(obstacle_file) and os.path.getsize(obstacle_file) == 0:
+                            try:
+                                os.remove(obstacle_file)
+                            except Exception:
+                                pass
+            else:
+                # Fallback to simple obstacle states
+                for i, obs_states in enumerate(obstacle_states):
+                    if not obs_states:
+                        continue
+                    obstacle_file = os.path.join(output_folder, f"obstacle_{i}_states.csv")
+                    try:
+                        with open(obstacle_file, 'w', newline='', encoding='utf-8') as csvfile:
+                            writer = csv.writer(csvfile)
+                            writer.writerow(['time', 'x', 'y'])
+                            
+                            for j, state in enumerate(obs_states):
+                                if state is None:
+                                    logger.warning(f"Skipping None obstacle state {i} at index {j}")
+                                    continue
+                                try:
+                                    state_list = state.tolist() if hasattr(state, 'tolist') else list(state)
+                                    writer.writerow([j * self.solver.timestep] + state_list)
+                                except Exception as e:
+                                    logger.error(f"Error writing obstacle {i} state at index {j}: {e}")
+                                    raise
+                        logger.info(f"Saved {len(obs_states)} states for obstacle {i} to {obstacle_file}")
+                    except Exception as e:
+                        logger.error(f"Error saving obstacle {i} states: {e}")
+                        # Remove empty file if it was created
+                        if os.path.exists(obstacle_file) and os.path.getsize(obstacle_file) == 0:
+                            try:
+                                os.remove(obstacle_file)
+                            except Exception:
+                                pass
+        except Exception as e:
+            logger.error(f"Error saving obstacle states: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
                     
     def create_animation(self, output_folder: str, vehicle_states: List[np.ndarray], 
                         obstacle_states: List[List[np.ndarray]], test_config: TestConfig, 
@@ -2189,6 +2274,8 @@ class IntegrationTestFramework:
             logging.getLogger("integration_test").debug(f"Could not plot reference path boundaries: {e}")
 
         # Draw module-provided visualizations (e.g., road bounds) on this animation axes
+        # Note: Static visualizations (like road boundaries) are drawn once during setup
+        # Dynamic visualizations (like Gaussian constraints) are drawn each frame in animate()
         try:
             if hasattr(self, 'solver') and hasattr(self.solver, 'module_manager'):
                 import matplotlib.pyplot as _plt
@@ -2197,8 +2284,12 @@ class IntegrationTestFramework:
                     if hasattr(module, 'get_visualizer'):
                         viz = module.get_visualizer()
                         if viz is not None and hasattr(viz, 'visualize') and hasattr(self, 'last_data'):
-                            # Use a representative stage index
-                            viz.visualize(None, self.last_data, stage_idx=1)
+                            # Only draw static visualizations here (not Gaussian constraints which need per-frame updates)
+                            # Gaussian constraints will be drawn in animate() function
+                            module_name = getattr(module, 'name', '')
+                            if 'gaussian' not in module_name.lower():
+                                # Use a representative stage index for static visualizations
+                                viz.visualize(None, self.last_data, stage_idx=1)
         except Exception:
             # Visualization errors are non-fatal for animation
             pass
@@ -2284,6 +2375,9 @@ class IntegrationTestFramework:
         # Initialize halfspace constraint lines (will be updated dynamically)
         halfspace_lines = []
         linearized_halfspace_lines = []  # For linearized constraint halfspaces
+        
+        # Initialize Gaussian constraint artists (will be updated dynamically)
+        gaussian_constraint_artists = []
         
         def animate(frame):
             if frame < len(vehicle_states):
@@ -2853,45 +2947,138 @@ class IntegrationTestFramework:
                                 # Add connecting line from constraint to obstacle
                                 # This line shows the offset distance from obstacle surface to constraint line
                                 # The constraint line is at distance (obstacle_radius + robot_radius + halfspace_offset) from obstacle center
-                                if obstacle_pos is not None:
-                                    # Find closest point on constraint line to obstacle
-                                    # Project obstacle position onto constraint line
-                                    # The signed distance from obstacle center to constraint line
-                                    # b = A·obstacle_pos - (obstacle_radius + robot_radius + halfspace_offset)
-                                    # So: A·obstacle_pos - b = obstacle_radius + robot_radius + halfspace_offset
-                                    obstacle_to_line_dist = (a1_norm * obstacle_pos[0] + a2_norm * obstacle_pos[1] - b_norm)
-                                    closest_point_x = obstacle_pos[0] - obstacle_to_line_dist * a1_norm
-                                    closest_point_y = obstacle_pos[1] - obstacle_to_line_dist * a2_norm
-                                    
-                                    # Draw connecting line from obstacle to closest point on constraint line
-                                    # This visualizes the offset distance (obstacle_radius + robot_radius + halfspace_offset)
-                                    connection_line, = ax.plot([obstacle_pos[0], closest_point_x], 
-                                                              [obstacle_pos[1], closest_point_y],
-                                                              color=color, linestyle=':', 
-                                                              linewidth=0.8, alpha=alpha * 0.7, zorder=0)
-                                    linearized_halfspace_lines.append(connection_line)
-                                    
-                                    # Add text annotation showing the safe distance (includes offset)
-                                    # The offset is already included in b, so obstacle_to_line_dist shows total safe distance
-                                    if abs(obstacle_to_line_dist) > 0.1:  # Only show if distance is significant
-                                        # Calculate midpoint for text
-                                        text_x = (obstacle_pos[0] + closest_point_x) / 2
-                                        text_y = (obstacle_pos[1] + closest_point_y) / 2
-                                        # Offset text slightly perpendicular to the line
-                                        text_offset_x = -a2_norm * 0.3
-                                        text_offset_y = a1_norm * 0.3
-                                        text_x += text_offset_x
-                                        text_y += text_offset_y
-                                        # Show total safe distance (includes offset)
-                                        # Format: "1.30m" or "1.30m (+0.30m)" if offset is significant
-                                        safe_dist_text = f'{abs(obstacle_to_line_dist):.2f}m'
-                                        if halfspace_offset > 0.01:  # Show offset if significant
-                                            safe_dist_text += f'\n(+{halfspace_offset:.2f}m offset)'
-                                        text_annotation = ax.text(text_x, text_y, safe_dist_text,
-                                                                 fontsize=7, color=color, alpha=alpha * 0.8,
-                                                                 ha='center', va='center', zorder=3,
-                                                                 bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7, edgecolor=color, linewidth=0.5))
-                                        linearized_halfspace_lines.append(text_annotation)
+                
+                # Update Gaussian constraint visualizations
+                # Clear old Gaussian constraint artists (orange ellipses and markers)
+                for artist in gaussian_constraint_artists:
+                    try:
+                        artist.remove()
+                    except Exception:
+                        pass
+                gaussian_constraint_artists.clear()
+                
+                # Also remove any orange ellipses/markers that might have been added (cleanup)
+                from matplotlib.patches import Ellipse
+                patches_to_remove = []
+                for patch in ax.patches:
+                    if isinstance(patch, Ellipse):
+                        try:
+                            edge_color = patch.get_edgecolor()
+                            face_color = patch.get_facecolor()
+                            # Check if orange colored (Gaussian constraint ellipses)
+                            is_orange = False
+                            if len(edge_color) >= 3:
+                                is_orange = (abs(edge_color[0] - 1.0) < 0.1 and 
+                                            abs(edge_color[1] - 0.647) < 0.1 and 
+                                            abs(edge_color[2] - 0.0) < 0.1)
+                            if not is_orange and len(face_color) >= 3:
+                                is_orange = (abs(face_color[0] - 1.0) < 0.1 and 
+                                            abs(face_color[1] - 0.647) < 0.1 and 
+                                            abs(face_color[2] - 0.0) < 0.1)
+                            if is_orange:
+                                patches_to_remove.append(patch)
+                        except Exception:
+                            pass
+                for patch in patches_to_remove:
+                    try:
+                        patch.remove()
+                    except Exception:
+                        pass
+                
+                # Draw Gaussian constraints for current frame
+                try:
+                    if hasattr(self, 'solver') and hasattr(self.solver, 'module_manager'):
+                        plt.sca(ax)
+                        for module in self.solver.module_manager.get_modules():
+                            module_name = getattr(module, 'name', '')
+                            if 'gaussian' in module_name.lower():
+                                if hasattr(module, 'get_visualizer'):
+                                    viz = module.get_visualizer()
+                                    if viz is not None and hasattr(viz, 'visualize') and hasattr(self, 'last_data'):
+                                        # Debug: Check if obstacles have Gaussian predictions
+                                        if frame < 3:  # Only log for first few frames to avoid spam
+                                            if hasattr(self.last_data, 'dynamic_obstacles') and self.last_data.dynamic_obstacles:
+                                                gaussian_count = 0
+                                                for obs in self.last_data.dynamic_obstacles:
+                                                    if (hasattr(obs, 'prediction') and obs.prediction is not None and
+                                                        hasattr(obs.prediction, 'type')):
+                                                        from planning.types import PredictionType
+                                                        if obs.prediction.type == PredictionType.GAUSSIAN:
+                                                            gaussian_count += 1
+                                                            if hasattr(obs.prediction, 'steps') and len(obs.prediction.steps) > 0:
+                                                                step = obs.prediction.steps[0]
+                                                                logging.getLogger("integration_test").info(
+                                                    f"Frame {frame}: Obstacle {gaussian_count-1} has Gaussian prediction with "
+                                                    f"major_radius={getattr(step, 'major_radius', 'N/A')}, "
+                                                    f"minor_radius={getattr(step, 'minor_radius', 'N/A')}")
+                                                logging.getLogger("integration_test").info(
+                                                    f"Frame {frame}: Found {gaussian_count} obstacles with Gaussian predictions")
+                                            else:
+                                                logging.getLogger("integration_test").info(
+                                                    f"Frame {frame}: No dynamic_obstacles in last_data")
+                                        
+                                        # Store current patches/lines/texts count before visualization
+                                        patches_before = list(ax.patches)
+                                        lines_before = list(ax.lines)
+                                        texts_before = list(ax.texts)
+                                        
+                                        # Call visualizer for current frame (use stage_idx=0 for first prediction step)
+                                        viz.visualize(None, self.last_data, stage_idx=0)
+                                        
+                                        # Track newly added patches, lines, and texts (Gaussian constraint artists)
+                                        patches_after = list(ax.patches)
+                                        lines_after = list(ax.lines)
+                                        texts_after = list(ax.texts)
+                                        
+                                        # Find new patches (ellipses)
+                                        new_ellipses = 0
+                                        for patch in patches_after:
+                                            if patch not in patches_before and isinstance(patch, Ellipse):
+                                                gaussian_constraint_artists.append(patch)
+                                                new_ellipses += 1
+                                        
+                                        # Find new lines (mean position markers)
+                                        new_markers = 0
+                                        for line in lines_after:
+                                            if line not in lines_before:
+                                                try:
+                                                    if (hasattr(line, 'get_color') and line.get_color() == 'orange' and
+                                                        hasattr(line, 'get_marker') and line.get_marker() == 'o'):
+                                                        gaussian_constraint_artists.append(line)
+                                                        new_markers += 1
+                                                except Exception:
+                                                    pass
+                                        
+                                        # Find new texts (uncertainty parameter markers)
+                                        new_texts = 0
+                                        for text in texts_after:
+                                            if text not in texts_before:
+                                                try:
+                                                    # Check if it's an uncertainty parameter text (has orange edgecolor in bbox)
+                                                    if hasattr(text, '_bbox_patch') and text._bbox_patch is not None:
+                                                        bbox = text._bbox_patch
+                                                        if hasattr(bbox, 'get_edgecolor'):
+                                                            edge_color = bbox.get_edgecolor()
+                                                            # Check if orange colored (Gaussian uncertainty text)
+                                                            if len(edge_color) >= 3:
+                                                                is_orange = (abs(edge_color[0] - 1.0) < 0.1 and 
+                                                                            abs(edge_color[1] - 0.647) < 0.1 and 
+                                                                            abs(edge_color[2] - 0.0) < 0.1)
+                                                                if is_orange:
+                                                                    gaussian_constraint_artists.append(text)
+                                                                    new_texts += 1
+                                                except Exception:
+                                                    pass
+                                        
+                                        if frame < 3:  # Debug logging for first few frames
+                                            logging.getLogger("integration_test").info(
+                                                f"Frame {frame}: Added {new_ellipses} ellipses, {new_markers} markers, and {new_texts} text annotations for Gaussian constraints")
+                except Exception as e:
+                    # Visualization errors are non-fatal for animation
+                    logging.getLogger("integration_test").debug(f"Error visualizing Gaussian constraints: {e}")
+                    import traceback
+                    logging.getLogger("integration_test").debug(f"Traceback: {traceback.format_exc()}")
+                    pass
                 
                 # Goals update
                 artists_extra = []
@@ -2926,10 +3113,44 @@ class IntegrationTestFramework:
         
         # Save as GIF with calculated fps to ensure complete trajectory is visible
         gif_path = os.path.join(output_folder, "animation.gif")
-        anim.save(gif_path, writer='pillow', fps=calculated_fps)
-        
-        logging.getLogger("integration_test").info(f"Saved animation with {total_frames} frames at {calculated_fps:.2f} fps to {gif_path} (duration: {total_frames/calculated_fps:.2f}s)")
-        plt.close(fig)
+        logger = logging.getLogger("integration_test")
+        try:
+            if total_frames == 0:
+                logger.warning("No frames to save in animation")
+                plt.close(fig)
+                return
+            
+            anim.save(gif_path, writer='pillow', fps=calculated_fps)
+            
+            # Verify the file was created and has content
+            if not os.path.exists(gif_path):
+                logger.error(f"Animation file was not created: {gif_path}")
+                plt.close(fig)
+                return
+            
+            file_size = os.path.getsize(gif_path)
+            if file_size == 0:
+                logger.error(f"Animation file is empty: {gif_path}")
+                try:
+                    os.remove(gif_path)
+                except Exception:
+                    pass
+                plt.close(fig)
+                return
+            
+            logger.info(f"Saved animation with {total_frames} frames at {calculated_fps:.2f} fps to {gif_path} (duration: {total_frames/calculated_fps:.2f}s, size: {file_size} bytes)")
+        except Exception as e:
+            logger.error(f"Error saving animation to {gif_path}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            # Remove empty file if it was created
+            if os.path.exists(gif_path) and os.path.getsize(gif_path) == 0:
+                try:
+                    os.remove(gif_path)
+                except Exception:
+                    pass
+        finally:
+            plt.close(fig)
 
 
 def create_reference_path(path_type: str = "straight", length: float = 20.0) -> np.ndarray:

@@ -6,22 +6,259 @@ from utils.utils import LOG_DEBUG
 
 
 class EllipsoidConstraints(BaseConstraint):
+	"""
+	Ellipsoid constraints for obstacle avoidance.
+	
+	Obstacles are represented as ellipsoids with major/minor axes and orientation.
+	Constraint formulation: (p - c)^T * Q * (p - c) >= 1.0
+	where:
+		- p is the vehicle disc position
+		- c is the obstacle center of gravity
+		- Q is the ellipsoid matrix (rotated and scaled)
+	
+	Reference: https://github.com/tud-amr/mpc_planner
+	"""
 	def __init__(self):
 		super().__init__()
 		self.name = "ellipsoid_constraints"
-		LOG_DEBUG("EllipsoidConstraints initialized")
+		
+		self.num_discs = int(self.get_config_value("num_discs", 1))
+		self.max_obstacles = int(self.get_config_value("max_obstacles", 10))
+		self.robot_radius = float(self.get_config_value("robot.radius", 0.5))
+		self.disc_radius = float(self.get_config_value("disc_radius", 0.5))
+		
+		self.num_active_obstacles = 0
+		self._copied_dynamic_obstacles = []
+		
+		LOG_DEBUG(f"EllipsoidConstraints initialized: num_discs={self.num_discs}, max_obstacles={self.max_obstacles}")
 
 	def update(self, state, data):
-		return
+		"""Per-iteration update: prepare obstacles for constraint computation."""
+		if not data.has("dynamic_obstacles") or data.dynamic_obstacles is None:
+			self.num_active_obstacles = 0
+			self._copied_dynamic_obstacles = []
+			return
+		
+		self._copied_dynamic_obstacles = data.dynamic_obstacles
+		self.num_active_obstacles = len(self._copied_dynamic_obstacles)
+
+	def constraint_name(self, obs_id, stage_idx):
+		"""Generate parameter name for obstacle constraint (for parameter manager)."""
+		return f"ellipsoid_obs_{obs_id}_stage_{stage_idx}"
 
 	def calculate_constraints(self, state, data, stage_idx):
-		return []
+		"""
+		Calculate ellipsoid constraints symbolically.
+		
+		Constraint: (p - c)^T * Q * (p - c) >= 1.0
+		where Q is the ellipsoid matrix accounting for obstacle shape and vehicle radius.
+		"""
+		import casadi as cd
+		import numpy as np
+		
+		constraints = []
+		
+		# Get symbolic vehicle position
+		pos_x_sym = state.get("x")
+		pos_y_sym = state.get("y")
+		psi_sym = state.get("psi")
+		
+		if pos_x_sym is None or pos_y_sym is None:
+			LOG_DEBUG(f"EllipsoidConstraints: Cannot get symbolic position at stage {stage_idx}")
+			return []
+		
+		# Get obstacles
+		copied_dynamic_obstacles = getattr(self, '_copied_dynamic_obstacles', [])
+		if not copied_dynamic_obstacles:
+			if data.has("dynamic_obstacles") and data.dynamic_obstacles:
+				copied_dynamic_obstacles = data.dynamic_obstacles
+		
+		if not copied_dynamic_obstacles:
+			return []
+		
+		# Compute constraints for each disc and obstacle
+		for disc_id in range(self.num_discs):
+			# Get disc offset
+			disc_offset = 0.0
+			if data.has("robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
+				disc_offset = float(data.robot_area[disc_id].offset)
+			
+			# Compute disc position symbolically
+			if abs(disc_offset) > 1e-9 and psi_sym is not None:
+				disc_x_sym = pos_x_sym + disc_offset * cd.cos(psi_sym)
+				disc_y_sym = pos_y_sym + disc_offset * cd.sin(psi_sym)
+			else:
+				disc_x_sym = pos_x_sym
+				disc_y_sym = pos_y_sym
+			
+			disc_pos_sym = cd.vertcat(disc_x_sym, disc_y_sym)
+			
+			# Compute constraints for each obstacle
+			for obs_id in range(min(len(copied_dynamic_obstacles), self.max_obstacles)):
+				obstacle = copied_dynamic_obstacles[obs_id]
+				
+				# Get obstacle properties
+				if not hasattr(obstacle, 'position'):
+					continue
+				
+				obs_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+				obstacle_cog = obs_pos
+				
+				# Get obstacle shape parameters (default to circular if not available)
+				obst_psi = float(getattr(obstacle, 'angle', 0.0))
+				obst_major = float(getattr(obstacle, 'major_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
+				obst_minor = float(getattr(obstacle, 'minor_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
+				obst_r = float(getattr(obstacle, 'radius', 0.35))
+				r_disc = self.disc_radius
+				
+				# Create ellipsoid matrix Q
+				# Major and minor denominators include vehicle and obstacle radii
+				major_denom = obst_major + r_disc + obst_r
+				minor_denom = obst_minor + r_disc + obst_r
+				
+				# Avoid division by zero
+				major_denom = cd.fmax(major_denom, 1e-6)
+				minor_denom = cd.fmax(minor_denom, 1e-6)
+				
+				# Diagonal matrix with inverse squared denominators
+				major_inv_sq = 1.0 / (major_denom * major_denom)
+				minor_inv_sq = 1.0 / (minor_denom * minor_denom)
+				
+				# Diagonal matrix in obstacle frame
+				ab = cd.diag(cd.vertcat(major_inv_sq, minor_inv_sq))
+				
+				# Obstacle rotation matrix
+				cos_obst_psi = cd.cos(obst_psi)
+				sin_obst_psi = cd.sin(obst_psi)
+				obstacle_rotation = cd.vertcat(
+					cd.horzcat(cos_obst_psi, -sin_obst_psi),
+					cd.horzcat(sin_obst_psi, cos_obst_psi)
+				)
+				
+				# Compute ellipsoid matrix: Q = R^T * A * R
+				obstacle_ellipse_matrix = obstacle_rotation.T @ ab @ obstacle_rotation
+				
+				# Compute constraint: (p - c)^T * Q * (p - c) >= 1.0
+				disc_to_obstacle = disc_pos_sym - cd.vertcat(obstacle_cog[0], obstacle_cog[1])
+				constraint_value = disc_to_obstacle.T @ obstacle_ellipse_matrix @ disc_to_obstacle
+				
+				# Constraint: constraint_value >= 1.0, i.e., 1.0 - constraint_value <= 0
+				constraint_expr = 1.0 - constraint_value
+				
+				constraints.append({
+					"type": "symbolic_expression",
+					"expression": constraint_expr,
+					"ub": 0.0,  # expr <= 0 means constraint_value >= 1.0
+					"lb": None,
+					"constraint_type": "ellipsoid",
+					"obs_id": obs_id,
+					"disc_id": disc_id,
+					"stage_idx": stage_idx
+				})
+		
+		return constraints
 
-	def lower_bounds(self):
-		return []
+	def lower_bounds(self, state=None, data=None, stage_idx=None):
+		"""Lower bounds for ellipsoid constraints: -inf (constraint is >= 1.0, handled by ub=0.0 on expr)."""
+		import casadi as cd
+		count = 0
+		if data is not None and stage_idx is not None:
+			if data.has("dynamic_obstacles") and data.dynamic_obstacles:
+				count = self.num_discs * min(len(data.dynamic_obstacles), self.max_obstacles)
+		return [-cd.inf] * count if count > 0 else []
 
-	def upper_bounds(self):
-		return []
+	def upper_bounds(self, state=None, data=None, stage_idx=None):
+		"""Upper bounds for ellipsoid constraints: 0.0 (constraint expr <= 0)."""
+		count = 0
+		if data is not None and stage_idx is not None:
+			if data.has("dynamic_obstacles") and data.dynamic_obstacles:
+				count = self.num_discs * min(len(data.dynamic_obstacles), self.max_obstacles)
+		return [0.0] * count if count > 0 else []
+
+	def get_visualizer(self):
+		"""Return a visualizer for ellipsoid constraints."""
+		class EllipsoidConstraintsVisualizer:
+			def __init__(self, module):
+				self.module = module
+			
+			def visualize(self, state, data, stage_idx=0):
+				"""
+				Visualize ellipsoid constraints as ellipses around obstacles.
+				Plots ellipses directly on the current matplotlib axes.
+				"""
+				try:
+					import matplotlib.pyplot as plt
+					from matplotlib.patches import Ellipse
+				except Exception:
+					return
+				
+				if not data.has("dynamic_obstacles") or data.dynamic_obstacles is None:
+					return
+				
+				copied_dynamic_obstacles = getattr(self.module, '_copied_dynamic_obstacles', [])
+				if not copied_dynamic_obstacles:
+					if data.has("dynamic_obstacles") and data.dynamic_obstacles:
+						copied_dynamic_obstacles = data.dynamic_obstacles
+				
+				if not copied_dynamic_obstacles:
+					return
+				
+				# Get vehicle disc radius
+				r_disc = float(self.module.disc_radius)
+				ax = plt.gca()
+				first_ellipse = True
+				
+				# Visualize each obstacle as an ellipsoid
+				for obs_id, obstacle in enumerate(copied_dynamic_obstacles[:self.module.max_obstacles]):
+					if not hasattr(obstacle, 'position'):
+						continue
+					
+					obs_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+					
+					# Get obstacle shape parameters
+					obst_psi = float(getattr(obstacle, 'angle', 0.0))
+					obst_major = float(getattr(obstacle, 'major_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
+					obst_minor = float(getattr(obstacle, 'minor_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
+					obst_r = float(getattr(obstacle, 'radius', 0.35))
+					
+					# The constraint ellipsoid includes vehicle and obstacle radii
+					# Effective ellipsoid size for visualization
+					major_effective = obst_major + r_disc + obst_r
+					minor_effective = obst_minor + r_disc + obst_r
+					
+					# Create ellipse patch (constraint boundary)
+					# matplotlib Ellipse uses width and height (2 * radius), and angle in degrees
+					ellipse = Ellipse(
+						xy=(float(obs_pos[0]), float(obs_pos[1])),
+						width=2 * major_effective,
+						height=2 * minor_effective,
+						angle=np.degrees(obst_psi),
+						edgecolor='red',
+						facecolor='red',
+						alpha=0.2,
+						linestyle='--',
+						linewidth=2.0,
+						label='Ellipsoid Constraint' if first_ellipse else None
+					)
+					ax.add_patch(ellipse)
+					
+					# Also draw the obstacle itself (smaller, solid)
+					obstacle_circle = Ellipse(
+						xy=(float(obs_pos[0]), float(obs_pos[1])),
+						width=2 * obst_major,
+						height=2 * obst_minor,
+						angle=np.degrees(obst_psi),
+						edgecolor='darkred',
+						facecolor='darkred',
+						alpha=0.5,
+						linewidth=1.5,
+						label='Obstacle' if first_ellipse else None
+					)
+					ax.add_patch(obstacle_circle)
+					
+					first_ellipse = False
+		
+		return EllipsoidConstraintsVisualizer(self)
 
 
 import numpy as np

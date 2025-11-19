@@ -2,7 +2,7 @@
   "objective_module": "contouring",
   "constraint_modules": [
     "contouring",
-    "linear"
+    "gaussian"
   ],
   "vehicle_dynamics": "contouring_unicycle",
   "horizon": 10,

@@ -1186,11 +1186,37 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
 
               # Simulate forward over horizon
               pred_steps = []
+              # Get base uncertainty parameters for Gaussian predictions
+              base_std = sigma_pos  # Default uncertainty
+              growth_rate = 0.0
+              if pred.type == PredictionType.GAUSSIAN:
+                  # Try to get uncertainty params from obstacle if available
+                  if hasattr(obstacle, 'uncertainty_params') and obstacle.uncertainty_params:
+                      base_std = obstacle.uncertainty_params.get('position_std', sigma_pos)
+                      growth_rate = obstacle.uncertainty_params.get('uncertainty_growth', 0.0)
+              
               for k in range(int(horizon) + 1):
                   pos = state_vec[:2] if state_vec.shape[0] >= 2 else np.array([0.0, 0.0])
                   angle = float(state_vec[2]) if state_vec.shape[0] >= 3 else 0.0
-                  major_r = 0.1
-                  minor_r = 0.1
+                  
+                  # Set uncertainty radii based on prediction type
+                  if pred.type == PredictionType.GAUSSIAN:
+                      # For Gaussian predictions, use uncertainty_std (which may grow over time)
+                      # Add obstacle radius to uncertainty radius for visualization
+                      uncertainty_std = base_std + k * growth_rate
+                      obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+                      major_r = obstacle_radius + uncertainty_std * 2
+                      minor_r = obstacle_radius + uncertainty_std
+                  elif pred.type == PredictionType.NONGAUSSIAN:
+                      obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+                      major_r = obstacle_radius + sigma_pos * 3
+                      minor_r = obstacle_radius + sigma_pos * 1.5
+                  else:
+                      # Deterministic: just obstacle radius
+                      obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+                      major_r = obstacle_radius
+                      minor_r = obstacle_radius
+                  
                   pred_steps.append(PredictionStep(pos, angle, major_r, minor_r))
                   if k == horizon:
                       break

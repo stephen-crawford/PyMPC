@@ -103,6 +103,10 @@ class ObstacleManager:
         behavior = getattr(obstacle_config, 'behavior', 'plot_wander')
         self.obstacle_behaviors.append(behavior)
         
+        # Store uncertainty_params on obstacle for propagate_obstacles to use
+        if hasattr(obstacle_config, 'uncertainty_params') and obstacle_config.uncertainty_params:
+            obstacle.uncertainty_params = obstacle_config.uncertainty_params
+        
         # Initialize heading change tracking for this obstacle
         # Temperature affects period: higher temperature = shorter period (more frequent changes)
         # Period range: [5, 15] at temp=0.0, [2, 8] at temp=1.0

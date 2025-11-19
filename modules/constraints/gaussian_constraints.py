@@ -14,13 +14,16 @@ class GaussianConstraints(BaseConstraint):
 		# Store dummy values for invalid states
 		self._dummy_x = 0.0
 		self._dummy_y = 0.0
-		self.num_discs = self.get_config_value("num_discs")
-		self.robot_radius = self.get_config_value("robot.radius")
-		self.max_obstacles = self.get_config_value("max_obstacles")
+		num_discs_val = self.get_config_value("num_discs")
+		self.num_discs = int(num_discs_val) if num_discs_val is not None else 1
+		robot_radius_val = self.get_config_value("robot.radius")
+		self.robot_radius = float(robot_radius_val) if robot_radius_val is not None else 0.5
+		max_obstacles_val = self.get_config_value("max_obstacles")
+		self.max_obstacles = int(max_obstacles_val) if max_obstacles_val is not None else 10
 		self.num_constraints = self.num_discs * self.max_obstacles
 		self.num_active_obstacles = 0
 
-		LOG_DEBUG("Gaussian Constraints successfully initialized")
+		LOG_DEBUG(f"Gaussian Constraints successfully initialized: num_discs={self.num_discs}, max_obstacles={self.max_obstacles}, robot_radius={self.robot_radius}")
 
 	def update(self, state, data):
 		LOG_DEBUG("GaussianConstraints.update")
@@ -33,14 +36,308 @@ class GaussianConstraints(BaseConstraint):
 		self.num_active_obstacles = len(copied_dynamic_obstacles)
 
 	def calculate_constraints(self, state, data, stage_idx):
-		# TODO: convert probabilistic constraints to structured form; placeholder returns []
+		"""
+		Calculate Gaussian constraints symbolically for probabilistic obstacle avoidance.
+		
+		Constraint formulation: (p - μ)^T * Σ^(-1) * (p - μ) >= χ²(α)
+		where:
+			- p is the vehicle disc position
+			- μ is the mean obstacle position (from prediction)
+			- Σ is the covariance matrix (uncertainty)
+			- χ²(α) is the chi-squared quantile for risk level α
+		
+		This ensures P(||p - μ|| <= safe_distance) <= α (chance constraint).
+		
+		Reference: https://github.com/tud-amr/mpc_planner
+		"""
+		constraints = []
+		
+		# Get symbolic vehicle position
+		pos_x_sym = state.get("x")
+		pos_y_sym = state.get("y")
+		psi_sym = state.get("psi")
+		
+		if pos_x_sym is None or pos_y_sym is None:
+			LOG_DEBUG(f"GaussianConstraints: Cannot get symbolic position at stage {stage_idx}")
 			return []
+		
+		# Get obstacles with Gaussian predictions
+		if not data.has("dynamic_obstacles") or data.dynamic_obstacles is None:
+			return []
+		
+		copied_dynamic_obstacles = data.dynamic_obstacles
+		risk_level = float(self.get_config_value("gaussian_constraints.risk_level", 0.05))  # Default 5% risk
+		
+		# Compute constraints for each disc and obstacle
+		for disc_id in range(self.num_discs):
+			# Get disc offset
+			disc_offset = 0.0
+			if data.has("robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
+				disc_offset = float(data.robot_area[disc_id].offset)
+			
+			# Compute disc position symbolically
+			if abs(disc_offset) > 1e-9 and psi_sym is not None:
+				disc_x_sym = pos_x_sym + disc_offset * cd.cos(psi_sym)
+				disc_y_sym = pos_y_sym + disc_offset * cd.sin(psi_sym)
+			else:
+				disc_x_sym = pos_x_sym
+				disc_y_sym = pos_y_sym
+			
+			disc_pos_sym = cd.vertcat(disc_x_sym, disc_y_sym)
+			
+			# Compute constraints for each obstacle
+			for obs_id in range(min(len(copied_dynamic_obstacles), self.max_obstacles)):
+				obstacle = copied_dynamic_obstacles[obs_id]
+				
+				# Check if obstacle has Gaussian prediction
+				if not hasattr(obstacle, 'prediction') or obstacle.prediction is None:
+					continue
+				
+				if obstacle.prediction.type != PredictionType.GAUSSIAN:
+					continue
+				
+				# Get prediction step for this stage
+				if not hasattr(obstacle.prediction, 'steps') or len(obstacle.prediction.steps) <= stage_idx:
+					continue
+				
+				pred_step = obstacle.prediction.steps[stage_idx]
+				
+				# Get mean position (μ)
+				if not hasattr(pred_step, 'position') or pred_step.position is None:
+					continue
+				
+				mean_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+				
+				# Get covariance matrix (Σ)
+				# Use major/minor radii to construct covariance
+				major_radius = float(getattr(pred_step, 'major_radius', 0.1))
+				minor_radius = float(getattr(pred_step, 'minor_radius', 0.1))
+				orientation = float(getattr(pred_step, 'orientation', 0.0))
+				
+				# Construct covariance matrix from uncertainty ellipsoid
+				# For simplicity, use diagonal covariance scaled by radii
+				# More sophisticated: use rotation matrix for oriented uncertainty
+				sigma_x = major_radius
+				sigma_y = minor_radius
+				
+				# Create covariance matrix Σ
+				cov_matrix = np.array([[sigma_x**2, 0.0], [0.0, sigma_y**2]])
+				
+				# Apply rotation if orientation is non-zero
+				if abs(orientation) > 1e-6:
+					cos_theta = np.cos(orientation)
+					sin_theta = np.sin(orientation)
+					rotation = np.array([[cos_theta, -sin_theta], [sin_theta, cos_theta]])
+					cov_matrix = rotation @ cov_matrix @ rotation.T
+				
+				# Compute inverse covariance Σ^(-1)
+				try:
+					inv_cov_matrix = np.linalg.inv(cov_matrix)
+				except np.linalg.LinAlgError:
+					# If singular, use pseudo-inverse or add small regularization
+					inv_cov_matrix = np.linalg.pinv(cov_matrix + np.eye(2) * 1e-6)
+				
+				# Convert to CasADi symbolic matrix
+				inv_cov_sym = cd.DM(inv_cov_matrix)
+				
+				# Get safe distance (robot radius + obstacle radius)
+				obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+				robot_radius = float(self.robot_radius) if self.robot_radius else 0.5
+				safe_distance = robot_radius + obstacle_radius
+				
+				# Compute chi-squared quantile for risk level α
+				# For 2D: χ²(α) with 2 degrees of freedom
+				from scipy.stats import chi2
+				chi_squared_threshold = chi2.ppf(1.0 - risk_level, df=2)
+				
+				# Adjust threshold to account for safe distance
+				# Scale threshold by safe_distance^2 to ensure physical separation
+				scaled_threshold = chi_squared_threshold * (safe_distance**2) / (sigma_x * sigma_y)
+				
+				# Compute constraint: (p - μ)^T * Σ^(-1) * (p - μ) >= scaled_threshold
+				disc_to_mean = disc_pos_sym - cd.vertcat(mean_pos[0], mean_pos[1])
+				mahalanobis_dist_sq = disc_to_mean.T @ inv_cov_sym @ disc_to_mean
+				
+				# Constraint: mahalanobis_dist_sq >= scaled_threshold
+				# i.e., scaled_threshold - mahalanobis_dist_sq <= 0
+				constraint_expr = scaled_threshold - mahalanobis_dist_sq
+				
+				constraints.append({
+					"type": "symbolic_expression",
+					"expression": constraint_expr,
+					"ub": 0.0,  # expr <= 0 means mahalanobis_dist_sq >= scaled_threshold
+					"lb": None,
+					"constraint_type": "gaussian",
+					"obs_id": obs_id,
+					"disc_id": disc_id,
+					"stage_idx": stage_idx
+				})
+		
+		return constraints
 
-	def lower_bounds(self):
-		return [0.0] * (self.num_discs * self.num_active_obstacles)
+	def lower_bounds(self, state=None, data=None, stage_idx=None):
+		"""Lower bounds for Gaussian constraints: -inf (constraint is >= threshold, handled by ub=0.0 on expr)."""
+		import casadi as cd
+		count = 0
+		if data is not None and stage_idx is not None:
+			if data.has("dynamic_obstacles") and data.dynamic_obstacles:
+				# Count only obstacles with Gaussian predictions
+				for obs in data.dynamic_obstacles:
+					if (hasattr(obs, 'prediction') and obs.prediction is not None and
+						hasattr(obs.prediction, 'type') and obs.prediction.type == PredictionType.GAUSSIAN):
+						if (hasattr(obs.prediction, 'steps') and len(obs.prediction.steps) > stage_idx):
+							count += self.num_discs
+		return [-cd.inf] * count if count > 0 else []
 
-	def upper_bounds(self):
-		return [np.inf] * (self.num_discs * self.num_active_obstacles)
+	def upper_bounds(self, state=None, data=None, stage_idx=None):
+		"""Upper bounds for Gaussian constraints: 0.0 (constraint expr <= 0)."""
+		count = 0
+		if data is not None and stage_idx is not None:
+			if data.has("dynamic_obstacles") and data.dynamic_obstacles:
+				# Count only obstacles with Gaussian predictions
+				for obs in data.dynamic_obstacles:
+					if (hasattr(obs, 'prediction') and obs.prediction is not None and
+						hasattr(obs.prediction, 'type') and obs.prediction.type == PredictionType.GAUSSIAN):
+						if (hasattr(obs.prediction, 'steps') and len(obs.prediction.steps) > stage_idx):
+							count += self.num_discs
+		return [0.0] * count if count > 0 else []
+
+	def get_visualizer(self):
+		"""Return a visualizer for Gaussian constraints."""
+		class GaussianConstraintsVisualizer:
+			def __init__(self, module):
+				self.module = module
+			
+			def visualize(self, state, data, stage_idx=0):
+				"""
+				Visualize Gaussian constraints as uncertainty ellipses around obstacles.
+				Plots ellipses directly on the current matplotlib axes.
+				"""
+				try:
+					import matplotlib.pyplot as plt
+					from matplotlib.patches import Ellipse
+				except Exception:
+					return
+				
+				if not data.has("dynamic_obstacles") or data.dynamic_obstacles is None:
+					return
+				
+				copied_dynamic_obstacles = data.dynamic_obstacles
+				risk_level = float(self.module.get_config_value("gaussian_constraints.risk_level", 0.05))
+				confidence_level = 1.0 - risk_level
+				
+				ax = plt.gca()
+				first_ellipse = True
+				
+				# Visualize each obstacle with Gaussian prediction
+				for obs_id, obstacle in enumerate(copied_dynamic_obstacles[:self.module.max_obstacles]):
+					# Check if obstacle has Gaussian prediction
+					if not hasattr(obstacle, 'prediction') or obstacle.prediction is None:
+						continue
+					
+					if obstacle.prediction.type != PredictionType.GAUSSIAN:
+						continue
+					
+					# Get prediction step for this stage
+					if not hasattr(obstacle.prediction, 'steps') or len(obstacle.prediction.steps) <= stage_idx:
+						continue
+					
+					pred_step = obstacle.prediction.steps[stage_idx]
+					
+					# Get mean position
+					if not hasattr(pred_step, 'position') or pred_step.position is None:
+						continue
+					
+					mean_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+					
+					# Get uncertainty parameters
+					major_radius = float(getattr(pred_step, 'major_radius', 0.1))
+					minor_radius = float(getattr(pred_step, 'minor_radius', 0.1))
+					# Use angle instead of orientation (PredictionStep has angle, not orientation)
+					orientation = float(getattr(pred_step, 'angle', getattr(pred_step, 'orientation', 0.0)))
+					
+					# Get obstacle and robot radii for safe distance
+					obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+					robot_radius = float(self.module.robot_radius) if self.module.robot_radius else 0.5
+					safe_distance = robot_radius + obstacle_radius
+					
+					# Compute chi-squared threshold for visualization
+					from scipy.stats import chi2
+					chi_squared_threshold = chi2.ppf(confidence_level, df=2)
+					
+					# Scale uncertainty ellipses by chi-squared threshold and safe distance
+					# The visualization shows the effective constraint boundary
+					major_effective = np.sqrt(chi_squared_threshold) * major_radius + safe_distance
+					minor_effective = np.sqrt(chi_squared_threshold) * minor_radius + safe_distance
+					
+					# Draw uncertainty ellipse (constraint boundary)
+					uncertainty_ellipse = Ellipse(
+						xy=(float(mean_pos[0]), float(mean_pos[1])),
+						width=2 * major_effective,
+						height=2 * minor_effective,
+						angle=np.degrees(orientation),
+						edgecolor='orange',
+						facecolor='orange',
+						alpha=0.15,
+						linestyle='--',
+						linewidth=2.0,
+						label=f'Gaussian Constraint ({confidence_level*100:.0f}%)' if first_ellipse else None
+					)
+					ax.add_patch(uncertainty_ellipse)
+					
+					# Draw mean position uncertainty ellipse (without safe distance, shows actual uncertainty)
+					uncertainty_only_ellipse = Ellipse(
+						xy=(float(mean_pos[0]), float(mean_pos[1])),
+						width=2 * np.sqrt(chi_squared_threshold) * major_radius,
+						height=2 * np.sqrt(chi_squared_threshold) * minor_radius,
+						angle=np.degrees(orientation),
+						edgecolor='orange',
+						facecolor='none',
+						alpha=0.5,
+						linestyle=':',
+						linewidth=1.5
+					)
+					ax.add_patch(uncertainty_only_ellipse)
+					
+					# Draw mean position marker
+					ax.plot(mean_pos[0], mean_pos[1], 'o', color='orange', markersize=6, 
+					       label='Mean Position' if first_ellipse else None)
+					
+					# Add text marker for uncertainty parameters
+					if hasattr(obstacle, 'uncertainty_params') and obstacle.uncertainty_params:
+						position_std = obstacle.uncertainty_params.get('position_std', 0.0)
+						uncertainty_growth = obstacle.uncertainty_params.get('uncertainty_growth', 0.0)
+						
+						# Calculate current uncertainty at this stage
+						current_std = position_std + stage_idx * uncertainty_growth
+						
+						# Position text offset above the obstacle
+						text_offset_y = major_effective + 0.5
+						text_x = float(mean_pos[0])
+						text_y = float(mean_pos[1]) + text_offset_y
+						
+						# Format uncertainty parameters text
+						uncertainty_text = f"σ={position_std:.2f}"
+						if uncertainty_growth > 0:
+							uncertainty_text += f"\n+{uncertainty_growth:.3f}/step"
+						uncertainty_text += f"\nσₜ={current_std:.2f}"
+						
+						# Add text annotation with background box for readability
+						ax.text(text_x, text_y, uncertainty_text,
+						       fontsize=8,
+						       color='orange',
+						       ha='center',
+						       va='bottom',
+						       bbox=dict(boxstyle='round,pad=0.3',
+						                facecolor='white',
+						                edgecolor='orange',
+						                alpha=0.8,
+						                linewidth=1.0),
+						       zorder=10)
+					
+					first_ellipse = False
+		
+		return GaussianConstraintsVisualizer(self)
 
 	def is_data_ready(self, data):
 		missing_data = ""
