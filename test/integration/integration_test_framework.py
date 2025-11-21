@@ -741,7 +741,7 @@ class IntegrationTestFramework:
                         # Mark as already correct
                         data._reference_path_adjusted = True
             
-            # Initialize spline to 0 if model requires it
+            # Initialize spline to arc length at vehicle's current position if model requires it
             if 'spline' in vehicle_dynamics.get_all_vars():
                 logger.info("Contouring-aware dynamics detected: initializing spline variable")
                 # Add spline and other variables if needed
@@ -749,14 +749,50 @@ class IntegrationTestFramework:
                     # Append missing state variables with default values
                     for var in vehicle_dynamics.dependent_vars[len(vehicle_state):]:
                         if var == 'spline':
-                            # Initialize spline to 0 (start of path)
-                            # Note: spline should be normalized [0,1] or actual arc length depending on model
-                            spline_init = 0.0
+                            # CRITICAL: Initialize spline to arc length at vehicle's current position
+                            # Reference: https://github.com/tud-amr/mpc_planner - spline represents arc length along path
+                            # The spline variable should track where the vehicle is on the path, not start at 0
+                            spline_init = 0.0  # Default fallback
                             if hasattr(data, 'reference_path') and data.reference_path is not None:
-                                # Could initialize to closest point, but 0.0 is safe
-                                logger.debug(f"Initializing spline to {spline_init} (start of reference path)")
+                                try:
+                                    ref_path = data.reference_path
+                                    vehicle_pos = np.array([float(vehicle_state[0]), float(vehicle_state[1])])
+                                    
+                                    # Get arc length array
+                                    if hasattr(ref_path, 's') and ref_path.s is not None:
+                                        s_arr = np.asarray(ref_path.s, dtype=float)
+                                        if s_arr.size > 0:
+                                            s_min = float(s_arr[0])
+                                            s_max = float(s_arr[-1])
+                                            
+                                            # Sample path points to find closest
+                                            num_samples = min(200, len(s_arr))
+                                            s_sample = np.linspace(s_min, s_max, num_samples)
+                                            
+                                            # Evaluate path points
+                                            x_sample = np.array([float(ref_path.x_spline(sv)) for sv in s_sample])
+                                            y_sample = np.array([float(ref_path.y_spline(sv)) for sv in s_sample])
+                                            
+                                            # Find closest point
+                                            distances = np.sqrt((x_sample - vehicle_pos[0])**2 + (y_sample - vehicle_pos[1])**2)
+                                            closest_idx = np.argmin(distances)
+                                            spline_init = float(s_sample[closest_idx])
+                                            
+                                            logger.info(f"Initialized spline to closest path point: s={spline_init:.4f} "
+                                                      f"(vehicle at ({vehicle_pos[0]:.2f}, {vehicle_pos[1]:.2f}), "
+                                                      f"closest path point at ({x_sample[closest_idx]:.2f}, {y_sample[closest_idx]:.2f}), "
+                                                      f"distance={distances[closest_idx]:.3f}m)")
+                                        else:
+                                            logger.warning("Reference path has empty s array, using s_min=0.0")
+                                    else:
+                                        logger.warning("Reference path missing s attribute, using spline=0.0")
+                                except Exception as e:
+                                    logger.warning(f"Could not initialize spline from closest point: {e}, using 0.0")
+                                    import traceback
+                                    logger.debug(f"Traceback: {traceback.format_exc()}")
+                            
                             vehicle_state = np.append(vehicle_state, spline_init)
-                            logger.info(f"Added spline variable: {spline_init}")
+                            logger.info(f"Added spline variable: {spline_init:.4f}")
                         elif var == 'delta':
                             vehicle_state = np.append(vehicle_state, 0.0)  # No steering initially
                             logger.debug(f"Added delta variable: 0.0")
@@ -838,15 +874,61 @@ class IntegrationTestFramework:
                 planner.state.set('y', float(vehicle_state[1]))
                 planner.state.set('psi', float(vehicle_state[2]))
                 planner.state.set('v', float(vehicle_state[3]))
-                # Set spline and other state variables if present in model
-                if 'spline' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 4:
-                    spline_idx = vehicle_dynamics.dependent_vars.index('spline') if 'spline' in vehicle_dynamics.dependent_vars else None
-                    if spline_idx is not None and len(vehicle_state) > spline_idx:
-                        spline_val = float(vehicle_state[spline_idx])
-                        planner.state.set('spline', spline_val)
-                        logger.debug(f"  Set spline state to {spline_val}")
-                    else:
-                        logger.warning(f"  Could not set spline: idx={spline_idx}, state_len={len(vehicle_state)}")
+            # Set spline and other state variables if present in model
+            if 'spline' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 4:
+                spline_idx = vehicle_dynamics.dependent_vars.index('spline') if 'spline' in vehicle_dynamics.dependent_vars else None
+                if spline_idx is not None and len(vehicle_state) > spline_idx:
+                    spline_val = float(vehicle_state[spline_idx])
+                    # CRITICAL: Re-initialize spline based on closest point on path to vehicle's actual position
+                    # Reference: https://github.com/tud-amr/mpc_planner - spline should track actual vehicle position
+                    if hasattr(data, 'reference_path') and data.reference_path is not None:
+                        try:
+                            ref_path = data.reference_path
+                            vehicle_pos = np.array([float(vehicle_state[0]), float(vehicle_state[1])])
+                            
+                            # Get arc length array
+                            if hasattr(ref_path, 's') and ref_path.s is not None:
+                                s_arr = np.asarray(ref_path.s, dtype=float)
+                                if s_arr.size > 0:
+                                    s_min = float(s_arr[0])
+                                    s_max = float(s_arr[-1])
+                                    
+                                    # Sample path points to find closest
+                                    num_samples = min(200, len(s_arr))
+                                    s_sample = np.linspace(s_min, s_max, num_samples)
+                                    
+                                    # Evaluate path points
+                                    x_sample = np.array([float(ref_path.x_spline(sv)) for sv in s_sample])
+                                    y_sample = np.array([float(ref_path.y_spline(sv)) for sv in s_sample])
+                                    
+                                    # Find closest point
+                                    distances = np.sqrt((x_sample - vehicle_pos[0])**2 + (y_sample - vehicle_pos[1])**2)
+                                    closest_idx = np.argmin(distances)
+                                    closest_s = float(s_sample[closest_idx])
+                                    closest_dist = distances[closest_idx]
+                                    
+                                    # Use closest point if it's significantly different from propagated value
+                                    # or if vehicle is far from path (indicates drift)
+                                    propagated_s = spline_val
+                                    if closest_dist > 0.5 or abs(closest_s - propagated_s) > 1.0:
+                                        spline_val = closest_s
+                                        logger.info(f"Step {step}: Re-initialized spline from {propagated_s:.4f} to {closest_s:.4f} "
+                                                  f"(vehicle at ({vehicle_pos[0]:.2f}, {vehicle_pos[1]:.2f}), "
+                                                  f"closest path point at ({x_sample[closest_idx]:.2f}, {y_sample[closest_idx]:.2f}), "
+                                                  f"distance={closest_dist:.3f}m)")
+                                    else:
+                                        logger.debug(f"Step {step}: Using propagated spline {spline_val:.4f} (close to path, dist={closest_dist:.3f}m)")
+                        except Exception as e:
+                            logger.warning(f"Step {step}: Could not re-initialize spline from closest point: {e}, using propagated value")
+                            import traceback
+                            logger.debug(f"Traceback: {traceback.format_exc()}")
+                    
+                    planner.state.set('spline', spline_val)
+                    # Also update vehicle_state to keep it in sync
+                    vehicle_state[spline_idx] = spline_val
+                    logger.debug(f"  Set spline state to {spline_val:.4f}")
+                else:
+                    logger.warning(f"  Could not set spline: idx={spline_idx}, state_len={len(vehicle_state)}")
                 if 'delta' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 5:
                     delta_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
                     if delta_idx is not None and len(vehicle_state) > delta_idx:
@@ -3109,287 +3191,4 @@ class IntegrationTestFramework:
                                                     for i, obs in enumerate(self.last_data.dynamic_obstacles):
                                                         from planning.types import PredictionType
                                                         pred_type = getattr(obs.prediction, 'type', None) if hasattr(obs, 'prediction') and obs.prediction else None
-                                                        has_steps = hasattr(obs.prediction, 'steps') and len(obs.prediction.steps) > 0 if hasattr(obs, 'prediction') and obs.prediction else False
-                                                        logging.getLogger("integration_test").warning(
-                                                            f"Frame {frame}:   Obstacle {i}: type={pred_type}, has_steps={has_steps}, steps_count={len(obs.prediction.steps) if hasattr(obs.prediction, 'steps') else 0}")
-                                    else:
-                                        if frame < 3:
-                                            logging.getLogger("integration_test").warning(
-                                                f"Frame {frame}: Gaussian visualizer conditions not met: viz={viz is not None}, has_visualize={hasattr(viz, 'visualize') if viz else False}, has_last_data={hasattr(self, 'last_data')}")
-                                else:
-                                    if frame < 3:
-                                        logging.getLogger("integration_test").warning(
-                                            f"Frame {frame}: Gaussian module '{module_name}' has no get_visualizer method")
-                            else:
-                                if frame < 3 and not gaussian_module_found:
-                                    logging.getLogger("integration_test").warning(
-                                        f"Frame {frame}: No Gaussian module found in solver modules")
-                except Exception as e:
-                    # Visualization errors are non-fatal for animation
-                    logging.getLogger("integration_test").error(f"Error visualizing Gaussian constraints: {e}")
-                    import traceback
-                    logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
-                    pass
-                
-                # Goals update
-                artists_extra = []
-                if goal_sequence is not None and current_goal_plot is not None:
-                    cur_idx = current_idx_by_frame[frame] if frame < len(current_idx_by_frame) else len(goal_sequence) - 1
-                    # Reached goals
-                    for i, plot in enumerate(reached_goal_plots):
-                        if i < cur_idx:
-                            plot.set_data([float(goal_sequence[i][0])], [float(goal_sequence[i][1])])
-                            artists_extra.append(plot)
-                        else:
-                            plot.set_data([], [])
-                    # Current goal
-                    cg = goal_sequence[cur_idx]
-                    current_goal_plot.set_data([float(cg[0])], [float(cg[1])])
-                    artists_extra.append(current_goal_plot)
-            return [vehicle_plot, vehicle_trail, pred_line] + obstacle_plots + obstacle_trails + [vehicle_circle] + obstacle_circles + ([current_goal_plot] if current_goal_plot is not None else []) + reached_goal_plots + halfspace_lines + linearized_halfspace_lines + gaussian_constraint_artists
-            
-        # Create animation - use all frames to show complete trajectory
-        total_frames = len(vehicle_states)
-        # Explicitly use range to ensure all frames are included (0 to total_frames-1)
-        # Using repeat=True allows the GIF to loop when saved
-        # Note: blit=False to allow dynamic adding/removing of constraint lines
-        anim = animation.FuncAnimation(fig, animate, frames=range(total_frames), 
-                                     interval=100, blit=False, repeat=True)
-        
-        # Calculate appropriate fps to ensure GIF shows complete trajectory
-        # Target: minimum 5 seconds for short trajectories, scale for longer ones
-        min_duration = 5.0  # seconds
-        max_fps = 10  # Maximum fps for smooth playback
-        calculated_fps = min(max_fps, total_frames / min_duration) if total_frames > 0 else max_fps
-        
-        # Save as GIF with calculated fps to ensure complete trajectory is visible
-        gif_path = os.path.join(output_folder, "animation.gif")
-        logger = logging.getLogger("integration_test")
-        try:
-            if total_frames == 0:
-                logger.warning("No frames to save in animation")
-                plt.close(fig)
-                return
-            
-            anim.save(gif_path, writer='pillow', fps=calculated_fps)
-            
-            # Verify the file was created and has content
-            if not os.path.exists(gif_path):
-                logger.error(f"Animation file was not created: {gif_path}")
-                plt.close(fig)
-                return
-            
-            file_size = os.path.getsize(gif_path)
-            if file_size == 0:
-                logger.error(f"Animation file is empty: {gif_path}")
-                try:
-                    os.remove(gif_path)
-                except Exception:
-                    pass
-                plt.close(fig)
-                return
-            
-            logger.info(f"Saved animation with {total_frames} frames at {calculated_fps:.2f} fps to {gif_path} (duration: {total_frames/calculated_fps:.2f}s, size: {file_size} bytes)")
-        except Exception as e:
-            logger.error(f"Error saving animation to {gif_path}: {e}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            # Remove empty file if it was created
-            if os.path.exists(gif_path) and os.path.getsize(gif_path) == 0:
-                try:
-                    os.remove(gif_path)
-                except Exception:
-                    pass
-        finally:
-            plt.close(fig)
-
-
-def create_reference_path(path_type: str = "straight", length: float = 20.0) -> np.ndarray:
-    """Create reference path for testing."""
-    if path_type == "straight":
-        return np.array([[0.0, 0.0], [length, 0.0]])
-    elif path_type == "curve":
-        t = np.linspace(0, length, 100)
-        x = t
-        y = 2.0 * np.sin(0.2 * t)
-        return np.column_stack([x, y])
-    elif path_type == "s_curve":
-        t = np.linspace(0, length, 100)
-        x = t
-        y = 3.0 * np.sin(0.3 * t) * np.cos(0.1 * t)
-        return np.column_stack([x, y])
-    else:
-        raise ValueError(f"Unknown path type: {path_type}")
-
-
-# Example usage functions
-def run_safe_horizon_test():
-    """Example: Safe Horizon constraint test."""
-    framework = IntegrationTestFramework()
-    
-    test_config = TestConfig(
-        reference_path=create_reference_path("straight", 20.0),
-        objective_module="contouring",
-        constraint_modules=["safe_horizon", "contouring"],
-        vehicle_dynamics="bicycle",
-        num_obstacles=3,
-        obstacle_dynamics=["unicycle", "unicycle", "unicycle"],
-        test_name="Safe Horizon Integration Test",
-        duration=10.0,
-        timestep=0.1
-    )
-    
-    result = framework.run_test(test_config)
-    return result
-
-
-def run_gaussian_constraints_test():
-    """Example: Gaussian constraints test."""
-    framework = IntegrationTestFramework()
-    
-    test_config = TestConfig(
-        reference_path=create_reference_path("curve", 15.0),
-        objective_module="goal",
-        constraint_modules=["gaussian", "contouring"],
-        vehicle_dynamics="unicycle",
-        num_obstacles=2,
-        obstacle_dynamics=["unicycle", "bicycle"],
-        test_name="Gaussian Constraints Integration Test",
-        duration=8.0,
-        timestep=0.1
-    )
-    
-    result = framework.run_test(test_config)
-    return result
-
-
-def run_ellipsoid_constraints_test():
-    """Example: Ellipsoid constraints test."""
-    framework = IntegrationTestFramework()
-    
-    test_config = TestConfig(
-        reference_path=create_reference_path("s_curve", 18.0),
-        objective_module="contouring",
-        constraint_modules=["ellipsoid", "contouring"],
-        vehicle_dynamics="bicycle",
-        num_obstacles=3,
-        obstacle_dynamics=["unicycle", "unicycle", "unicycle"],
-        test_name="Ellipsoid Constraints Integration Test",
-        duration=12.0,
-        timestep=0.1
-    )
-    
-    result = framework.run_test(test_config)
-    return result
-
-
-def run_decomp_constraints_test():
-    """Example: Decomposition constraints test."""
-    framework = IntegrationTestFramework()
-    
-    test_config = TestConfig(
-        reference_path=create_reference_path("curve", 20.0),
-        objective_module="contouring",
-        constraint_modules=["decomp", "contouring"],
-        vehicle_dynamics="bicycle",
-        num_obstacles=4,
-        obstacle_dynamics=["unicycle", "bicycle", "point_mass", "unicycle"],
-        test_name="Decomposition Constraints Integration Test",
-        duration=10.0,
-        timestep=0.1
-    )
-    
-    result = framework.run_test(test_config)
-    return result
-
-
-def run_guidance_constraints_test():
-    """Example: Guidance constraints test."""
-    framework = IntegrationTestFramework()
-    
-    test_config = TestConfig(
-        reference_path=create_reference_path("straight", 22.0),
-        objective_module="goal",
-        constraint_modules=["guidance", "contouring"],
-        vehicle_dynamics="unicycle",
-        num_obstacles=2,
-        obstacle_dynamics=["unicycle", "bicycle"],
-        test_name="Guidance Constraints Integration Test",
-        duration=8.0,
-        timestep=0.1
-    )
-    
-    result = framework.run_test(test_config)
-    return result
-
-
-def run_scenario_constraints_test():
-    """Example: Scenario constraints test."""
-    framework = IntegrationTestFramework()
-    
-    test_config = TestConfig(
-        reference_path=create_reference_path("s_curve", 25.0),
-        objective_module="contouring",
-        constraint_modules=["scenario", "contouring"],
-        vehicle_dynamics="bicycle",
-        num_obstacles=3,
-        obstacle_dynamics=["unicycle", "unicycle", "unicycle"],
-        test_name="Scenario Constraints Integration Test",
-        duration=15.0,
-        timestep=0.1
-    )
-    
-    result = framework.run_test(test_config)
-    return result
-
-
-def run_multi_objective_test():
-    """Example: Multiple objectives test."""
-    framework = IntegrationTestFramework()
-    
-    test_config = TestConfig(
-        reference_path=create_reference_path("curve", 20.0),
-        objective_module="path_reference_velocity",
-        constraint_modules=["gaussian", "contouring"],
-        vehicle_dynamics="bicycle",
-        num_obstacles=3,
-        obstacle_dynamics=["unicycle", "unicycle", "unicycle"],
-        obstacle_prediction_types=["gaussian", "gaussian", "gaussian"],
-        test_name="Path Reference Velocity Integration Test",
-        duration=10.0,
-        timestep=0.1
-    )
-    
-    result = framework.run_test(test_config)
-    return result
-
-
-def run_comprehensive_test():
-    """Example: Comprehensive test with multiple constraint types."""
-    framework = IntegrationTestFramework()
-    
-    test_config = TestConfig(
-        reference_path=create_reference_path("s_curve", 30.0),
-        objective_module="contouring",
-        constraint_modules=["safe_horizon", "gaussian", "ellipsoid", "contouring"],
-        vehicle_dynamics="bicycle",
-        num_obstacles=5,
-        obstacle_dynamics=["unicycle", "bicycle", "point_mass", "unicycle", "bicycle"],
-        test_name="Comprehensive Multi-Constraint Integration Test",
-        duration=20.0,
-        timestep=0.1
-    )
-    
-    result = framework.run_test(test_config)
-    return result
-
-
-if __name__ == "__main__":
-    # Run example tests
-    print("Running Safe Horizon Integration Test...")
-    result1 = run_safe_horizon_test()
-    print(f"Test 1 completed: {result1.success}")
-    
-    print("Running Gaussian Constraints Integration Test...")
-    result2 = run_gaussian_constraints_test()
-    print(f"Test 2 completed: {result2.success}")
+                                                        has_steps = hasattr(obs.prediction, 'steps') and len(obs.prediction
