@@ -1435,11 +1435,15 @@ class TKSpline:
 
 class SplineSegment:
     """
-    Legacy spline segment class for backward compatibility.
+    Spline segment class for symbolic computation with parameter dictionaries.
     Used when spline coefficients are provided via parameter dictionary.
+    
+    Reference: https://github.com/tud-amr/mpc_planner
+    The spline uses a cubic polynomial: y = a*t^3 + b*t^2 + c*t + d
+    where t is the normalized parameter [0,1] within the segment.
     """
 
-    def __init__(self, param, name, spline_nr):
+    def __init__(self, param, name, spline_nr, num_segments=None):
         # Retrieve spline values from the parameters (stored as multi parameter by name)
         self.a = param.get(f"{name}_{spline_nr}_a")
         self.b = param.get(f"{name}_{spline_nr}_b")
@@ -1450,6 +1454,27 @@ class SplineSegment:
         # because path_0_start is shared between path_x and path_y
         self.s_start = param.get(f"path_{spline_nr}_start")
         
+        # Store num_segments to compute segment length
+        self.num_segments = num_segments
+        
+        # Compute segment length from actual segment boundaries
+        # Try to get next segment's start to compute segment length
+        next_s_start = param.get(f"path_{spline_nr + 1}_start")
+        if next_s_start is not None and self.s_start is not None:
+            # Segment length is the difference between consecutive segment starts
+            import casadi as cd
+            if isinstance(next_s_start, (cd.MX, cd.SX)) or isinstance(self.s_start, (cd.MX, cd.SX)):
+                self.segment_length = next_s_start - self.s_start
+            else:
+                self.segment_length = float(next_s_start) - float(self.s_start)
+        elif self.num_segments is not None and self.num_segments > 0:
+            # Fallback: assume uniform segments if we know num_segments
+            # For uniform segments: segment_length = 1.0 / num_segments
+            self.segment_length = 1.0 / float(self.num_segments)
+        else:
+            # Last resort fallback: assume 10 segments
+            self.segment_length = 1.0 / 10.0
+        
         # Debug: Log if s_start is None
         if self.s_start is None:
             import logging
@@ -1457,16 +1482,81 @@ class SplineSegment:
             logger.warning(f"SplineSegment.__init__: s_start is None for {name}_{spline_nr}! Looking for 'path_{spline_nr}_start'")
 
     def at(self, spline_index):
-        s = spline_index - self.s_start
-        return self.a * s * s * s + self.b * s * s + self.c * s + self.d
+        """
+        Evaluate spline at normalized parameter spline_index [0,1].
+        
+        Args:
+            spline_index: Normalized path parameter [0,1] (can be CasADi symbolic)
+        
+        Returns:
+            Spline value at spline_index
+        """
+        # Convert global normalized s [0,1] to segment-local normalized t [0,1]
+        # t = (s - s_start) / segment_length
+        import casadi as cd
+        if isinstance(spline_index, (cd.MX, cd.SX)) or isinstance(self.s_start, (cd.MX, cd.SX)):
+            # CasADi symbolic mode
+            t = (spline_index - self.s_start) / cd.fmax(self.segment_length, 1e-10)
+        else:
+            # Numeric mode
+            t = (spline_index - self.s_start) / max(self.segment_length, 1e-10)
+        
+        # Evaluate cubic polynomial: y = a*t^3 + b*t^2 + c*t + d
+        return self.a * t * t * t + self.b * t * t + self.c * t + self.d
 
     def deriv(self, spline_index):
-        s = spline_index - self.s_start
-        return 3 * self.a * s * s + 2 * self.b * s + self.c
+        """
+        Evaluate first derivative at normalized parameter spline_index [0,1].
+        
+        Args:
+            spline_index: Normalized path parameter [0,1] (can be CasADi symbolic)
+        
+        Returns:
+            First derivative value at spline_index
+        """
+        # Convert global normalized s [0,1] to segment-local normalized t [0,1]
+        import casadi as cd
+        if isinstance(spline_index, (cd.MX, cd.SX)) or isinstance(self.s_start, (cd.MX, cd.SX)):
+            # CasADi symbolic mode
+            t = (spline_index - self.s_start) / cd.fmax(self.segment_length, 1e-10)
+            # Derivative: y' = 3*a*t^2 + 2*b*t + c
+            # But we need to account for dt/ds = 1/segment_length
+            dt_ds = 1.0 / cd.fmax(self.segment_length, 1e-10)
+        else:
+            # Numeric mode
+            t = (spline_index - self.s_start) / max(self.segment_length, 1e-10)
+            dt_ds = 1.0 / max(self.segment_length, 1e-10)
+        
+        # Derivative with respect to s: dy/ds = dy/dt * dt/ds
+        # dy/dt = 3*a*t^2 + 2*b*t + c
+        dy_dt = 3 * self.a * t * t + 2 * self.b * t + self.c
+        return dy_dt * dt_ds
 
     def deriv2(self, spline_index):
-        s = spline_index - self.s_start
-        return 6 * self.a * s + 2 * self.b
+        """
+        Evaluate second derivative at normalized parameter spline_index [0,1].
+        
+        Args:
+            spline_index: Normalized path parameter [0,1] (can be CasADi symbolic)
+        
+        Returns:
+            Second derivative value at spline_index
+        """
+        # Convert global normalized s [0,1] to segment-local normalized t [0,1]
+        import casadi as cd
+        if isinstance(spline_index, (cd.MX, cd.SX)) or isinstance(self.s_start, (cd.MX, cd.SX)):
+            # CasADi symbolic mode
+            t = (spline_index - self.s_start) / cd.fmax(self.segment_length, 1e-10)
+            dt_ds = 1.0 / cd.fmax(self.segment_length, 1e-10)
+        else:
+            # Numeric mode
+            t = (spline_index - self.s_start) / max(self.segment_length, 1e-10)
+            dt_ds = 1.0 / max(self.segment_length, 1e-10)
+        
+        # Second derivative with respect to s: d2y/ds2 = d2y/dt2 * (dt/ds)^2
+        # d2y/dt2 = 6*a*t + 2*b
+        d2y_dt2 = 6 * self.a * t + 2 * self.b
+        return d2y_dt2 * dt_ds * dt_ds
 
 
 class Spline:
@@ -1493,12 +1583,21 @@ class Spline:
         """
         self.splines = []  # Classes containing the splines
         self.lambdas = []  # Merges splines
+        self.num_segments = num_segments
         for i in range(num_segments):
-            self.splines.append(SplineSegment(params, f"{name}", i))
+            self.splines.append(SplineSegment(params, f"{name}", i, num_segments=num_segments))
 
             # No lambda for the first segment (it is not glued to anything prior)
             if i > 0 and s is not None:
-                self.lambdas.append(1.0 / (1.0 + np.exp((s - self.splines[-1].s_start + 0.02) / 0.1)))  # Sigmoid
+                # Sigmoid blending: smoothly transition between segments
+                # Reference: https://github.com/tud-amr/mpc_planner
+                import casadi as cd
+                if isinstance(s, (cd.MX, cd.SX)):
+                    # CasADi symbolic mode
+                    self.lambdas.append(1.0 / (1.0 + cd.exp((s - self.splines[-1].s_start + 0.02) / 0.1)))
+                else:
+                    # Numeric mode
+                    self.lambdas.append(1.0 / (1.0 + np.exp((s - self.splines[-1].s_start + 0.02) / 0.1)))
 
     def at(self, s):
         """

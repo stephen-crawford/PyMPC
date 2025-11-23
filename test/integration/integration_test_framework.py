@@ -35,6 +35,46 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 from solver.casadi_solver import CasADiSolver
 from planning.types import Data, DynamicObstacle, Problem, ReferencePath, Bound, generate_reference_path
 from planning.planner import Planner
+
+def create_reference_path(path_type="curve", length=25.0, num_points=50):
+    """
+    Create a reference path for testing.
+    
+    Args:
+        path_type: Type of path ("curve", "s_curve", "straight", etc.)
+        length: Desired path length in meters
+        num_points: Number of points to generate
+    
+    Returns:
+        ReferencePath object
+    """
+    # Create start and goal positions based on path type and length
+    if path_type == "curve" or path_type == "curved":
+        start = [0.0, 0.0, 0.0]
+        goal = [length * 0.8, length * 0.6, 0.0]
+    elif path_type == "s_curve" or path_type == "s-turn":
+        start = [0.0, 0.0, 0.0]
+        goal = [length * 0.9, length * 0.3, 0.0]
+    elif path_type == "straight":
+        start = [0.0, 0.0, 0.0]
+        goal = [length, 0.0, 0.0]
+    else:
+        # Default to curve
+        start = [0.0, 0.0, 0.0]
+        goal = [length * 0.8, length * 0.6, 0.0]
+    
+    # Map path_type to generate_reference_path format
+    path_type_map = {
+        "curve": "curved",
+        "curved": "curved",
+        "s_curve": "s-turn",
+        "s-turn": "s-turn",
+        "straight": "straight"
+    }
+    mapped_type = path_type_map.get(path_type, "curved")
+    
+    # Call generate_reference_path with positional arguments only (no kwargs)
+    return generate_reference_path(start, goal, mapped_type, num_points)
 from planning.types import define_robot_area, propagate_obstacles, ensure_obstacle_size
 from utils.utils import read_config_file
 from planning.obstacle_manager import ObstacleManager, ObstacleConfig, create_unicycle_obstacle, create_bicycle_obstacle, create_point_mass_obstacle
@@ -112,32 +152,60 @@ class IntegrationTestFramework:
         return folder_path
         
     def setup_logging(self, output_folder: str) -> logging.Logger:
-        """Setup logging for the test."""
+        """Setup logging for the test with detailed DEBUG level logging."""
         log_file = os.path.join(output_folder, "test.log")
         
         logger = logging.getLogger("integration_test")
-        logger.setLevel(logging.INFO)
+        logger.setLevel(logging.DEBUG)  # Enable detailed DEBUG logging
         
         # Remove existing handlers
         for handler in logger.handlers[:]:
             logger.removeHandler(handler)
             
-        # Create file handler
+        # Create file handler with DEBUG level for detailed logs
         file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging.INFO)
+        file_handler.setLevel(logging.DEBUG)  # File gets all DEBUG messages
         
-        # Create console handler
+        # Create console handler with INFO level (less verbose on console)
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(logging.INFO)  # Console shows INFO and above
         
-        # Create formatter
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        # Create formatter with more detail
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
         file_handler.setFormatter(formatter)
         console_handler.setFormatter(formatter)
         
         # Add handlers
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
+        
+        # Also configure root logger and other relevant loggers to DEBUG
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)
+        
+        # Configure solver and planner loggers for detailed output
+        solver_logger = logging.getLogger("CasADiSolver")
+        solver_logger.setLevel(logging.DEBUG)
+        planner_logger = logging.getLogger("Planner")
+        planner_logger.setLevel(logging.DEBUG)
+        
+        # Configure module loggers for detailed output
+        module_loggers = [
+            "modules.objectives",
+            "modules.constraints",
+            "modules.objectives.contouring_objective",
+            "modules.constraints.contouring_constraints",
+            "modules.constraints.linearized_constraints",
+            "solver",
+            "planning",
+        ]
+        for logger_name in module_loggers:
+            module_logger = logging.getLogger(logger_name)
+            module_logger.setLevel(logging.DEBUG)
+            # Add file handler to module loggers so they write to the same log file
+            if file_handler not in module_logger.handlers:
+                module_logger.addHandler(file_handler)
+                module_logger.propagate = False  # Prevent duplicate messages
         
         return logger
         
@@ -514,10 +582,43 @@ class IntegrationTestFramework:
                         ref_path = generate_reference_path(start_pt, goal_pt, path_type="straight")
                         data.reference_path = ref_path
                 else:
-                    # Goal objective and others: DO NOT use reference path
-                    data.reference_path = None
-                    start_pt = [0.0, 0.0, 0.0]
-                    goal_pt = [20.0, 0.0, 0.0]
+                    # Goal objective and others: DO NOT use reference path for objective
+                    # BUT: if obstacles need it (e.g., path_intersect behavior), set it anyway
+                    if test_config.reference_path is not None:
+                        # Convert numpy array to ReferencePath object for obstacle manager
+                        if isinstance(test_config.reference_path, np.ndarray):
+                            from planning.types import ReferencePath
+                            from utils.math_tools import TKSpline
+                            ref_path = ReferencePath()
+                            x_arr = np.asarray(test_config.reference_path[:, 0], dtype=float)
+                            y_arr = np.asarray(test_config.reference_path[:, 1], dtype=float)
+                            z_arr = np.zeros(x_arr.shape[0], dtype=float)
+                            # Compute arc length
+                            s = np.zeros(x_arr.shape[0], dtype=float)
+                            for i in range(1, x_arr.shape[0]):
+                                dx = x_arr[i] - x_arr[i - 1]
+                                dy = y_arr[i] - y_arr[i - 1]
+                                s[i] = s[i - 1] + float(np.hypot(dx, dy))
+                            ref_path.x = x_arr
+                            ref_path.y = y_arr
+                            ref_path.z = z_arr
+                            ref_path.s = s
+                            ref_path.x_spline = TKSpline(s, x_arr)
+                            ref_path.y_spline = TKSpline(s, y_arr)
+                            ref_path.z_spline = TKSpline(s, z_arr)
+                            ref_path.length = float(s[-1])
+                            data.reference_path = ref_path  # Set for obstacle manager
+                            start_pt = [float(x_arr[0]), float(y_arr[0]), 0.0]
+                            goal_pt = [float(x_arr[-1]), float(y_arr[-1]), 0.0]
+                        else:
+                            # Already a ReferencePath object
+                            data.reference_path = test_config.reference_path
+                            start_pt = [float(data.reference_path.x[0]), float(data.reference_path.y[0]), 0.0]
+                            goal_pt = [float(data.reference_path.x[-1]), float(data.reference_path.y[-1]), 0.0]
+                    else:
+                        data.reference_path = None
+                        start_pt = [0.0, 0.0, 0.0]
+                        goal_pt = [20.0, 0.0, 0.0]
 
                 # Set start/goal only for Goal objective; contouring follows reference path end
                 if test_config.objective_module == "goal":
@@ -849,12 +950,13 @@ class IntegrationTestFramework:
             max_steps_cap = int(self.config.get("planner", {}).get("max_steps", 2000))
             num_steps = int(test_config.duration / test_config.timestep)
             
-            while True:
-                # Check timeout
-                if timeout_seconds is not None:
+            while True and not goal_reached:
+                # Check timeout (only check after first step to avoid false positives)
+                if timeout_seconds is not None and step > 0:
                     elapsed_time = time.time() - test_start_time
                     if elapsed_time >= timeout_seconds:
                         logger.warning(f"Test timeout reached ({timeout_seconds:.1f}s) at step {step}. Terminating test early.")
+                        goal_reached = True  # Signal to exit loop
                         break
                 if is_contouring:
                     logger.info(f"Step {step} (contouring until path end)")
@@ -874,65 +976,65 @@ class IntegrationTestFramework:
                 planner.state.set('y', float(vehicle_state[1]))
                 planner.state.set('psi', float(vehicle_state[2]))
                 planner.state.set('v', float(vehicle_state[3]))
-            # Set spline and other state variables if present in model
-            if 'spline' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 4:
-                spline_idx = vehicle_dynamics.dependent_vars.index('spline') if 'spline' in vehicle_dynamics.dependent_vars else None
-                if spline_idx is not None and len(vehicle_state) > spline_idx:
-                    spline_val = float(vehicle_state[spline_idx])
-                    # CRITICAL: Re-initialize spline based on closest point on path to vehicle's actual position
-                    # Reference: https://github.com/tud-amr/mpc_planner - spline should track actual vehicle position
-                    if hasattr(data, 'reference_path') and data.reference_path is not None:
-                        try:
-                            ref_path = data.reference_path
-                            vehicle_pos = np.array([float(vehicle_state[0]), float(vehicle_state[1])])
-                            
-                            # Get arc length array
-                            if hasattr(ref_path, 's') and ref_path.s is not None:
-                                s_arr = np.asarray(ref_path.s, dtype=float)
-                                if s_arr.size > 0:
-                                    s_min = float(s_arr[0])
-                                    s_max = float(s_arr[-1])
-                                    
-                                    # Sample path points to find closest
-                                    num_samples = min(200, len(s_arr))
-                                    s_sample = np.linspace(s_min, s_max, num_samples)
-                                    
-                                    # Evaluate path points
-                                    x_sample = np.array([float(ref_path.x_spline(sv)) for sv in s_sample])
-                                    y_sample = np.array([float(ref_path.y_spline(sv)) for sv in s_sample])
-                                    
-                                    # Find closest point
-                                    distances = np.sqrt((x_sample - vehicle_pos[0])**2 + (y_sample - vehicle_pos[1])**2)
-                                    closest_idx = np.argmin(distances)
-                                    closest_s = float(s_sample[closest_idx])
-                                    closest_dist = distances[closest_idx]
-                                    
-                                    # Use closest point if it's significantly different from propagated value
-                                    # or if vehicle is far from path (indicates drift)
-                                    propagated_s = spline_val
-                                    if closest_dist > 0.5 or abs(closest_s - propagated_s) > 1.0:
-                                        spline_val = closest_s
-                                        logger.info(f"Step {step}: Re-initialized spline from {propagated_s:.4f} to {closest_s:.4f} "
-                                                  f"(vehicle at ({vehicle_pos[0]:.2f}, {vehicle_pos[1]:.2f}), "
-                                                  f"closest path point at ({x_sample[closest_idx]:.2f}, {y_sample[closest_idx]:.2f}), "
-                                                  f"distance={closest_dist:.3f}m)")
-                                    else:
-                                        logger.debug(f"Step {step}: Using propagated spline {spline_val:.4f} (close to path, dist={closest_dist:.3f}m)")
-                        except Exception as e:
-                            logger.warning(f"Step {step}: Could not re-initialize spline from closest point: {e}, using propagated value")
-                            import traceback
-                            logger.debug(f"Traceback: {traceback.format_exc()}")
-                    
-                    planner.state.set('spline', spline_val)
-                    # Also update vehicle_state to keep it in sync
-                    vehicle_state[spline_idx] = spline_val
-                    logger.debug(f"  Set spline state to {spline_val:.4f}")
-                else:
-                    logger.warning(f"  Could not set spline: idx={spline_idx}, state_len={len(vehicle_state)}")
-                if 'delta' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 5:
-                    delta_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
-                    if delta_idx is not None and len(vehicle_state) > delta_idx:
-                        planner.state.set('delta', float(vehicle_state[delta_idx]))
+                # Set spline and other state variables if present in model
+                if 'spline' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 4:
+                    spline_idx = vehicle_dynamics.dependent_vars.index('spline') if 'spline' in vehicle_dynamics.dependent_vars else None
+                    if spline_idx is not None and len(vehicle_state) > spline_idx:
+                        spline_val = float(vehicle_state[spline_idx])
+                        # CRITICAL: Re-initialize spline based on closest point on path to vehicle's actual position
+                        # Reference: https://github.com/tud-amr/mpc_planner - spline should track actual vehicle position
+                        if hasattr(data, 'reference_path') and data.reference_path is not None:
+                            try:
+                                ref_path = data.reference_path
+                                vehicle_pos = np.array([float(vehicle_state[0]), float(vehicle_state[1])])
+                                
+                                # Get arc length array
+                                if hasattr(ref_path, 's') and ref_path.s is not None:
+                                    s_arr = np.asarray(ref_path.s, dtype=float)
+                                    if s_arr.size > 0:
+                                        s_min = float(s_arr[0])
+                                        s_max = float(s_arr[-1])
+                                        
+                                        # Sample path points to find closest
+                                        num_samples = min(200, len(s_arr))
+                                        s_sample = np.linspace(s_min, s_max, num_samples)
+                                        
+                                        # Evaluate path points
+                                        x_sample = np.array([float(ref_path.x_spline(sv)) for sv in s_sample])
+                                        y_sample = np.array([float(ref_path.y_spline(sv)) for sv in s_sample])
+                                        
+                                        # Find closest point
+                                        distances = np.sqrt((x_sample - vehicle_pos[0])**2 + (y_sample - vehicle_pos[1])**2)
+                                        closest_idx = np.argmin(distances)
+                                        closest_s = float(s_sample[closest_idx])
+                                        closest_dist = distances[closest_idx]
+                                        
+                                        # Use closest point if it's significantly different from propagated value
+                                        # or if vehicle is far from path (indicates drift)
+                                        propagated_s = spline_val
+                                        if closest_dist > 0.5 or abs(closest_s - propagated_s) > 1.0:
+                                            spline_val = closest_s
+                                            logger.info(f"Step {step}: Re-initialized spline from {propagated_s:.4f} to {closest_s:.4f} "
+                                                      f"(vehicle at ({vehicle_pos[0]:.2f}, {vehicle_pos[1]:.2f}), "
+                                                      f"closest path point at ({x_sample[closest_idx]:.2f}, {y_sample[closest_idx]:.2f}), "
+                                                      f"distance={closest_dist:.3f}m)")
+                                        else:
+                                            logger.debug(f"Step {step}: Using propagated spline {spline_val:.4f} (close to path, dist={closest_dist:.3f}m)")
+                            except Exception as e:
+                                logger.warning(f"Step {step}: Could not re-initialize spline from closest point: {e}, using propagated value")
+                                import traceback
+                                logger.debug(f"Traceback: {traceback.format_exc()}")
+                        
+                        planner.state.set('spline', spline_val)
+                        # Also update vehicle_state to keep it in sync
+                        vehicle_state[spline_idx] = spline_val
+                        logger.debug(f"  Set spline state to {spline_val:.4f}")
+                    else:
+                        logger.warning(f"  Could not set spline: idx={spline_idx}, state_len={len(vehicle_state)}")
+                    if 'delta' in vehicle_dynamics.get_all_vars() and len(vehicle_state) > 5:
+                        delta_idx = vehicle_dynamics.dependent_vars.index('delta') if 'delta' in vehicle_dynamics.dependent_vars else None
+                        if delta_idx is not None and len(vehicle_state) > delta_idx:
+                            planner.state.set('delta', float(vehicle_state[delta_idx]))
                 
                 # Update problem's state so get_state() works correctly
                 problem.set_state(planner.state)
@@ -1083,36 +1185,6 @@ class IntegrationTestFramework:
                         self.solver.intialize_solver(data)
                 self.solver.initialize_rollout(planner.state, data)
 
-                # Check if goal is reached (AFTER syncing state so we use current position)
-                if hasattr(planner, 'is_objective_reached'):
-                    try:
-                        goal_reached = planner.is_objective_reached(data)
-                        if goal_reached:
-                            # Support moving goals - if goal_sequence exists, move to next goal
-                            if hasattr(data, 'goal_sequence') and data.goal_sequence is not None:
-                                if hasattr(data, 'reached_goals'):
-                                    data.reached_goals.append(np.array(data.goal))
-                                logger.info(f"Goal {data.current_goal_index + 1} reached at step {step}!")
-                                data.current_goal_index += 1
-                                if data.current_goal_index < len(data.goal_sequence):
-                                    data.goal = data.goal_sequence[data.current_goal_index]
-                                    logger.info(f"Moving to next goal: {data.goal}")
-                                    # Don't manually update parameters here - solve_mpc will call set_parameters
-                                    # which will read the updated data.goal
-                                    goal_reached = False  # Continue simulation
-                                else:
-                                    # All goals reached
-                                    goal_reached_step = step
-                                    logger.info(f"All goals reached at step {step}!")
-                                    break
-                            else:
-                                # Single goal - stop simulation
-                                goal_reached_step = step
-                                logger.info(f"Goal reached at step {step}!")
-                                break
-                    except Exception as e:
-                        logger.debug(f"Could not check goal status: {e}")
-
                 try:
                     # CRITICAL: Update reference path to start at current vehicle position at each step
                     # This is essential for contouring constraints to work correctly
@@ -1228,7 +1300,10 @@ class IntegrationTestFramework:
                                     logger.debug(f"Could not flush stdout/stderr (non-fatal): {flush_err}")
                                 # Mark that we're exiting early due to stuck vehicle
                                 early_exit_stuck = True
-                                break
+                                # Use a flag to break out of the loop instead of break statement
+                                # (break is handled by checking early_exit_stuck flag)
+                                goal_reached = True  # Signal to exit loop
+                                step = num_steps  # Force loop exit
                     else:
                         logger.warning(f"Step {step}: MPC solve failed")
                         consecutive_solver_failures += 1
@@ -1248,7 +1323,9 @@ class IntegrationTestFramework:
                                 logger.debug(f"Could not flush stdout/stderr (non-fatal): {flush_err}")
                             # Mark that we're exiting early due to solver failures
                             early_exit_failures = True
-                            break
+                            # Use a flag to break out of the loop instead of break statement
+                            goal_reached = True  # Signal to exit loop
+                            step = num_steps  # Force loop exit
                     
                     # Visualize constraints using module visualizers
                     try:
@@ -1703,6 +1780,31 @@ class IntegrationTestFramework:
                                     if i < len(new_state):
                                         planner.state.set(var_name, float(new_state[i]))
                                 
+                                # Check if goal is reached AFTER applying control and updating state
+                                if hasattr(planner, 'is_objective_reached'):
+                                    try:
+                                        goal_reached = planner.is_objective_reached(data)
+                                        if goal_reached:
+                                            if hasattr(data, 'goal_sequence') and data.goal_sequence is not None:
+                                                if hasattr(data, 'reached_goals'):
+                                                    data.reached_goals.append(np.array(data.goal))
+                                                logger.info(f"Goal {data.current_goal_index + 1} reached at step {step}!")
+                                                data.current_goal_index += 1
+                                                if data.current_goal_index < len(data.goal_sequence):
+                                                    data.goal = data.goal_sequence[data.current_goal_index]
+                                                    logger.info(f"Moving to next goal: {data.goal}")
+                                                    goal_reached = False
+                                                else:
+                                                    goal_reached_step = step
+                                                    logger.info(f"All goals reached at step {step}!")
+                                                    goal_reached = True
+                                            else:
+                                                goal_reached_step = step
+                                                logger.info(f"Goal reached at step {step}!")
+                                                goal_reached = True
+                                    except Exception as e:
+                                        logger.debug(f"Could not check goal status: {e}")
+                            
                             except Exception as e:
                                 # Attempt symbolic_dynamics evaluation before falling back to Euler
                                 logger.warning(f"  Error using dynamics model discrete_dynamics: {e}, attempting symbolic_dynamics fallback")
@@ -1722,6 +1824,36 @@ class IntegrationTestFramework:
                                     )
                                     new_state = np.array(sym_next).flatten()
                                     vehicle_state = new_state
+                                    
+                                    # Update planner state with new values
+                                    for i, var_name in enumerate(vehicle_dynamics.dependent_vars):
+                                        if i < len(new_state):
+                                            planner.state.set(var_name, float(new_state[i]))
+                                    
+                                    # Check if goal is reached AFTER applying control and updating state
+                                    if hasattr(planner, 'is_objective_reached'):
+                                        try:
+                                            goal_reached = planner.is_objective_reached(data)
+                                            if goal_reached:
+                                                if hasattr(data, 'goal_sequence') and data.goal_sequence is not None:
+                                                    if hasattr(data, 'reached_goals'):
+                                                        data.reached_goals.append(np.array(data.goal))
+                                                    logger.info(f"Goal {data.current_goal_index + 1} reached at step {step}!")
+                                                    data.current_goal_index += 1
+                                                    if data.current_goal_index < len(data.goal_sequence):
+                                                        data.goal = data.goal_sequence[data.current_goal_index]
+                                                        logger.info(f"Moving to next goal: {data.goal}")
+                                                        goal_reached = False
+                                                    else:
+                                                        goal_reached_step = step
+                                                        logger.info(f"All goals reached at step {step}!")
+                                                        goal_reached = True
+                                                else:
+                                                    goal_reached_step = step
+                                                    logger.info(f"Goal reached at step {step}!")
+                                                    goal_reached = True
+                                        except Exception as e:
+                                            logger.debug(f"Could not check goal status: {e}")
                                 except Exception as sym_e:
                                     logger.warning(f"  symbolic_dynamics fallback failed: {sym_e}, reverting to Euler integration")
                                     a = float(control_dict.get('a', 0.0)) if 'a' in u_names else 0.0
@@ -1749,6 +1881,36 @@ class IntegrationTestFramework:
                                         d_next = d_val + w * dt
                                         new_state = np.append(new_state, d_next)
                                     vehicle_state = new_state
+                                    
+                                    # Update planner state with new values
+                                    for i, var_name in enumerate(vehicle_dynamics.dependent_vars):
+                                        if i < len(new_state):
+                                            planner.state.set(var_name, float(new_state[i]))
+                                    
+                                    # Check if goal is reached AFTER applying control and updating state
+                                    if hasattr(planner, 'is_objective_reached'):
+                                        try:
+                                            goal_reached = planner.is_objective_reached(data)
+                                            if goal_reached:
+                                                if hasattr(data, 'goal_sequence') and data.goal_sequence is not None:
+                                                    if hasattr(data, 'reached_goals'):
+                                                        data.reached_goals.append(np.array(data.goal))
+                                                    logger.info(f"Goal {data.current_goal_index + 1} reached at step {step}!")
+                                                    data.current_goal_index += 1
+                                                    if data.current_goal_index < len(data.goal_sequence):
+                                                        data.goal = data.goal_sequence[data.current_goal_index]
+                                                        logger.info(f"Moving to next goal: {data.goal}")
+                                                        goal_reached = False
+                                                    else:
+                                                        goal_reached_step = step
+                                                        logger.info(f"All goals reached at step {step}!")
+                                                        goal_reached = True
+                                                else:
+                                                    goal_reached_step = step
+                                                    logger.info(f"Goal reached at step {step}!")
+                                                    goal_reached = True
+                                        except Exception as e:
+                                            logger.debug(f"Could not check goal status: {e}")
                         else:
                             # No MPC control available: if fallback disabled, hold state (no movement)
                             if not bool(self.config.get("planner", {}).get("fallback_control_enabled", False)):
@@ -1787,7 +1949,8 @@ class IntegrationTestFramework:
                                 s_val = float(vehicle_state[4])
                                 if s_val >= float(data.reference_path.length) - 1e-3:
                                     logger.info(f"Reference path end reached at step {step} (s={s_val:.3f})")
-                                    break
+                                    goal_reached = True  # Signal to exit loop
+                                    step = num_steps  # Force loop exit
                     except Exception:
                         pass
 
@@ -1859,7 +2022,8 @@ class IntegrationTestFramework:
                         logger.error(f"Max consecutive MPC failures ({max_consecutive_failures}) reached due to exceptions. "
                                    f"No successful solve in last {max_consecutive_failures} attempts. "
                                    f"Terminating test early at step {step}.")
-                        break
+                        goal_reached = True  # Signal to exit loop
+                        step = num_steps  # Force loop exit
                     # Log state of critical data structures
                     logger.error(f"robot_area length: {len(data.robot_area) if hasattr(data, 'robot_area') and data.robot_area else 0}")
                     logger.error(f"dynamic_obstacles count: {len(data.dynamic_obstacles) if hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles else 0}")
@@ -1880,9 +2044,12 @@ class IntegrationTestFramework:
                 except Exception:
                     pass
                 
-                # If goal reached, add a few more frames to show final state, then break
+                # Increment step and check stopping criteria
+                step += 1
+                
+                # Check if goal reached (for non-contouring) or path end reached (for contouring)
                 if goal_reached:
-                    # Add 2-3 more frames to show the vehicle at the goal
+                    # Add 2-3 more frames to show the vehicle at the goal/path end
                     for _ in range(3):
                         vehicle_states.append(vehicle_state.copy())
                         # Keep obstacles stationary at final position
@@ -1891,18 +2058,18 @@ class IntegrationTestFramework:
                                 obs_states.append(obs_states[-1].copy())
                         constraint_violations.append(False)
                         computation_times.append(0.0)
-                    logger.info(f"Goal reached at step {goal_reached_step}, added {3} extra frames for visualization")
-                    break
-                
-                # Increment step and check stopping criteria
-                step += 1
-                if not is_contouring and step >= num_steps:
-                    break
-                if is_contouring:
+                    if goal_reached_step is not None:
+                        logger.info(f"Goal reached at step {goal_reached_step}, added {3} extra frames for visualization")
+                    # Exit loop - goal_reached is already True
+                elif not is_contouring and step >= num_steps:
+                    goal_reached = True  # Signal to exit loop
+                    goal_reached_step = step
+                elif is_contouring:
                     # Hard safety cap to avoid infinite loops in degenerate cases
                     if step >= max_steps_cap:
                         logger.info(f"Reached safety cap of {max_steps_cap} steps before path end; stopping")
-                        break
+                        goal_reached = True  # Signal to exit loop
+                        goal_reached_step = step
                     
             # Save results - ALWAYS save files even if early exit occurred
             try:
@@ -2369,7 +2536,8 @@ class IntegrationTestFramework:
                             # Only draw static visualizations here (not Gaussian constraints which need per-frame updates)
                             # Gaussian constraints will be drawn in animate() function
                             module_name = getattr(module, 'name', '')
-                            if 'gaussian' not in module_name.lower():
+                            # Skip Gaussian and Ellipsoid constraints - they need per-frame updates in animate()
+                            if 'gaussian' not in module_name.lower() and 'ellipsoid' not in module_name.lower():
                                 # Use a representative stage index for static visualizations
                                 viz.visualize(None, self.last_data, stage_idx=1)
         except Exception:
@@ -2460,6 +2628,12 @@ class IntegrationTestFramework:
         
         # Initialize Gaussian constraint artists (will be updated dynamically)
         gaussian_constraint_artists = []
+        
+        # Initialize Ellipsoid constraint artists (will be updated dynamically)
+        ellipsoid_constraint_artists = []
+        
+        # Initialize Ellipsoid constraint artists (will be updated dynamically)
+        ellipsoid_constraint_artists = []
         
         def animate(frame):
             if frame < len(vehicle_states):
@@ -3191,4 +3365,132 @@ class IntegrationTestFramework:
                                                     for i, obs in enumerate(self.last_data.dynamic_obstacles):
                                                         from planning.types import PredictionType
                                                         pred_type = getattr(obs.prediction, 'type', None) if hasattr(obs, 'prediction') and obs.prediction else None
-                                                        has_steps = hasattr(obs.prediction, 'steps') and len(obs.prediction
+                                                        has_steps = hasattr(obs.prediction, 'steps') and len(obs.prediction.steps) > 0 if hasattr(obs, 'prediction') and obs.prediction else False
+                                                        logging.getLogger("integration_test").debug(f"  Obstacle {i}: pred_type={pred_type}, has_steps={has_steps}")
+                except Exception as e:
+                    logging.getLogger("integration_test").debug(f"Frame {frame}: Error in Gaussian constraint visualization: {e}")
+                
+                # Update Ellipsoid constraint visualizations (similar to Gaussian)
+                # Clear old ellipsoid constraint artists
+                for artist in ellipsoid_constraint_artists[:]:
+                    try:
+                        if hasattr(artist, 'remove'):
+                            artist.remove()
+                    except Exception:
+                        pass
+                ellipsoid_constraint_artists.clear()
+                
+                # Draw Ellipsoid constraints for current frame
+                try:
+                    if hasattr(self, 'solver') and hasattr(self.solver, 'module_manager'):
+                        ellipsoid_module_found = False
+                        for module in self.solver.module_manager.get_modules():
+                            module_name = getattr(module, 'name', '')
+                            if 'ellipsoid' in module_name.lower():
+                                ellipsoid_module_found = True
+                                if hasattr(module, 'get_visualizer'):
+                                    viz = module.get_visualizer()
+                                    if viz is not None and hasattr(viz, 'visualize') and hasattr(self, 'last_data'):
+                                        # Update obstacle positions for current frame before visualizing
+                                        if hasattr(self.last_data, 'dynamic_obstacles') and self.last_data.dynamic_obstacles:
+                                            # Update obstacle positions from obstacle_states for current frame
+                                            for i, obs in enumerate(self.last_data.dynamic_obstacles):
+                                                if i < len(obstacle_states) and frame < len(obstacle_states[i]):
+                                                    obs_state = obstacle_states[i][frame]
+                                                    if len(obs_state) >= 2:
+                                                        obs.position = np.array([obs_state[0], obs_state[1]], dtype=float)
+                                            
+                                            # Propagate obstacle predictions for current frame
+                                            # This ensures prediction steps are updated with current positions
+                                            from planning.types import PredictionType
+                                            saved_prediction_types = []
+                                            for obs in self.last_data.dynamic_obstacles:
+                                                if hasattr(obs, 'prediction') and obs.prediction is not None:
+                                                    saved_prediction_types.append(obs.prediction.type)
+                                                else:
+                                                    saved_prediction_types.append(None)
+                                            
+                                            try:
+                                                from planning.types import propagate_obstacles
+                                                if hasattr(self.solver, 'horizon') and hasattr(self.solver, 'timestep'):
+                                                    horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
+                                                    timestep_val = self.solver.timestep if self.solver.timestep is not None else 0.1
+                                                    propagate_obstacles(self.last_data, dt=timestep_val, horizon=horizon_val)
+                                                
+                                                # Restore prediction types after propagation
+                                                for i, obs in enumerate(self.last_data.dynamic_obstacles):
+                                                    if i < len(saved_prediction_types) and saved_prediction_types[i] is not None:
+                                                        if hasattr(obs, 'prediction') and obs.prediction is not None:
+                                                            obs.prediction.type = saved_prediction_types[i]
+                                            except Exception as e:
+                                                logging.getLogger("integration_test").debug(f"Could not propagate obstacles for ellipsoid visualization frame {frame}: {e}")
+                                        
+                                        # Store current patches count before visualization
+                                        patches_before = list(ax.patches)
+                                        
+                                        # Call visualizer for current frame (use stage_idx=0 for first prediction step)
+                                        try:
+                                            viz.visualize(None, self.last_data, stage_idx=0)
+                                        except Exception as viz_err:
+                                            logging.getLogger("integration_test").error(
+                                                f"Frame {frame}: Error calling Ellipsoid visualizer: {viz_err}")
+                                            import traceback
+                                            logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
+                                        
+                                        # Track newly added patches (ellipsoid constraint artists)
+                                        patches_after = list(ax.patches)
+                                        from matplotlib.patches import Ellipse
+                                        for patch in patches_after:
+                                            if patch not in patches_before and isinstance(patch, Ellipse):
+                                                ellipsoid_constraint_artists.append(patch)
+                                        
+                                        if not ellipsoid_module_found and frame < 3:
+                                            logging.getLogger("integration_test").warning(
+                                                f"Frame {frame}: No Ellipsoid constraint module found for visualization")
+                except Exception as e:
+                    if frame < 3:
+                        logging.getLogger("integration_test").error(f"Frame {frame}: Error in Ellipsoid constraint visualization: {e}")
+                        import traceback
+                        logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
+        
+        # Create and save animation
+        try:
+            from matplotlib.animation import FuncAnimation, PillowWriter
+            import os
+            
+            num_frames = len(vehicle_states)
+            if num_frames == 0:
+                logging.getLogger("integration_test").warning("No frames to animate")
+                plt.close(fig)
+                return
+            
+            # Calculate fps based on timestep (default 10 fps)
+            fps = 10.0
+            if hasattr(self, 'solver') and hasattr(self.solver, 'timestep') and self.solver.timestep is not None:
+                fps = 1.0 / float(self.solver.timestep)
+                # Cap fps at reasonable values
+                fps = min(max(fps, 5.0), 30.0)
+            
+            # Create animation
+            anim = FuncAnimation(fig, animate, frames=num_frames, interval=1000.0/fps, blit=False, repeat=False)
+            
+            # Save animation as GIF
+            gif_path = os.path.join(output_folder, "animation.gif")
+            writer = PillowWriter(fps=fps)
+            anim.save(gif_path, writer=writer)
+            
+            # Get file size for logging
+            file_size = os.path.getsize(gif_path) if os.path.exists(gif_path) else 0
+            duration = num_frames / fps
+            
+            logging.getLogger("integration_test").info(
+                f"Saved animation with {num_frames} frames at {fps:.2f} fps to {gif_path} "
+                f"(duration: {duration:.2f}s" + (f", size: {file_size} bytes" if file_size > 0 else "") + ")"
+            )
+            
+            plt.close(fig)
+        except Exception as e:
+            logging.getLogger("integration_test").error(f"Error saving animation: {e}")
+            import traceback
+            logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
+            plt.close(fig)

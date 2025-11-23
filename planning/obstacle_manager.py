@@ -122,9 +122,63 @@ class ObstacleManager:
         # Initialize behavior-specific state
         behavior_state = {}
         if behavior == "path_intersect":
-            # Track which side of path we're on and lateral offset
-            behavior_state['side'] = random.choice([-1, 1])  # -1 for left, 1 for right
-            behavior_state['lateral_offset'] = random.uniform(0.5, 2.0)  # Distance from path
+            # Determine initial side based on obstacle's actual position relative to path
+            # This ensures the obstacle moves toward the centerline first, then crosses
+            if self.reference_path is not None and hasattr(self.reference_path, 'x_spline'):
+                try:
+                    # Get obstacle's initial position
+                    obs_x = float(obstacle_config.initial_position[0])
+                    obs_y = float(obstacle_config.initial_position[1])
+                    
+                    # Find closest point on path
+                    s_arr = np.asarray(self.reference_path.s, dtype=float)
+                    min_dist = float('inf')
+                    closest_s = s_arr[0] if len(s_arr) > 0 else 0.0
+                    closest_point = np.array([obs_x, obs_y])
+                    
+                    for s in np.linspace(s_arr[0], s_arr[-1], 50):
+                        try:
+                            path_x = float(self.reference_path.x_spline(s))
+                            path_y = float(self.reference_path.y_spline(s))
+                            dist = np.sqrt((obs_x - path_x)**2 + (obs_y - path_y)**2)
+                            if dist < min_dist:
+                                min_dist = dist
+                                closest_s = s
+                                closest_point = np.array([path_x, path_y])
+                        except:
+                            continue
+                    
+                    # Get path normal
+                    try:
+                        dx = float(self.reference_path.x_spline.derivative()(closest_s))
+                        dy = float(self.reference_path.y_spline.derivative()(closest_s))
+                        norm = np.sqrt(dx**2 + dy**2)
+                        if norm > 1e-6:
+                            normal = np.array([-dy/norm, dx/norm])  # Left normal
+                        else:
+                            normal = np.array([1.0, 0.0])
+                    except:
+                        normal = np.array([1.0, 0.0])
+                    
+                    # Determine which side obstacle is on: positive = left, negative = right
+                    to_obstacle = np.array([obs_x, obs_y]) - closest_point
+                    signed_dist = np.dot(to_obstacle, normal)
+                    # Set side to opposite of current side so obstacle moves toward centerline
+                    # If on left (positive), set side=1 (right) to move toward right
+                    # If on right (negative), set side=-1 (left) to move toward left
+                    behavior_state['side'] = 1 if signed_dist > 0 else -1
+                    behavior_state['lateral_offset'] = abs(signed_dist)
+                    self.logger.debug(f"Obstacle {obstacle_config.obstacle_id} path_intersect: initialized on {'LEFT' if signed_dist > 0 else 'RIGHT'} side "
+                                    f"(signed_dist={signed_dist:.3f}), targeting {'RIGHT' if behavior_state['side'] == 1 else 'LEFT'} side")
+                except Exception as e:
+                    # Fallback to random if path calculation fails
+                    self.logger.warning(f"Could not determine initial side for obstacle {obstacle_config.obstacle_id}: {e}, using random")
+                    behavior_state['side'] = random.choice([-1, 1])
+                    behavior_state['lateral_offset'] = random.uniform(0.5, 2.0)
+            else:
+                # No reference path available, use random
+                behavior_state['side'] = random.choice([-1, 1])
+                behavior_state['lateral_offset'] = random.uniform(0.5, 2.0)
             behavior_state['intersection_count'] = 0
         elif behavior == "goal":
             behavior_state['target_reached'] = False
@@ -693,7 +747,9 @@ class ObstacleManager:
             is_outside_bounds = (side_of_path * side < 0)
         
         # Calculate distance from obstacle to path centerline for probabilistic turning
-        distance_from_center = np.linalg.norm(obstacle_to_path)
+        # Use signed distance: positive = left of path, negative = right of path
+        distance_from_center_signed = np.dot(obstacle_to_path, normal)
+        distance_from_center = abs(distance_from_center_signed)
         
         # Get accurate distance using segment-based calculation if available
         if self.left_boundary_splines is not None and self.right_boundary_splines is not None:
@@ -708,37 +764,55 @@ class ObstacleManager:
                     if norm_seg > 1e-6:
                         normal_at_segment = np.array([-dy_seg/norm_seg, dx_seg/norm_seg])
                         to_obstacle = np.array([x, y]) - path_point_at_segment
-                        distance_from_center = abs(np.dot(to_obstacle, normal_at_segment))
+                        distance_from_center_signed = np.dot(to_obstacle, normal_at_segment)
+                        distance_from_center = abs(distance_from_center_signed)
                 except:
                     pass
             except:
                 pass
         
-        # Calculate turn probability based on distance from path center
-        # Probability starts very small near center and increases to 80% at 5 meters
+        # Calculate turn probability based on distance from path centerline
+        # The further the obstacle is from the centerline (past it), the higher the probability to turn back
+        # This allows the obstacle to continue past the centerline before turning
         import random
-        max_distance = 5.0  # Distance at which probability reaches 80%
-        min_probability = 0.01  # Minimum probability near center
-        max_probability = 0.8  # Maximum probability at max_distance
         
-        if distance_from_center >= max_distance:
-            turn_probability = max_probability
-        else:
-            # Use a power curve for smoother transition (exponent 1.5 gives gradual start, faster increase later)
-            normalized_distance = distance_from_center / max_distance
-            turn_probability = min_probability + (max_probability - min_probability) * (normalized_distance ** 1.5)
+        # Parameters for distance-based turn probability
+        min_distance_for_turn = 2.0  # Minimum distance past centerline before considering turn (allows continuation further past)
+        max_distance = 6.0  # Distance at which probability reaches maximum
+        min_probability = 0.1  # Minimum probability when just past min_distance
+        max_probability = 0.9  # Maximum probability at max_distance
         
-        # Decide whether to turn around based on probability
-        # Only consider turning if obstacle has crossed the path centerline
+        # Only consider turning if obstacle has crossed the path centerline (is on opposite side)
         has_crossed_path = (side_of_path * side < 0)
-        should_turn = False
-        if has_crossed_path:
+        
+        # Calculate turn probability based on how far past the centerline the obstacle is
+        if has_crossed_path and distance_from_center >= min_distance_for_turn:
+            # Normalize distance: 0 at min_distance_for_turn, 1 at max_distance
+            if distance_from_center >= max_distance:
+                turn_probability = max_probability
+            else:
+                # Use distance beyond min_distance_for_turn
+                effective_distance = distance_from_center - min_distance_for_turn
+                effective_max = max_distance - min_distance_for_turn
+                normalized_distance = effective_distance / effective_max if effective_max > 0 else 0.0
+                # Use exponential curve for smoother transition (more gradual near min_distance, faster increase later)
+                # Exponent 2.0 gives quadratic growth
+                normalized_distance = min(1.0, normalized_distance)
+                turn_probability = min_probability + (max_probability - min_probability) * (normalized_distance ** 2.0)
+            
             # Roll dice based on probability
             turn_roll = random.random()
             should_turn = (turn_roll < turn_probability)
             
-            self.logger.debug(f"Obstacle {obstacle_idx} path_intersect: distance={distance_from_center:.3f}m, "
+            self.logger.debug(f"Obstacle {obstacle_idx} path_intersect: distance_from_center={distance_from_center:.3f}m "
+                            f"(signed={distance_from_center_signed:.3f}), min_dist={min_distance_for_turn:.3f}m, "
                             f"prob={turn_probability:.3f}, roll={turn_roll:.3f}, turn={should_turn}")
+        else:
+            # Not crossed yet or too close to centerline - don't turn
+            should_turn = False
+            if has_crossed_path:
+                self.logger.debug(f"Obstacle {obstacle_idx} path_intersect: crossed but too close to centerline "
+                                f"(distance={distance_from_center:.3f}m < min={min_distance_for_turn:.3f}m), continuing")
         
         # Turn around if probability check passes and obstacle has crossed the path
         if should_turn:

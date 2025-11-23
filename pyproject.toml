@@ -1,0 +1,15 @@
+[project]
+name = "pympc"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "casadi>=3.7.2",
+    "docutils>=0.22.3",
+    "matplotlib>=3.10.7",
+    "numpy>=2.3.5",
+    "pytest>=9.0.1",
+    "pyyaml>=6.0.3",
+    "scipy>=1.16.3",
+]

@@ -1,6 +1,6 @@
 import numpy as np
 import casadi as cd
-from docutils.nodes import reference
+# from docutils.nodes import reference  # Not needed - was incorrect import
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from utils.math_tools import TKSpline

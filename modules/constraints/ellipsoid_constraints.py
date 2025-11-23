@@ -101,11 +101,33 @@ class EllipsoidConstraints(BaseConstraint):
 				if not hasattr(obstacle, 'position'):
 					continue
 				
-				obs_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
-				obstacle_cog = obs_pos
+				# Get predicted position for this stage if available
+				# For dynamic obstacles with predictions, use predicted position at this stage
+				obstacle_cog = None
+				obst_psi = None
+				
+				if hasattr(obstacle, 'prediction') and hasattr(obstacle.prediction, 'steps'):
+					pred_steps = obstacle.prediction.steps
+					if pred_steps and stage_idx < len(pred_steps):
+						pred_step = pred_steps[stage_idx]
+						if hasattr(pred_step, 'position') and pred_step.position is not None:
+							# Use predicted position for this stage
+							obstacle_cog = cd.vertcat(
+								cd.DM(float(pred_step.position[0])),
+								cd.DM(float(pred_step.position[1]))
+							)
+							# Get predicted angle if available
+							obst_psi = float(getattr(pred_step, 'angle', getattr(pred_step, 'orientation', getattr(obstacle, 'angle', 0.0))))
+				
+				# Fallback to current obstacle position if no prediction available
+				if obstacle_cog is None:
+					obs_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+					obstacle_cog = cd.vertcat(cd.DM(obs_pos[0]), cd.DM(obs_pos[1]))
+					obst_psi = float(getattr(obstacle, 'angle', 0.0))
 				
 				# Get obstacle shape parameters (default to circular if not available)
-				obst_psi = float(getattr(obstacle, 'angle', 0.0))
+				if obst_psi is None:
+					obst_psi = float(getattr(obstacle, 'angle', 0.0))
 				obst_major = float(getattr(obstacle, 'major_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
 				obst_minor = float(getattr(obstacle, 'minor_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
 				obst_r = float(getattr(obstacle, 'radius', 0.35))
@@ -139,7 +161,8 @@ class EllipsoidConstraints(BaseConstraint):
 				obstacle_ellipse_matrix = obstacle_rotation.T @ ab @ obstacle_rotation
 				
 				# Compute constraint: (p - c)^T * Q * (p - c) >= 1.0
-				disc_to_obstacle = disc_pos_sym - cd.vertcat(obstacle_cog[0], obstacle_cog[1])
+				# obstacle_cog is already a CasADi vector
+				disc_to_obstacle = disc_pos_sym - obstacle_cog
 				constraint_value = disc_to_obstacle.T @ obstacle_ellipse_matrix @ disc_to_obstacle
 				
 				# Constraint: constraint_value >= 1.0, i.e., 1.0 - constraint_value <= 0
@@ -185,6 +208,7 @@ class EllipsoidConstraints(BaseConstraint):
 				"""
 				Visualize ellipsoid constraints as ellipses around obstacles.
 				Plots ellipses directly on the current matplotlib axes.
+				Uses predicted obstacle positions for each stage of the horizon.
 				"""
 				try:
 					import matplotlib.pyplot as plt
@@ -213,10 +237,28 @@ class EllipsoidConstraints(BaseConstraint):
 					if not hasattr(obstacle, 'position'):
 						continue
 					
-					obs_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+					# Get predicted position for this stage if available
+					# For dynamic obstacles with predictions, use the predicted position at this stage
+					obs_pos = None
+					obst_psi = None
+					
+					if hasattr(obstacle, 'prediction') and hasattr(obstacle.prediction, 'steps'):
+						pred_steps = obstacle.prediction.steps
+						if pred_steps and stage_idx < len(pred_steps):
+							pred_step = pred_steps[stage_idx]
+							if hasattr(pred_step, 'position') and pred_step.position is not None:
+								obs_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+								# Get predicted angle if available
+								obst_psi = float(getattr(pred_step, 'angle', getattr(pred_step, 'orientation', getattr(obstacle, 'angle', 0.0))))
+					
+					# Fallback to current obstacle position if no prediction available
+					if obs_pos is None:
+						obs_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+						obst_psi = float(getattr(obstacle, 'angle', 0.0))
 					
 					# Get obstacle shape parameters
-					obst_psi = float(getattr(obstacle, 'angle', 0.0))
+					if obst_psi is None:
+						obst_psi = float(getattr(obstacle, 'angle', 0.0))
 					obst_major = float(getattr(obstacle, 'major_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
 					obst_minor = float(getattr(obstacle, 'minor_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
 					obst_r = float(getattr(obstacle, 'radius', 0.35))

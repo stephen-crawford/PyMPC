@@ -557,7 +557,22 @@ class Planner:
     self.data.reset()
 
   def is_objective_reached(self, data):
-    return all(module.is_objective_reached(self.state, data) for module in self.solver.module_manager.modules if module.module_type == OBJECTIVE)
+    # Only check modules that have is_objective_reached method (e.g., GoalObjective, ContouringObjective)
+    # Other objectives like ControlEffortObjective don't have this method
+    objective_modules = [module for module in self.solver.module_manager.modules if module.module_type == OBJECTIVE]
+    reached_results = []
+    for module in objective_modules:
+      if hasattr(module, 'is_objective_reached'):
+        try:
+          reached = module.is_objective_reached(self.state, data)
+          reached_results.append(reached)
+        except Exception as e:
+          LOG_DEBUG(f"Error checking objective reached for {module.name}: {e}")
+          # If a module can't check, don't block goal reaching
+          continue
+    # Goal is reached if at least one objective module says it's reached
+    # (typically only GoalObjective or ContouringObjective will have this method)
+    return any(reached_results) if reached_results else False
 
   def visualize(self, stage_idx=1):
     LOG_DEBUG("Planner::visualize")

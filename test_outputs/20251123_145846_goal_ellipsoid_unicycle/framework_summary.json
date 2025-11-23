@@ -1,0 +1,10 @@
+{
+  "objective_module": "goal",
+  "constraint_modules": [
+    "ellipsoid"
+  ],
+  "vehicle_dynamics": "unicycle",
+  "horizon": 10,
+  "timestep": 0.1,
+  "solver": "casadi"
+}

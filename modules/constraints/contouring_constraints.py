@@ -557,26 +557,6 @@ class ContouringConstraints(BaseConstraint):
 		# -A·path_point = -path_dy_norm * path_x + path_dx_norm * path_y
 		b_left_sym = -path_point_dot_A + width_left - w_cur_estimate
 		
-		# Create constraints symbolically
-		# Right boundary: A·[x, y] <= b_right
-		# Left boundary: -A·[x, y] <= b_left
-		constraint_right_expr = path_dy_norm_sym * pos_x_sym - path_dx_norm_sym * pos_y_sym - b_right_sym
-		constraint_left_expr = -path_dy_norm_sym * pos_x_sym + path_dx_norm_sym * pos_y_sym - b_left_sym
-		
-		# Return constraints as CasADi expressions (solver will handle them)
-		# For now, we need to return them in the dict format the solver expects
-		# Extract numeric values for a1, a2, b from the symbolic expressions
-		# Actually, we can't extract numeric values from symbolic - we need to return symbolic expressions
-		# But the solver expects dict format with a1, a2, b...
-		
-		# CRITICAL: Return symbolic constraint expressions directly
-		# The solver's _translate_constraint can handle CasADi expressions directly
-		# This matches the reference codebase where constraints are symbolic
-		
-		# Get vehicle position symbolically (already checked above)
-		pos_x_sym = state.get('x')
-		pos_y_sym = state.get('y')
-		
 		# Get orientation for disc offset if needed
 		psi_sym = state.get('psi')
 		
