@@ -291,6 +291,9 @@ class CasADiSolver(BaseSolver):
 				# Update current state in warmstart (stage 0 should match current state)
 				# CRITICAL: This ensures the warmstart reflects the vehicle's actual current state
 				self._update_warmstart_current_state(state)
+				# CRITICAL: After shifting, ensure dynamics consistency is maintained
+				# The shifted warmstart might have inconsistent psi values
+				self._ensure_warmstart_dynamics_consistency()
 			else:
 				# First initialization or no previous solution - create new warmstart
 				LOG_DEBUG("First initialization: creating new warmstart trajectory")
@@ -298,6 +301,10 @@ class CasADiSolver(BaseSolver):
 		else:
 			# Initialize base warmstart which creates path-following trajectory
 			self._initialize_base_warmstart(state)
+		
+		# CRITICAL: Always ensure dynamics consistency after warmstart initialization
+		# This catches any cases where psi and w are inconsistent
+		self._ensure_warmstart_dynamics_consistency()
 		
 		# Set initial values in CasADi opti problem
 		self._set_opti_initial_values()
@@ -440,6 +447,30 @@ class CasADiSolver(BaseSolver):
 			psi_profile[0] = current_psi
 			v_profile[0] = np.clip(current_vel, v_lb, v_ub)
 			
+			# CRITICAL: For goal objectives, pre-initialize w values to turn toward goal
+			# This ensures the warmstart reflects the required turning even if path-following doesn't require it
+			goal_w_initialized = False
+			if hasattr(self.data, 'goal') and self.data.goal is not None:
+				try:
+					goal_x = float(self.data.goal[0])
+					goal_y = float(self.data.goal[1])
+					goal_heading = np.arctan2(goal_y - current_y, goal_x - current_x)
+					goal_psi_error = _wrap_angle(goal_heading - current_psi)
+					
+					# If vehicle needs to turn significantly toward goal, initialize w to turn
+					if abs(goal_psi_error) > 0.1:  # More than ~6 degrees
+						# Initialize first few w values to turn toward goal
+						w_goal_init = np.clip(goal_psi_error * 0.8, w_lb, w_ub)  # Stronger turning toward goal
+						# Apply to first 3 steps to ensure initial turn
+						for k_init in range(min(3, horizon_val)):
+							w_profile[k_init] = w_goal_init * (1.0 - k_init * 0.2)  # Gradually reduce
+						goal_w_initialized = True
+						LOG_INFO(f"  Goal objective: Pre-initialized w warmstart to turn toward goal: "
+						         f"w[0]={w_profile[0]:.4f}, w[1]={w_profile[1]:.4f}, w[2]={w_profile[2]:.4f} rad/s "
+						         f"(goal_psi_error={goal_psi_error:.3f} rad, goal_heading={goal_heading:.3f} rad)")
+				except Exception as e:
+					LOG_DEBUG(f"  Could not pre-initialize goal-directed w warmstart: {e}")
+			
 			# === Iteratively roll out dynamics =====================================
 			for k in range(1, horizon_val + 1):
 				s_prev = spline_profile[k - 1]
@@ -461,12 +492,27 @@ class CasADiSolver(BaseSolver):
 				w_ff = v_profile[k - 1] * curvature
 				w_fb = heading_gain * psi_error - cross_track_gain * cross_track_err
 				w_cmd = np.clip(w_ff + w_fb, w_lb, w_ub)
-				w_profile[k - 1] = w_cmd
+				
+				# For goal objectives, blend path-following w with goal-directed w for first few steps
+				# This ensures we turn toward goal even if path doesn't require much turning
+				if goal_w_initialized and k <= 3:
+					# Blend: 70% goal-directed, 30% path-following for first step, then gradually shift
+					blend_factor = 0.7 * (1.0 - (k - 1) * 0.2)  # 0.7, 0.56, 0.42 for k=1,2,3
+					w_profile[k - 1] = np.clip(
+						w_profile[k - 1] * blend_factor + w_cmd * (1.0 - blend_factor),
+						w_lb, w_ub
+					)
+					LOG_DEBUG(f"  k={k}: Blended w: goal={w_profile[k-1]:.4f} (blend={blend_factor:.2f}) + path={w_cmd:.4f} = {w_profile[k-1]:.4f}")
+				else:
+					w_profile[k - 1] = w_cmd
 				
 				a_cmd = np.clip(speed_gain * (target_speed - v_profile[k - 1]), a_lb, a_ub)
 				a_profile[k - 1] = a_cmd
 				
-				psi_next = _wrap_angle(psi_profile[k - 1] + w_cmd * timestep_val)
+				# CRITICAL: Use w_profile[k-1] (which may have been set for goal-directed turning)
+				# instead of w_cmd, to ensure dynamics consistency
+				w_to_use = w_profile[k - 1]  # Use the value we set (may include goal-directed turning)
+				psi_next = _wrap_angle(psi_profile[k - 1] + w_to_use * timestep_val)
 				v_next = np.clip(v_profile[k - 1] + a_cmd * timestep_val, v_lb, v_ub)
 				ds = v_profile[k - 1] * timestep_val - lag_gain * lag_err
 				ds = max(ds, 0.0)
@@ -502,6 +548,60 @@ class CasADiSolver(BaseSolver):
 			self.warmstart_values['spline'] = spline_profile
 			self.warmstart_values['a'] = a_profile
 			self.warmstart_values['w'] = w_profile
+			
+			# CRITICAL: Verify and enforce dynamics consistency for reference path branch
+			# Even though psi is integrated from w in the loop, verify it's correct and fix if needed
+			psi_consistent = True
+			for k in range(1, min(len(psi_profile), horizon_val + 1)):
+				psi_pred = _wrap_angle(psi_profile[k - 1] + w_profile[k - 1] * timestep_val)
+				psi_actual = psi_profile[k]
+				diff = abs(_wrap_angle(psi_actual - psi_pred))
+				if diff > 1e-6:
+					psi_consistent = False
+					LOG_WARN(f"  ⚠️  Reference path warmstart dynamics inconsistency at k={k}: "
+					         f"psi[{k}]={psi_actual:.6f}, predicted={psi_pred:.6f}, diff={diff:.6f}, w[{k-1}]={w_profile[k-1]:.6f}")
+					# Fix it by recomputing psi from w
+					psi_profile[k] = psi_pred
+			
+			if not psi_consistent:
+				LOG_INFO(f"  Fixed reference path warmstart dynamics inconsistencies")
+				# Recompute x, y positions using corrected psi_profile
+				x_pos[0] = current_x
+				y_pos[0] = current_y
+				for k in range(1, horizon_val + 1):
+					x_pos[k] = x_pos[k - 1] + v_profile[k - 1] * np.cos(psi_profile[k - 1]) * timestep_val
+					y_pos[k] = y_pos[k - 1] + v_profile[k - 1] * np.sin(psi_profile[k - 1]) * timestep_val
+				self.warmstart_values['x'] = x_pos
+				self.warmstart_values['y'] = y_pos
+				self.warmstart_values['psi'] = psi_profile
+			
+			# Log warmstart values for debugging
+			if len(psi_profile) >= 4 and len(w_profile) >= 3:
+				LOG_INFO(f"  Reference path warmstart: psi=[{psi_profile[0]:.3f}, {psi_profile[1]:.3f}, {psi_profile[2]:.3f}, {psi_profile[3]:.3f}], "
+				         f"w=[{w_profile[0]:.3f}, {w_profile[1]:.3f}, {w_profile[2]:.3f}]")
+				# Verify dynamics consistency
+				for k in range(1, min(4, len(psi_profile))):
+					psi_pred_check = _wrap_angle(psi_profile[k - 1] + w_profile[k - 1] * timestep_val)
+					psi_actual_check = psi_profile[k]
+					diff_check = abs(_wrap_angle(psi_actual_check - psi_pred_check))
+					if diff_check > 1e-6:
+						LOG_WARN(f"    ⚠️  Still inconsistent at k={k}: psi[{k}]={psi_actual_check:.6f}, predicted={psi_pred_check:.6f}, diff={diff_check:.6f}")
+					else:
+						LOG_DEBUG(f"    ✓ Dynamics consistent at k={k}: psi[{k}]={psi_actual_check:.6f} = psi[{k-1}] + w[{k-1}]*dt")
+			
+			# Log warmstart values for debugging
+			if len(psi_profile) >= 4 and len(w_profile) >= 3:
+				LOG_INFO(f"  Reference path warmstart: psi=[{psi_profile[0]:.3f}, {psi_profile[1]:.3f}, {psi_profile[2]:.3f}, {psi_profile[3]:.3f}], "
+				         f"w=[{w_profile[0]:.3f}, {w_profile[1]:.3f}, {w_profile[2]:.3f}]")
+				# Verify dynamics consistency
+				for k in range(1, min(4, len(psi_profile))):
+					psi_pred_check = _wrap_angle(psi_profile[k - 1] + w_profile[k - 1] * timestep_val)
+					psi_actual_check = psi_profile[k]
+					diff_check = abs(_wrap_angle(psi_actual_check - psi_pred_check))
+					if diff_check > 1e-6:
+						LOG_WARN(f"    ⚠️  Still inconsistent at k={k}: psi[{k}]={psi_actual_check:.6f}, predicted={psi_pred_check:.6f}, diff={diff_check:.6f}")
+					else:
+						LOG_DEBUG(f"    ✓ Dynamics consistent at k={k}: psi[{k}]={psi_actual_check:.6f} = psi[{k-1}] + w[{k-1}]*dt")
 			
 			LOG_DEBUG(
 				f"  Warmstart initialized (path-aligned): "
@@ -584,10 +684,54 @@ class CasADiSolver(BaseSolver):
 					# Use a reasonable turning rate (e.g., 0.5 rad/s max)
 					w_init = np.clip(-angle_error * 0.5, -0.5, 0.5)  # Proportional control, capped at 0.5 rad/s
 					self.warmstart_values[var_name][:] = w_init
-					LOG_DEBUG(f"Goal objective: Initializing w warmstart to {w_init:.4f} rad/s (angle_error={angle_error:.3f} rad)")
+					LOG_INFO(f"Goal objective: Initializing w warmstart to {w_init:.4f} rad/s (angle_error={angle_error:.3f} rad) for all {horizon_val} steps")
+				# Log first few w values to verify
+				if len(self.warmstart_values[var_name]) >= 3:
+					LOG_INFO(f"  w warmstart values: [{self.warmstart_values[var_name][0]:.4f}, {self.warmstart_values[var_name][1]:.4f}, {self.warmstart_values[var_name][2]:.4f}, ...]")
 				else:
 					# Use small non-zero values for better convergence
 					self.warmstart_values[var_name][:] = 0.01
+		
+		# CRITICAL FIX: Ensure dynamics consistency for fallback branch (no reference path)
+		# If psi_profile was initialized as constant but w_profile is non-zero, integrate psi using dynamics
+		# This ensures psi[k+1] = psi[k] + w[k] * dt (unicycle dynamics: dpsi/dt = w)
+		if not has_reference_path and 'psi' in self.warmstart_values and 'w' in self.warmstart_values:
+			psi_profile = self.warmstart_values['psi']
+			w_profile = self.warmstart_values['w']
+			# Check if psi_profile is constant (all values are the same)
+			if len(psi_profile) > 1 and np.allclose(psi_profile, psi_profile[0]):
+				# Integrate psi using dynamics: psi[k+1] = psi[k] + w[k] * dt
+				def _wrap_angle(angle_val):
+					return (angle_val + np.pi) % (2 * np.pi) - np.pi
+				
+				for k in range(1, horizon_val + 1):
+					psi_profile[k] = _wrap_angle(psi_profile[k - 1] + w_profile[k - 1] * timestep_val)
+				
+				# Recompute x_pos and y_pos using updated psi_profile
+				if 'x' in self.warmstart_values and 'y' in self.warmstart_values and 'v' in self.warmstart_values:
+					x_pos = self.warmstart_values['x']
+					y_pos = self.warmstart_values['y']
+					v_profile = self.warmstart_values['v']
+					x_pos[0] = current_x
+					y_pos[0] = current_y
+					for k in range(1, horizon_val + 1):
+						x_pos[k] = x_pos[k - 1] + v_profile[k - 1] * np.cos(psi_profile[k - 1]) * timestep_val
+						y_pos[k] = y_pos[k - 1] + v_profile[k - 1] * np.sin(psi_profile[k - 1]) * timestep_val
+					self.warmstart_values['x'] = x_pos
+					self.warmstart_values['y'] = y_pos
+				
+				LOG_INFO(f"Fixed dynamics consistency: Integrated psi_profile using w_profile")
+				LOG_INFO(f"  psi warmstart: [{psi_profile[0]:.3f}, {psi_profile[1]:.3f}, {psi_profile[2]:.3f}, {psi_profile[3]:.3f}, ...]")
+				LOG_INFO(f"  w warmstart: [{w_profile[0]:.3f}, {w_profile[1]:.3f}, {w_profile[2]:.3f}, ...]")
+				# Verify dynamics consistency
+				for k in range(1, min(4, len(psi_profile))):
+					psi_pred = psi_profile[k - 1] + w_profile[k - 1] * timestep_val
+					psi_actual = psi_profile[k]
+					diff = abs(psi_actual - psi_pred)
+					if diff > 1e-6:
+						LOG_WARN(f"  ⚠️  Dynamics inconsistency at k={k}: psi[{k}]={psi_actual:.6f}, predicted={psi_pred:.6f}, diff={diff:.6f}")
+					else:
+						LOG_DEBUG(f"  ✓ Dynamics consistent at k={k}: psi[{k}]={psi_actual:.6f} = psi[{k-1}] + w[{k-1}]*dt")
 
 	def _shift_warmstart_forward(self):
 		"""Shift warmstart solution forward by one step (reference: mpc_planner solution shifting).
@@ -642,6 +786,57 @@ class CasADiSolver(BaseSolver):
 						self.warmstart_values[var_name][:-1] = self.warmstart_values[var_name][1:]
 						self.warmstart_values[var_name][-1] = self.warmstart_values[var_name][-2]
 					LOG_DEBUG(f"  Shifted {var_name}: new range = [{self.warmstart_values[var_name][0]:.3f}, ..., {self.warmstart_values[var_name][-1]:.3f}]")
+	
+	def _ensure_warmstart_dynamics_consistency(self):
+		"""Ensure warmstart values satisfy dynamics constraints (psi[k+1] = psi[k] + w[k]*dt)."""
+		if not hasattr(self, 'warmstart_values') or not self.warmstart_values:
+			return
+		
+		if 'psi' not in self.warmstart_values or 'w' not in self.warmstart_values:
+			return
+		
+		psi_profile = self.warmstart_values['psi']
+		w_profile = self.warmstart_values['w']
+		
+		if len(psi_profile) < 2 or len(w_profile) < 1:
+			return
+		
+		horizon_val = self.horizon if self.horizon is not None else 10
+		timestep_val = self.timestep if self.timestep is not None else 0.1
+		
+		def _wrap_angle(angle_val):
+			return (angle_val + np.pi) % (2 * np.pi) - np.pi
+		
+		# Check and fix dynamics consistency
+		psi_fixed = False
+		for k in range(1, min(len(psi_profile), horizon_val + 1)):
+			if k - 1 < len(w_profile):
+				psi_pred = _wrap_angle(psi_profile[k - 1] + w_profile[k - 1] * timestep_val)
+				psi_actual = psi_profile[k]
+				diff = abs(_wrap_angle(psi_actual - psi_pred))
+				if diff > 1e-6:
+					psi_fixed = True
+					psi_profile[k] = psi_pred
+		
+		if psi_fixed:
+			LOG_INFO("Fixed warmstart dynamics consistency after initialization/shifting")
+			# Recompute x, y positions using corrected psi_profile
+			if 'x' in self.warmstart_values and 'y' in self.warmstart_values and 'v' in self.warmstart_values:
+				x_pos = self.warmstart_values['x']
+				y_pos = self.warmstart_values['y']
+				v_profile = self.warmstart_values['v']
+				if len(x_pos) > 0 and len(y_pos) > 0:
+					current_x = x_pos[0]
+					current_y = y_pos[0]
+					x_pos[0] = current_x
+					y_pos[0] = current_y
+					for k in range(1, min(len(psi_profile), horizon_val + 1)):
+						if k < len(x_pos) and k < len(y_pos) and k - 1 < len(v_profile) and k - 1 < len(psi_profile):
+							x_pos[k] = x_pos[k - 1] + v_profile[k - 1] * np.cos(psi_profile[k - 1]) * timestep_val
+							y_pos[k] = y_pos[k - 1] + v_profile[k - 1] * np.sin(psi_profile[k - 1]) * timestep_val
+					self.warmstart_values['x'] = x_pos
+					self.warmstart_values['y'] = y_pos
+					self.warmstart_values['psi'] = psi_profile
 	
 	def _update_warmstart_current_state(self, state: State):
 		"""Update stage 0 of warmstart to match current vehicle state.
@@ -842,6 +1037,7 @@ class CasADiSolver(BaseSolver):
 		
 		total_objective = 0
 		total_constraints_added = 0
+		constraints_per_stage = {}  # Track constraints per stage for summary
 		
 		# Ensure horizon is set
 		horizon_val = self.horizon if self.horizon is not None else 10
@@ -1133,7 +1329,8 @@ class CasADiSolver(BaseSolver):
 			# All states are computed via RK4 integration or model_discrete_dynamics.
 			LOG_DEBUG(f"[CONSTRAINTS] Stage {stage_idx}: Getting constraints from module_manager")
 			constraints = self.get_constraints(stage_idx, symbolic_state=symbolic_state)
-			LOG_DEBUG(f"[CONSTRAINTS] Stage {stage_idx}: Received {len(constraints or [])} constraint(s)")
+			constraints_count_before = total_constraints_added
+			LOG_INFO(f"[CONSTRAINTS] Stage {stage_idx}: Received {len(constraints or [])} constraint(s) from modules (total constraints before: {constraints_count_before})")
 			# Log constraints BEFORE processing with detailed breakdown
 			LOG_INFO(f"=== Solver.solve(): Stage {stage_idx} - Constraints being passed to solver ===")
 			try:
@@ -1156,10 +1353,13 @@ class CasADiSolver(BaseSolver):
 					if isinstance(c, dict):
 						# Check for symbolic expression type
 						if c.get('type') == 'symbolic_expression':
-							# Distinguish between linearized and contouring constraints
+							# Distinguish between linearized, safe_horizon, and contouring constraints
 							if c.get('constraint_type') == 'linearized':
 								linearized_count += 1
 								ctype = 'linearized'
+							elif c.get('constraint_type') == 'safe_horizon':
+								other_count += 1
+								ctype = 'safe_horizon'
 							else:
 								contouring_count += 1
 								ctype = 'contouring'
@@ -1279,6 +1479,15 @@ class CasADiSolver(BaseSolver):
 						if cdef.get('type') == 'symbolic_expression' and 'expression' in cdef:
 							# Return the symbolic expression directly
 							return cdef['expression']
+						# Check if this is a linear_halfspace constraint with expression (e.g., from safe horizon)
+						if cdef.get('type') == 'linear_halfspace' and 'expression' in cdef:
+							# Return the symbolic expression directly
+							expr = cdef['expression']
+							if isinstance(expr, (cd.MX, cd.SX)):
+								return expr
+							else:
+								LOG_WARN(f"linear_halfspace constraint has non-symbolic expression: {type(expr)}")
+								return None
 						# Support common linearized halfspace: a1*x + a2*y <= b
 						if ('a1' in cdef and 'a2' in cdef) or cdef.get('type') == 'linear':
 							a1 = _to_mx(cdef.get('a1', 0.0))
@@ -1399,8 +1608,15 @@ class CasADiSolver(BaseSolver):
 						total_constraints_added += 1
 					except Exception as e:
 						LOG_WARN(f"Failed to add constraint at stage {stage_idx}: {e}")
+						import traceback
+						LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
 
-				# All costs should come from objective modules via BaseSolver.get_objective_cost
+			# Log constraints added for this stage
+			constraints_added_this_stage = total_constraints_added - constraints_count_before
+			constraints_per_stage[stage_idx] = constraints_added_this_stage
+			LOG_INFO(f"[CONSTRAINTS] Stage {stage_idx}: Added {constraints_added_this_stage} constraint(s) (total now: {total_constraints_added})")
+
+		# All costs should come from objective modules via BaseSolver.get_objective_cost
 
 		self.opti.minimize(total_objective)
 		
@@ -1409,11 +1625,42 @@ class CasADiSolver(BaseSolver):
 		LOG_INFO(f"  Horizon: {horizon_val} steps")
 		LOG_INFO(f"  Total constraints: {total_constraints_added}")
 		
-		# Count variables
-		num_state_vars = sum(1 for v in dynamics_model.get_dependent_vars() if v in self.var_dict)
-		num_input_vars = sum(1 for v in dynamics_model.get_inputs() if v in self.var_dict)
+		# Log constraints per stage summary
+		LOG_INFO(f"  Constraints per stage:")
+		for stage_idx in sorted(constraints_per_stage.keys()):
+			LOG_INFO(f"    Stage {stage_idx}: {constraints_per_stage[stage_idx]} constraint(s)")
+		
+		# Count variables (needed for expected constraint calculation)
+		dynamics_model = self._get_dynamics_model()
+		num_state_vars = len(dynamics_model.get_dependent_vars()) if dynamics_model else 5
+		num_input_vars = len(dynamics_model.get_inputs()) if dynamics_model else 2
 		total_state_vars = num_state_vars * (horizon_val + 1)
 		total_input_vars = num_input_vars * horizon_val
+		
+		# Count variables (needed for expected constraint calculation)
+		dynamics_model = self._get_dynamics_model()
+		num_state_vars = len(dynamics_model.get_dependent_vars()) if dynamics_model else 5
+		num_input_vars = len(dynamics_model.get_inputs()) if dynamics_model else 2
+		total_state_vars = num_state_vars * (horizon_val + 1)
+		total_input_vars = num_input_vars * horizon_val
+		
+		# Calculate expected constraint counts
+		expected_dynamics = num_state_vars * horizon_val
+		expected_initial_state = num_state_vars
+		expected_module = total_constraints_added - expected_dynamics - expected_initial_state
+		
+		LOG_INFO(f"  Expected constraints breakdown:")
+		LOG_INFO(f"    - Dynamics constraints: {num_state_vars} states × {horizon_val} transitions = {expected_dynamics}")
+		LOG_INFO(f"    - Initial state constraints: {num_state_vars} = {expected_initial_state}")
+		LOG_INFO(f"    - Module constraints: {expected_module}")
+		
+		# Verify constraint counts match expectations
+		if expected_module < 0:
+			LOG_WARN(f"  ⚠️  WARNING: Module constraint count is negative! This suggests constraint counting error.")
+		elif expected_module == 0:
+			LOG_WARN(f"  ⚠️  WARNING: No module constraints added! This may indicate a problem.")
+		else:
+			LOG_INFO(f"  ✓ Module constraints count looks reasonable: {expected_module}")
 		LOG_INFO(f"  Variables: {num_state_vars} state types × {horizon_val + 1} = {total_state_vars} state vars, "
 		         f"{num_input_vars} input types × {horizon_val} = {total_input_vars} input vars")
 		
@@ -1577,19 +1824,47 @@ class CasADiSolver(BaseSolver):
 					# Check constraint violations
 					try:
 						# Get constraint values
-						LOG_DEBUG("Checking constraint violations...")
+						LOG_WARN("=== CHECKING CONSTRAINT VIOLATIONS ===")
+						LOG_WARN("Attempting to get constraint values from CasADi debug...")
 						# Try to get constraint info if available
 						if hasattr(self.opti, 'debug') and hasattr(self.opti.debug, 'g'):
 							constraint_violations = self.opti.debug.value(self.opti.debug.g)
 							if constraint_violations is not None:
+								LOG_WARN(f"Successfully retrieved {len(constraint_violations)} constraint values from debug.g")
 								# CRITICAL: Constraint violations array includes ALL constraints in order:
-								# 1. Variable bounds (from opti.bounded() when creating variables)
-								# 2. Initial state constraints (from _set_initial_state)
-								# 3. Dynamics constraints (from intialize_solver)
-								# 4. Module constraints (from solve loop)
+								# 1. Initial state constraints (from _set_initial_state - 5 constraints)
+								# 2. Dynamics constraints (from intialize_solver - 5 states × horizon = 50)
+								# 3. Module constraints (from solve loop - varies per stage)
+								# NOTE: Variable bounds from opti.bounded() are NOT in debug.g - they're handled separately
 								# The debug.g values are at the CURRENT point (likely infeasible initial values if solve failed)
-								LOG_DEBUG(f"  Constraint violations array length: {len(constraint_violations)}")
-								LOG_DEBUG(f"  Note: These values are at the current point (may be infeasible initial values)")
+								LOG_WARN(f"  Constraint violations array length: {len(constraint_violations)}")
+								LOG_WARN(f"  Constraint order: initial_state (5) -> dynamics (50) -> module (varies)")
+								LOG_WARN(f"  Note: These values are at the current point (may be infeasible initial values)")
+								
+								# Log first few constraint values for debugging
+								# CRITICAL: Order is dynamics -> initial_state -> module
+								num_state_vars_log = len(dynamics_model.get_dependent_vars()) if dynamics_model else 5
+								num_dynamics_log = num_state_vars_log * horizon_val
+								num_initial_state_log = num_state_vars_log
+								
+								LOG_WARN(f"  First 20 constraint values (order: dynamics -> initial_state -> module):")
+								for i in range(min(20, len(constraint_violations))):
+									val = float(constraint_violations[i])
+									# Try to identify what each constraint is (order: dynamics -> initial_state -> module)
+									if i < num_dynamics_log:
+										dyn_idx = i
+										trans_idx = dyn_idx // num_state_vars_log
+										state_idx = dyn_idx % num_state_vars_log
+										state_vars = dynamics_model.get_dependent_vars() if dynamics_model else ['x', 'y', 'psi', 'v', 'spline']
+										var_name = state_vars[state_idx] if state_idx < len(state_vars) else f"state_{state_idx}"
+										LOG_WARN(f"    Constraint {i}: {val:.6f} [Dynamics: {var_name} at transition {trans_idx}->{trans_idx+1}]")
+									elif i < num_dynamics_log + num_initial_state_log:
+										initial_idx = i - num_dynamics_log
+										state_vars = dynamics_model.get_dependent_vars() if dynamics_model else ['x', 'y', 'psi', 'v', 'spline']
+										var_name = state_vars[initial_idx] if initial_idx < len(state_vars) else f"state_{initial_idx}"
+										LOG_WARN(f"    Constraint {i}: {val:.6f} [Initial state: {var_name}[0]]")
+									else:
+										LOG_WARN(f"    Constraint {i}: {val:.6f} [Module constraint]")
 								# For constraints expr <= 0, violation means expr > 0
 								# For constraints lb <= expr <= ub, violation means expr < lb or expr > ub
 								# The debug.g values are the constraint expressions themselves
@@ -1643,160 +1918,209 @@ class CasADiSolver(BaseSolver):
 										# Find the index of the maximum positive violation in the original array
 										positive_indices = np.where(constraint_violations_arr > 1e-6)[0]
 										max_idx_pos = positive_indices[np.argmax(positive_violations)]
-										LOG_WARN(f"  Found {len(positive_violations)} constraint(s) with positive values (violations)")
-										LOG_WARN(f"  Maximum positive violation: {max_violation_pos:.6f} at constraint index {max_idx_pos}")
-										LOG_WARN(f"    This is an ACTUAL constraint violation (constraint value > 0)")
+										LOG_WARN(f"  ⚠️  Found {len(positive_violations)} constraint(s) with positive values (VIOLATIONS)")
+										LOG_WARN(f"  ⚠️  Maximum positive violation: {max_violation_pos:.6f} at constraint index {max_idx_pos}")
+										LOG_WARN(f"  ⚠️  This is an ACTUAL constraint violation (constraint value > 0)")
+										
+										# Log all positive violations (up to 10)
+										LOG_WARN(f"  All positive violations (showing first 10):")
+										for idx in positive_indices[:10]:
+											val = float(constraint_violations_arr[idx])
+											LOG_WARN(f"    Constraint {idx}: {val:.6f}")
 										# Try to identify this constraint
 										try:
 											actual_val_pos = float(constraint_violations[max_idx_pos])
 											LOG_WARN(f"    Constraint {max_idx_pos} value: {actual_val_pos:.6f}")
-											# Identify constraint type
-											# CRITICAL: Constraint order in CasADi debug.g is:
-											# 1. Variable bounds (from opti.bounded() - 2 per variable: lb and ub)
-											# 2. Initial state constraints (from _set_initial_state - 5 constraints)
-											# 3. Dynamics constraints (from intialize_solver - 5 states × horizon = 50)
-											# 4. Module constraints (from solve loop - 2 per stage × (horizon+1) = 22)
-											# So the actual indexing is:
-											# - Bounds: indices 0 to (num_vars * 2 - 1)
-											# - Initial state: indices after bounds
-											# - Dynamics: indices after initial state
-											# - Module: indices after dynamics
+										except Exception as e:
+											LOG_DEBUG(f"    Could not get constraint value: {e}")
+									
+										# Identify which type of constraint this is
+									# CRITICAL: CasADi constraint order in debug.g matches the order constraints are added:
+									# 1. Dynamics constraints (from intialize_solver - added FIRST, 5 states × horizon = 50)
+									# 2. Initial state constraints (from _set_initial_state - added SECOND, 5 constraints)
+									# 3. Module constraints (from solve loop - added LAST, varies per stage)
+									# 
+									# NOTE: opti.bounded() constraints are NOT included in debug.g - they're handled as variable bounds
+									# So debug.g starts with dynamics constraints at index 0
+									num_state_vars = len(dynamics_model.get_dependent_vars()) if dynamics_model else 5
+									num_input_vars = len(dynamics_model.get_inputs()) if dynamics_model else 2
+									num_dynamics = num_state_vars * horizon_val  # Dynamics constraints for each transition (5 × 10 = 50)
+									num_initial_state = num_state_vars  # One constraint per state variable (x[0], y[0], psi[0], v[0], spline[0])
+									
+									LOG_WARN(f"    Constraint indexing: dynamics={num_dynamics}, initial_state={num_initial_state}, "
+									         f"module constraints vary per stage")
+									LOG_WARN(f"    Violated constraint index: {max_idx_pos}")
+									LOG_WARN(f"    Determining constraint type...")
+									
+									# Constraint indexing: debug.g starts with dynamics constraints (added first in intialize_solver)
+									if max_idx_pos < num_dynamics:
+										dynamics_idx = max_idx_pos
+										transition_idx = dynamics_idx // num_state_vars
+										state_idx_in_transition = dynamics_idx % num_state_vars
+										state_vars = dynamics_model.get_dependent_vars() if dynamics_model else ['x', 'y', 'psi', 'v', 'spline']
+										var_name = state_vars[state_idx_in_transition] if state_idx_in_transition < len(state_vars) else f"state_{state_idx_in_transition}"
+										LOG_WARN(f"    ⚠️  Constraint type: Dynamics constraint for {var_name} at transition {transition_idx}->{transition_idx+1} (index {max_idx_pos})")
+										LOG_WARN(f"    ⚠️  This constraint enforces: {var_name}[{transition_idx+1}] == RK4({var_name}[{transition_idx}], u[{transition_idx}], dt)")
+										LOG_WARN(f"    ⚠️  Constraint value from debug.g: {constraint_violations[max_idx_pos]:.6f}")
+										LOG_WARN(f"    ⚠️  This is a LARGE violation - warmstart values likely don't satisfy dynamics!")
+										
+										# Check warmstart values for this transition
+										try:
+											dt_check = self.timestep if self.timestep is not None else 0.1
+											LOG_WARN(f"      Checking warmstart for {var_name} at transition {transition_idx}->{transition_idx+1} (dt={dt_check})")
 											
-											# Count variable bounds first
-											dynamics_model = self._get_dynamics_model()
-											num_state_vars = len(dynamics_model.get_dependent_vars()) if dynamics_model else 5
-											num_input_vars = len(dynamics_model.get_inputs()) if dynamics_model else 2
-											num_bounds = (num_state_vars * (horizon_val + 1) + num_input_vars * horizon_val) * 2  # 2 per variable (lb, ub)
-											num_initial = num_state_vars  # 5
-											num_dynamics = num_state_vars * horizon_val  # 50
-											num_module = 2 * (horizon_val + 1)  # 22
-											
-											LOG_WARN(f"    Constraint indexing: bounds={num_bounds}, initial={num_initial}, dynamics={num_dynamics}, module={num_module}")
-											
-											if max_idx_pos < num_bounds:
-												bound_idx = max_idx_pos
-												var_idx = bound_idx // 2
-												bound_type = "lower" if (bound_idx % 2 == 0) else "upper"
-												LOG_WARN(f"    This is a variable bound constraint (index {bound_idx}, {bound_type} bound for variable {var_idx})")
-											elif max_idx_pos < num_bounds + num_initial:
-												initial_idx = max_idx_pos - num_bounds
-												var_names = dynamics_model.get_dependent_vars() if dynamics_model else ['x', 'y', 'psi', 'v', 'spline']
-												var_name = var_names[initial_idx] if initial_idx < len(var_names) else f'state[{initial_idx}]'
-												LOG_WARN(f"    This is an initial state constraint: {var_name}[0]")
-											elif max_idx_pos < num_bounds + num_initial + num_dynamics:
-												module_idx = max_idx_pos - num_bounds - num_initial
-												# Calculate actual constraints per stage from actual constraint count
-												# This accounts for variable number of constraints per stage
-												# Find which stage this constraint belongs to by counting constraints up to that point
-												constraints_counted = 0
-												stage_idx = 0
-												constraint_idx_in_stage = 0
-												found_stage = False
-												for stage_check in range(horizon_val + 1):
-													# Create symbolic state for diagnostic purposes
-													symbolic_state_diag = State(dynamics_model)
-													for var_name in dynamics_model.get_all_vars():
-														if var_name in self.var_dict and stage_check < self.var_dict[var_name].shape[0]:
-															symbolic_state_diag.set(var_name, self.var_dict[var_name][stage_check])
-													cons_check = self.get_constraints(stage_check, symbolic_state=symbolic_state_diag)
-													if module_idx < constraints_counted + len(cons_check):
-														stage_idx = stage_check
-														constraint_idx_in_stage = module_idx - constraints_counted
-														found_stage = True
-														break
-													constraints_counted += len(cons_check)
-												if not found_stage:
-													# Fallback: use last stage if out of bounds
-													stage_idx = horizon_val
-													constraint_idx_in_stage = module_idx - constraints_counted
-												LOG_WARN(f"    This is a module constraint at stage {stage_idx}, constraint {constraint_idx_in_stage} in that stage")
-												# Try to get more details about this constraint
-												try:
-													if stage_idx < horizon_val + 1:
-														# Create symbolic state for diagnostic purposes
-														symbolic_state_diag = State(dynamics_model)
-														for var_name in dynamics_model.get_all_vars():
-															if var_name in self.var_dict and stage_idx < self.var_dict[var_name].shape[0]:
-																symbolic_state_diag.set(var_name, self.var_dict[var_name][stage_idx])
-														cons_list = self.get_constraints(stage_idx, symbolic_state=symbolic_state_diag)
-														if constraint_idx_in_stage < len(cons_list):
-															c, lb, ub = cons_list[constraint_idx_in_stage]
-															if isinstance(c, dict):
-																LOG_WARN(f"      Module constraint details: a1={c.get('a1', 'N/A')}, a2={c.get('a2', 'N/A')}, b={c.get('b', 'N/A')}, disc_offset={c.get('disc_offset', 'N/A')}")
-															LOG_WARN(f"      Constraint bounds: lb={lb}, ub={ub}")
-												except Exception as e:
-													LOG_DEBUG(f"      Could not get constraint details: {e}")
-											elif max_idx_pos < num_bounds + num_initial + num_dynamics + num_module:
-												# This is a dynamics constraint (after module constraints)
-												dynamics_idx = max_idx_pos - num_bounds - num_initial - num_module
-												num_states = len(dynamics_model.get_dependent_vars()) if dynamics_model else 5
-												stage_idx = dynamics_idx // num_states
-												state_idx = dynamics_idx % num_states
-												state_names = dynamics_model.get_dependent_vars()
-												state_name = state_names[state_idx] if state_idx < len(state_names) else f"state[{state_idx}]"
-												LOG_WARN(f"    This is a dynamics constraint: {state_name} at transition {stage_idx} -> {stage_idx + 1}")
-												# Check warmstart values for this transition
-												try:
-													dt_check = self.timestep if self.timestep is not None else 0.1
-													LOG_WARN(f"      Checking warmstart for {state_name} at transition {stage_idx}->{stage_idx+1} (timestep={dt_check})")
-													LOG_WARN(f"      Warmstart values available: {list(self.warmstart_values.keys())}")
-													if state_name in self.warmstart_values:
-														ws_len = len(self.warmstart_values[state_name])
-														LOG_WARN(f"      Warmstart array length for {state_name}: {ws_len}, need stage_idx={stage_idx}")
-														if stage_idx < ws_len:
-															x_k_ws = float(self.warmstart_values[state_name][stage_idx])
-															x_kp1_ws = float(self.warmstart_values[state_name][stage_idx + 1]) if stage_idx + 1 < ws_len else None
-															x_kp1_str = f"{x_kp1_ws:.6f}" if x_kp1_ws is not None else 'N/A'
-															LOG_WARN(f"      Warmstart: {state_name}[{stage_idx}]={x_k_ws:.6f}, {state_name}[{stage_idx+1}]={x_kp1_str}")
-															# Compute predicted value from warmstart
-															if state_name == 'x' and 'v' in self.warmstart_values and 'psi' in self.warmstart_values:
-																v_k_ws = float(self.warmstart_values['v'][stage_idx]) if stage_idx < len(self.warmstart_values['v']) else 0.0
-																psi_k_ws = float(self.warmstart_values['psi'][stage_idx]) if stage_idx < len(self.warmstart_values['psi']) else 0.0
-																x_pred_ws = x_k_ws + dt_check * v_k_ws * np.cos(psi_k_ws)
-																violation_ws = x_kp1_ws - x_pred_ws if x_kp1_ws is not None else None
-																LOG_WARN(f"      Computed: x_pred = {x_k_ws:.6f} + {dt_check:.4f} * {v_k_ws:.6f} * cos({psi_k_ws:.6f}) = {x_pred_ws:.6f}")
-																if violation_ws is not None:
-																	LOG_WARN(f"      Warmstart dynamics violation: x[{stage_idx+1}]_ws - x_pred = {x_kp1_ws:.6f} - {x_pred_ws:.6f} = {violation_ws:.6f}")
-																	if abs(violation_ws) > 1e-3:
-																		LOG_WARN(f"      WARMSTART IS NOT DYNAMICS-CONSISTENT! Violation: {violation_ws:.6f}")
-																# Check what CasADi actually has for these variables
-																try:
-																	if 'x' in self.var_dict and stage_idx < self.var_dict['x'].shape[0]:
-																		x_k_casadi = float(self.opti.debug.value(self.var_dict['x'][stage_idx]))
-																		x_kp1_casadi = float(self.opti.debug.value(self.var_dict['x'][stage_idx + 1])) if stage_idx + 1 < self.var_dict['x'].shape[0] else None
-																		if 'v' in self.var_dict and 'psi' in self.var_dict:
-																			v_k_casadi = float(self.opti.debug.value(self.var_dict['v'][stage_idx])) if stage_idx < self.var_dict['v'].shape[0] else None
-																			psi_k_casadi = float(self.opti.debug.value(self.var_dict['psi'][stage_idx])) if stage_idx < self.var_dict['psi'].shape[0] else None
-																			if v_k_casadi is not None and psi_k_casadi is not None and x_kp1_casadi is not None:
-																				x_pred_casadi = x_k_casadi + dt_check * v_k_casadi * np.cos(psi_k_casadi)
-																				constraint_val_casadi = x_kp1_casadi - x_pred_casadi
-																				LOG_WARN(f"      CasADi values: x[{stage_idx}]={x_k_casadi:.6f}, x[{stage_idx+1}]={x_kp1_casadi:.6f}, v[{stage_idx}]={v_k_casadi:.6f}, psi[{stage_idx}]={psi_k_casadi:.6f}")
-																				LOG_WARN(f"      CasADi constraint value: x[{stage_idx+1}] - (x[{stage_idx}] + dt*v[{stage_idx}]*cos(psi[{stage_idx}])) = {constraint_val_casadi:.6f}")
-																				LOG_WARN(f"      Warmstart vs CasADi: x[{stage_idx}] ws={x_k_ws:.6f} casadi={x_k_casadi:.6f}, x[{stage_idx+1}] ws={x_kp1_ws:.6f} casadi={x_kp1_casadi:.6f}")
-																except Exception as e_casadi:
-																	LOG_DEBUG(f"      Could not get CasADi values: {e_casadi}")
-															elif state_name == 'y' and 'v' in self.warmstart_values and 'psi' in self.warmstart_values:
-																v_k_ws = float(self.warmstart_values['v'][stage_idx]) if stage_idx < len(self.warmstart_values['v']) else 0.0
-																psi_k_ws = float(self.warmstart_values['psi'][stage_idx]) if stage_idx < len(self.warmstart_values['psi']) else 0.0
-																y_pred_ws = x_k_ws + dt_check * v_k_ws * np.sin(psi_k_ws)
-																violation_ws = x_kp1_ws - y_pred_ws if x_kp1_ws is not None else None
-																if violation_ws is not None:
-																	LOG_WARN(f"      Warmstart dynamics violation: y[{stage_idx+1}]_ws - y_pred = {x_kp1_ws:.6f} - {y_pred_ws:.6f} = {violation_ws:.6f}")
-																	if abs(violation_ws) > 1e-3:
-																		LOG_WARN(f"      WARMSTART IS NOT DYNAMICS-CONSISTENT! Violation: {violation_ws:.6f}")
-														else:
-															LOG_WARN(f"      Stage index {stage_idx} out of bounds for warmstart array (length={ws_len})")
-													else:
-														LOG_WARN(f"      State name '{state_name}' not in warmstart_values")
-												except Exception as e3:
-													LOG_WARN(f"      Could not check warmstart dynamics: {e3}")
-													import traceback
-													LOG_DEBUG(f"      Traceback: {traceback.format_exc()}")
+											# Get warmstart values
+											if var_name in self.warmstart_values:
+												ws_len = len(self.warmstart_values[var_name])
+												LOG_WARN(f"      Warmstart array length for {var_name}: {ws_len}")
+												if transition_idx < ws_len and transition_idx + 1 < ws_len:
+													x_k_ws = float(self.warmstart_values[var_name][transition_idx])
+													x_kp1_ws = float(self.warmstart_values[var_name][transition_idx + 1])
+													LOG_WARN(f"      Warmstart: {var_name}[{transition_idx}]={x_k_ws:.6f}, {var_name}[{transition_idx+1}]={x_kp1_ws:.6f}")
+													
+													# Also log all warmstart values for this variable to see the pattern
+													if transition_idx < 5:  # Only log for first few transitions
+														ws_all = [float(v) for v in self.warmstart_values[var_name][:min(6, ws_len)]]
+														LOG_WARN(f"      Warmstart values for {var_name}: {ws_all}")
+													
+													# Compute predicted value from warmstart for psi (angular dynamics)
+													if var_name == 'psi' and 'w' in self.warmstart_values:
+														w_k_ws = float(self.warmstart_values['w'][transition_idx]) if transition_idx < len(self.warmstart_values['w']) else 0.0
+														# For unicycle: psi[k+1] = psi[k] + dt * w[k] (angular velocity integration)
+														psi_pred_ws = x_k_ws + dt_check * w_k_ws
+														violation_ws = x_kp1_ws - psi_pred_ws
+														LOG_WARN(f"      Computed: psi_pred = {x_k_ws:.6f} + {dt_check:.4f} * {w_k_ws:.6f} = {psi_pred_ws:.6f}")
+														LOG_WARN(f"      Warmstart dynamics violation: psi[{transition_idx+1}]_ws - psi_pred = {x_kp1_ws:.6f} - {psi_pred_ws:.6f} = {violation_ws:.6f}")
+														if abs(violation_ws) > 1e-3:
+															LOG_WARN(f"      ⚠️  WARMSTART IS NOT DYNAMICS-CONSISTENT! Violation: {violation_ws:.6f}")
+													# Compute predicted value from warmstart for x
+													elif var_name == 'x' and 'v' in self.warmstart_values and 'psi' in self.warmstart_values:
+														v_k_ws = float(self.warmstart_values['v'][transition_idx]) if transition_idx < len(self.warmstart_values['v']) else 0.0
+														psi_k_ws = float(self.warmstart_values['psi'][transition_idx]) if transition_idx < len(self.warmstart_values['psi']) else 0.0
+														x_pred_ws = x_k_ws + dt_check * v_k_ws * np.cos(psi_k_ws)
+														violation_ws = x_kp1_ws - x_pred_ws
+														LOG_WARN(f"      Computed: x_pred = {x_k_ws:.6f} + {dt_check:.4f} * {v_k_ws:.6f} * cos({psi_k_ws:.6f}) = {x_pred_ws:.6f}")
+														LOG_WARN(f"      Warmstart dynamics violation: x[{transition_idx+1}]_ws - x_pred = {x_kp1_ws:.6f} - {x_pred_ws:.6f} = {violation_ws:.6f}")
+														if abs(violation_ws) > 1e-3:
+															LOG_WARN(f"      ⚠️  WARMSTART IS NOT DYNAMICS-CONSISTENT! Violation: {violation_ws:.6f}")
+													# Compute predicted value from warmstart for y
+													elif var_name == 'y' and 'v' in self.warmstart_values and 'psi' in self.warmstart_values:
+														v_k_ws = float(self.warmstart_values['v'][transition_idx]) if transition_idx < len(self.warmstart_values['v']) else 0.0
+														psi_k_ws = float(self.warmstart_values['psi'][transition_idx]) if transition_idx < len(self.warmstart_values['psi']) else 0.0
+														y_pred_ws = x_k_ws + dt_check * v_k_ws * np.sin(psi_k_ws)
+														violation_ws = x_kp1_ws - y_pred_ws
+														LOG_WARN(f"      Computed: y_pred = {x_k_ws:.6f} + {dt_check:.4f} * {v_k_ws:.6f} * sin({psi_k_ws:.6f}) = {y_pred_ws:.6f}")
+														LOG_WARN(f"      Warmstart dynamics violation: y[{transition_idx+1}]_ws - y_pred = {x_kp1_ws:.6f} - {y_pred_ws:.6f} = {violation_ws:.6f}")
+														if abs(violation_ws) > 1e-3:
+															LOG_WARN(f"      ⚠️  WARMSTART IS NOT DYNAMICS-CONSISTENT! Violation: {violation_ws:.6f}")
+													
+													# Get CasADi values and compute RK4 prediction
+													try:
+														if var_name in self.var_dict:
+															x_k_casadi = float(self.opti.debug.value(self.var_dict[var_name][transition_idx])) if transition_idx < self.var_dict[var_name].shape[0] else None
+															x_kp1_casadi = float(self.opti.debug.value(self.var_dict[var_name][transition_idx + 1])) if transition_idx + 1 < self.var_dict[var_name].shape[0] else None
+															if x_k_casadi is not None and x_kp1_casadi is not None:
+																LOG_WARN(f"      CasADi values: {var_name}[{transition_idx}]={x_k_casadi:.6f}, {var_name}[{transition_idx+1}]={x_kp1_casadi:.6f}")
+																
+																# Get control inputs for RK4 prediction
+																if 'w' in self.var_dict and transition_idx < self.var_dict['w'].shape[0]:
+																	w_k_casadi = float(self.opti.debug.value(self.var_dict['w'][transition_idx]))
+																	LOG_WARN(f"      Control input: w[{transition_idx}]={w_k_casadi:.6f}")
+																	
+																	# For psi: simple integration psi[k+1] = psi[k] + dt * w[k]
+																	if var_name == 'psi':
+																		psi_pred_casadi = x_k_casadi + dt_check * w_k_casadi
+																		LOG_WARN(f"      RK4 prediction: psi[{transition_idx+1}]_pred = {x_k_casadi:.6f} + {dt_check:.4f} * {w_k_casadi:.6f} = {psi_pred_casadi:.6f}")
+																		LOG_WARN(f"      Actual CasADi value: psi[{transition_idx+1}]={x_kp1_casadi:.6f}")
+																		LOG_WARN(f"      Difference: {x_kp1_casadi:.6f} - {psi_pred_casadi:.6f} = {x_kp1_casadi - psi_pred_casadi:.6f}")
+																
+																constraint_val = float(constraint_violations[max_idx_pos])
+																LOG_WARN(f"      Constraint value from debug.g (should be ~0): {constraint_val:.6f}")
+																
+																# Manually compute constraint value: x_next - x_next_pred
+																# For psi: psi[k+1] - (psi[k] + dt*w[k])
+																if var_name == 'psi':
+																	manual_constraint_val = x_kp1_casadi - (x_k_casadi + dt_check * w_k_casadi)
+																	LOG_WARN(f"      Manually computed constraint: {var_name}[{transition_idx+1}] - ({var_name}[{transition_idx}] + dt*w[{transition_idx}])")
+																	LOG_WARN(f"      = {x_kp1_casadi:.6f} - ({x_k_casadi:.6f} + {dt_check:.4f}*{w_k_casadi:.6f})")
+																	LOG_WARN(f"      = {x_kp1_casadi:.6f} - {x_k_casadi + dt_check * w_k_casadi:.6f} = {manual_constraint_val:.6f}")
+																	if abs(manual_constraint_val) < 1e-6 and abs(constraint_val) > 1e-3:
+																		LOG_WARN(f"      ⚠️  MISMATCH: Manual computation gives ~0, but debug.g gives {constraint_val:.6f}")
+																		LOG_WARN(f"      ⚠️  This suggests constraint indexing or evaluation issue!")
+																	elif abs(constraint_val) > 1e-6:
+																		LOG_WARN(f"      ⚠️  DYNAMICS CONSTRAINT VIOLATED!")
+																		LOG_WARN(f"      ⚠️  CasADi variables don't satisfy dynamics equations!")
+													except Exception as e_casadi:
+														LOG_WARN(f"      Could not get CasADi values: {e_casadi}")
+														import traceback
+														LOG_DEBUG(f"      Traceback: {traceback.format_exc()}")
+												else:
+													LOG_WARN(f"      ⚠️  Warmstart array length {ws_len} insufficient for transition {transition_idx}->{transition_idx+1}")
 											else:
-												# This is beyond all expected constraints, likely a bound constraint
-												LOG_WARN(f"    This constraint is beyond expected range (index {max_idx_pos})")
-										except Exception:
-											pass
+												LOG_WARN(f"      ⚠️  State '{var_name}' not in warmstart_values (available: {list(self.warmstart_values.keys())})")
+										except Exception as e_dyn:
+											LOG_WARN(f"      Could not check dynamics constraint: {e_dyn}")
+											import traceback
+											LOG_DEBUG(f"      Traceback: {traceback.format_exc()}")
+									elif max_idx_pos < num_dynamics + num_initial_state:
+										initial_idx = max_idx_pos - num_dynamics
+										state_vars = dynamics_model.get_dependent_vars() if dynamics_model else ['x', 'y', 'psi', 'v', 'spline']
+										var_name = state_vars[initial_idx] if initial_idx < len(state_vars) else f"state_{initial_idx}"
+										LOG_WARN(f"    ⚠️  Constraint type: Initial state constraint for {var_name}[0] (index {max_idx_pos})")
+										LOG_WARN(f"    ⚠️  This constraint enforces: {var_name}[0] == initial_value")
+										
+										# Check warmstart values for this transition
+										try:
+											dt_check = self.timestep if self.timestep is not None else 0.1
+											LOG_WARN(f"      Checking warmstart for {var_name} at transition {transition_idx}->{transition_idx+1} (dt={dt_check})")
+											
+											# Get warmstart values
+											if var_name in self.warmstart_values:
+												ws_len = len(self.warmstart_values[var_name])
+												LOG_WARN(f"      Warmstart array length for {var_name}: {ws_len}")
+												if transition_idx < ws_len and transition_idx + 1 < ws_len:
+													x_k_ws = float(self.warmstart_values[var_name][transition_idx])
+													x_kp1_ws = float(self.warmstart_values[var_name][transition_idx + 1])
+													LOG_WARN(f"      Warmstart: {var_name}[{transition_idx}]={x_k_ws:.6f}, {var_name}[{transition_idx+1}]={x_kp1_ws:.6f}")
+													
+													# Also log all warmstart values for this variable to see the pattern
+													if transition_idx < 5:  # Only log for first few transitions
+														ws_all = [float(v) for v in self.warmstart_values[var_name][:min(6, ws_len)]]
+														LOG_WARN(f"      Warmstart values for {var_name}: {ws_all}")
+												else:
+													LOG_WARN(f"      ⚠️  Warmstart array length {ws_len} insufficient for transition {transition_idx}->{transition_idx+1}")
+											else:
+												LOG_WARN(f"      ⚠️  State '{var_name}' not in warmstart_values (available: {list(self.warmstart_values.keys())})")
+										except Exception as e:
+											LOG_WARN(f"      Could not check initial state values: {e}")
+											import traceback
+											LOG_DEBUG(f"      Traceback: {traceback.format_exc()}")
+									else:
+										module_idx = max_idx_pos - num_dynamics - num_initial_state
+										LOG_WARN(f"    ⚠️  Constraint type: Module constraint (index {max_idx_pos}, module constraint index {module_idx})")
+										# Try to identify which module constraint
+										try:
+											constraint_count = 0
+											for stage_idx_check in range(horizon_val + 1):
+												symbolic_state_check = State(dynamics_model)
+												for var_name in dynamics_model.get_all_vars():
+													if var_name in self.var_dict and stage_idx_check < self.var_dict[var_name].shape[0]:
+														symbolic_state_check.set(var_name, self.var_dict[var_name][stage_idx_check])
+												cons_list_check = self.get_constraints(stage_idx_check, symbolic_state=symbolic_state_check)
+												if module_idx < constraint_count + len(cons_list_check):
+													constraint_in_stage = module_idx - constraint_count
+													LOG_WARN(f"      Module constraint at stage {stage_idx_check}, constraint index {constraint_in_stage} within stage")
+													if constraint_in_stage < len(cons_list_check):
+														c_check, lb_check, ub_check = cons_list_check[constraint_in_stage]
+														if isinstance(c_check, dict):
+															LOG_WARN(f"      Constraint type: {c_check.get('constraint_type', 'unknown')}")
+															LOG_WARN(f"      Constraint details: {c_check}")
+													break
+												constraint_count += len(cons_list_check)
+										except Exception as e_module:
+											LOG_DEBUG(f"      Could not identify module constraint: {e_module}")
+											import traceback
+											LOG_DEBUG(f"      Traceback: {traceback.format_exc()}")
 									
 									LOG_WARN(f"  Maximum constraint value (abs): {max_violation_abs:.6f} at constraint index {max_idx_abs}")
 									# Log the actual constraint value

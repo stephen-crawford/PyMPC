@@ -139,6 +139,30 @@ class ModuleManager:
         constraint_modules = [m for m in self.modules if getattr(m, "module_type", None) == CONSTRAINT]
         LOG_DEBUG(f"Found {len(constraint_modules)} constraint module(s) for stage {stage_idx}")
         
+        # Call update() on constraint modules before calculating constraints (for stage 0 only, to avoid redundant updates)
+        if stage_idx == 0:
+            for module in constraint_modules:
+                if hasattr(module, "update"):
+                    try:
+                        # Ensure module has solver reference if it needs it
+                        # Try multiple ways to get solver reference
+                        if not hasattr(module, 'solver') or module.solver is None:
+                            # Try to get solver from module manager's parent (solver)
+                            # The module manager is typically owned by a solver
+                            if hasattr(self, '_solver') and self._solver is not None:
+                                module.solver = self._solver
+                            elif hasattr(data, 'solver') and data.solver is not None:
+                                module.solver = data.solver
+                            # Also check if we can get it from the parent context
+                            # (This is a fallback - ideally solver should be set when modules are added)
+                        
+                        LOG_DEBUG(f"ModuleManager.get_constraints: Calling update() on '{getattr(module, 'name', 'Unknown')}' (solver available: {hasattr(module, 'solver') and module.solver is not None})")
+                        module.update(state, data)
+                    except Exception as e:
+                        LOG_WARN(f"Error calling update() on module '{getattr(module, 'name', 'Unknown')}': {e}")
+                        import traceback
+                        LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+        
         for module in constraint_modules:
             module_name = getattr(module, 'name', 'Unknown')
             LOG_DEBUG(f"  Getting constraints from '{module_name}'...")

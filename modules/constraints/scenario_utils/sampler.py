@@ -65,7 +65,12 @@ class ScenarioSampler:
     
     def _sample_gaussian_scenarios(self, obstacle: DynamicObstacle, obstacle_idx: int,
                                  horizon_length: int, timestep: float) -> List[Scenario]:
-        """Sample scenarios from Gaussian prediction."""
+        """
+        Sample scenarios from Gaussian prediction.
+        
+        Reference: scenario_module - scenarios represent full obstacle trajectories
+        Each scenario is a complete future trajectory sampled from the prediction distribution.
+        """
         scenarios = []
         
         # Get prediction steps
@@ -74,28 +79,43 @@ class ScenarioSampler:
             LOG_WARN(f"No prediction steps for obstacle {obstacle_idx}")
             return scenarios
         
-        # Sample scenarios for each time step
-        for step in range(min(horizon_length, len(prediction_steps))):
-            pred_step = prediction_steps[step]
+        # Sample num_scenarios complete trajectories (one scenario = one full trajectory)
+        # Each scenario represents a possible future for the obstacle over the entire horizon
+        for scenario_idx in range(self.num_scenarios):
+            scenario = Scenario(scenario_idx, obstacle_idx)
+            scenario.radius = obstacle.radius
             
-            # Create covariance matrix from major/minor radii
-            # Assuming circular uncertainty for simplicity
-            sigma = max(pred_step.major_radius, pred_step.minor_radius)
-            cov_matrix = np.array([[sigma**2, 0], [0, sigma**2]])
+            # Sample a position for each time step in the horizon
+            scenario_positions = []
+            for step in range(min(horizon_length, len(prediction_steps))):
+                pred_step = prediction_steps[step]
+                
+                # Create covariance matrix from major/minor radii
+                # Use proper ellipsoidal covariance if available
+                major_radius = float(getattr(pred_step, 'major_radius', 0.5))
+                minor_radius = float(getattr(pred_step, 'minor_radius', 0.5))
+                angle = float(getattr(pred_step, 'angle', 0.0))
+                
+                # Create covariance matrix (simplified - assumes circular for now)
+                # TODO: Use proper ellipsoidal covariance with rotation
+                sigma = max(major_radius, minor_radius)
+                cov_matrix = np.array([[sigma**2, 0], [0, sigma**2]])
+                
+                # Sample position for this time step
+                mean_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+                sampled_pos = np.random.multivariate_normal(mean_pos, cov_matrix)
+                scenario_positions.append(sampled_pos)
             
-            # Sample positions
-            mean_pos = pred_step.position[:2]  # Use only x, y
-            sampled_positions = np.random.multivariate_normal(
-                mean_pos, cov_matrix, self.num_scenarios
-            )
+            # Store the first position as the scenario position (for constraint formulation)
+            # The full trajectory is represented by sampling positions at each time step
+            # Reference: scenario_module - scenarios store full trajectories for visualization
+            if scenario_positions:
+                scenario.position = scenario_positions[0]  # Initial position
+                scenario.time_step = 0  # Start at time step 0
+                # Store full trajectory (Scenario class allows dynamic attributes)
+                scenario.trajectory = scenario_positions
             
-            # Create scenarios
-            for scenario_idx, pos in enumerate(sampled_positions):
-                scenario = Scenario(scenario_idx, obstacle_idx)
-                scenario.position = pos
-                scenario.time_step = step
-                scenario.radius = obstacle.radius
-                scenarios.append(scenario)
+            scenarios.append(scenario)
         
         return scenarios
     

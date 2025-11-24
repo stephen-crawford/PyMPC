@@ -489,10 +489,21 @@ class Planner:
       # Store on output if anything was found
       if control_out:
         self.output.control = control_out
-        LOG_INFO(f"  First control input extracted: {control_out}")
+        LOG_INFO(f"  ✓ First control input extracted: {control_out}")
         LOG_INFO(f"  This control will be applied to transition from current state to next state")
+        
+        # Log detailed control values for debugging vehicle movement
+        if 'a' in control_out:
+          LOG_INFO(f"    Acceleration a[0] = {control_out['a']:.4f} m/s²")
+        if 'w' in control_out:
+          LOG_INFO(f"    Angular velocity w[0] = {control_out['w']:.4f} rad/s")
+          if abs(control_out['w']) < 1e-6:
+            LOG_WARN(f"    ⚠️  Angular velocity is near zero - vehicle may not turn")
+        if 'a' in control_out and abs(control_out['a']) < 1e-6:
+          LOG_WARN(f"    ⚠️  Acceleration is near zero - vehicle may not move forward")
       else:
-        LOG_WARN("  No control extracted from solver - all inputs returned None!")
+        LOG_WARN("  ⚠️  No control extracted from solver - all inputs returned None!")
+        LOG_WARN("  ⚠️  Vehicle will NOT move - solver may have failed or solution is invalid")
     except Exception as e:
       LOG_WARN(f"Error extracting control: {e}")
       import traceback

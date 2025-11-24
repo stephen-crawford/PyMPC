@@ -143,6 +143,11 @@ class BaseSolver(ABC):
         else:
             state = symbolic_state
         
+        # Ensure modules have solver reference before getting constraints
+        for module in self.module_manager.get_modules():
+            if not hasattr(module, 'solver') or module.solver is None:
+                module.solver = self
+        
         if hasattr(self.module_manager, 'get_constraints_with_bounds'):
             return self.module_manager.get_constraints_with_bounds(state, self.data, stage_idx)
         cons = self.module_manager.get_constraints(state, self.data, stage_idx) or []

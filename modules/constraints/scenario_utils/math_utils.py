@@ -28,15 +28,25 @@ class Polytope:
 
 
 class ScenarioConstraint:
-    """Represents a single scenario constraint."""
+    """Represents a single scenario constraint.
     
-    def __init__(self, a1: float, a2: float, b: float, scenario_idx: int, obstacle_idx: int, time_step: int):
+    Stores pre-computed constraint parameters (a1, a2, b) from polytope optimization.
+    These are applied symbolically in calculate_constraints() using the predicted robot position.
+    
+    Reference: mpc_planner - constraints are pre-computed from scenarios and applied symbolically.
+    """
+    
+    def __init__(self, a1: float, a2: float, b: float, scenario_idx: int, obstacle_idx: int, time_step: int,
+                 obstacle_pos: np.ndarray = None, obstacle_radius: float = None):
         self.a1 = a1
         self.a2 = a2
         self.b = b
         self.scenario_idx = scenario_idx
         self.obstacle_idx = obstacle_idx
         self.time_step = time_step
+        # Store obstacle info for visualization (optional)
+        self.obstacle_pos = obstacle_pos
+        self.obstacle_radius = obstacle_radius
         
     def to_halfspace(self) -> Halfspace:
         """Convert to halfspace representation."""

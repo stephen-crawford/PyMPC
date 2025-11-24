@@ -2536,8 +2536,10 @@ class IntegrationTestFramework:
                             # Only draw static visualizations here (not Gaussian constraints which need per-frame updates)
                             # Gaussian constraints will be drawn in animate() function
                             module_name = getattr(module, 'name', '')
-                            # Skip Gaussian and Ellipsoid constraints - they need per-frame updates in animate()
-                            if 'gaussian' not in module_name.lower() and 'ellipsoid' not in module_name.lower():
+                            # Skip Gaussian, Ellipsoid, and Safe Horizon constraints - they need per-frame updates in animate()
+                            if ('gaussian' not in module_name.lower() and 
+                                'ellipsoid' not in module_name.lower() and 
+                                'safe_horizon' not in module_name.lower()):
                                 # Use a representative stage index for static visualizations
                                 viz.visualize(None, self.last_data, stage_idx=1)
         except Exception:
@@ -2632,8 +2634,8 @@ class IntegrationTestFramework:
         # Initialize Ellipsoid constraint artists (will be updated dynamically)
         ellipsoid_constraint_artists = []
         
-        # Initialize Ellipsoid constraint artists (will be updated dynamically)
-        ellipsoid_constraint_artists = []
+        # Initialize Safe Horizon constraint artists (will be updated dynamically)
+        safe_horizon_constraint_artists = []
         
         def animate(frame):
             if frame < len(vehicle_states):
@@ -3450,6 +3452,142 @@ class IntegrationTestFramework:
                 except Exception as e:
                     if frame < 3:
                         logging.getLogger("integration_test").error(f"Frame {frame}: Error in Ellipsoid constraint visualization: {e}")
+                        import traceback
+                        logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
+                
+                # Update Safe Horizon constraint visualizations
+                # Clear old safe horizon constraint artists (lines, patches, scatter plots)
+                for artist in safe_horizon_constraint_artists[:]:
+                    try:
+                        if hasattr(artist, 'remove'):
+                            artist.remove()
+                        elif hasattr(artist, 'set_visible'):
+                            artist.set_visible(False)
+                    except Exception as e:
+                        # Artist may have already been removed, ignore
+                        pass
+                safe_horizon_constraint_artists.clear()
+                
+                # Draw Safe Horizon constraints for current frame
+                try:
+                    if hasattr(self, 'solver') and hasattr(self.solver, 'module_manager'):
+                        safe_horizon_module_found = False
+                        for module in self.solver.module_manager.get_modules():
+                            module_name = getattr(module, 'name', '')
+                            if 'safe_horizon' in module_name.lower():
+                                safe_horizon_module_found = True
+                                if hasattr(module, 'get_visualizer'):
+                                    viz = module.get_visualizer()
+                                    if viz is not None and hasattr(viz, 'visualize') and hasattr(self, 'last_data'):
+                                        # Update obstacle positions for current frame before visualizing
+                                        if hasattr(self.last_data, 'dynamic_obstacles') and self.last_data.dynamic_obstacles:
+                                            # Update obstacle positions from obstacle_states for current frame
+                                            for i, obs in enumerate(self.last_data.dynamic_obstacles):
+                                                if i < len(obstacle_states) and frame < len(obstacle_states[i]):
+                                                    obs_state = obstacle_states[i][frame]
+                                                    if len(obs_state) >= 2:
+                                                        obs.position = np.array([obs_state[0], obs_state[1]], dtype=float)
+                                            
+                                            # Propagate obstacle predictions for current frame
+                                            from planning.types import PredictionType
+                                            saved_prediction_types = []
+                                            for obs in self.last_data.dynamic_obstacles:
+                                                if hasattr(obs, 'prediction') and obs.prediction is not None:
+                                                    saved_prediction_types.append(obs.prediction.type)
+                                                else:
+                                                    saved_prediction_types.append(None)
+                                            
+                                            try:
+                                                from planning.types import propagate_obstacles
+                                                if hasattr(self.solver, 'horizon') and hasattr(self.solver, 'timestep'):
+                                                    horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
+                                                    timestep_val = self.solver.timestep if self.solver.timestep is not None else 0.1
+                                                    propagate_obstacles(self.last_data, dt=timestep_val, horizon=horizon_val)
+                                                
+                                                # Restore prediction types after propagation
+                                                for i, obs in enumerate(self.last_data.dynamic_obstacles):
+                                                    if i < len(saved_prediction_types) and saved_prediction_types[i] is not None:
+                                                        if hasattr(obs, 'prediction') and obs.prediction is not None:
+                                                            obs.prediction.type = saved_prediction_types[i]
+                                            except Exception as e:
+                                                logging.getLogger("integration_test").debug(f"Could not propagate obstacles for safe horizon visualization frame {frame}: {e}")
+                                        
+                                        # Ensure module has solver reference (needed for scenario module initialization)
+                                        if not hasattr(module, 'solver') or module.solver is None:
+                                            if hasattr(self, 'solver'):
+                                                module.solver = self.solver
+                                        
+                                        # Update scenario module with current data
+                                        # This ensures scenarios are populated for visualization
+                                        if hasattr(module, 'update'):
+                                            try:
+                                                # Create a dummy state for update
+                                                from planning.types import State
+                                                dummy_state = State()
+                                                module.update(dummy_state, self.last_data)
+                                                
+                                                # Debug: Check if scenarios were populated
+                                                if frame < 3:
+                                                    if hasattr(module, 'scenario_module') and module.scenario_module is not None:
+                                                        num_scenarios = len(module.scenario_module.scenarios) if hasattr(module.scenario_module, 'scenarios') else 0
+                                                        logging.getLogger("integration_test").info(
+                                                            f"Frame {frame}: Safe Horizon module has {num_scenarios} scenarios after update")
+                                                    else:
+                                                        logging.getLogger("integration_test").warning(
+                                                            f"Frame {frame}: Safe Horizon module.scenario_module is None (solver available: {hasattr(module, 'solver') and module.solver is not None})")
+                                            except Exception as e:
+                                                logging.getLogger("integration_test").error(f"Could not update safe horizon module for frame {frame}: {e}")
+                                                import traceback
+                                                logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
+                                        
+                                        # Store current patches/lines/collections count before visualization
+                                        patches_before = list(ax.patches)
+                                        lines_before = list(ax.lines)
+                                        collections_before = list(ax.collections)  # For scatter plots
+                                        
+                                        # Call visualizer for current frame
+                                        try:
+                                            if frame < 3:
+                                                logging.getLogger("integration_test").info(
+                                                    f"Frame {frame}: Calling Safe Horizon visualizer")
+                                            # Get current vehicle position for constraint recomputation
+                                            vehicle_pos_viz = None
+                                            if frame < len(vehicle_states):
+                                                vehicle_pos_viz = vehicle_states[frame][:2]  # (x, y)
+                                            viz.visualize(None, self.last_data, stage_idx=0, ax=ax, current_robot_pos=vehicle_pos_viz)
+                                            if frame < 3:
+                                                logging.getLogger("integration_test").info(
+                                                    f"Frame {frame}: Safe Horizon visualizer completed")
+                                        except Exception as viz_err:
+                                            logging.getLogger("integration_test").error(
+                                                f"Frame {frame}: Error calling Safe Horizon visualizer: {viz_err}")
+                                            import traceback
+                                            logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
+                                        
+                                        # Track newly added patches, lines, and collections (safe horizon constraint artists)
+                                        patches_after = list(ax.patches)
+                                        lines_after = list(ax.lines)
+                                        collections_after = list(ax.collections)  # For scatter plots
+                                        
+                                        # Find new patches, lines, and collections
+                                        for patch in patches_after:
+                                            if patch not in patches_before:
+                                                safe_horizon_constraint_artists.append(patch)
+                                        
+                                        for line in lines_after:
+                                            if line not in lines_before:
+                                                safe_horizon_constraint_artists.append(line)
+                                        
+                                        for collection in collections_after:
+                                            if collection not in collections_before:
+                                                safe_horizon_constraint_artists.append(collection)
+                                        
+                                        if not safe_horizon_module_found and frame < 3:
+                                            logging.getLogger("integration_test").warning(
+                                                f"Frame {frame}: No Safe Horizon constraint module found for visualization")
+                except Exception as e:
+                    if frame < 3:
+                        logging.getLogger("integration_test").error(f"Frame {frame}: Error in Safe Horizon constraint visualization: {e}")
                         import traceback
                         logging.getLogger("integration_test").error(f"Traceback: {traceback.format_exc()}")
         
