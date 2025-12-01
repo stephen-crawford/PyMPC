@@ -513,34 +513,70 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             # integrated_states[0:2] is the new (x, y) after RK4 integration
             dp = integrated_states[0:2] - cd.vertcat(pos_x, pos_y)
             
-            # Compute tangential and normal components
-            # Tangential vector (along path direction)
-            t_vec = cd.vertcat(path_dx_normalized, path_dy_normalized)
-            # Normal vector (pointing left, perpendicular to path)
-            n_vec = cd.vertcat(path_dy_normalized, -path_dx_normalized)
+            # CRITICAL FIX: When curvature changes, the path tangent at the predicted position differs from current position
+            # Use an iterative approach: estimate ds first, then evaluate path tangent at predicted position
+            # Reference: C++ mpc_planner - spline update accounts for curvature changes by evaluating at predicted position
             
-            # Project displacement onto tangent and normal
-            vt_t = dp.dot(t_vec)  # Tangential component (along path)
-            vn_t = dp.T @ n_vec    # Normal component (perpendicular to path)
+            # First, estimate ds using current path tangent (initial guess)
+            t_vec_current = cd.vertcat(path_dx_normalized, path_dy_normalized)
+            n_vec_current = cd.vertcat(path_dy_normalized, -path_dx_normalized)
+            vt_t_initial = dp.dot(t_vec_current)
+            vn_t_initial = dp.T @ n_vec_current
             
-            # Compute contour error (signed distance to path, positive = left of path)
-            contour_error = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
-            
-            # Get path curvature radius
+            # Get initial curvature estimate
             try:
-                curvature = path.get_curvature(s_normalized)
-                # Safeguard: ensure minimum curvature to avoid division issues
-                curvature = cd.fmax(curvature, 1e-5)
-                R = 1.0 / curvature
-                # Cap radius to prevent extreme values
-                R = cd.fmin(R, 1e4)
+                curvature_current = path.get_curvature(s_normalized)
+                curvature_current = cd.fmax(curvature_current, 1e-5)
+                R_current = cd.fmin(1.0 / curvature_current, 1e4)
             except Exception:
-                # Fallback: use large radius for straight paths
-                R = 1e4
+                R_current = 1e4
+            
+            # Initial contour error estimate (using current position for initial guess)
+            contour_error_initial = path_dy_normalized * (pos_x - path_x) - path_dx_normalized * (pos_y - path_y)
+            
+            # Initial theta estimate
+            denominator_initial = cd.fmax(R_current - contour_error_initial - vn_t_initial, 1e-6)
+            theta_initial = cd.atan2(vt_t_initial, denominator_initial)
+            theta_initial = cd.fmin(cd.fmax(theta_initial, -0.5), 0.5)
+            
+            # Estimate predicted spline position
+            ds_estimate = R_current * theta_initial
+            v = x[3] if x.size1() > 3 else 1.0
+            ds_max = v * dt * 5.0
+            ds_min = -v * dt * 0.5
+            ds_estimate = cd.fmin(cd.fmax(ds_estimate, ds_min), ds_max)
+            s_predicted_normalized = cd.fmax(0.0, cd.fmin(1.0, s_normalized + ds_estimate / cd.fmax(s_max, 1e-6)))
+            
+            # Evaluate path at predicted position (accounts for curvature changes)
+            path_x_pred, path_y_pred = path.at(s_predicted_normalized)
+            path_dx_pred, path_dy_pred = path.deriv_normalized(s_predicted_normalized)
+            
+            # Use predicted path tangent for final computation
+            t_vec_pred = cd.vertcat(path_dx_pred, path_dy_pred)
+            n_vec_pred = cd.vertcat(path_dy_pred, -path_dx_pred)
+            
+            # Project displacement onto predicted tangent and normal
+            vt_t = dp.dot(t_vec_pred)  # Tangential component (along predicted path direction)
+            vn_t = dp.T @ n_vec_pred    # Normal component (perpendicular to predicted path direction)
+            
+            # CRITICAL: Compute contour error using INTEGRATED position relative to PREDICTED path point
+            # This ensures the spline update accounts for curvature changes
+            integrated_x = integrated_states[0]
+            integrated_y = integrated_states[1]
+            contour_error = path_dy_pred * (integrated_x - path_x_pred) - path_dx_pred * (integrated_y - path_y_pred)
+            
+            # Get path curvature radius at predicted position
+            try:
+                curvature_pred = path.get_curvature(s_predicted_normalized)
+                curvature_pred = cd.fmax(curvature_pred, 1e-5)
+                R = cd.fmin(1.0 / curvature_pred, 1e4)
+            except Exception:
+                R = R_current  # Fallback to current curvature
             
             # Compute theta using curvature-aware formula from C++ reference
             # theta = atan2(vt_t, R - contour_error - vn_t)
             # This accounts for path curvature and vehicle position relative to path
+            # CRITICAL: Using predicted path tangent and curvature ensures proper handling of curvature changes
             denominator = R - contour_error - vn_t
             denominator = cd.fmax(denominator, 1e-6)  # Prevent division by zero
             theta = cd.atan2(vt_t, denominator)

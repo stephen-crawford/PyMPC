@@ -1,11 +1,10 @@
 """
-Contouring Constraints Test with Contouring Objective and Single Static Obstacle
+Contouring Constraints Test with Contouring Objective (No Obstacles)
 
 This test verifies that:
 - Contouring objective works with contouring constraints
 - Contouring dynamics model (ContouringSecondOrderUnicycleModel) properly progresses along curving path
 - Vehicle follows a curving reference path that requires turning
-- Vehicle avoids a single static obstacle placed on the centerline using linearized constraints
 - All computation is symbolic (no numeric fallbacks)
 - Reference path and constraints are properly visualized
 
@@ -19,21 +18,17 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 
 from test.integration.integration_test_framework import IntegrationTestFramework, TestConfig, create_reference_path
-from planning.obstacle_manager import create_point_mass_obstacle
-from planning.types import PredictionType, ReferencePath
-from utils.math_tools import TKSpline
 
 
 def run(dt=0.1, horizon=10, max_iterations=300):
-    """Run Contouring constraints test with contouring objective and single static obstacle.
+    """Run Contouring constraints test with contouring objective (no obstacles).
     
     Uses:
     - Curving reference path (s_curve for pronounced curves)
     - Contouring dynamics model (ContouringSecondOrderUnicycleModel with spline state)
     - Contouring objective
-    - Contouring constraints (for road boundaries)
-    - Linearized constraints (for obstacle avoidance)
-    - Single static obstacle placed on centerline
+    - Contouring constraints
+    - No obstacles
     """
     
     framework = IntegrationTestFramework()
@@ -57,72 +52,23 @@ def run(dt=0.1, horizon=10, max_iterations=300):
         if y_range < 1.0:
             print(f"⚠️  Warning: Path may not be curving enough (y-range={y_range:.2f}m)")
     
-    # Create ReferencePath object for obstacle placement
-    ref_path = ReferencePath()
-    x_arr = np.asarray(ref_path_obj.x, dtype=float)
-    y_arr = np.asarray(ref_path_obj.y, dtype=float)
-    z_arr = np.zeros_like(x_arr)  # 2D path
-    
-    # Compute arc length
-    dx = np.diff(x_arr)
-    dy = np.diff(y_arr)
-    ds = np.sqrt(dx**2 + dy**2)
-    s = np.concatenate(([0.0], np.cumsum(ds)))
-    
-    ref_path.x = x_arr.tolist()
-    ref_path.y = y_arr.tolist()
-    ref_path.z = z_arr.tolist()
-    ref_path.s = s.tolist()
-    ref_path.x_spline = TKSpline(s, x_arr)
-    ref_path.y_spline = TKSpline(s, y_arr)
-    ref_path.z_spline = TKSpline(s, z_arr)
-    ref_path.length = float(s[-1])
-    
-    # Place a single static obstacle on the centerline at 50% along the path
-    s_arr = np.asarray(s, dtype=float)
-    s_min = float(s_arr[0])
-    s_max = float(s_arr[-1])
-    s_range = s_max - s_min
-    obstacle_s_position = s_min + s_range * 0.5  # 50% along path
-    
-    # Create obstacle exactly on centerline
-    obstacle_configs = []
-    try:
-        x_pos = float(ref_path.x_spline(obstacle_s_position))
-        y_pos = float(ref_path.y_spline(obstacle_s_position))
-        
-        # Place obstacle exactly on centerline (no offset)
-        obstacle_config = create_point_mass_obstacle(
-            obstacle_id=0,
-            position=np.array([x_pos, y_pos]),
-            velocity=np.array([0.0, 0.0])  # Stationary
-        )
-        obstacle_config.radius = 0.5  # Obstacle radius
-        obstacle_config.prediction_type = PredictionType.DETERMINISTIC  # Required for linearized constraints
-        obstacle_configs.append(obstacle_config)
-        print(f"Created static obstacle at s={obstacle_s_position:.2f}, position=({x_pos:.2f}, {y_pos:.2f}) on centerline")
-    except Exception as e:
-        print(f"Warning: Could not create obstacle at s={obstacle_s_position}: {e}")
-    
     # CRITICAL: Use "contouring_unicycle" to get ContouringSecondOrderUnicycleModel with spline state
     # Reference: C++ mpc_planner - contouring MPC requires dynamics model with spline state variable
     # Pass the ReferencePath object (not numpy array) to TestConfig
     config = TestConfig(
         reference_path=ref_path_obj if hasattr(ref_path_obj, 'x') else ref_path_points,
         objective_module="contouring",
-        constraint_modules=["contouring", "linear"],  # Contouring constraints + linearized for obstacle avoidance
+        constraint_modules=["contouring"],  # Only contouring constraints (no obstacles)
         vehicle_dynamics="contouring_unicycle",  # Use contouring unicycle model with spline state
-        num_obstacles=len(obstacle_configs),
-        obstacle_dynamics=["point_mass"] * len(obstacle_configs),
-        test_name="Contouring Objective with Contouring Constraints + Single Static Obstacle",
+        num_obstacles=0,
+        obstacle_dynamics=[],
+        test_name="Contouring Objective with Contouring Constraints (Curving Path)",
         duration=max_iterations * dt,
         timestep=dt,
         show_predicted_trajectory=True,
         fallback_control_enabled=False,
         max_consecutive_failures=50,
-        timeout_seconds=120.0,  # Allow time for path completion
-        obstacle_configs=obstacle_configs,
-        obstacle_prediction_types=["deterministic"] * len(obstacle_configs)
+        timeout_seconds=120.0  # Allow time for path completion
     )
     
     # Run the test
@@ -133,11 +79,9 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     print(f"Start position: ({ref_path_points[0, 0]:.2f}, {ref_path_points[0, 1]:.2f})")
     print(f"End position: ({ref_path_points[-1, 0]:.2f}, {ref_path_points[-1, 1]:.2f})")
     print(f"Objective: contouring")
-    print(f"Constraints: contouring (road boundaries) + linearized (obstacle avoidance)")
+    print(f"Constraints: contouring")
     print(f"Dynamics model: contouring_unicycle (ContouringSecondOrderUnicycleModel)")
-    print(f"Number of obstacles: {len(obstacle_configs)}")
-    for i, obs_config in enumerate(obstacle_configs):
-        print(f"  Obstacle {i}: position=({obs_config.initial_position[0]:.2f}, {obs_config.initial_position[1]:.2f}), radius={obs_config.radius:.2f}m")
+    print(f"Number of obstacles: 0")
     print()
     result = framework.run_test(config)
     
@@ -198,53 +142,15 @@ def run(dt=0.1, horizon=10, max_iterations=300):
                 vehicle_turned = heading_change > 0.3
                 print(f"  Vehicle turned: {'✓ YES' if vehicle_turned else '✗ NO (insufficient turn)'}")
                 
-                # Verify obstacle avoidance
-                obstacles_avoided = True
-                if obstacle_configs:
-                    print(f"\n=== Obstacle Avoidance Verification ===")
-                    # Safe distance: minimum clearance between vehicle and obstacle boundaries
-                    # Obstacle radius: 0.5m, Vehicle radius: ~0.25m
-                    # Acceptable clearance: 0.2m margin (total center-to-center: 0.5 + 0.25 + 0.2 = 0.95m)
-                    # This gives: center_to_center - obs_radius - vehicle_radius >= 0.2m
-                    safe_distance = 0.2  # Minimum clearance between boundaries (not center-to-center)
-                    
-                    for obs_idx, obs_config in enumerate(obstacle_configs):
-                        obs_pos = obs_config.initial_position
-                        obs_radius = obs_config.radius
-                        min_distance = float('inf')
-                        closest_step = -1
-                        
-                        for step, state in enumerate(result.vehicle_states):
-                            if len(state) >= 2:
-                                veh_pos = np.array([state[0], state[1]])
-                                # Distance from vehicle center to obstacle center, minus both radii
-                                # This gives the clearance between vehicle and obstacle boundaries
-                                vehicle_radius = 0.25  # Approximate vehicle radius
-                                center_to_center = np.linalg.norm(veh_pos - obs_pos)
-                                distance = center_to_center - obs_radius - vehicle_radius
-                                if distance < min_distance:
-                                    min_distance = distance
-                                    closest_step = step
-                        
-                        avoided = min_distance >= safe_distance
-                        obstacles_avoided = obstacles_avoided and avoided
-                        print(f"Obstacle {obs_idx} at ({obs_pos[0]:.2f}, {obs_pos[1]:.2f}): "
-                              f"min_distance={min_distance:.3f}m, safe_distance={safe_distance:.2f}m, "
-                              f"avoided={'✓ YES' if avoided else '✗ NO'} (closest at step {closest_step})")
-                    
-                    print(f"All obstacles avoided: {'✓ YES' if obstacles_avoided else '✗ NO'}")
-                
-                # Overall success: vehicle should make progress AND turn AND avoid obstacles
-                success = made_progress and vehicle_turned and obstacles_avoided
+                # Overall success: vehicle should make progress AND turn
+                success = made_progress and vehicle_turned
                 print(f"\n=== Final Verification Summary ===")
                 print(f"Vehicle made progress: {'✓ YES' if made_progress else '✗ NO'}")
                 print(f"Vehicle turned: {'✓ YES' if vehicle_turned else '✗ NO'}")
-                if obstacle_configs:
-                    print(f"All obstacles avoided: {'✓ YES' if obstacles_avoided else '✗ NO'}")
                 print(f"Overall test result: {'✓ PASS' if success else '✗ FAIL'}")
                 
                 if not success:
-                    print(f"⚠️  Test verification failed: vehicle did not make sufficient progress, turn, or avoid obstacles")
+                    print(f"⚠️  Test verification failed: vehicle did not make sufficient progress or turn")
             else:
                 print(f"\n⚠️  Could not verify turning (insufficient state data)")
                 success = made_progress
