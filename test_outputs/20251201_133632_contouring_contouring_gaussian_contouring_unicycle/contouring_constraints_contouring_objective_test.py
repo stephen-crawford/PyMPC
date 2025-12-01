@@ -98,20 +98,16 @@ def run(dt=0.1, horizon=10, max_iterations=300):
             velocity=np.array([0.0, 0.0])  # Stationary
         )
         obstacle_config.radius = 0.5  # Obstacle radius
-        obstacle_config.prediction_type = PredictionType.GAUSSIAN  # Required for ellipsoid constraints (uses Gaussian predictions)
+        obstacle_config.prediction_type = PredictionType.GAUSSIAN  # Required for Gaussian constraints
         
-        # Add uncertainty parameters for Gaussian predictions (used by ellipsoid constraints)
+        # Add uncertainty parameters for Gaussian predictions
         obstacle_config.uncertainty_params = {
             "position_std": 0.1,  # Standard deviation for position uncertainty
             "uncertainty_growth": 0.01  # Growth rate of uncertainty over time
         }
         
-        # Ellipsoid constraints can use shape information
-        obstacle_config.major_axis = 0.5  # Major axis of obstacle ellipsoid
-        obstacle_config.minor_axis = 0.5  # Minor axis of obstacle ellipsoid
-        
         obstacle_configs.append(obstacle_config)
-        print(f"Created static obstacle at s={obstacle_s_position:.2f}, position=({x_pos:.2f}, {y_pos:.2f}) on centerline (Ellipsoid constraints)")
+        print(f"Created static obstacle at s={obstacle_s_position:.2f}, position=({x_pos:.2f}, {y_pos:.2f}) on centerline (Gaussian prediction)")
     except Exception as e:
         print(f"Warning: Could not create obstacle at s={obstacle_s_position}: {e}")
     
@@ -121,11 +117,11 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     config = TestConfig(
         reference_path=ref_path_obj if hasattr(ref_path_obj, 'x') else ref_path_points,
         objective_module="contouring",
-        constraint_modules=["contouring", "ellipsoid"],  # Contouring constraints + Ellipsoid for obstacle avoidance
+        constraint_modules=["contouring", "gaussian"],  # Contouring constraints + Gaussian for obstacle avoidance
         vehicle_dynamics="contouring_unicycle",  # Use contouring unicycle model with spline state
         num_obstacles=len(obstacle_configs),
         obstacle_dynamics=["point_mass"] * len(obstacle_configs),
-        test_name="Contouring Objective with Contouring Constraints + Single Static Obstacle (Ellipsoid)",
+        test_name="Contouring Objective with Contouring Constraints + Single Static Obstacle (Gaussian)",
         duration=max_iterations * dt,
         timestep=dt,
         show_predicted_trajectory=True,
@@ -133,7 +129,7 @@ def run(dt=0.1, horizon=10, max_iterations=300):
         max_consecutive_failures=50,
         timeout_seconds=120.0,  # Allow time for path completion
         obstacle_configs=obstacle_configs,
-        obstacle_prediction_types=["gaussian"] * len(obstacle_configs)  # Ellipsoid constraints use Gaussian predictions
+        obstacle_prediction_types=["gaussian"] * len(obstacle_configs)
     )
     
     # Run the test
@@ -144,7 +140,7 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     print(f"Start position: ({ref_path_points[0, 0]:.2f}, {ref_path_points[0, 1]:.2f})")
     print(f"End position: ({ref_path_points[-1, 0]:.2f}, {ref_path_points[-1, 1]:.2f})")
     print(f"Objective: contouring")
-    print(f"Constraints: contouring (road boundaries) + ellipsoid (obstacle avoidance)")
+    print(f"Constraints: contouring (road boundaries) + gaussian (obstacle avoidance)")
     print(f"Dynamics model: contouring_unicycle (ContouringSecondOrderUnicycleModel)")
     print(f"Number of obstacles: {len(obstacle_configs)}")
     for i, obs_config in enumerate(obstacle_configs):
