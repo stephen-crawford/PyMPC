@@ -1360,6 +1360,9 @@ class CasADiSolver(BaseSolver):
 							elif c.get('constraint_type') == 'safe_horizon':
 								other_count += 1
 								ctype = 'safe_horizon'
+							elif c.get('constraint_type') == 'ellipsoid':
+								other_count += 1
+								ctype = 'ellipsoid'
 							else:
 								contouring_count += 1
 								ctype = 'contouring'

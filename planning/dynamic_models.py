@@ -182,14 +182,71 @@ class DynamicsModel:
                     # Skip model_discrete_dynamics for symbolic expressions
                     return integrated_states
                 else:
-                    integrated_states = self.model_discrete_dynamics(z, integrated_states, **kwargs)
+                    # CRITICAL: model_discrete_dynamics should return full state vector (including spline)
+                    # For ContouringSecondOrderUnicycleModel, integrated_states is 4x1 (x,y,psi,v)
+                    # and model_discrete_dynamics should return 5x1 (x,y,psi,v,spline)
+                    result_states = self.model_discrete_dynamics(z, integrated_states, **kwargs)
+                    
+                    # Verify result has correct dimension
+                    if isinstance(result_states, (cd.DM, cd.MX, cd.SX)):
+                        if result_states.shape[0] == self.state_dimension:
+                            integrated_states = result_states
+                        else:
+                            LOG_WARN(f"model_discrete_dynamics returned {result_states.shape[0]} states, expected {self.state_dimension}. "
+                                   f"Using fallback: concatenating integrated_states with spline update.")
+                            # Fallback: if model_discrete_dynamics doesn't return full state, add spline manually
+                            if result_states.shape[0] == state_dimension:
+                                # Result is same as integrated_states, need to add spline
+                                x = self.get_x()
+                                s = x[-1] if x.size1() >= self.state_dimension else 0.0
+                                v = integrated_states[3] if integrated_states.size1() > 3 else 1.0
+                                dt_val = float(timestep) if not isinstance(timestep, (cd.MX, cd.SX)) else 0.1
+                                ds = v * dt_val
+                                new_s = s + ds
+                                new_s = cd.fmax(new_s, 0.0)
+                                integrated_states = cd.vertcat(integrated_states, new_s)
+                            else:
+                                integrated_states = result_states
+                    else:
+                        # Numeric array - check shape
+                        if len(result_states) == self.state_dimension:
+                            integrated_states = result_states
+                        else:
+                            LOG_WARN(f"model_discrete_dynamics returned {len(result_states)} states, expected {self.state_dimension}. "
+                                   f"Using fallback.")
+                            # Fallback: add spline if missing
+                            if len(result_states) == state_dimension:
+                                x = self.get_x()
+                                s = float(x[-1]) if x.size1() >= self.state_dimension else 0.0
+                                v = float(integrated_states[3]) if integrated_states.size1() > 3 else 1.0
+                                dt_val = float(timestep) if not isinstance(timestep, (cd.MX, cd.SX)) else 0.1
+                                ds = v * dt_val
+                                new_s = max(0.0, s + ds)
+                                integrated_states = np.concatenate([np.array(result_states).flatten(), [new_s]])
+                    
                     # Check for NaN in the result - only for numeric types
                     if isinstance(integrated_states, cd.DM) and not integrated_states.is_regular():
                         LOG_WARN("NaN detected in model_discrete_dynamics output")
             except Exception as e:
                 LOG_WARN(f"Error in model_discrete_dynamics: {e}")
-                # Return the states from RK4 if model-specific dynamics fails
-                pass
+                import traceback
+                LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+                # CRITICAL FIX: If model_discrete_dynamics fails, ensure we return full state vector
+                # For ContouringSecondOrderUnicycleModel, we need 5 states (x,y,psi,v,spline)
+                # integrated_states is only 4 states (x,y,psi,v), so add spline update
+                if integrated_states.shape[0] == state_dimension and self.state_dimension > state_dimension:
+                    # Need to add spline state
+                    x = self.get_x()
+                    s = x[-1] if x.size1() >= self.state_dimension else 0.0
+                    v = integrated_states[3] if integrated_states.size1() > 3 else 1.0
+                    dt_val = float(timestep) if not isinstance(timestep, (cd.MX, cd.SX)) else 0.1
+                    ds = v * dt_val
+                    new_s = s + ds
+                    if isinstance(new_s, (cd.MX, cd.SX, cd.DM)):
+                        new_s = cd.fmax(new_s, 0.0)
+                    else:
+                        new_s = max(0.0, float(new_s))
+                    integrated_states = cd.vertcat(integrated_states, new_s) if isinstance(integrated_states, (cd.MX, cd.SX, cd.DM)) else np.concatenate([np.array(integrated_states).flatten(), [new_s]])
 
             return integrated_states
         except Exception as e:
@@ -435,7 +492,10 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
         self.lower_bound = [-2.0, -0.8, -2000.0, -2000.0, -np.pi * 6, -0.01, -1.0]
         self.upper_bound = [2.0, 0.8, 2000.0, 2000.0, np.pi * 6, 3.0, 10000.0]
         
-        # Mark spline as not integrated (it's updated via model_discrete_dynamics)
+        # CRITICAL FIX: Only integrate first 4 states (x, y, psi, v) with RK4
+        # The spline state is updated algebraically in model_discrete_dynamics, not via RK4
+        # Reference: C++ mpc_planner - spline is updated via algebraic formula, not integration
+        self.state_dimension_integrate = 4  # Only integrate first 4 states
         self.do_not_use_integration_for_last_n_states(n=1)
 
     def continuous_model(self, x, u, p):
@@ -602,10 +662,88 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             # This should rarely trigger if R and theta are properly bounded, but provides safety
             v = x[3] if x.size1() > 3 else 1.0
             ds_max = v * dt * 5.0  # Allow up to 5x velocity-based progression (for sharp turns)
-            ds_min = -v * dt * 0.5  # Allow some backward progression if needed
+            # CRITICAL FIX: Limit backward progression to prevent spline from going too far backward
+            # Reference: C++ mpc_planner - spline should not go backward beyond vehicle's actual position
+            # When vehicle temporarily doesn't make forward progress, we should limit backward movement
+            # to maintain appropriate path segments for constraints
+            ds_min = -v * dt * 0.2  # Reduced from 0.5 to 0.2 to limit backward progression
             ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min), ds_max)
             
             new_s = s + ds_arc_length
+            
+            # CRITICAL FIX: Blend curvature-aware update with closest point tracking
+            # Reference: C++ mpc_planner - spline tracks the closest point on the reference path centerline
+            # The spline should track vehicle progress along the centerline, not just use curvature formula
+            # Blend the curvature-aware update (s_new_curvature) with closest point (s_closest) to ensure
+            # the spline tracks the vehicle's actual position along the path
+            try:
+                # Find closest point on path to integrated (predicted) vehicle position
+                # This ensures the spline tracks the vehicle's progress along the centerline
+                if hasattr(self, 'solver') and hasattr(self.solver, 'data'):
+                    data = self.solver.data
+                    if hasattr(data, 'reference_path') and data.reference_path is not None:
+                        ref_path = data.reference_path
+                        if hasattr(ref_path, 's') and ref_path.s is not None:
+                            s_arr = np.asarray(ref_path.s, dtype=float)
+                            if s_arr.size > 0:
+                                # Get integrated (predicted) position for closest point search
+                                # For numeric values, extract directly; for symbolic, use current position
+                                integrated_x_val = None
+                                integrated_y_val = None
+                                try:
+                                    if isinstance(integrated_states[0], (cd.MX, cd.SX)):
+                                        # Symbolic: use current position as approximation
+                                        integrated_x_val = float(pos_x) if not isinstance(pos_x, (cd.MX, cd.SX)) else float(cd.DM(pos_x))
+                                        integrated_y_val = float(pos_y) if not isinstance(pos_y, (cd.MX, cd.SX)) else float(cd.DM(pos_y))
+                                    else:
+                                        integrated_x_val = float(integrated_states[0])
+                                        integrated_y_val = float(integrated_states[1])
+                                except:
+                                    # Fallback to current position
+                                    integrated_x_val = float(pos_x) if not isinstance(pos_x, (cd.MX, cd.SX)) else float(cd.DM(pos_x))
+                                    integrated_y_val = float(pos_y) if not isinstance(pos_y, (cd.MX, cd.SX)) else float(cd.DM(pos_y))
+                                
+                                # Sample path to find closest point to predicted position
+                                min_dist = float('inf')
+                                closest_s = s_arr[0]
+                                # Use more samples for better accuracy
+                                num_samples = min(100, max(50, len(s_arr)))
+                                for s_sample in np.linspace(s_arr[0], s_arr[-1], num_samples):
+                                    try:
+                                        path_x_sample = float(ref_path.x_spline(s_sample))
+                                        path_y_sample = float(ref_path.y_spline(s_sample))
+                                        dist = np.sqrt((integrated_x_val - path_x_sample)**2 + (integrated_y_val - path_y_sample)**2)
+                                        if dist < min_dist:
+                                            min_dist = dist
+                                            closest_s = s_sample
+                                    except:
+                                        continue
+                                
+                                # CRITICAL: Blend curvature-aware update with closest point tracking
+                                # Reference: C++ mpc_planner blends these approaches
+                                # Weight: 70% curvature-aware (for smooth progression), 30% closest point (for accuracy)
+                                # This ensures the spline tracks the vehicle while maintaining smooth progression
+                                blend_weight_curvature = 0.7
+                                blend_weight_closest = 0.3
+                                
+                                # Blend the updates
+                                new_s_blended = blend_weight_curvature * new_s + blend_weight_closest * closest_s
+                                
+                                # CRITICAL: Ensure spline doesn't go backward beyond closest point
+                                # This prevents the spline from lagging behind the vehicle
+                                s_min_based_on_position = closest_s - 1.0  # Allow 1m backward tolerance
+                                new_s = cd.fmax(new_s_blended, s_min_based_on_position)
+                                
+                                # Also ensure spline doesn't go too far ahead (prevent overshooting)
+                                # Cap forward progression to prevent spline from getting too far ahead
+                                s_max_ahead = closest_s + 5.0  # Allow 5m ahead tolerance
+                                new_s = cd.fmin(new_s, s_max_ahead)
+            except Exception as e:
+                import traceback
+                LOG_DEBUG(f"Error in closest point tracking for spline update: {e}")
+                LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+                # Fallback: use original curvature-aware update
+                pass
             
             # Allow progression beyond s_max to reach final point (C++ reference behavior)
             # Clamp only to non-negative (allow s > s_max to reach path end)

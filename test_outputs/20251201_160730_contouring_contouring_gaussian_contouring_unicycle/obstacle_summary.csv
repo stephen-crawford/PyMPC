@@ -1,0 +1,4 @@
+obstacle_id,dynamics_type,radius,initial_x,initial_y,initial_angle
+0,PointMassModel,0.35,6.275901446235095,4.079805726028103,0.0
+1,PointMassModel,0.35,12.836558748725924,4.586407237389988,0.0
+2,PointMassModel,0.35,19.484502034905073,4.526485913204612,0.0

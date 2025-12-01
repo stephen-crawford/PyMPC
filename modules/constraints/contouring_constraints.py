@@ -17,10 +17,12 @@ class ContouringConstraints(BaseConstraint):
 		self.num_discs = int(self.get_config_value("num_discs", 1))
 		# Get slack parameter (adaptive slack increases with horizon)
 		self.slack = float(self.get_config_value("contouring.slack", 1.0))
-		# Number of spline segments to use per boundary at each step (default 5)
+		# Number of spline segments to use per boundary at each step (default 3)
 		# NOTE: For symbolic spline evaluation, we compute constraints along the entire path
 		# to ensure coverage regardless of predicted position
-		self.num_segments_per_boundary = int(self.get_config_value("contouring.num_segments_per_boundary", 5))
+		# Reference: C++ mpc_planner - uses fewer segments to avoid over-constraining
+		# Too many segments can cause infeasibility, especially with obstacle constraints
+		self.num_segments_per_boundary = int(self.get_config_value("contouring.num_segments_per_boundary", 3))
 		# Store reference path data for dynamic constraint computation
 		self._reference_path = None
 		self._road_width_half = None
@@ -255,25 +257,31 @@ class ContouringConstraints(BaseConstraint):
 			width_left = self._road_width_half if self._road_width_half is not None else 3.5
 		
 		# Strict boundary constraints: vehicle must stay within road bounds
-		# Right boundary constraint: contour_error <= width_right - w_cur
-		# A·p <= A·path_point + width_right - w_cur
-		# This enforces: A·(p - path_point) <= width_right - w_cur
-		# Since A points left, this limits how far left the vehicle can go (right boundary)
-		b_right = np.dot(A, path_point) + width_right - w_cur_estimate
+		# CRITICAL FIX: Constraint signs corrected to match C++ reference
+		# A = [path_dy_norm, -path_dx_norm] points LEFT (positive contour_error = left of path)
+		# 
+		# RIGHT boundary: Prevent vehicle from going too far RIGHT
+		# We want: contour_error >= -width_right + w_cur
+		# Which means: A·(p - path_point) >= -width_right + w_cur
+		# Rearranging: A·p >= A·path_point - width_right + w_cur
+		# Or: -A·p <= -A·path_point + width_right - w_cur
+		# So RIGHT boundary uses -A (points RIGHT) to limit rightward movement
+		b_right = np.dot(-A, path_point) + width_right - w_cur_estimate
 		
-		# Left boundary constraint: -contour_error <= width_left - w_cur
-		# -A·p <= -A·path_point + width_left - w_cur
-		# This enforces: -A·(p - path_point) <= width_left - w_cur
-		# Since -A points right, this limits how far right the vehicle can go (left boundary)
-		b_left = np.dot(-A, path_point) + width_left - w_cur_estimate
+		# LEFT boundary: Prevent vehicle from going too far LEFT
+		# We want: contour_error <= width_left - w_cur
+		# Which means: A·(p - path_point) <= width_left - w_cur
+		# Rearranging: A·p <= A·path_point + width_left - w_cur
+		# So LEFT boundary uses A (points LEFT) to limit leftward movement
+		b_left = np.dot(A, path_point) + width_left - w_cur_estimate
 		
 		# Note: Slack is removed to strictly enforce road boundaries
 		# If slack is needed for feasibility, it should be handled separately
 		
 		# Return constraints as (A, b, is_left) tuples
 		constraints = [
-			(A, b_right, False),  # Right boundary (is_left=False)
-			(-A, b_left, True),   # Left boundary (is_left=True)
+			(-A, b_right, False),  # Right boundary (is_left=False) - uses -A to limit rightward movement
+			(A, b_left, True),    # Left boundary (is_left=True) - uses A to limit leftward movement
 		]
 		
 		return constraints
@@ -388,6 +396,10 @@ class ContouringConstraints(BaseConstraint):
 		or falls back to CasADi interpolants. This ensures constraints are evaluated at the actual
 		predicted spline value, matching the C++ reference implementation.
 		
+		CRITICAL FIX: When vehicle temporarily doesn't make forward progress, ensure constraints
+		are computed at appropriate segments. The spline value should be at least as far as the
+		vehicle's current position to maintain proper constraint coverage.
+		
 		Reference: https://github.com/tud-amr/mpc_planner - constraints are evaluated symbolically.
 		"""
 		import casadi as cd
@@ -398,8 +410,32 @@ class ContouringConstraints(BaseConstraint):
 		s_min = float(s_arr[0])
 		s_max = float(s_arr[-1])
 		
+		# CRITICAL FIX: Ensure spline value doesn't go backward too far
+		# When vehicle temporarily doesn't make forward progress, we should still maintain
+		# constraints at appropriate segments. However, we need to prevent the spline from
+		# going backward beyond the vehicle's actual position.
+		# 
+		# For stage 0 (current state), use the current spline value directly
+		# For future stages, use the predicted spline value but ensure it's reasonable
+		# Reference: C++ mpc_planner - constraints maintain coverage even when progress is slow
+		
+		# Get current vehicle position to estimate minimum valid spline value
+		current_s_min = s_min  # Default to path start
+		if stage_idx == 0 and state is not None:
+			# For stage 0, try to get current spline value from state or warmstart
+			try:
+				if hasattr(self, 'solver') and self.solver is not None:
+					if hasattr(self.solver, 'warmstart_values') and 'spline' in self.solver.warmstart_values:
+						if len(self.solver.warmstart_values['spline']) > 0:
+							current_s_min = float(self.solver.warmstart_values['spline'][0])
+							current_s_min = max(s_min, min(s_max, current_s_min))  # Clamp to valid range
+			except:
+				pass
+		
 		# Clamp symbolic spline to valid range (in arc length units)
-		spline_clamped = cd.fmax(s_min, cd.fmin(s_max, spline_sym))
+		# CRITICAL: Ensure spline doesn't go backward beyond current position
+		# Use fmax to ensure spline is at least at current position (prevents backward drift)
+		spline_clamped = cd.fmax(current_s_min, cd.fmin(s_max, spline_sym))
 		
 		# Normalize spline to [0,1] for Spline2D evaluation
 		s_normalized = (spline_clamped - s_min) / cd.fmax(s_max - s_min, 1e-6)
@@ -545,71 +581,178 @@ class ContouringConstraints(BaseConstraint):
 				LOG_WARN(f"  Stage {stage_idx}: No solver available, cannot compute constraints")
 				return []
 		
-		# Compute constraint b values symbolically
-		# Right boundary: A·p <= A·path_point + width_right - w_cur
-		# Left boundary: -A·p <= -A·path_point + width_left - w_cur
-		# Where A = [path_dy_norm, -path_dx_norm] points LEFT
-		# A·path_point = path_dy_norm * path_x - path_dx_norm * path_y
-		path_point_dot_A = path_dy_norm_sym * path_x_sym - path_dx_norm_sym * path_y_sym
-		b_right_sym = path_point_dot_A + width_right - w_cur_estimate
-		# For left boundary: -A·p <= -A·path_point + width_left - w_cur
-		# -A = [-path_dy_norm, path_dx_norm] points RIGHT
-		# -A·path_point = -path_dy_norm * path_x + path_dx_norm * path_y
-		b_left_sym = -path_point_dot_A + width_left - w_cur_estimate
-		
-		# Get orientation for disc offset if needed
+		# CRITICAL FIX: Compute constraints at MULTIPLE segments along the path to ensure full coverage
+		# Reference: C++ mpc_planner computes constraints at multiple segments to prevent vehicle from exiting boundaries
+		# The numeric version uses num_segments_per_boundary segments, so the symbolic version should too
+		# Generate segment s values centered around predicted spline value
+		constraints = []
 		psi_sym = state.get('psi')
 		
-		# Create symbolic constraint expressions
-		constraints = []
-		
-		# Right boundary constraint: A·[x, y] <= b_right
-		# Constraint expression: path_dy_norm_sym * pos_x_sym - path_dx_norm_sym * pos_y_sym - b_right_sym <= 0
-		constraint_right_expr = path_dy_norm_sym * pos_x_sym - path_dx_norm_sym * pos_y_sym - b_right_sym
-		
-		# Left boundary constraint: -A·[x, y] <= b_left
-		# Constraint expression: -path_dy_norm_sym * pos_x_sym + path_dx_norm_sym * pos_y_sym - b_left_sym <= 0
-		constraint_left_expr = -path_dy_norm_sym * pos_x_sym + path_dx_norm_sym * pos_y_sym - b_left_sym
-		
-		# Apply disc offset if needed (for each disc)
-		for disc_id in range(self.num_discs):
-			disc_offset = 0.0
-			if hasattr(data, "robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
-				disc_offset = float(data.robot_area[disc_id].offset)
-			
-			if abs(disc_offset) > 1e-9 and psi_sym is not None:
-				# Adjust constraints for disc offset: p_disc = p_robot + offset * [cos(psi), sin(psi)]
-				# For right boundary: A·p_disc <= b_right
-				#   path_dy_norm_sym * (x + offset*cos(psi)) - path_dx_norm_sym * (y + offset*sin(psi)) <= b_right
-				#   = path_dy_norm_sym * x - path_dx_norm_sym * y + offset*(path_dy_norm_sym*cos(psi) - path_dx_norm_sym*sin(psi)) <= b_right
-				offset_adjustment_right = disc_offset * (path_dy_norm_sym * cd.cos(psi_sym) - path_dx_norm_sym * cd.sin(psi_sym))
-				constraint_right_expr_disc = constraint_right_expr - offset_adjustment_right
-				
-				# For left boundary: -A·p_disc <= b_left
-				#   -path_dy_norm_sym * (x + offset*cos(psi)) + path_dx_norm_sym * (y + offset*sin(psi)) <= b_left
-				#   = -path_dy_norm_sym * x + path_dx_norm_sym * y + offset*(-path_dy_norm_sym*cos(psi) + path_dx_norm_sym*sin(psi)) <= b_left
-				offset_adjustment_left = disc_offset * (-path_dy_norm_sym * cd.cos(psi_sym) + path_dx_norm_sym * cd.sin(psi_sym))
-				constraint_left_expr_disc = constraint_left_expr - offset_adjustment_left
+		# Determine segment spacing (similar to numeric version)
+		# Estimate segment spacing based on path geometry
+		segment_spacing = 1.0  # meters
+		try:
+			# Estimate ds_per_meter from path tangent at predicted position
+			if use_spline2d:
+				# Use Spline2D derivative to estimate spacing
+				path_dx_est = path_dx_norm_sym * cd.sqrt(path_dx_norm_sym*path_dx_norm_sym + path_dy_norm_sym*path_dy_norm_sym)
+				path_dy_est = path_dy_norm_sym * cd.sqrt(path_dx_norm_sym*path_dx_norm_sym + path_dy_norm_sym*path_dy_norm_sym)
+				ds_per_meter = 1.0 / cd.fmax(cd.sqrt(path_dx_est*path_dx_est + path_dy_est*path_dy_est), 1e-6)
 			else:
-				constraint_right_expr_disc = constraint_right_expr
-				constraint_left_expr_disc = constraint_left_expr
-			
-			# Return as CasADi expressions directly (solver will handle them)
-			# The solver's get_constraints will pair them with bounds
-			# For now, return as dicts with a special marker to indicate they're symbolic expressions
-			# The solver's _translate_constraint will detect CasADi expressions and handle them
-			constraints.append({
-				"type": "symbolic_expression",
-				"expression": constraint_right_expr_disc,
-				"ub": 0.0,  # expr <= 0
-			})
-			constraints.append({
-				"type": "symbolic_expression",
-				"expression": constraint_left_expr_disc,
-				"ub": 0.0,  # expr <= 0
-			})
+				# Use interpolant to estimate spacing
+				eps_est = 0.1
+				dx_est = (x_interp(spline_clamped + eps_est) - x_interp(spline_clamped - eps_est)) / (2 * eps_est)
+				dy_est = (y_interp(spline_clamped + eps_est) - y_interp(spline_clamped - eps_est)) / (2 * eps_est)
+				ds_per_meter = 1.0 / cd.fmax(cd.sqrt(dx_est*dx_est + dy_est*dy_est), 1e-6)
+			ds_segment = segment_spacing * ds_per_meter
+		except:
+			ds_segment = (s_max - s_min) * 0.1
 		
-		LOG_INFO(f"  Symbolic constraints: {len(constraints)} constraint expressions computed symbolically")
+		# Generate segment s values centered around predicted spline value
+		# CRITICAL: Use symbolic operations to create segment s values
+		# CRITICAL FIX: Ensure segments don't extend backward beyond current position
+		# When vehicle doesn't make forward progress, constraints should still look forward
+		if self.num_segments_per_boundary == 1:
+			segment_s_sym_list = [spline_clamped]
+		else:
+			# Create segment s values symbolically around predicted spline
+			# Total span = (num_segments - 1) * ds_segment
+			total_span = (self.num_segments_per_boundary - 1) * ds_segment
+			
+			# CRITICAL: For forward-looking constraints, bias segments forward from current position
+			# This ensures constraints cover the path ahead even when progress is slow
+			# Reference: C++ mpc_planner - constraints are forward-looking
+			s_center = spline_clamped
+			
+			# For stage 0, ensure we don't look too far backward
+			if stage_idx == 0:
+				# Get current spline value as minimum
+				try:
+					if hasattr(self, 'solver') and self.solver is not None:
+						if hasattr(self.solver, 'warmstart_values') and 'spline' in self.solver.warmstart_values:
+							if len(self.solver.warmstart_values['spline']) > 0:
+								current_s = float(self.solver.warmstart_values['spline'][0])
+								current_s = max(s_min, min(s_max, current_s))
+								# Ensure center is at least at current position
+								s_center = cd.fmax(current_s, spline_clamped)
+				except:
+					pass
+			
+			# Generate segments forward-biased: more segments ahead, fewer behind
+			# This ensures constraints cover the path the vehicle will travel
+			s_start_sym = cd.fmax(s_min, s_center - total_span * 0.3)  # 30% backward, 70% forward
+			s_end_sym = cd.fmin(s_max, s_center + total_span * 0.7)
+			
+			# Adjust if at boundaries
+			if s_start_sym == s_min:
+				# At start: extend forward
+				s_end_sym = cd.fmin(s_max, s_start_sym + total_span)
+			elif s_end_sym == s_max:
+				# At end: extend backward
+				s_start_sym = cd.fmax(s_min, s_end_sym - total_span)
+			
+			# Create evenly spaced segment s values symbolically
+			segment_s_sym_list = []
+			if self.num_segments_per_boundary > 1:
+				for i in range(self.num_segments_per_boundary):
+					alpha = float(i) / max(1, self.num_segments_per_boundary - 1) if self.num_segments_per_boundary > 1 else 0.0
+					segment_s_sym = s_start_sym + alpha * (s_end_sym - s_start_sym)
+					# CRITICAL: Ensure segments don't go backward beyond current position
+					segment_s_sym = cd.fmax(s_min, cd.fmin(s_max, segment_s_sym))
+					segment_s_sym_list.append(segment_s_sym)
+			else:
+				segment_s_sym_list = [spline_clamped]
+		
+		# Compute constraints for each segment
+		for segment_idx, segment_s_sym in enumerate(segment_s_sym_list):
+			# Evaluate path at this segment symbolically
+			if use_spline2d:
+				# Normalize segment s for Spline2D
+				segment_s_normalized = (segment_s_sym - s_min) / cd.fmax(s_max - s_min, 1e-6)
+				segment_s_normalized = cd.fmax(0.0, cd.fmin(1.0, segment_s_normalized))
+				
+				if has_z_params:
+					path_seg = Spline3D(param_wrapper, num_segments, segment_s_normalized)
+					path_x_seg_sym, path_y_seg_sym, _ = path_seg.at(segment_s_normalized)
+					path_dx_norm_seg_sym, path_dy_norm_seg_sym, _ = path_seg.deriv_normalized(segment_s_normalized)
+				else:
+					path_seg = Spline2D(param_wrapper, num_segments, segment_s_normalized)
+					path_x_seg_sym, path_y_seg_sym = path_seg.at(segment_s_normalized)
+					path_dx_norm_seg_sym, path_dy_norm_seg_sym = path_seg.deriv_normalized(segment_s_normalized)
+			else:
+				# Use interpolants
+				path_x_seg_sym = x_interp(segment_s_sym)
+				path_y_seg_sym = y_interp(segment_s_sym)
+				eps_seg = 1e-3
+				dx_seg_sym = (x_interp(segment_s_sym + eps_seg) - x_interp(segment_s_sym - eps_seg)) / (2 * eps_seg)
+				dy_seg_sym = (y_interp(segment_s_sym + eps_seg) - y_interp(segment_s_sym - eps_seg)) / (2 * eps_seg)
+				norm_seg_sym = cd.sqrt(dx_seg_sym*dx_seg_sym + dy_seg_sym*dy_seg_sym)
+				norm_seg_sym = cd.fmax(norm_seg_sym, 1e-6)
+				path_dx_norm_seg_sym = dx_seg_sym / norm_seg_sym
+				path_dy_norm_seg_sym = dy_seg_sym / norm_seg_sym
+			
+			# Normal vector pointing left for this segment: A_seg = [path_dy_norm_seg, -path_dx_norm_seg]
+			# CRITICAL FIX: Constraint signs corrected to match numeric version and C++ reference
+			# RIGHT boundary: Prevent vehicle from going too far RIGHT
+			# We want: contour_error >= -width_right + w_cur
+			# Which means: A_seg·(p - path_point) >= -width_right + w_cur
+			# Rearranging: -A_seg·p <= -A_seg·path_point + width_right - w_cur
+			path_point_dot_A_seg = path_dy_norm_seg_sym * path_x_seg_sym - path_dx_norm_seg_sym * path_y_seg_sym
+			b_right_seg_sym = -path_point_dot_A_seg + width_right - w_cur_estimate
+			
+			# LEFT boundary: Prevent vehicle from going too far LEFT
+			# We want: contour_error <= width_left - w_cur
+			# Which means: A_seg·(p - path_point) <= width_left - w_cur
+			# Rearranging: A_seg·p <= A_seg·path_point + width_left - w_cur
+			b_left_seg_sym = path_point_dot_A_seg + width_left - w_cur_estimate
+			
+			# Right boundary constraint for this segment: -A_seg·[x, y] <= b_right_seg
+			constraint_right_seg_expr = -path_dy_norm_seg_sym * pos_x_sym + path_dx_norm_seg_sym * pos_y_sym - b_right_seg_sym
+			
+			# Left boundary constraint for this segment: A_seg·[x, y] <= b_left_seg
+			constraint_left_seg_expr = path_dy_norm_seg_sym * pos_x_sym - path_dx_norm_seg_sym * pos_y_sym - b_left_seg_sym
+			
+			# Apply disc offset if needed (for each disc)
+			for disc_id in range(self.num_discs):
+				disc_offset = 0.0
+				if hasattr(data, "robot_area") and data.robot_area is not None and disc_id < len(data.robot_area):
+					disc_offset = float(data.robot_area[disc_id].offset)
+				
+				if abs(disc_offset) > 1e-9 and psi_sym is not None:
+					# Adjust constraints for disc offset
+					# Right boundary uses -A_seg, so offset adjustment is: -A_seg·offset
+					offset_adjustment_right_seg = disc_offset * (-path_dy_norm_seg_sym * cd.cos(psi_sym) + path_dx_norm_seg_sym * cd.sin(psi_sym))
+					constraint_right_seg_expr_disc = constraint_right_seg_expr - offset_adjustment_right_seg
+					
+					# Left boundary uses A_seg, so offset adjustment is: A_seg·offset
+					offset_adjustment_left_seg = disc_offset * (path_dy_norm_seg_sym * cd.cos(psi_sym) - path_dx_norm_seg_sym * cd.sin(psi_sym))
+					constraint_left_seg_expr_disc = constraint_left_seg_expr - offset_adjustment_left_seg
+				else:
+					constraint_right_seg_expr_disc = constraint_right_seg_expr
+					constraint_left_seg_expr_disc = constraint_left_seg_expr
+				
+				# Add constraints for this segment and disc
+				constraints.append({
+					"type": "symbolic_expression",
+					"expression": constraint_right_seg_expr_disc,
+					"ub": 0.0,  # expr <= 0
+					"constraint_type": "contouring",
+					"segment_idx": segment_idx,
+					"disc_id": disc_id,
+					"is_left": False,
+				})
+				constraints.append({
+					"type": "symbolic_expression",
+					"expression": constraint_left_seg_expr_disc,
+					"ub": 0.0,  # expr <= 0
+					"constraint_type": "contouring",
+					"segment_idx": segment_idx,
+					"disc_id": disc_id,
+					"is_left": True,
+				})
+		
+		LOG_INFO(f"  Symbolic constraints: {len(constraints)} constraint expressions computed symbolically "
+		         f"({self.num_segments_per_boundary} segments × 2 boundaries × {self.num_discs} disc(s))")
 		return constraints
 	
 	def _compute_numeric_constraints(self, cur_s, state, data, stage_idx):

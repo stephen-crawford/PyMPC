@@ -1061,11 +1061,13 @@ class ObstacleManager:
                             next_state[3] = path_intersect_max_velocity
                             self.logger.debug(f"Obstacle {i} path_intersect: post-integration clamped velocity to {path_intersect_max_velocity:.2f} m/s")
                 
+                # Initialize bounced flag (used for periodic heading changes)
+                bounced = False
+                
                 # Apply bouncing behavior if plot bounds are set
                 if self.plot_bounds is not None:
                     x_min, x_max, y_min, y_max = self.plot_bounds
                     x, y = next_state[0], next_state[1]
-                    bounced = False
                     
                     # Check x bounds and bounce
                     if x < x_min:

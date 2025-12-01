@@ -34,13 +34,16 @@ class EllipsoidConstraints(BaseConstraint):
 
 	def update(self, state, data):
 		"""Per-iteration update: prepare obstacles for constraint computation."""
+		LOG_DEBUG(f"EllipsoidConstraints.update: Checking for dynamic obstacles...")
 		if not data.has("dynamic_obstacles") or data.dynamic_obstacles is None:
+			LOG_DEBUG(f"EllipsoidConstraints.update: No dynamic obstacles found")
 			self.num_active_obstacles = 0
 			self._copied_dynamic_obstacles = []
 			return
 		
 		self._copied_dynamic_obstacles = data.dynamic_obstacles
 		self.num_active_obstacles = len(self._copied_dynamic_obstacles)
+		LOG_DEBUG(f"EllipsoidConstraints.update: Found {self.num_active_obstacles} obstacle(s)")
 
 	def constraint_name(self, obs_id, stage_idx):
 		"""Generate parameter name for obstacle constraint (for parameter manager)."""
@@ -72,9 +75,13 @@ class EllipsoidConstraints(BaseConstraint):
 		if not copied_dynamic_obstacles:
 			if data.has("dynamic_obstacles") and data.dynamic_obstacles:
 				copied_dynamic_obstacles = data.dynamic_obstacles
+				LOG_DEBUG(f"EllipsoidConstraints.calculate_constraints: Retrieved {len(copied_dynamic_obstacles)} obstacle(s) from data at stage {stage_idx}")
 		
 		if not copied_dynamic_obstacles:
+			LOG_DEBUG(f"EllipsoidConstraints.calculate_constraints: No obstacles available at stage {stage_idx}")
 			return []
+		
+		LOG_DEBUG(f"EllipsoidConstraints.calculate_constraints: Computing constraints for {len(copied_dynamic_obstacles)} obstacle(s), {self.num_discs} disc(s) at stage {stage_idx}")
 		
 		# Compute constraints for each disc and obstacle
 		for disc_id in range(self.num_discs):
@@ -99,31 +106,38 @@ class EllipsoidConstraints(BaseConstraint):
 				
 				# Get obstacle properties
 				if not hasattr(obstacle, 'position'):
+					LOG_DEBUG(f"EllipsoidConstraints: Obstacle {obs_id} has no position attribute, skipping")
 					continue
 				
-				# Get predicted position for this stage if available
-				# For dynamic obstacles with predictions, use predicted position at this stage
+				# CRITICAL: Check if obstacle has prediction (required for ellipsoid constraints)
+				# Ellipsoid constraints can work with static obstacles (no prediction) or dynamic obstacles with predictions
+				# For static obstacles, use current position; for dynamic, use predicted position
 				obstacle_cog = None
 				obst_psi = None
 				
-				if hasattr(obstacle, 'prediction') and hasattr(obstacle.prediction, 'steps'):
-					pred_steps = obstacle.prediction.steps
-					if pred_steps and stage_idx < len(pred_steps):
-						pred_step = pred_steps[stage_idx]
-						if hasattr(pred_step, 'position') and pred_step.position is not None:
-							# Use predicted position for this stage
-							obstacle_cog = cd.vertcat(
-								cd.DM(float(pred_step.position[0])),
-								cd.DM(float(pred_step.position[1]))
-							)
-							# Get predicted angle if available
-							obst_psi = float(getattr(pred_step, 'angle', getattr(pred_step, 'orientation', getattr(obstacle, 'angle', 0.0))))
+				# Check if obstacle has prediction
+				has_prediction = hasattr(obstacle, 'prediction') and obstacle.prediction is not None
+				if has_prediction:
+					# For obstacles with predictions, use predicted position at this stage
+					if hasattr(obstacle.prediction, 'steps'):
+						pred_steps = obstacle.prediction.steps
+						if pred_steps and stage_idx < len(pred_steps):
+							pred_step = pred_steps[stage_idx]
+							if hasattr(pred_step, 'position') and pred_step.position is not None:
+								# Use predicted position for this stage
+								obstacle_cog = cd.vertcat(
+									cd.DM(float(pred_step.position[0])),
+									cd.DM(float(pred_step.position[1]))
+								)
+								# Get predicted angle if available
+								obst_psi = float(getattr(pred_step, 'angle', getattr(pred_step, 'orientation', getattr(obstacle, 'angle', 0.0))))
 				
-				# Fallback to current obstacle position if no prediction available
+				# Fallback to current obstacle position if no prediction available (static obstacles)
 				if obstacle_cog is None:
 					obs_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
 					obstacle_cog = cd.vertcat(cd.DM(obs_pos[0]), cd.DM(obs_pos[1]))
 					obst_psi = float(getattr(obstacle, 'angle', 0.0))
+					LOG_DEBUG(f"EllipsoidConstraints: Using current position for obstacle {obs_id} at stage {stage_idx} (static obstacle)")
 				
 				# Get obstacle shape parameters (default to circular if not available)
 				if obst_psi is None:
@@ -134,9 +148,16 @@ class EllipsoidConstraints(BaseConstraint):
 				r_disc = self.disc_radius
 				
 				# Create ellipsoid matrix Q
-				# Major and minor denominators include vehicle and obstacle radii
-				major_denom = obst_major + r_disc + obst_r
-				minor_denom = obst_minor + r_disc + obst_r
+				# CRITICAL: The ellipsoid axes (obst_major, obst_minor) represent the obstacle's ellipsoid semi-axes.
+				# For collision avoidance with a circular vehicle disc, we need to add the vehicle disc radius.
+				# The obstacle radius (obst_r) is typically the same as obst_major/obst_minor for circular obstacles,
+				# but for non-circular obstacles, obst_major/obst_minor define the ellipsoid shape.
+				# Reference: C++ mpc_planner - ellipsoid constraint: (p - c)^T * Q * (p - c) >= 1.0
+				# where Q accounts for obstacle ellipsoid shape + vehicle disc radius
+				# The effective semi-axis = obstacle semi-axis + vehicle disc radius
+				# Note: obst_r is redundant if obst_major/obst_minor already represent the obstacle size
+				major_denom = obst_major + r_disc  # Obstacle semi-axis + vehicle disc radius
+				minor_denom = obst_minor + r_disc  # Obstacle semi-axis + vehicle disc radius
 				
 				# Avoid division by zero
 				major_denom = cd.fmax(major_denom, 1e-6)
@@ -179,6 +200,7 @@ class EllipsoidConstraints(BaseConstraint):
 					"stage_idx": stage_idx
 				})
 		
+		LOG_DEBUG(f"EllipsoidConstraints.calculate_constraints: Returning {len(constraints)} constraint(s) for stage {stage_idx}")
 		return constraints
 
 	def lower_bounds(self, state=None, data=None, stage_idx=None):
@@ -263,10 +285,11 @@ class EllipsoidConstraints(BaseConstraint):
 					obst_minor = float(getattr(obstacle, 'minor_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
 					obst_r = float(getattr(obstacle, 'radius', 0.35))
 					
-					# The constraint ellipsoid includes vehicle and obstacle radii
-					# Effective ellipsoid size for visualization
-					major_effective = obst_major + r_disc + obst_r
-					minor_effective = obst_minor + r_disc + obst_r
+					# The constraint ellipsoid includes vehicle disc radius
+					# Effective ellipsoid size for visualization (matches constraint calculation)
+					# obst_major/obst_minor are the obstacle's semi-axes, r_disc is vehicle disc radius
+					major_effective = obst_major + r_disc  # Obstacle semi-axis + vehicle disc radius
+					minor_effective = obst_minor + r_disc  # Obstacle semi-axis + vehicle disc radius
 					
 					# Create ellipse patch (constraint boundary)
 					# matplotlib Ellipse uses width and height (2 * radius), and angle in degrees
@@ -468,8 +491,9 @@ class EllipsoidConstraintVerifier:
 		"""Compute the ellipsoid constraint value: (p-c)^T * Q * (p-c)"""
 
 		# Create ellipse matrix
-		major_denom = obst_major + r_disc + obst_r
-		minor_denom = obst_minor + r_disc + obst_r
+		# Match the constraint calculation: obst_major/obst_minor are semi-axes, add vehicle disc radius
+		major_denom = obst_major + r_disc  # Obstacle semi-axis + vehicle disc radius
+		minor_denom = obst_minor + r_disc  # Obstacle semi-axis + vehicle disc radius
 
 		# Handle potential division by zero
 		major_inv_sq = 1.0 / (major_denom * major_denom) if major_denom > 1e-6 else 1e6

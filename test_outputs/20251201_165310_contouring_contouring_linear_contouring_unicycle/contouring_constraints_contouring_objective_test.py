@@ -5,7 +5,7 @@ This test verifies that:
 - Contouring objective works with contouring constraints
 - Contouring dynamics model (ContouringSecondOrderUnicycleModel) properly progresses along curving path
 - Vehicle follows a curving reference path that requires turning
-- Vehicle avoids dynamic obstacles using Gaussian constraints for obstacle avoidance
+- Vehicle avoids a single static obstacle placed on the centerline using linearized constraints
 - All computation is symbolic (no numeric fallbacks)
 - Reference path and constraints are properly visualized
 
@@ -32,7 +32,7 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     - Contouring dynamics model (ContouringSecondOrderUnicycleModel with spline state)
     - Contouring objective
     - Contouring constraints (for road boundaries)
-    - Gaussian constraints (for obstacle avoidance)
+    - Linearized constraints (for obstacle avoidance)
     - Single static obstacle placed on centerline
     """
     
@@ -131,17 +131,11 @@ def run(dt=0.1, horizon=10, max_iterations=300):
                 radius=0.35,  # Obstacle radius
                 behavior="path_intersect"  # Moves back and forth across the path
             )
-            obstacle_config.prediction_type = PredictionType.GAUSSIAN  # Gaussian constraints require Gaussian predictions
-            
-            # Add uncertainty parameters for Gaussian predictions
-            obstacle_config.uncertainty_params = {
-                'position_std': 0.1,  # Standard deviation of position uncertainty (m)
-                'uncertainty_growth': 0.05  # Growth rate of uncertainty over time (m/s)
-            }
+            obstacle_config.prediction_type = PredictionType.DETERMINISTIC  # Linearized constraints use deterministic predictions
             
             obstacle_configs.append(obstacle_config)
             print(f"Created dynamic obstacle {i} at s={obstacle_s_position:.2f}, position=({obstacle_x:.2f}, {obstacle_y:.2f}), "
-                  f"offset={lateral_offset:.2f}m from centerline, behavior=path_intersect (Gaussian constraints)")
+                  f"offset={lateral_offset:.2f}m from centerline, behavior=path_intersect")
         except Exception as e:
             print(f"Warning: Could not create obstacle {i} at s={obstacle_s_position}: {e}")
             import traceback
@@ -153,11 +147,11 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     config = TestConfig(
         reference_path=ref_path_obj if hasattr(ref_path_obj, 'x') else ref_path_points,
         objective_module="contouring",
-        constraint_modules=["contouring", "gaussian"],  # Contouring constraints + Gaussian for obstacle avoidance
+        constraint_modules=["contouring", "linear"],  # Contouring constraints + Linearized for obstacle avoidance
         vehicle_dynamics="contouring_unicycle",  # Use contouring unicycle model with spline state
         num_obstacles=len(obstacle_configs),
         obstacle_dynamics=["unicycle"] * len(obstacle_configs),  # Use unicycle dynamics for obstacles
-        test_name="Contouring Objective with Contouring Constraints + Dynamic Obstacles (Gaussian)",
+        test_name="Contouring Objective with Contouring Constraints + Dynamic Obstacles (Linearized)",
         duration=max_iterations * dt,
         timestep=dt,
         show_predicted_trajectory=True,
@@ -165,7 +159,7 @@ def run(dt=0.1, horizon=10, max_iterations=300):
         max_consecutive_failures=50,
         timeout_seconds=120.0,  # Allow time for path completion
         obstacle_configs=obstacle_configs,
-        obstacle_prediction_types=["gaussian"] * len(obstacle_configs)  # Gaussian constraints require Gaussian predictions
+        obstacle_prediction_types=["deterministic"] * len(obstacle_configs)  # Linearized constraints use deterministic predictions
     )
     
     # Store reference path in config for obstacle manager (needed for path_intersect behavior)
@@ -179,7 +173,7 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     print(f"Start position: ({ref_path_points[0, 0]:.2f}, {ref_path_points[0, 1]:.2f})")
     print(f"End position: ({ref_path_points[-1, 0]:.2f}, {ref_path_points[-1, 1]:.2f})")
     print(f"Objective: contouring")
-    print(f"Constraints: contouring (road boundaries) + gaussian (obstacle avoidance)")
+    print(f"Constraints: contouring (road boundaries) + linearized (obstacle avoidance)")
     print(f"Dynamics model: contouring_unicycle (ContouringSecondOrderUnicycleModel)")
     print(f"Obstacle dynamics: unicycle (with path_intersect behavior)")
     print(f"Number of obstacles: {len(obstacle_configs)}")
