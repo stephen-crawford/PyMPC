@@ -1203,7 +1203,26 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
                   if pred.type == PredictionType.GAUSSIAN:
                       # For Gaussian predictions, use uncertainty_std (which may grow over time)
                       # Add obstacle radius to uncertainty radius for visualization
+                      
+                      # IMPROVEMENT: Enhanced uncertainty growth for moving obstacles
+                      # Use quadratic growth for moving obstacles to account for:
+                      # - Prediction errors accumulating over time
+                      # - Obstacle acceleration/deceleration uncertainty
+                      # - Obstacle behavior changes
+                      obstacle_speed = 0.0
+                      if hasattr(obstacle, 'velocity') and obstacle.velocity is not None:
+                          obstacle_speed = np.linalg.norm(obstacle.velocity)
+                      elif hasattr(obstacle, 'speed') and obstacle.speed is not None:
+                          obstacle_speed = float(obstacle.speed)
+                      
+                      # Linear growth for static/slow obstacles
                       uncertainty_std = base_std + k * growth_rate
+                      
+                      # Add quadratic term for moving obstacles (faster growth for further predictions)
+                      if obstacle_speed > 0.5:  # Moving faster than 0.5 m/s
+                          quadratic_growth = (k * k) * 0.01  # Quadratic growth term
+                          uncertainty_std = uncertainty_std + quadratic_growth
+                      
                       obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
                       major_r = obstacle_radius + uncertainty_std * 2
                       minor_r = obstacle_radius + uncertainty_std
@@ -1305,9 +1324,28 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
 
       total_length = path.s[-1]
 
-      # Initialize progress in arc length
-      if not hasattr(obstacle, "s"):
-          obstacle.s = 0.0
+      # CRITICAL: For path-based obstacles, update obstacle.s based on CURRENT position
+      # This ensures predictions start from the obstacle's actual current position, not stale arc length
+      # Find closest point on path to current obstacle position
+      if hasattr(obstacle, 'position') and obstacle.position is not None:
+          try:
+              # Sample path to find closest point
+              s_samples = np.linspace(0, total_length, min(100, len(path.s)))
+              path_points = np.array([[path.x_spline(s), path.y_spline(s)] for s in s_samples])
+              obstacle_pos_2d = obstacle.position[:2]
+              distances = np.linalg.norm(path_points - obstacle_pos_2d, axis=1)
+              closest_idx = np.argmin(distances)
+              obstacle.s = s_samples[closest_idx]
+          except Exception:
+              # Fallback: use existing s or initialize to 0
+              if not hasattr(obstacle, "s"):
+                  obstacle.s = 0.0
+      else:
+          # Initialize progress in arc length if no position available
+          if not hasattr(obstacle, "s"):
+              obstacle.s = 0.0
+      
+      # Advance arc length based on speed
       obstacle.s += speed * dt
 
       # If reached end of current path → generate new path
@@ -1347,7 +1385,33 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
           total_length = path.s[-1]
 
       # ✅ Compute position using arc-length splines
-      s_now = min(obstacle.s, total_length)
+      # CRITICAL: If obstacle.position was already updated (e.g., by obstacle_manager),
+      # sync obstacle.s to match the current position instead of overwriting it
+      if hasattr(obstacle, 'position') and obstacle.position is not None:
+          try:
+              # Check if position matches what we would compute from current s
+              s_now = min(obstacle.s, total_length)
+              x_from_s = path.x_spline(s_now)
+              y_from_s = path.y_spline(s_now)
+              pos_from_s = np.array([x_from_s, y_from_s])
+              current_pos_2d = obstacle.position[:2]
+              dist_diff = np.linalg.norm(pos_from_s - current_pos_2d)
+              
+              # If position differs significantly, sync s to match current position
+              if dist_diff > 0.1:  # More than 10cm difference
+                  # Find closest point on path to current position
+                  s_samples = np.linspace(0, total_length, min(200, len(path.s)))
+                  path_points = np.array([[path.x_spline(s), path.y_spline(s)] for s in s_samples])
+                  distances = np.linalg.norm(path_points - current_pos_2d, axis=1)
+                  closest_idx = np.argmin(distances)
+                  obstacle.s = s_samples[closest_idx]
+                  s_now = obstacle.s
+          except Exception:
+              # Fallback: use existing s
+              s_now = min(obstacle.s, total_length)
+      else:
+          s_now = min(obstacle.s, total_length)
+      
       x = path.x_spline(s_now)
       y = path.y_spline(s_now)
       z = path.z_spline(s_now) if path.z_spline else 0.0
@@ -1455,7 +1519,13 @@ def filter_distant_obstacles(obstacles: list[DynamicObstacle], state: 'State', d
 
 def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> None:
     """Ensure that the number of obstacles matches the configured maximum."""
-    max_obstacles = CONFIG["max_obstacles"]
+    import logging
+    try:
+        max_obstacles = CONFIG["max_obstacles"]
+    except KeyError:
+        # Fallback to default if max_obstacles not in CONFIG
+        max_obstacles = 10
+        logging.warning(f"max_obstacles not found in CONFIG, using default: {max_obstacles}")
     # Create an index list
     indices = list(range(len(obstacles)))
 

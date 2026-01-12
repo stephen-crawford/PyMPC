@@ -365,9 +365,30 @@ class Planner:
     LOG_DEBUG("Obstacles propagated")
 
     LOG_INFO("Updating all modules...")
-    for module in self.solver.module_manager.get_modules():
+    # CRITICAL: Update modules in order, but ensure contouring constraints are updated LAST
+    # This ensures contouring warmstart projection happens after obstacle avoidance projections
+    # Reference: C++ mpc_planner - contouring constraints must be satisfied after all other projections
+    all_modules = self.solver.module_manager.get_modules()
+    contouring_modules = []
+    other_modules = []
+    
+    for module in all_modules:
+      module_name = getattr(module, 'name', 'Unknown')
+      if module_name == 'contouring_constraints':
+        contouring_modules.append(module)
+      else:
+        other_modules.append(module)
+    
+    # Update non-contouring modules first
+    for module in other_modules:
       module_name = getattr(module, 'name', 'Unknown')
       LOG_DEBUG(f"Updating module '{module_name}'")
+      module.update(self.state, self.data)
+    
+    # Update contouring modules last (ensures final warmstart respects road boundaries)
+    for module in contouring_modules:
+      module_name = getattr(module, 'name', 'Unknown')
+      LOG_DEBUG(f"Updating module '{module_name}' (last, to ensure road boundary compliance)")
       module.update(self.state, self.data)
 
     # Set data for all stages including final stage (horizon + 1 stages: 0 to horizon)
@@ -410,6 +431,37 @@ class Planner:
       error_msg = self.solver.explain_exit_flag(exit_flag)
       LOG_WARN(f"MPC solve failed: {error_msg}")
       LOG_WARN("  No control extracted - solver did not find a solution")
+      
+      # CRITICAL: Diagnose solver failure to identify root cause
+      LOG_WARN("=== SOLVER FAILURE DIAGNOSTICS ===")
+      self._diagnose_solver_failure()
+      
+      # CRITICAL: Clear or set safe control values when solver fails
+      # This prevents applying old/extreme control values that cause spiraling
+      # Reference: C++ mpc_planner - when solver fails, maintain forward progress toward goal
+      # Use zero acceleration (maintain current speed) and zero angular velocity to prevent reversing
+      if hasattr(self.solver, 'dynamics_model') and self.solver.dynamics_model is not None:
+        input_vars = self.solver.dynamics_model.get_inputs()
+        safe_control = {}
+        for u_name in input_vars:
+          if u_name == 'a':
+            # CRITICAL FIX: Use zero acceleration instead of negative to prevent reversing
+            # This maintains current forward speed and prevents vehicle from backing away from goal
+            # Reference: C++ mpc_planner - maintain forward progress when solver fails
+            safe_control[u_name] = 0.0
+          elif u_name == 'w':
+            # Zero angular velocity to prevent spinning
+            safe_control[u_name] = 0.0
+          else:
+            # Zero for other control inputs
+            safe_control[u_name] = 0.0
+        self.output.control = safe_control
+        LOG_WARN(f"  Set safe fallback control: {safe_control} (zero acceleration to maintain forward progress)")
+      else:
+        # Clear control if we can't determine inputs
+        self.output.control = {}
+        LOG_WARN("  Cleared control dict (no safe fallback available)")
+      
       return self.output
 
     self.output.success = True
@@ -599,6 +651,427 @@ class Planner:
   def set_state(self, state):
     self.state = state
     LOG_DEBUG("Planner::set_state")
+
+  def _diagnose_solver_failure(self):
+    """Diagnose solver failure to identify root cause.
+    
+    Checks:
+    - Constraint violations at current state
+    - Warmstart feasibility
+    - Which constraints are violated (Gaussian vs contouring)
+    - Current vehicle position vs obstacles
+    - Current vehicle position vs path boundaries
+    """
+    LOG_WARN("=== SOLVER FAILURE DIAGNOSTICS ===")
+    
+    # Check current vehicle state
+    try:
+      vehicle_x = float(self.state.get('x')) if self.state.has('x') else None
+      vehicle_y = float(self.state.get('y')) if self.state.has('y') else None
+      vehicle_psi = float(self.state.get('psi')) if self.state.has('psi') else None
+      vehicle_v = float(self.state.get('v')) if self.state.has('v') else None
+      
+      if vehicle_x is not None and vehicle_y is not None:
+        psi_str = f"{vehicle_psi:.3f}" if vehicle_psi is not None else "N/A"
+        v_str = f"{vehicle_v:.3f}" if vehicle_v is not None else "N/A"
+        LOG_WARN(f"Current vehicle state: x={vehicle_x:.3f}, y={vehicle_y:.3f}, psi={psi_str}, v={v_str}")
+      else:
+        LOG_WARN("Cannot get vehicle position for diagnostics")
+        return
+    except Exception as e:
+      LOG_WARN(f"Error getting vehicle state: {e}")
+      return
+    
+    # Check Gaussian constraint violations
+    try:
+      LOG_WARN("--- Checking Gaussian Constraints ---")
+      if hasattr(self.data, 'dynamic_obstacles') and self.data.dynamic_obstacles:
+        from planning.types import PredictionType
+        from scipy.stats import chi2
+        
+        gaussian_module = None
+        for module in self.solver.module_manager.modules:
+          if hasattr(module, 'name') and module.name == 'gaussian_constraints':
+            gaussian_module = module
+            break
+        
+        if gaussian_module:
+          risk_level = float(gaussian_module.get_config_value("gaussian_constraints.risk_level", 0.05))
+          chi_squared_threshold = chi2.ppf(1.0 - risk_level, df=2)
+          robot_radius = float(gaussian_module.robot_radius) if gaussian_module.robot_radius else 0.5
+          
+          violations = []
+          for obs_id, obstacle in enumerate(self.data.dynamic_obstacles):
+            if (hasattr(obstacle, 'prediction') and obstacle.prediction is not None and
+                obstacle.prediction.type == PredictionType.GAUSSIAN and
+                hasattr(obstacle.prediction, 'steps') and len(obstacle.prediction.steps) > 0):
+              
+              pred_step = obstacle.prediction.steps[0]  # Current step
+              if hasattr(pred_step, 'position') and pred_step.position is not None:
+                mean_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+                major_radius = float(getattr(pred_step, 'major_radius', 0.1))
+                minor_radius = float(getattr(pred_step, 'minor_radius', 0.1))
+                obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+                safe_distance = robot_radius + obstacle_radius
+                
+                # Use effective covariance (matching constraint calculation)
+                sigma_x_eff = major_radius + safe_distance
+                sigma_y_eff = minor_radius + safe_distance
+                
+                # Compute Mahalanobis distance
+                diff = np.array([vehicle_x, vehicle_y]) - mean_pos
+                mahalanobis_dist_sq = (diff[0]**2 / sigma_x_eff**2) + (diff[1]**2 / sigma_y_eff**2)
+                
+                # Check violation
+                if mahalanobis_dist_sq < chi_squared_threshold:
+                  violation = chi_squared_threshold - mahalanobis_dist_sq
+                  violations.append((obs_id, violation, mean_pos, mahalanobis_dist_sq, chi_squared_threshold))
+          
+          if violations:
+            LOG_WARN(f"  ⚠️  Found {len(violations)} Gaussian constraint violation(s):")
+            for obs_id, violation, mean_pos, mah_dist_sq, threshold in violations:
+              euclidean_dist = np.linalg.norm(np.array([vehicle_x, vehicle_y]) - mean_pos)
+              LOG_WARN(f"    Obstacle {obs_id}: violation={violation:.6f}, "
+                      f"mahalanobis_dist_sq={mah_dist_sq:.3f} < threshold={threshold:.3f}, "
+                      f"euclidean_dist={euclidean_dist:.3f}m, obstacle_pos=({mean_pos[0]:.3f}, {mean_pos[1]:.3f})")
+          else:
+            LOG_WARN(f"  ✓ No Gaussian constraint violations at current position")
+    except Exception as e:
+      LOG_WARN(f"Error checking Gaussian constraints: {e}")
+      import traceback
+      LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+    
+    # Check contouring constraint violations
+    try:
+      LOG_WARN("--- Checking Contouring Constraints ---")
+      if hasattr(self.data, 'reference_path') and self.data.reference_path is not None:
+        contouring_module = None
+        for module in self.solver.module_manager.modules:
+          if hasattr(module, 'name') and module.name == 'contouring_constraints':
+            contouring_module = module
+            break
+        
+        if contouring_module and hasattr(contouring_module, '_reference_path') and contouring_module._reference_path is not None:
+          ref_path = contouring_module._reference_path
+          
+          # Get current spline value
+          current_spline = self.state.get('spline') if self.state.has('spline') else None
+          if current_spline is None:
+            # Estimate from closest point
+            if hasattr(ref_path, 's') and ref_path.s is not None:
+              s_arr = np.asarray(ref_path.s, dtype=float)
+              if s_arr.size > 0:
+                s_sample = np.linspace(s_arr[0], s_arr[-1], min(200, len(s_arr)))
+                x_sample = []
+                y_sample = []
+                for s_val in s_sample:
+                  try:
+                    if hasattr(ref_path, 'x_spline') and ref_path.x_spline is not None:
+                      x_val = float(ref_path.x_spline(s_val))
+                      y_val = float(ref_path.y_spline(s_val))
+                      x_sample.append(x_val)
+                      y_sample.append(y_val)
+                  except:
+                    continue
+                if len(x_sample) > 0:
+                  distances = np.sqrt((np.array(x_sample) - vehicle_x)**2 + (np.array(y_sample) - vehicle_y)**2)
+                  closest_idx = np.argmin(distances)
+                  current_spline = float(s_sample[closest_idx])
+          
+          if current_spline is not None:
+            # Evaluate path at current spline
+            try:
+              if hasattr(ref_path, 'x_spline') and ref_path.x_spline is not None:
+                path_x = float(ref_path.x_spline(current_spline))
+                path_y = float(ref_path.y_spline(current_spline))
+                path_dx = float(ref_path.x_spline.derivative()(current_spline))
+                path_dy = float(ref_path.y_spline.derivative()(current_spline))
+                
+                # Normalize tangent
+                norm = np.hypot(path_dx, path_dy)
+                if norm > 1e-9:
+                  path_dx_norm = path_dx / norm
+                  path_dy_norm = path_dy / norm
+                  
+                  # Normal vector pointing left: A = [path_dy_norm, -path_dx_norm]
+                  A = np.array([path_dy_norm, -path_dx_norm])
+                  path_point = np.array([path_x, path_y])
+                  vehicle_pos = np.array([vehicle_x, vehicle_y])
+                  
+                  # Contour error
+                  contour_error = np.dot(A, vehicle_pos - path_point)
+                  
+                  # Get road width
+                  width_half = contouring_module._road_width_half if contouring_module._road_width_half is not None else 3.5
+                  robot_radius = 0.5  # Default
+                  if hasattr(self.data, 'robot_area') and self.data.robot_area and len(self.data.robot_area) > 0:
+                    robot_radius = float(self.data.robot_area[0].radius)
+                  
+                  w_cur = robot_radius
+                  width_left = width_half
+                  width_right = width_half
+                  
+                  # Check violations
+                  # RIGHT boundary: contour_error >= -width_right + w_cur
+                  right_violation = (-width_right + w_cur) - contour_error if contour_error < (-width_right + w_cur) else 0.0
+                  # LEFT boundary: contour_error <= width_left - w_cur
+                  left_violation = contour_error - (width_left - w_cur) if contour_error > (width_left - w_cur) else 0.0
+                  
+                  if right_violation > 1e-6 or left_violation > 1e-6:
+                    LOG_WARN(f"  ⚠️  Contouring constraint violation detected:")
+                    LOG_WARN(f"    Contour error: {contour_error:.3f}m")
+                    LOG_WARN(f"    Allowed range: [{(-width_right + w_cur):.3f}, {(width_left - w_cur):.3f}]")
+                    if right_violation > 1e-6:
+                      LOG_WARN(f"    RIGHT boundary violation: {right_violation:.3f}m (vehicle too far RIGHT)")
+                    if left_violation > 1e-6:
+                      LOG_WARN(f"    LEFT boundary violation: {left_violation:.3f}m (vehicle too far LEFT)")
+                    LOG_WARN(f"    Path point: ({path_x:.3f}, {path_y:.3f}), spline={current_spline:.3f}")
+                  else:
+                    LOG_WARN(f"  ✓ No contouring constraint violations at current position")
+            except Exception as e:
+              LOG_WARN(f"Error evaluating contouring constraints: {e}")
+    except Exception as e:
+      LOG_WARN(f"Error checking contouring constraints: {e}")
+      import traceback
+      LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+    
+    # Check warmstart feasibility at future stages
+    try:
+      LOG_WARN("--- Checking Warmstart Feasibility (Future Stages) ---")
+      if hasattr(self.solver, 'warmstart_values') and self.solver.warmstart_values:
+        ws_vals = self.solver.warmstart_values
+        if 'x' in ws_vals and 'y' in ws_vals and len(ws_vals['x']) > 0:
+          ws_x = float(ws_vals['x'][0])
+          ws_y = float(ws_vals['y'][0])
+          ws_dist = np.hypot(ws_x - vehicle_x, ws_y - vehicle_y)
+          LOG_WARN(f"  Warmstart stage 0: ({ws_x:.3f}, {ws_y:.3f})")
+          LOG_WARN(f"  Current position: ({vehicle_x:.3f}, {vehicle_y:.3f})")
+          LOG_WARN(f"  Distance: {ws_dist:.3f}m")
+          if ws_dist > 1.0:
+            LOG_WARN(f"  ⚠️  Warmstart is far from current position - may cause infeasibility")
+          
+          # Check future stages for constraint violations
+          horizon = self.solver.horizon if hasattr(self.solver, 'horizon') and self.solver.horizon is not None else 10
+          max_check_stages = min(5, horizon + 1, len(ws_vals['x']))
+          
+          LOG_WARN(f"  Checking warmstart at future stages (0-{max_check_stages-1}):")
+          for stage_idx in range(1, max_check_stages):
+            if stage_idx < len(ws_vals['x']) and stage_idx < len(ws_vals['y']):
+              ws_x_future = float(ws_vals['x'][stage_idx])
+              ws_y_future = float(ws_vals['y'][stage_idx])
+              
+              # Check Gaussian constraints at this future stage
+              if hasattr(self.data, 'dynamic_obstacles') and self.data.dynamic_obstacles:
+                from planning.types import PredictionType
+                from scipy.stats import chi2
+                
+                gaussian_module = None
+                for module in self.solver.module_manager.modules:
+                  if hasattr(module, 'name') and module.name == 'gaussian_constraints':
+                    gaussian_module = module
+                    break
+                
+                if gaussian_module:
+                  risk_level = float(gaussian_module.get_config_value("gaussian_constraints.risk_level", 0.05))
+                  chi_squared_threshold = chi2.ppf(1.0 - risk_level, df=2)
+                  robot_radius = float(gaussian_module.robot_radius) if gaussian_module.robot_radius else 0.5
+                  
+                  violations_future = []
+                  for obs_id, obstacle in enumerate(self.data.dynamic_obstacles):
+                    if (hasattr(obstacle, 'prediction') and obstacle.prediction is not None and
+                        obstacle.prediction.type == PredictionType.GAUSSIAN and
+                        hasattr(obstacle.prediction, 'steps') and len(obstacle.prediction.steps) > stage_idx):
+                      
+                      pred_step = obstacle.prediction.steps[stage_idx]
+                      if hasattr(pred_step, 'position') and pred_step.position is not None:
+                        mean_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+                        major_radius = float(getattr(pred_step, 'major_radius', 0.1))
+                        minor_radius = float(getattr(pred_step, 'minor_radius', 0.1))
+                        obstacle_radius = float(getattr(obstacle, 'radius', 0.35))
+                        safe_distance = robot_radius + obstacle_radius
+                        
+                        sigma_x_eff = major_radius + safe_distance
+                        sigma_y_eff = minor_radius + safe_distance
+                        
+                        diff = np.array([ws_x_future, ws_y_future]) - mean_pos
+                        mahalanobis_dist_sq = (diff[0]**2 / sigma_x_eff**2) + (diff[1]**2 / sigma_y_eff**2)
+                        
+                        if mahalanobis_dist_sq < chi_squared_threshold:
+                          violation = chi_squared_threshold - mahalanobis_dist_sq
+                          violations_future.append((obs_id, violation, mean_pos))
+                  
+                  if violations_future:
+                    LOG_WARN(f"    Stage {stage_idx}: ⚠️  {len(violations_future)} Gaussian violation(s) at warmstart position ({ws_x_future:.3f}, {ws_y_future:.3f})")
+                    for obs_id, violation, mean_pos in violations_future:
+                      LOG_WARN(f"      Obstacle {obs_id}: violation={violation:.6f}, obstacle_pos=({mean_pos[0]:.3f}, {mean_pos[1]:.3f})")
+              
+              # Check contouring constraints at this future stage
+              if hasattr(self.data, 'reference_path') and self.data.reference_path is not None:
+                contouring_module = None
+                for module in self.solver.module_manager.modules:
+                  if hasattr(module, 'name') and module.name == 'contouring_constraints':
+                    contouring_module = module
+                    break
+                
+                if contouring_module and hasattr(contouring_module, '_reference_path') and contouring_module._reference_path is not None:
+                  ref_path = contouring_module._reference_path
+                  
+                  # Estimate spline value for this stage
+                  if 'spline' in ws_vals and stage_idx < len(ws_vals['spline']):
+                    ws_spline = float(ws_vals['spline'][stage_idx])
+                    
+                    try:
+                      if hasattr(ref_path, 'x_spline') and ref_path.x_spline is not None:
+                        path_x = float(ref_path.x_spline(ws_spline))
+                        path_y = float(ref_path.y_spline(ws_spline))
+                        path_dx = float(ref_path.x_spline.derivative()(ws_spline))
+                        path_dy = float(ref_path.y_spline.derivative()(ws_spline))
+                        
+                        norm = np.hypot(path_dx, path_dy)
+                        if norm > 1e-9:
+                          path_dx_norm = path_dx / norm
+                          path_dy_norm = path_dy / norm
+                          
+                          A = np.array([path_dy_norm, -path_dx_norm])
+                          path_point = np.array([path_x, path_y])
+                          ws_pos = np.array([ws_x_future, ws_y_future])
+                          
+                          contour_error = np.dot(A, ws_pos - path_point)
+                          
+                          width_half = contouring_module._road_width_half if contouring_module._road_width_half is not None else 3.5
+                          robot_radius = 0.5
+                          if hasattr(self.data, 'robot_area') and self.data.robot_area and len(self.data.robot_area) > 0:
+                            robot_radius = float(self.data.robot_area[0].radius)
+                          
+                          w_cur = robot_radius
+                          width_left = width_half
+                          width_right = width_half
+                          
+                          right_violation = (-width_right + w_cur) - contour_error if contour_error < (-width_right + w_cur) else 0.0
+                          left_violation = contour_error - (width_left - w_cur) if contour_error > (width_left - w_cur) else 0.0
+                          
+                          if right_violation > 1e-6 or left_violation > 1e-6:
+                            LOG_WARN(f"    Stage {stage_idx}: ⚠️  Contouring violation at warmstart ({ws_x_future:.3f}, {ws_y_future:.3f}), "
+                                    f"contour_error={contour_error:.3f}, allowed=[{(-width_right + w_cur):.3f}, {(width_left - w_cur):.3f}]")
+                    except Exception:
+                      pass
+    except Exception as e:
+      LOG_WARN(f"Error checking warmstart future stages: {e}")
+      import traceback
+      LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+    
+    # Check solver-reported constraint violations and identify which constraints
+    try:
+      LOG_WARN("--- Checking Solver-Reported Constraint Violations ---")
+      if hasattr(self.solver, 'opti') and self.solver.opti is not None:
+        if hasattr(self.solver.opti, 'debug') and hasattr(self.solver.opti.debug, 'g'):
+          try:
+            constraint_values = self.solver.opti.debug.value(self.solver.opti.debug.g)
+            if constraint_values is not None:
+              constraint_values_arr = np.array(constraint_values)
+              positive_violations = constraint_values_arr[constraint_values_arr > 1e-6]
+              if len(positive_violations) > 0:
+                max_violation = np.max(positive_violations)
+                max_idx = np.argmax(constraint_values_arr)
+                LOG_WARN(f"  ⚠️  Found {len(positive_violations)} constraint(s) with positive values (VIOLATIONS)")
+                LOG_WARN(f"  ⚠️  Maximum violation: {max_violation:.6f} at constraint index {max_idx}")
+                
+                # Identify constraint types
+                dynamics_model = self.solver._get_dynamics_model() if hasattr(self.solver, '_get_dynamics_model') else None
+                horizon = self.solver.horizon if hasattr(self.solver, 'horizon') and self.solver.horizon is not None else 10
+                
+                if dynamics_model:
+                  num_state_vars = len(dynamics_model.get_dependent_vars())
+                  num_dynamics = num_state_vars * horizon  # 5 × 10 = 50
+                  num_initial_state = num_state_vars  # 5
+                  
+                  LOG_WARN(f"  Constraint structure: dynamics={num_dynamics}, initial_state={num_initial_state}, module=varies")
+                  
+                  # Categorize violations
+                  dynamics_violations = []
+                  initial_state_violations = []
+                  module_violations = []
+                  
+                  positive_indices = np.where(constraint_values_arr > 1e-6)[0]
+                  for idx in positive_indices:
+                    val = float(constraint_values_arr[idx])
+                    if idx < num_dynamics:
+                      transition_idx = idx // num_state_vars
+                      state_idx = idx % num_state_vars
+                      state_vars = dynamics_model.get_dependent_vars()
+                      var_name = state_vars[state_idx] if state_idx < len(state_vars) else f"state_{state_idx}"
+                      dynamics_violations.append((idx, val, transition_idx, var_name))
+                    elif idx < num_dynamics + num_initial_state:
+                      initial_idx = idx - num_dynamics
+                      state_vars = dynamics_model.get_dependent_vars()
+                      var_name = state_vars[initial_idx] if initial_idx < len(state_vars) else f"state_{initial_idx}"
+                      initial_state_violations.append((idx, val, var_name))
+                    else:
+                      module_violations.append((idx, val))
+                  
+                  if dynamics_violations:
+                    LOG_WARN(f"  ⚠️  DYNAMICS constraint violations: {len(dynamics_violations)}")
+                    for idx, val, trans_idx, var_name in dynamics_violations[:5]:
+                      LOG_WARN(f"    Constraint {idx}: {val:.6f} [Dynamics: {var_name} at transition {trans_idx}->{trans_idx+1}]")
+                  
+                  if initial_state_violations:
+                    LOG_WARN(f"  ⚠️  INITIAL STATE constraint violations: {len(initial_state_violations)}")
+                    for idx, val, var_name in initial_state_violations[:5]:
+                      LOG_WARN(f"    Constraint {idx}: {val:.6f} [Initial state: {var_name}[0]]")
+                  
+                  if module_violations:
+                    LOG_WARN(f"  ⚠️  MODULE constraint violations: {len(module_violations)}")
+                    LOG_WARN(f"    First 5 module violations:")
+                    for idx, val in module_violations[:5]:
+                      LOG_WARN(f"      Constraint {idx}: {val:.6f} [Module constraint - need to identify type]")
+                  
+                  # Identify the maximum violation
+                  if max_idx < num_dynamics:
+                    transition_idx = max_idx // num_state_vars
+                    state_idx = max_idx % num_state_vars
+                    state_vars = dynamics_model.get_dependent_vars()
+                    var_name = state_vars[state_idx] if state_idx < len(state_vars) else f"state_{state_idx}"
+                    LOG_WARN(f"  ⚠️  MAX VIOLATION: Dynamics constraint for {var_name} at transition {transition_idx}->{transition_idx+1}")
+                    LOG_WARN(f"      This means warmstart values don't satisfy dynamics: {var_name}[{transition_idx+1}] != RK4({var_name}[{transition_idx}], u[{transition_idx}], dt)")
+                    
+                    # Check warmstart values for this transition
+                    if hasattr(self.solver, 'warmstart_values') and var_name in self.solver.warmstart_values:
+                      ws_vals = self.solver.warmstart_values[var_name]
+                      if transition_idx < len(ws_vals) and transition_idx + 1 < len(ws_vals):
+                        LOG_WARN(f"      Warmstart: {var_name}[{transition_idx}]={ws_vals[transition_idx]:.6f}, {var_name}[{transition_idx+1}]={ws_vals[transition_idx+1]:.6f}")
+                  elif max_idx < num_dynamics + num_initial_state:
+                    initial_idx = max_idx - num_dynamics
+                    state_vars = dynamics_model.get_dependent_vars()
+                    var_name = state_vars[initial_idx] if initial_idx < len(state_vars) else f"state_{initial_idx}"
+                    LOG_WARN(f"  ⚠️  MAX VIOLATION: Initial state constraint for {var_name}[0]")
+                    LOG_WARN(f"      This means warmstart doesn't match current state")
+                    
+                    # Check actual values
+                    current_val = self.state.get(var_name) if self.state.has(var_name) else None
+                    if hasattr(self.solver, 'warmstart_values') and var_name in self.solver.warmstart_values:
+                      ws_val = self.solver.warmstart_values[var_name][0] if len(self.solver.warmstart_values[var_name]) > 0 else None
+                      LOG_WARN(f"      Current state {var_name}: {current_val}")
+                      LOG_WARN(f"      Warmstart {var_name}[0]: {ws_val}")
+                      if current_val is not None and ws_val is not None:
+                        diff = abs(float(current_val) - float(ws_val))
+                        LOG_WARN(f"      Difference: {diff:.6f} (violation: {max_violation:.6f})")
+                        if diff > 1e-6:
+                          LOG_WARN(f"      ⚠️  WARMSTART MISMATCH: {var_name}[0] should be {current_val} but is {ws_val}")
+                  else:
+                    LOG_WARN(f"  ⚠️  MAX VIOLATION: Module constraint at index {max_idx}")
+                    LOG_WARN(f"      This is likely a Gaussian or Contouring constraint violation")
+              else:
+                LOG_WARN(f"  ✓ No positive constraint violations in solver debug.g")
+          except Exception as e:
+            LOG_WARN(f"  Could not get constraint values from solver: {e}")
+            import traceback
+            LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+    except Exception as e:
+      LOG_WARN(f"Error checking solver constraint violations: {e}")
+      import traceback
+      LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+    
+    LOG_WARN("=== END DIAGNOSTICS ===")
 
 
 class PlannerOutput:

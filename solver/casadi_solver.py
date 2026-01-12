@@ -126,7 +126,8 @@ class CasADiSolver(BaseSolver):
 			'ipopt.tol': 1e-3,  # Slightly relaxed for faster convergence
 			'ipopt.acceptable_tol': 1e-1,  # More relaxed to accept suboptimal solutions
 			'ipopt.acceptable_iter': 10,  # Accept sooner if acceptable_tol met
-			'ipopt.constr_viol_tol': 1e-3,  # More relaxed constraint violation tolerance
+			'ipopt.constr_viol_tol': 1e-6,  # CRITICAL: Tight constraint violation tolerance for safety-critical constraints (Gaussian, contouring)
+			# Reference: C++ mpc_planner uses strict constraint enforcement to prevent collisions
 			'ipopt.mu_strategy': 'adaptive',
 			'ipopt.hessian_approximation': 'limited-memory',
 			'ipopt.warm_start_init_point': 'yes',
@@ -249,10 +250,14 @@ class CasADiSolver(BaseSolver):
 			LOG_DEBUG("Solver not initialized in initialize_rollout - initializing now")
 			self.intialize_solver(data)
 		
-		# DO NOT store state separately - always get from data
-		self._set_initial_state(state)
+		# CRITICAL: Initialize warmstart FIRST, then set initial state constraints
+		# This ensures initial values are set before constraints are evaluated
+		# Reference: C++ mpc_planner - initial values must match constraints
 		# Enable warmstart initialization to provide feasible initial guess
 		self._initialize_warmstart(state, shift_forward)
+		# Set initial state constraints AFTER warmstart is initialized
+		# This ensures the initial values match the constraints
+		self._set_initial_state(state)
 
 	def get_objective_cost(self, state, stage_idx):
 		"""Fetch per-stage objective cost terms via BaseSolver (ModuleManager-backed)."""
@@ -307,6 +312,8 @@ class CasADiSolver(BaseSolver):
 		self._ensure_warmstart_dynamics_consistency()
 		
 		# Set initial values in CasADi opti problem
+		# CRITICAL: This must be called BEFORE _set_initial_state to ensure
+		# initial values match constraints
 		self._set_opti_initial_values()
 		
 		self.warmstart_intiailized = True
@@ -974,9 +981,24 @@ class CasADiSolver(BaseSolver):
 				continue
 			value = state.get(var_name)
 			if value is not None:
-				self.opti.subject_to(self.var_dict[var_name][0] == value)
+				# CRITICAL: Ensure warmstart value matches current state BEFORE setting constraint
+				# Reference: C++ mpc_planner - initial values must match constraints exactly
 				if var_name in self.warmstart_values:
+					# Update warmstart to match current state
 					self.warmstart_values[var_name][0] = value
+					# Set initial value in opti to match constraint
+					# This ensures the constraint is satisfied at the initial point
+					try:
+						initial_array = self.warmstart_values[var_name].copy()
+						initial_array[0] = float(value)
+						self.opti.set_initial(self.var_dict[var_name], initial_array)
+						LOG_DEBUG(f"_set_initial_state: Set initial value for {var_name}[0] = {value}")
+					except Exception as e:
+						LOG_WARN(f"Could not set initial value for {var_name} before constraint: {e}")
+				
+				# Set constraint: x[0] == value
+				# This constraint will be satisfied because we set the initial value above
+				self.opti.subject_to(self.var_dict[var_name][0] == value)
 
 	def solve(self, state=None, data=None):
 		"""Solve the optimization problem.
@@ -1363,6 +1385,9 @@ class CasADiSolver(BaseSolver):
 							elif c.get('constraint_type') == 'ellipsoid':
 								other_count += 1
 								ctype = 'ellipsoid'
+							elif c.get('constraint_type') == 'gaussian':
+								other_count += 1
+								ctype = 'gaussian'
 							else:
 								contouring_count += 1
 								ctype = 'contouring'

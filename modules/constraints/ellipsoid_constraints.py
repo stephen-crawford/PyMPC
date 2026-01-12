@@ -2,7 +2,7 @@ import casadi as cd
 import numpy as np
 
 from modules.constraints.base_constraint import BaseConstraint
-from utils.utils import LOG_DEBUG
+from utils.utils import LOG_DEBUG, LOG_INFO
 
 
 class EllipsoidConstraints(BaseConstraint):
@@ -44,6 +44,187 @@ class EllipsoidConstraints(BaseConstraint):
 		self._copied_dynamic_obstacles = data.dynamic_obstacles
 		self.num_active_obstacles = len(self._copied_dynamic_obstacles)
 		LOG_DEBUG(f"EllipsoidConstraints.update: Found {self.num_active_obstacles} obstacle(s)")
+		
+		# CRITICAL: Project warmstart to satisfy constraints
+		# Reference: C++ mpc_planner - warmstart is projected to ensure feasibility
+		# This prevents solver failures and improves convergence
+		self._project_warmstart_to_safety(data)
+	
+	def _project_warmstart_to_safety(self, data):
+		"""
+		Project warmstart trajectory to satisfy ellipsoid constraints.
+		
+		Reference: C++ mpc_planner - warmstart is projected to ensure feasibility
+		Similar to SafeHorizonConstraint._project_warmstart_to_safety and GaussianConstraints._project_warmstart_to_gaussian_safety.
+		
+		This method:
+		1. Checks if warmstart positions violate ellipsoid constraints
+		2. Projects violating positions away from obstacles to satisfy constraints
+		3. Ensures warmstart is feasible, preventing solver failures
+		
+		Args:
+			data: Data object containing obstacles and other information
+		"""
+		if not hasattr(self, 'solver') or self.solver is None:
+			return
+		
+		if not hasattr(self.solver, 'warmstart_values') or not self.solver.warmstart_values:
+			return
+		
+		ws_vals = self.solver.warmstart_values
+		if 'x' not in ws_vals or 'y' not in ws_vals:
+			return
+		
+		# Get obstacles
+		if not data.has("dynamic_obstacles") or data.dynamic_obstacles is None:
+			return
+		
+		copied_dynamic_obstacles = data.dynamic_obstacles
+		horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
+		x_ws = ws_vals['x']
+		y_ws = ws_vals['y']
+		
+		# Get robot radius
+		robot_radius = float(self.get_config_value("robot.radius", 0.5)) or self.disc_radius
+		
+		# Check each stage that has constraints
+		projections_made = 0
+		max_stage_for_constraints = min(horizon_val + 1, len(x_ws))
+		
+		for stage_idx in range(max_stage_for_constraints):
+			if stage_idx >= len(x_ws) or stage_idx >= len(y_ws):
+				continue
+			
+			robot_pos = np.array([float(x_ws[stage_idx]), float(y_ws[stage_idx])])
+			
+			# Check each obstacle for constraint violations
+			for obs_id, obstacle in enumerate(copied_dynamic_obstacles[:self.max_obstacles]):
+				# Get obstacle position (use predicted position if available)
+				obstacle_pos = None
+				obst_major = float(getattr(obstacle, 'major_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
+				obst_minor = float(getattr(obstacle, 'minor_axis', obstacle.radius if hasattr(obstacle, 'radius') else 0.35))
+				obst_psi = float(getattr(obstacle, 'angle', 0.0))
+				
+				if hasattr(obstacle, 'prediction') and obstacle.prediction is not None:
+					if hasattr(obstacle.prediction, 'steps') and obstacle.prediction.steps:
+						if stage_idx < len(obstacle.prediction.steps):
+							pred_step = obstacle.prediction.steps[stage_idx]
+							if hasattr(pred_step, 'position') and pred_step.position is not None:
+								obstacle_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+								obst_major = float(getattr(pred_step, 'major_axis', obst_major))
+								obst_minor = float(getattr(pred_step, 'minor_axis', obst_minor))
+								obst_psi = float(getattr(pred_step, 'angle', getattr(pred_step, 'orientation', obst_psi)))
+				
+				if obstacle_pos is None:
+					if hasattr(obstacle, 'position') and obstacle.position is not None:
+						obstacle_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+					else:
+						continue
+				
+				# Compute ellipsoid constraint: (p - c)^T * Q * (p - c) >= 1.0
+				# Project vehicle position away from obstacle if constraint is violated
+				diff = robot_pos - obstacle_pos
+				
+				# Create rotation matrix for obstacle orientation
+				cos_psi = np.cos(obst_psi)
+				sin_psi = np.sin(obst_psi)
+				rotation = np.array([[cos_psi, -sin_psi], [sin_psi, cos_psi]])
+				
+				# Transform to obstacle frame
+				diff_rotated = rotation.T @ diff
+				
+				# Compute constraint value: (x/a)^2 + (y/b)^2 >= 1.0
+				# where a = obst_major + robot_radius, b = obst_minor + robot_radius
+				a = obst_major + robot_radius
+				b = obst_minor + robot_radius
+				
+				constraint_value = (diff_rotated[0] / a)**2 + (diff_rotated[1] / b)**2
+				
+				if constraint_value < 1.0:  # Violation (inside ellipsoid)
+					# Project to ellipsoid boundary
+					# Normalize difference by semi-axes
+					diff_normalized = np.array([diff_rotated[0] / a, diff_rotated[1] / b])
+					dist_normalized = np.linalg.norm(diff_normalized)
+					
+					if dist_normalized < 1e-10:
+						# Vehicle is exactly at obstacle center - project in direction of largest axis
+						if a >= b:
+							diff_normalized = np.array([1.0, 0.0])
+						else:
+							diff_normalized = np.array([0.0, 1.0])
+						dist_normalized = 1.0
+					
+					# Scale to ellipsoid boundary
+					scale_factor = 1.0 / dist_normalized
+					diff_normalized_scaled = diff_normalized * scale_factor
+					
+					# Convert back to world frame
+					diff_projected = rotation @ np.array([diff_normalized_scaled[0] * a, diff_normalized_scaled[1] * b])
+					new_pos = obstacle_pos + diff_projected
+					
+					# CRITICAL: Check if projected position satisfies contouring constraints (if active)
+					# Reference: C++ mpc_planner - warmstart must satisfy ALL active constraints
+					is_valid_contouring = True
+					contour_error = 0.0
+					if hasattr(self.solver, 'module_manager') and self.solver.module_manager is not None:
+						# Check if contouring constraints are active
+						contouring_module = None
+						for module in self.solver.module_manager.get_modules():
+							if hasattr(module, 'name') and module.name == 'contouring_constraints':
+								contouring_module = module
+								break
+						
+						if contouring_module is not None:
+							# Manual check using reference path
+							if (hasattr(self.solver, 'data') and self.solver.data is not None and
+								hasattr(self.solver.data, 'reference_path') and self.solver.data.reference_path is not None):
+								try:
+									ref_path = self.solver.data.reference_path
+									ws_vals = self.solver.warmstart_values
+									if 'spline' in ws_vals and stage_idx < len(ws_vals['spline']):
+										s_val = float(ws_vals['spline'][stage_idx])
+										if hasattr(ref_path, 'x_spline') and ref_path.x_spline is not None:
+											path_x = float(ref_path.x_spline(s_val))
+											path_y = float(ref_path.y_spline(s_val))
+											path_dx = float(ref_path.x_spline.derivative()(s_val))
+											path_dy = float(ref_path.y_spline.derivative()(s_val))
+											norm = np.hypot(path_dx, path_dy)
+											if norm > 1e-6:
+												path_dx_norm = path_dx / norm
+												path_dy_norm = path_dy / norm
+												A = np.array([path_dy_norm, -path_dx_norm])
+												diff = new_pos - np.array([path_x, path_y])
+												contour_error = np.dot(A, diff)
+												road_width_half = 3.5  # Default
+												if hasattr(contouring_module, '_road_width_half') and contouring_module._road_width_half is not None:
+													road_width_half = float(contouring_module._road_width_half)
+												is_valid_contouring = (-road_width_half <= contour_error <= road_width_half)
+								except Exception:
+									pass
+						
+						if not is_valid_contouring:
+							# Try to project to satisfy contouring constraints
+							# For now, log warning - full implementation would project to nearest valid position
+							LOG_WARN(f"EllipsoidConstraints._project_warmstart_to_safety: Stage {stage_idx}, Obstacle {obs_id}: "
+							         f"Projected position violates contouring constraints (contour_error={contour_error:.3f}). "
+							         f"May need additional projection to satisfy road boundaries.")
+					
+					# Update warmstart values
+					x_ws[stage_idx] = float(new_pos[0])
+					y_ws[stage_idx] = float(new_pos[1])
+					projections_made += 1
+					
+					if stage_idx < 3:  # Log first few projections
+						LOG_INFO(f"EllipsoidConstraints._project_warmstart_to_safety: Stage {stage_idx}, Obstacle {obs_id}: "
+						         f"Projected warmstart from ({robot_pos[0]:.3f}, {robot_pos[1]:.3f}) "
+						         f"to ({new_pos[0]:.3f}, {new_pos[1]:.3f}) "
+						         f"(constraint_value={constraint_value:.3f} < 1.0, "
+						         f"contouring_valid={is_valid_contouring}, contour_error={contour_error:.3f})")
+		
+		if projections_made > 0:
+			LOG_INFO(f"EllipsoidConstraints._project_warmstart_to_safety: Projected {projections_made} warmstart positions to satisfy constraints")
+		else:
+			LOG_DEBUG(f"EllipsoidConstraints._project_warmstart_to_safety: No warmstart projections needed (all positions satisfy constraints)")
 
 	def constraint_name(self, obs_id, stage_idx):
 		"""Generate parameter name for obstacle constraint (for parameter manager)."""

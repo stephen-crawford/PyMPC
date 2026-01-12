@@ -170,7 +170,253 @@ class ContouringConstraints(BaseConstraint):
 			else:
 				LOG_DEBUG("ContouringConstraints: Stored reference path data with width splines for dynamic constraint computation")
 		
+		# CRITICAL: According to C++ reference implementations (mpc_planner, ttk592/spline, oscardegroot/ros_tools):
+		# - The reference path should remain FIXED (stationary) throughout the problem
+		# - The spline parameter tracks the vehicle's position along the fixed path
+		# - The spline is updated by the dynamics model based on TANGENTIAL progress only
+		# - Lateral deviation (perpendicular to path) does NOT contribute to spline progression
+		# - The update() method should ONLY initialize spline if None, NOT reset it every time
+		# 
+		# Reference: https://github.com/tud-amr/mpc_planner - path remains fixed, spline tracks position
+		# Reference: https://github.com/ttk592/spline - spline parameter represents arc length along fixed curve
+		# Reference: https://github.com/oscardegroot/ros_tools - path handling maintains arc length progression
+		# 
+		# The spline initialization should happen only if spline is None (first time).
+		# After that, the dynamics model handles updates using tangential component only.
+		if state is not None and hasattr(data, 'reference_path') and data.reference_path is not None:
+			try:
+				current_spline = state.get('spline')
+				if current_spline is None:
+					# Only initialize if spline is None (first time)
+					# Find closest point on path to initialize spline
+					vehicle_pos = state.get_position()
+					if vehicle_pos is not None and len(vehicle_pos) >= 2:
+						ref_path = data.reference_path
+						
+						# Check if reference path has s array (arc length parameterization)
+						if hasattr(ref_path, 's') and ref_path.s is not None:
+							s_arr = np.asarray(ref_path.s, dtype=float)
+							if s_arr.size > 0:
+								s_min = float(s_arr[0])
+								s_max = float(s_arr[-1])
+								
+								# Sample path to find closest point
+								num_samples = min(200, max(50, len(s_arr)))
+								s_sample = np.linspace(s_min, s_max, num_samples)
+								
+								# Evaluate path at sample points
+								x_sample = []
+								y_sample = []
+								for s_val in s_sample:
+									try:
+										if hasattr(ref_path, 'x_spline') and ref_path.x_spline is not None:
+											x_val = float(ref_path.x_spline(s_val))
+											y_val = float(ref_path.y_spline(s_val))
+										else:
+											# Fallback: interpolate from discrete points
+											idx = int((s_val - s_min) / (s_max - s_min) * (len(ref_path.x) - 1))
+											idx = max(0, min(idx, len(ref_path.x) - 1))
+											x_val = float(ref_path.x[idx])
+											y_val = float(ref_path.y[idx])
+										x_sample.append(x_val)
+										y_sample.append(y_val)
+									except Exception:
+										continue
+								
+								if len(x_sample) > 0 and len(y_sample) > 0:
+									x_sample = np.array(x_sample)
+									y_sample = np.array(y_sample)
+									
+									# Find closest point
+									vehicle_x = float(vehicle_pos[0])
+									vehicle_y = float(vehicle_pos[1])
+									distances = np.sqrt((x_sample - vehicle_x)**2 + (y_sample - vehicle_y)**2)
+									closest_idx = np.argmin(distances)
+									closest_s = float(s_sample[closest_idx])
+									
+									# Initialize spline to closest point (only if None)
+									state.set('spline', closest_s)
+									LOG_INFO(f"ContouringConstraints.update: Initialized spline to {closest_s:.4f} "
+									         f"(first time, vehicle at ({vehicle_x:.2f}, {vehicle_y:.2f}), "
+									         f"closest path point at ({x_sample[closest_idx]:.2f}, {y_sample[closest_idx]:.2f}))")
+						else:
+							# Fallback: use discrete path points if s array not available
+							x_arr = np.asarray(ref_path.x, dtype=float)
+							y_arr = np.asarray(ref_path.y, dtype=float)
+							if x_arr.size > 0 and y_arr.size > 0:
+								vehicle_x = float(vehicle_pos[0])
+								vehicle_y = float(vehicle_pos[1])
+								distances = np.sqrt((x_arr - vehicle_x)**2 + (y_arr - vehicle_y)**2)
+								closest_idx = np.argmin(distances)
+								
+								# Estimate s value from index (assuming uniform spacing)
+								estimated_s = float(closest_idx) * (30.0 / len(x_arr)) if len(x_arr) > 0 else 0.0
+								state.set('spline', estimated_s)
+								LOG_INFO(f"ContouringConstraints.update: Initialized spline to estimated value {estimated_s:.4f} "
+								         f"(using discrete path points, closest_idx={closest_idx})")
+			except Exception as e:
+				LOG_DEBUG(f"ContouringConstraints.update: Could not initialize spline: {e}")
+				import traceback
+				LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+		
+		# CRITICAL: Project warmstart to ensure it respects contouring constraints
+		# Reference: C++ mpc_planner - warmstart must satisfy all constraints
+		# This ensures the vehicle doesn't violate road boundaries even when avoiding obstacles
+		self._project_warmstart_to_contouring_safety(data)
+		
 		return
+	
+	def _project_warmstart_to_contouring_safety(self, data):
+		"""
+		Project warmstart trajectory to satisfy contouring constraints (road boundaries).
+		
+		Reference: C++ mpc_planner - warmstart is projected to ensure feasibility
+		This ensures all warmstart positions are within road boundaries, using TKSpline
+		to find closest points and project positions correctly.
+		
+		Args:
+			data: Data object containing reference path and other information
+		"""
+		if not hasattr(self, 'solver') or self.solver is None:
+			return
+		
+		if not hasattr(self.solver, 'warmstart_values') or not self.solver.warmstart_values:
+			return
+		
+		ws_vals = self.solver.warmstart_values
+		if 'x' not in ws_vals or 'y' not in ws_vals:
+			return
+		
+		# Get reference path
+		if not hasattr(data, 'reference_path') or data.reference_path is None:
+			return
+		
+		ref_path = data.reference_path
+		if not hasattr(ref_path, 'x_spline') or ref_path.x_spline is None:
+			return
+		
+		# Get road width
+		road_width_half = self._road_width_half if self._road_width_half is not None else 3.5
+		
+		horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
+		x_ws = ws_vals['x']
+		y_ws = ws_vals['y']
+		
+		# Get spline values (will update if needed)
+		if 'spline' not in ws_vals:
+			ws_vals['spline'] = [0.0] * (horizon_val + 1)
+		spline_ws = ws_vals['spline']
+		
+		# Ensure spline array is correct length
+		while len(spline_ws) < horizon_val + 1:
+			spline_ws.append(0.0)
+		
+		projections_made = 0
+		max_stage_for_constraints = min(horizon_val + 1, len(x_ws))
+		
+		for stage_idx in range(max_stage_for_constraints):
+			if stage_idx >= len(x_ws) or stage_idx >= len(y_ws):
+				continue
+			
+			robot_pos = np.array([float(x_ws[stage_idx]), float(y_ws[stage_idx])])
+			
+			# CRITICAL: Find closest point on path using TKSpline
+			# Reference: C++ mpc_planner - spline parameter tracks closest point on path
+			try:
+				# Sample path to find closest point
+				s_arr = np.asarray(ref_path.s, dtype=float) if hasattr(ref_path, 's') and ref_path.s is not None else None
+				if s_arr is None or s_arr.size < 2:
+					continue
+				
+				s_min = float(s_arr[0])
+				s_max = float(s_arr[-1])
+				
+				# Use current spline value as starting point for search (if available)
+				current_s = float(spline_ws[stage_idx]) if stage_idx < len(spline_ws) else s_min
+				current_s = max(s_min, min(s_max, current_s))
+				
+				# Search around current_s first (most likely location)
+				search_radius = 5.0  # Search within 5m of current s
+				s_search_min = max(s_min, current_s - search_radius)
+				s_search_max = min(s_max, current_s + search_radius)
+				
+				# Sample path points around current_s
+				num_samples = 100
+				s_samples = np.linspace(s_search_min, s_search_max, num_samples)
+				
+				# Evaluate path at sample points
+				x_samples = np.array([float(ref_path.x_spline(s)) for s in s_samples])
+				y_samples = np.array([float(ref_path.y_spline(s)) for s in s_samples])
+				
+				# Find closest point
+				distances = np.sqrt((x_samples - robot_pos[0])**2 + (y_samples - robot_pos[1])**2)
+				closest_idx = np.argmin(distances)
+				closest_s = float(s_samples[closest_idx])
+				closest_point = np.array([x_samples[closest_idx], y_samples[closest_idx]])
+				min_distance = float(distances[closest_idx])
+				
+				# If closest point is at boundary, expand search
+				if closest_idx == 0 or closest_idx == len(s_samples) - 1:
+					# Expand search to full path
+					s_samples_full = np.linspace(s_min, s_max, num_samples * 2)
+					x_samples_full = np.array([float(ref_path.x_spline(s)) for s in s_samples_full])
+					y_samples_full = np.array([float(ref_path.y_spline(s)) for s in s_samples_full])
+					distances_full = np.sqrt((x_samples_full - robot_pos[0])**2 + (y_samples_full - robot_pos[1])**2)
+					closest_idx_full = np.argmin(distances_full)
+					if distances_full[closest_idx_full] < min_distance:
+						closest_s = float(s_samples_full[closest_idx_full])
+						closest_point = np.array([x_samples_full[closest_idx_full], y_samples_full[closest_idx_full]])
+						min_distance = float(distances_full[closest_idx_full])
+				
+				# Update spline value to closest point
+				spline_ws[stage_idx] = closest_s
+				
+				# Get path tangent at closest point
+				path_dx = float(ref_path.x_spline.derivative()(closest_s))
+				path_dy = float(ref_path.y_spline.derivative()(closest_s))
+				norm = np.hypot(path_dx, path_dy)
+				if norm < 1e-6:
+					continue
+				
+				path_dx_norm = path_dx / norm
+				path_dy_norm = path_dy / norm
+				
+				# Normal vector pointing left: A = [path_dy_norm, -path_dx_norm]
+				A = np.array([path_dy_norm, -path_dx_norm])
+				
+				# Compute contour error
+				diff = robot_pos - closest_point
+				contour_error = np.dot(A, diff)
+				
+				# Check if position violates contouring constraints
+				# CRITICAL: Use a small margin to ensure positions are well within boundaries
+				# Reference: C++ mpc_planner - warmstart should be safely within constraints
+				margin = 0.1  # 10cm margin for safety
+				if abs(contour_error) > (road_width_half - margin):
+					# Project position to nearest valid point within road boundaries (with margin)
+					contour_error_clamped = np.clip(contour_error, -(road_width_half - margin), road_width_half - margin)
+					projected_pos = closest_point + contour_error_clamped * A
+					
+					# Update warmstart values
+					x_ws[stage_idx] = float(projected_pos[0])
+					y_ws[stage_idx] = float(projected_pos[1])
+					# CRITICAL: Update spline value to match closest point
+					spline_ws[stage_idx] = closest_s
+					projections_made += 1
+					
+					if stage_idx < 3:  # Log first few projections
+						LOG_INFO(f"ContouringConstraints._project_warmstart_to_contouring_safety: Stage {stage_idx}: "
+						         f"Projected warmstart from ({robot_pos[0]:.3f}, {robot_pos[1]:.3f}) "
+						         f"to ({projected_pos[0]:.3f}, {projected_pos[1]:.3f}) "
+						         f"(contour_error={contour_error:.3f} -> {contour_error_clamped:.3f}, closest_s={closest_s:.3f})")
+			except Exception as e:
+				LOG_DEBUG(f"ContouringConstraints._project_warmstart_to_contouring_safety: Error at stage {stage_idx}: {e}")
+				continue
+		
+		if projections_made > 0:
+			LOG_INFO(f"ContouringConstraints._project_warmstart_to_contouring_safety: Projected {projections_made} warmstart positions to satisfy contouring constraints")
+		else:
+			LOG_DEBUG(f"ContouringConstraints._project_warmstart_to_contouring_safety: No warmstart projections needed (all positions satisfy constraints)")
 	
 	def _compute_constraint_for_s(self, cur_s, stage_idx, state=None):
 		"""Compute road boundary constraints for a given arc length s.
@@ -707,9 +953,13 @@ class ContouringConstraints(BaseConstraint):
 			b_left_seg_sym = path_point_dot_A_seg + width_left - w_cur_estimate
 			
 			# Right boundary constraint for this segment: -A_seg·[x, y] <= b_right_seg
+			# CRITICAL FIX: Constraint expression must be: (-A_seg·[x, y]) - b_right_seg <= 0
+			# This enforces: -A_seg·[x, y] <= b_right_seg
 			constraint_right_seg_expr = -path_dy_norm_seg_sym * pos_x_sym + path_dx_norm_seg_sym * pos_y_sym - b_right_seg_sym
 			
 			# Left boundary constraint for this segment: A_seg·[x, y] <= b_left_seg
+			# CRITICAL FIX: Constraint expression must be: (A_seg·[x, y]) - b_left_seg <= 0
+			# This enforces: A_seg·[x, y] <= b_left_seg
 			constraint_left_seg_expr = path_dy_norm_seg_sym * pos_x_sym - path_dx_norm_seg_sym * pos_y_sym - b_left_seg_sym
 			
 			# Apply disc offset if needed (for each disc)

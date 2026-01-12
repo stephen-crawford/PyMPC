@@ -1372,6 +1372,88 @@ class TKSpline:
         
         return result[0] if scalar_input else result
     
+    def find_closest_s(self, position, num_samples=200):
+        """
+        Find the closest point on the spline to a given position.
+        
+        Reference: https://github.com/ttk592/spline - spline parameter represents arc length
+        Reference: https://github.com/tud-amr/mpc_planner - spline tracks closest point on path
+        
+        Args:
+            position: 2D position (x, y) as numpy array or list
+            num_samples: Number of samples to search (default: 200)
+        
+        Returns:
+            s: Arc length parameter of closest point on spline
+            closest_point: (x, y) coordinates of closest point
+            distance: Distance from position to closest point
+        """
+        position = np.asarray(position, dtype=float)
+        if position.shape[0] < 2:
+            return self.x[0], np.array([self.x[0], self.y[0]]), float('inf')
+        
+        pos_x, pos_y = float(position[0]), float(position[1])
+        
+        # Sample spline parameter space (x is the parameter, y is the function value)
+        x_min = float(self.x[0])
+        x_max = float(self.x[-1])
+        x_samples = np.linspace(x_min, x_max, num_samples)
+        
+        # Evaluate spline at sample points (y = spline(x))
+        y_samples = self.at(x_samples)
+        
+        # Compute distances in (x, y) space
+        distances = np.sqrt((x_samples - pos_x)**2 + (y_samples - pos_y)**2)
+        
+        # Find minimum distance
+        min_idx = np.argmin(distances)
+        closest_x = float(x_samples[min_idx])
+        closest_y = float(y_samples[min_idx])
+        closest_point = np.array([closest_x, closest_y])
+        min_distance = float(distances[min_idx])
+        
+        # Refine using binary search around the closest point
+        if min_idx > 0 and min_idx < len(x_samples) - 1:
+            # Search in the segment around the closest point
+            x_left = x_samples[max(0, min_idx - 1)]
+            x_right = x_samples[min(len(x_samples) - 1, min_idx + 1)]
+            
+            # Binary search refinement
+            for _ in range(10):  # 10 iterations for refinement
+                x_mid = (x_left + x_right) / 2.0
+                y_mid = float(self.at(x_mid))
+                dist_mid = np.sqrt((x_mid - pos_x)**2 + (y_mid - pos_y)**2)
+                
+                x_left_mid = (x_left + x_mid) / 2.0
+                y_left_mid = float(self.at(x_left_mid))
+                dist_left_mid = np.sqrt((x_left_mid - pos_x)**2 + (y_left_mid - pos_y)**2)
+                
+                x_right_mid = (x_mid + x_right) / 2.0
+                y_right_mid = float(self.at(x_right_mid))
+                dist_right_mid = np.sqrt((x_right_mid - pos_x)**2 + (y_right_mid - pos_y)**2)
+                
+                if dist_left_mid < dist_mid and dist_left_mid < dist_right_mid:
+                    x_right = x_mid
+                    min_distance = dist_left_mid
+                    closest_x = x_left_mid
+                    closest_y = y_left_mid
+                    closest_point = np.array([x_left_mid, y_left_mid])
+                elif dist_right_mid < dist_mid:
+                    x_left = x_mid
+                    min_distance = dist_right_mid
+                    closest_x = x_right_mid
+                    closest_y = y_right_mid
+                    closest_point = np.array([x_right_mid, y_right_mid])
+                else:
+                    min_distance = dist_mid
+                    closest_x = x_mid
+                    closest_y = y_mid
+                    closest_point = np.array([x_mid, y_mid])
+                    break
+        
+        # Return x as the parameter (s) - for TKSpline, x is the parameter
+        return closest_x, closest_point, min_distance
+    
     def deriv(self, x_val):
         """
         Evaluate first derivative at point x_val.

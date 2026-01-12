@@ -1036,7 +1036,55 @@ class ContouringObjective(BaseObjective):
 
 		# Cost components
 		lag_cost = lag_weight * lag_error ** 2
+		
+		# CRITICAL FIX: Add penalty for negative lag_error (backward movement)
+		# This prevents vehicle from reversing when stuck, especially near path end
+		# Reference: C++ mpc_planner - lag error should always encourage forward progress
+		if isinstance(lag_error, (cd.MX, cd.SX)):
+			# Symbolic: use conditional to penalize negative lag_error
+			lag_error_penalty = cd.if_else(lag_error < 0, 
+			                               -lag_error * 5.0 * lag_weight,  # Strong penalty for backward movement
+			                               0.0)
+		else:
+			# Numeric: penalize negative lag_error
+			lag_error_penalty = max(0.0, -lag_error * 5.0 * lag_weight) if lag_error < 0 else 0.0
+		
+		# Add penalty to lag_cost
+		lag_cost = lag_cost + lag_error_penalty
 		contour_cost = contour_weight * contour_error ** 2
+		
+		# CRITICAL: Add strong penalty for contouring constraint violations (road boundary violations)
+		# This ensures the solver prioritizes staying within road boundaries even when avoiding obstacles
+		# Reference: C++ mpc_planner - contouring constraints are hard constraints, violations are heavily penalized
+		# Get road width from contouring constraints module if available
+		road_width_half = 3.5  # Default road half-width
+		if hasattr(self, 'solver') and self.solver is not None:
+			if hasattr(self.solver, 'module_manager') and self.solver.module_manager is not None:
+				for module in self.solver.module_manager.get_modules():
+					if hasattr(module, 'name') and module.name == 'contouring_constraints':
+						if hasattr(module, '_road_width_half') and module._road_width_half is not None:
+							road_width_half = float(module._road_width_half)
+							break
+		
+		# Compute violation amount (how far outside road boundaries)
+		# contour_error > road_width_half means vehicle is too far left
+		# contour_error < -road_width_half means vehicle is too far right
+		if isinstance(contour_error, (cd.MX, cd.SX)):
+			# Symbolic: use conditional to penalize violations
+			violation_left = cd.fmax(contour_error - road_width_half, 0.0)  # Positive if too far left
+			violation_right = cd.fmax(-road_width_half - contour_error, 0.0)  # Positive if too far right
+			total_violation = violation_left + violation_right
+			# Strong penalty for violations: 100x contour_weight for violations
+			violation_penalty = 100.0 * contour_weight * total_violation ** 2
+		else:
+			# Numeric: penalize violations
+			violation_left = max(0.0, float(contour_error) - road_width_half)
+			violation_right = max(0.0, -road_width_half - float(contour_error))
+			total_violation = violation_left + violation_right
+			violation_penalty = 100.0 * contour_weight * total_violation ** 2
+		
+		# Add violation penalty to contour cost
+		contour_cost = contour_cost + violation_penalty
 		# Goal cost: penalize remaining distance along path
 		# When near path end (s > 0.9), increase weight to encourage reaching final point
 		goal_cost_base = goal_weight * remaining_distance ** 2

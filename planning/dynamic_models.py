@@ -615,9 +615,36 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             t_vec_pred = cd.vertcat(path_dx_pred, path_dy_pred)
             n_vec_pred = cd.vertcat(path_dy_pred, -path_dx_pred)
             
+            # CRITICAL FIX: Use tangential component of displacement to directly update spline parameter
+            # Reference: https://github.com/tud-amr/mpc_planner - spline tracks progress along path centerline
+            # Reference: https://github.com/ttk592/spline - cubic spline interpolation
+            # 
+            # The spline parameter should track the vehicle's progress along the reference path by using
+            # only the component of vehicle movement that is in the direction of the path tangent.
+            #
+            # Approach: Project vehicle displacement onto path tangent to get arc length progress
+            # This ensures the spline parameter accurately reflects vehicle progress along the path,
+            # regardless of lateral deviations (contour error).
+            
             # Project displacement onto predicted tangent and normal
-            vt_t = dp.dot(t_vec_pred)  # Tangential component (along predicted path direction)
-            vn_t = dp.T @ n_vec_pred    # Normal component (perpendicular to predicted path direction)
+            t_vec_pred = cd.vertcat(path_dx_pred, path_dy_pred)  # Unit tangent vector at predicted position
+            n_vec_pred = cd.vertcat(path_dy_pred, -path_dx_pred)  # Unit normal vector (points left)
+            
+            # Compute tangential component: vt_t = dp · t_vec_pred
+            # This is the component of displacement ALONG the path direction
+            # CRITICAL: vt_t directly represents progress along the path tangent
+            # For a straight path, vt_t is exactly the arc length progress
+            # For curved paths, vt_t still represents progress along the tangent direction
+            vt_t = dp.dot(t_vec_pred)  # Tangential component (signed: positive = forward, negative = backward)
+            vn_t = dp.T @ n_vec_pred    # Normal component (perpendicular to path, used for contour error)
+            
+            # Get path curvature at predicted position to account for path curvature
+            try:
+                curvature_pred = path.get_curvature(s_predicted_normalized)
+                curvature_pred = cd.fmax(curvature_pred, 1e-5)  # Prevent division by zero
+                R = cd.fmin(1.0 / curvature_pred, 1e4)  # Cap radius at 10km
+            except Exception:
+                R = R_current  # Fallback to current curvature
             
             # CRITICAL: Compute contour error using INTEGRATED position relative to PREDICTED path point
             # This ensures the spline update accounts for curvature changes
@@ -625,60 +652,79 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             integrated_y = integrated_states[1]
             contour_error = path_dy_pred * (integrated_x - path_x_pred) - path_dx_pred * (integrated_y - path_y_pred)
             
-            # Get path curvature radius at predicted position
-            try:
-                curvature_pred = path.get_curvature(s_predicted_normalized)
-                curvature_pred = cd.fmax(curvature_pred, 1e-5)
-                R = cd.fmin(1.0 / curvature_pred, 1e4)
-            except Exception:
-                R = R_current  # Fallback to current curvature
+            # Reference: C++ mpc_planner uses curvature-aware formula: s_new = s + R * theta
+            # where theta = atan2(vt_t, R - contour_error - vn_t)
+            # This accounts for:
+            # - Path curvature (R)
+            # - Vehicle position relative to path (contour_error)
+            # - Normal component of displacement (vn_t)
+            #
+            # CRITICAL IMPROVEMENT: Use tangential component more directly for better tracking
+            # The tangential component vt_t represents the actual progress along the path direction
+            # We use this as the primary update mechanism, with curvature correction
             
-            # Compute theta using curvature-aware formula from C++ reference
-            # theta = atan2(vt_t, R - contour_error - vn_t)
-            # This accounts for path curvature and vehicle position relative to path
-            # CRITICAL: Using predicted path tangent and curvature ensures proper handling of curvature changes
+            # Method 1: Curvature-aware formula (from C++ reference) - handles curved paths well
             denominator = R - contour_error - vn_t
             denominator = cd.fmax(denominator, 1e-6)  # Prevent division by zero
             theta = cd.atan2(vt_t, denominator)
-            
-            # Bound theta to prevent extreme values (C++ reference uses similar bounds)
-            theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)
-            
-            # C++ reference formula: s_new = s + R * theta
-            # Reference: https://github.com/tud-amr/mpc_planner - uses s_new = s + R * theta directly
-            # This directly uses curvature-aware progression matching the C++ implementation
-            # The formula naturally handles both curved and straight paths:
-            # - For curved paths (small R): R * theta provides curvature-aware progression
-            # - For straight paths (large R): R is capped at 1e4, so progression is reasonable
-            
-            # Cap R to prevent excessive progression on very straight paths (matches C++ safeguard)
-            R_max = 1e4  # Cap radius at 10km (matches C++ safeguard in CurvatureAwareSecondOrderBicycleModel)
+            theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)  # Bound theta
+            R_max = 1e4  # Cap radius at 10km (matches C++ safeguard)
             R_used = cd.fmin(R, R_max)
+            ds_curvature = R_used * theta
             
-            # Apply C++ formula: s_new = s + R * theta
-            ds_arc_length = R_used * theta
+            # Method 2: Direct tangential projection (PRIMARY METHOD for accurate tracking)
+            # Use vt_t directly as arc length progress along the path tangent
+            # For curved paths, the actual arc length along the curve is approximately vt_t
+            # (the projection onto the tangent is the correct measure of progress)
+            # Reference: The angle between vehicle movement and path tangent determines progress
+            # If vehicle moves exactly along tangent: progress = ||dp||
+            # If vehicle moves at angle α to tangent: progress = ||dp|| * cos(α) = vt_t
+            ds_tangential = vt_t  # Direct use of tangential component
             
-            # Bound total progression to prevent extreme updates (safeguard for numerical stability)
-            # This should rarely trigger if R and theta are properly bounded, but provides safety
+            # CRITICAL: Blend both methods, but favor tangential for better tracking
+            # - Tangential method (60%): Ensures accurate tracking of vehicle progress
+            # - Curvature-aware method (40%): Handles curved paths and accounts for contour error
+            # This combination ensures both accurate tracking and proper handling of curved paths
+            blend_weight_tangential = 0.6  # Primary: direct tracking
+            blend_weight_curvature = 0.4   # Secondary: curvature handling
+            ds_arc_length = blend_weight_tangential * ds_tangential + blend_weight_curvature * ds_curvature
+            
+            # CRITICAL FIX: Only update spline when vehicle is moving forward along path direction
+            # Reference: C++ mpc_planner - spline should only progress when vt_t > 0 (forward movement)
+            # When vehicle moves backward or sideways (vt_t <= 0), spline should not decrease
+            # This ensures the vehicle reaches the end of the reference path
             v = x[3] if x.size1() > 3 else 1.0
             ds_max = v * dt * 5.0  # Allow up to 5x velocity-based progression (for sharp turns)
-            # CRITICAL FIX: Limit backward progression to prevent spline from going too far backward
-            # Reference: C++ mpc_planner - spline should not go backward beyond vehicle's actual position
-            # When vehicle temporarily doesn't make forward progress, we should limit backward movement
-            # to maintain appropriate path segments for constraints
-            ds_min = -v * dt * 0.2  # Reduced from 0.5 to 0.2 to limit backward progression
-            ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min), ds_max)
+            
+            # CRITICAL: Only allow forward progression (vt_t > 0) or very small backward correction
+            # If vt_t <= 0, the vehicle is not moving forward along the path, so spline should not decrease
+            # Use a small threshold to handle numerical noise
+            vt_t_threshold = 1e-6  # Minimum tangential component for forward movement
+            
+            # CRITICAL: Prevent negative spline updates when vehicle is not moving forward
+            # If vt_t <= threshold, the vehicle is moving backward or sideways, so don't decrease spline
+            # Only allow small backward corrections when vt_t > threshold (vehicle is moving forward)
+            ds_min_allowed = cd.if_else(vt_t > vt_t_threshold, -v * dt * 0.1, 0.0)
+            ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min_allowed), ds_max)
+            
+            # CRITICAL: Ensure spline only increases when vehicle moves forward along path
+            # If tangential component is negative or zero, prevent spline from decreasing
+            # This ensures the vehicle continues toward the end of the path
+            # Use conditional to only allow positive updates when not moving forward
+            ds_arc_length = cd.if_else(vt_t > vt_t_threshold, ds_arc_length, cd.fmax(ds_arc_length, 0.0))
             
             new_s = s + ds_arc_length
             
-            # CRITICAL FIX: Blend curvature-aware update with closest point tracking
-            # Reference: C++ mpc_planner - spline tracks the closest point on the reference path centerline
-            # The spline should track vehicle progress along the centerline, not just use curvature formula
-            # Blend the curvature-aware update (s_new_curvature) with closest point (s_closest) to ensure
-            # the spline tracks the vehicle's actual position along the path
+            # CRITICAL FIX: Ensure spline tracks vehicle progress accurately
+            # Reference: C++ mpc_planner - spline should track the closest point on the reference path centerline
+            # The tangential component update above already ensures accurate tracking, but we add safeguards
+            # to prevent the spline from lagging too far behind or getting too far ahead of the vehicle
+            
+            # For numeric evaluation (post-optimization), we can verify and correct using closest point
+            # For symbolic evaluation (during optimization), we rely on the tangential projection method
             try:
-                # Find closest point on path to integrated (predicted) vehicle position
-                # This ensures the spline tracks the vehicle's progress along the centerline
+                # Only do closest point correction for numeric values (post-optimization verification)
+                # During symbolic optimization, the tangential projection method is sufficient
                 if hasattr(self, 'solver') and hasattr(self.solver, 'data'):
                     data = self.solver.data
                     if hasattr(data, 'reference_path') and data.reference_path is not None:
@@ -686,63 +732,108 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
                         if hasattr(ref_path, 's') and ref_path.s is not None:
                             s_arr = np.asarray(ref_path.s, dtype=float)
                             if s_arr.size > 0:
-                                # Get integrated (predicted) position for closest point search
-                                # For numeric values, extract directly; for symbolic, use current position
-                                integrated_x_val = None
-                                integrated_y_val = None
-                                try:
-                                    if isinstance(integrated_states[0], (cd.MX, cd.SX)):
-                                        # Symbolic: use current position as approximation
-                                        integrated_x_val = float(pos_x) if not isinstance(pos_x, (cd.MX, cd.SX)) else float(cd.DM(pos_x))
-                                        integrated_y_val = float(pos_y) if not isinstance(pos_y, (cd.MX, cd.SX)) else float(cd.DM(pos_y))
-                                    else:
+                                # Check if we're in numeric mode (post-optimization)
+                                # For symbolic mode, skip closest point search and use tangential projection
+                                is_symbolic = isinstance(integrated_states[0], (cd.MX, cd.SX)) or isinstance(new_s, (cd.MX, cd.SX))
+                                
+                                if not is_symbolic:
+                                    # Numeric mode: Find closest point for verification and correction
+                                    # CRITICAL: Reference code (ttk592/spline, mpc_planner) uses closest point
+                                    # to ensure spline parameter accurately tracks vehicle position along path
+                                    try:
                                         integrated_x_val = float(integrated_states[0])
                                         integrated_y_val = float(integrated_states[1])
-                                except:
-                                    # Fallback to current position
-                                    integrated_x_val = float(pos_x) if not isinstance(pos_x, (cd.MX, cd.SX)) else float(cd.DM(pos_x))
-                                    integrated_y_val = float(pos_y) if not isinstance(pos_y, (cd.MX, cd.SX)) else float(cd.DM(pos_y))
-                                
-                                # Sample path to find closest point to predicted position
-                                min_dist = float('inf')
-                                closest_s = s_arr[0]
-                                # Use more samples for better accuracy
-                                num_samples = min(100, max(50, len(s_arr)))
-                                for s_sample in np.linspace(s_arr[0], s_arr[-1], num_samples):
-                                    try:
-                                        path_x_sample = float(ref_path.x_spline(s_sample))
-                                        path_y_sample = float(ref_path.y_spline(s_sample))
-                                        dist = np.sqrt((integrated_x_val - path_x_sample)**2 + (integrated_y_val - path_y_sample)**2)
-                                        if dist < min_dist:
-                                            min_dist = dist
-                                            closest_s = s_sample
-                                    except:
-                                        continue
-                                
-                                # CRITICAL: Blend curvature-aware update with closest point tracking
-                                # Reference: C++ mpc_planner blends these approaches
-                                # Weight: 70% curvature-aware (for smooth progression), 30% closest point (for accuracy)
-                                # This ensures the spline tracks the vehicle while maintaining smooth progression
-                                blend_weight_curvature = 0.7
-                                blend_weight_closest = 0.3
-                                
-                                # Blend the updates
-                                new_s_blended = blend_weight_curvature * new_s + blend_weight_closest * closest_s
-                                
-                                # CRITICAL: Ensure spline doesn't go backward beyond closest point
-                                # This prevents the spline from lagging behind the vehicle
-                                s_min_based_on_position = closest_s - 1.0  # Allow 1m backward tolerance
-                                new_s = cd.fmax(new_s_blended, s_min_based_on_position)
-                                
-                                # Also ensure spline doesn't go too far ahead (prevent overshooting)
-                                # Cap forward progression to prevent spline from getting too far ahead
-                                s_max_ahead = closest_s + 5.0  # Allow 5m ahead tolerance
-                                new_s = cd.fmin(new_s, s_max_ahead)
+                                        
+                                        # CRITICAL FIX: Use closest point as PRIMARY update when contour error is large
+                                        # Reference: C++ mpc_planner - when vehicle drifts far off path, re-sync spline
+                                        # to closest point to ensure accurate tracking
+                                        
+                                        # Sample path to find closest point to predicted position
+                                        min_dist = float('inf')
+                                        closest_s = s_arr[0]
+                                        num_samples = min(200, max(100, len(s_arr)))
+                                        
+                                        # Search around current s first (most likely location)
+                                        current_s_val = float(new_s) if not isinstance(new_s, (cd.MX, cd.SX)) else float(s)
+                                        search_radius = 10.0  # Search within 10m of current s
+                                        s_search_min = max(float(s_arr[0]), current_s_val - search_radius)
+                                        s_search_max = min(float(s_arr[-1]), current_s_val + search_radius)
+                                        
+                                        s_samples = np.linspace(s_search_min, s_search_max, num_samples)
+                                        
+                                        for s_sample in s_samples:
+                                            try:
+                                                path_x_sample = float(ref_path.x_spline(s_sample))
+                                                path_y_sample = float(ref_path.y_spline(s_sample))
+                                                dist = np.sqrt((integrated_x_val - path_x_sample)**2 + (integrated_y_val - path_y_sample)**2)
+                                                if dist < min_dist:
+                                                    min_dist = dist
+                                                    closest_s = s_sample
+                                            except:
+                                                continue
+                                        
+                                        # If closest point is at boundary, expand search to full path
+                                        if closest_s <= s_search_min + 0.1 or closest_s >= s_search_max - 0.1:
+                                            s_samples_full = np.linspace(float(s_arr[0]), float(s_arr[-1]), num_samples)
+                                            for s_sample in s_samples_full:
+                                                try:
+                                                    path_x_sample = float(ref_path.x_spline(s_sample))
+                                                    path_y_sample = float(ref_path.y_spline(s_sample))
+                                                    dist = np.sqrt((integrated_x_val - path_x_sample)**2 + (integrated_y_val - path_y_sample)**2)
+                                                    if dist < min_dist:
+                                                        min_dist = dist
+                                                        closest_s = s_sample
+                                                except:
+                                                    continue
+                                        
+                                        # CRITICAL: Compute contour error to determine if re-sync is needed
+                                        closest_path_x = float(ref_path.x_spline(closest_s))
+                                        closest_path_y = float(ref_path.y_spline(closest_s))
+                                        path_dx = float(ref_path.x_spline.derivative()(closest_s))
+                                        path_dy = float(ref_path.y_spline.derivative()(closest_s))
+                                        norm = np.hypot(path_dx, path_dy)
+                                        
+                                        if norm > 1e-6:
+                                            path_dx_norm = path_dx / norm
+                                            path_dy_norm = path_dy / norm
+                                            A = np.array([path_dy_norm, -path_dx_norm])
+                                            diff = np.array([integrated_x_val - closest_path_x, integrated_y_val - closest_path_y])
+                                            contour_error = np.dot(A, diff)
+                                            
+                                            # CRITICAL: If contour error is large OR spline is far from closest point,
+                                            # use closest point as primary update
+                                            # Reference: C++ mpc_planner - spline should track closest point on path
+                                            contour_error_threshold = 0.5  # 0.5m threshold (more aggressive)
+                                            spline_distance_from_closest = abs(float(new_s) - closest_s)
+                                            spline_distance_threshold = 2.0  # 2m threshold
+                                            
+                                            if abs(contour_error) > contour_error_threshold or spline_distance_from_closest > spline_distance_threshold:
+                                                # Use closest point as primary update (re-sync spline)
+                                                new_s = closest_s
+                                                LOG_INFO(f"ContouringSecondOrderUnicycleModel: Re-synced spline to closest point "
+                                                         f"(contour_error={contour_error:.3f}m, spline_dist={spline_distance_from_closest:.3f}m, "
+                                                         f"closest_s={closest_s:.3f}, min_dist={min_dist:.3f}m)")
+                                            else:
+                                                # Use closest point as bounds check (safeguard)
+                                                # Ensure spline doesn't lag too far behind vehicle position
+                                                s_min_based_on_position = closest_s - 1.0  # Allow 1m backward tolerance (tighter)
+                                                new_s = cd.fmax(new_s, s_min_based_on_position)
+                                                
+                                                # Ensure spline doesn't get too far ahead of vehicle
+                                                s_max_ahead = closest_s + 2.0  # Allow 2m ahead tolerance (tighter)
+                                                new_s = cd.fmin(new_s, s_max_ahead)
+                                        else:
+                                            # If path tangent is invalid, use closest point directly
+                                            new_s = closest_s
+                                    except Exception as e:
+                                        LOG_DEBUG(f"Error in closest point search for spline update: {e}")
+                                        # If closest point search fails, use tangential projection result
+                                        pass
             except Exception as e:
                 import traceback
-                LOG_DEBUG(f"Error in closest point tracking for spline update: {e}")
+                LOG_DEBUG(f"Error in closest point verification for spline update: {e}")
                 LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
-                # Fallback: use original curvature-aware update
+                # Fallback: use tangential projection result (already computed above)
                 pass
             
             # Allow progression beyond s_max to reach final point (C++ reference behavior)
@@ -858,9 +949,12 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             t_vec = cd.vertcat(path_dx_normalized, path_dy_normalized)
             n_vec = cd.vertcat(path_dy_normalized, -path_dx_normalized)
             
-            # Project displacement onto tangent and normal
-            vt_t = dp.dot(t_vec)  # Tangential component
-            vn_t = dp.T @ n_vec    # Normal component
+            # CRITICAL: Project displacement onto tangent to get arc length progress
+            # Reference: https://github.com/tud-amr/mpc_planner - spline tracks progress along path centerline
+            # The tangential component vt_t directly represents progress along the path direction
+            # This ensures the spline parameter accurately reflects vehicle progress along the path
+            vt_t = dp.dot(t_vec)  # Tangential component (primary: progress along path)
+            vn_t = dp.T @ n_vec    # Normal component (perpendicular to path, used for contour error)
             
             # Compute contour error using current position (before integration)
             contour_error = path_dy_normalized * (current_x - path_x) - path_dx_normalized * (current_y - path_y)
@@ -874,35 +968,56 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
             except Exception:
                 R = 1e4  # Fallback: large radius
             
-            # Compute theta using curvature-aware formula from C++ reference: theta = atan2(vt_t, R - contour_error - vn_t)
-            # Reference: https://github.com/tud-amr/mpc_planner - uses s_new = s + R * theta directly
+            # CRITICAL: Use tangential component to directly update spline parameter
+            # Reference: https://github.com/tud-amr/mpc_planner - spline tracks progress along path centerline
+            # The tangential component vt_t directly represents progress along the path direction
+            # This ensures the spline parameter accurately reflects vehicle progress along the path
+            
+            # Method 1: Curvature-aware formula (from C++ reference) - handles curved paths well
             denominator = R - contour_error - vn_t
             denominator = cd.fmax(denominator, 1e-6)  # Prevent division by zero
             theta = cd.atan2(vt_t, denominator)
-            
-            # Bound theta to prevent extreme values (C++ reference uses similar bounds)
-            theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)
-            
-            # C++ reference formula: s_new = s + R * theta
-            # Reference: https://github.com/tud-amr/mpc_planner - uses s_new = s + R * theta directly
-            # This directly uses curvature-aware progression matching the C++ implementation
-            # The formula naturally handles both curved and straight paths:
-            # - For curved paths (small R): R * theta provides curvature-aware progression
-            # - For straight paths (large R): R is capped at 1e4, so progression is reasonable
-            
-            # Cap R to prevent excessive progression on very straight paths (matches C++ safeguard)
-            R_max = 1e4  # Cap radius at 10km (matches C++ safeguard in CurvatureAwareSecondOrderBicycleModel)
+            theta = cd.fmin(cd.fmax(theta, -0.5), 0.5)  # Bound theta
+            R_max = 1e4  # Cap radius at 10km (matches C++ safeguard)
             R_used = cd.fmin(R, R_max)
+            ds_curvature = R_used * theta
             
-            # Apply C++ formula: s_new = s + R * theta
-            ds_arc_length = R_used * theta
+            # Method 2: Direct tangential projection (PRIMARY METHOD for accurate tracking)
+            # Use vt_t directly as arc length progress along the path tangent
+            # The projection onto the tangent is the correct measure of progress
+            # Reference: The angle between vehicle movement and path tangent determines progress
+            ds_tangential = vt_t  # Direct use of tangential component
             
-            # Bound total progression to prevent extreme updates (safeguard for numerical stability)
-            # This should rarely trigger if R and theta are properly bounded, but provides safety
+            # CRITICAL: Blend both methods, but favor tangential for better tracking
+            # - Tangential method (60%): Ensures accurate tracking of vehicle progress
+            # - Curvature-aware method (40%): Handles curved paths and accounts for contour error
+            blend_weight_tangential = 0.6  # Primary: direct tracking
+            blend_weight_curvature = 0.4   # Secondary: curvature handling
+            ds_arc_length = blend_weight_tangential * ds_tangential + blend_weight_curvature * ds_curvature
+            
+            # CRITICAL FIX: Only update spline when vehicle is moving forward along path direction
+            # Reference: C++ mpc_planner - spline should only progress when vt_t > 0 (forward movement)
+            # When vehicle moves backward or sideways (vt_t <= 0), spline should not decrease
+            # This ensures the vehicle reaches the end of the reference path
             v = x_next_integrated[3] if x_next_integrated.size1() > 3 else 1.0
             ds_max = v * timestep * 5.0  # Allow up to 5x velocity-based progression (for sharp turns)
-            ds_min = -v * timestep * 0.5  # Allow some backward progression if needed
-            ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min), ds_max)
+            
+            # CRITICAL: Only allow forward progression (vt_t > 0) or very small backward correction
+            # If vt_t <= 0, the vehicle is not moving forward along the path, so spline should not decrease
+            # Use a small threshold to handle numerical noise
+            vt_t_threshold = 1e-6  # Minimum tangential component for forward movement
+            
+            # CRITICAL: Prevent negative spline updates when vehicle is not moving forward
+            # If vt_t <= threshold, the vehicle is moving backward or sideways, so don't decrease spline
+            # Only allow small backward corrections when vt_t > threshold (vehicle is moving forward)
+            ds_min_allowed = cd.if_else(vt_t > vt_t_threshold, -v * timestep * 0.1, 0.0)
+            ds_arc_length = cd.fmin(cd.fmax(ds_arc_length, ds_min_allowed), ds_max)
+            
+            # CRITICAL: Ensure spline only increases when vehicle moves forward along path
+            # If tangential component is negative or zero, prevent spline from decreasing
+            # This ensures the vehicle continues toward the end of the path
+            # Use conditional to only allow positive updates when not moving forward
+            ds_arc_length = cd.if_else(vt_t > vt_t_threshold, ds_arc_length, cd.fmax(ds_arc_length, 0.0))
             
             s_next = s + ds_arc_length
             

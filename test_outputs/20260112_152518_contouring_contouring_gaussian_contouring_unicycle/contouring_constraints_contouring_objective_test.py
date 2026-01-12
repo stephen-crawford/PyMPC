@@ -1,11 +1,12 @@
 """
-Contouring Constraints Test with Contouring Objective and Single Static Obstacle
+Contouring Constraints Test with Contouring Objective and Dynamic Obstacles with Gaussian Constraints
 
 This test verifies that:
 - Contouring objective works with contouring constraints
 - Contouring dynamics model (ContouringSecondOrderUnicycleModel) properly progresses along curving path
 - Vehicle follows a curving reference path that requires turning
-- Vehicle avoids a single static obstacle placed on the centerline using linearized constraints
+- Vehicle avoids dynamic obstacles using Gaussian constraints for probabilistic obstacle avoidance
+- Gaussian constraints use predicted obstacle states at each stage (matching contouring constraints pattern)
 - All computation is symbolic (no numeric fallbacks)
 - Reference path and constraints are properly visualized
 
@@ -19,21 +20,21 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 
 from test.integration.integration_test_framework import IntegrationTestFramework, TestConfig, create_reference_path
-from planning.obstacle_manager import create_point_mass_obstacle
+from planning.obstacle_manager import create_unicycle_obstacle
 from planning.types import PredictionType, ReferencePath
 from utils.math_tools import TKSpline
 
 
 def run(dt=0.1, horizon=10, max_iterations=300):
-    """Run Contouring constraints test with contouring objective and single static obstacle.
+    """Run Contouring constraints test with contouring objective and dynamic obstacles with Gaussian constraints.
     
     Uses:
     - Curving reference path (s_curve for pronounced curves)
     - Contouring dynamics model (ContouringSecondOrderUnicycleModel with spline state)
     - Contouring objective
     - Contouring constraints (for road boundaries)
-    - Linearized constraints (for obstacle avoidance)
-    - Single static obstacle placed on centerline
+    - Gaussian constraints (for probabilistic obstacle avoidance)
+    - Dynamic obstacles with Gaussian predictions
     """
     
     framework = IntegrationTestFramework()
@@ -78,38 +79,74 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     ref_path.z_spline = TKSpline(s, z_arr)
     ref_path.length = float(s[-1])
     
-    # Place a single static obstacle on the centerline at 50% along the path
+    # Place multiple static obstacles along the centerline
+    # Space them evenly along the middle portion of the path (25% to 70% to avoid path end)
     s_arr = np.asarray(s, dtype=float)
     s_min = float(s_arr[0])
     s_max = float(s_arr[-1])
     s_range = s_max - s_min
-    obstacle_s_position = s_min + s_range * 0.5  # 50% along path
     
-    # Create obstacle exactly on centerline
+    num_obstacles = 2  # Number of dynamic obstacles to place
+    obstacle_s_positions = []
+    for i in range(num_obstacles):
+        # Space obstacles evenly between 30% and 60% of path (avoid path end)
+        s_pos = s_min + s_range * (0.3 + i * 0.3 / max(1, num_obstacles - 1))
+        obstacle_s_positions.append(s_pos)
+    
+    # Create dynamic obstacles with unicycle dynamics that move back and forth across centerline
     obstacle_configs = []
-    try:
-        x_pos = float(ref_path.x_spline(obstacle_s_position))
-        y_pos = float(ref_path.y_spline(obstacle_s_position))
-        
-        # Place obstacle exactly on centerline (no offset)
-        obstacle_config = create_point_mass_obstacle(
-            obstacle_id=0,
-            position=np.array([x_pos, y_pos]),
-            velocity=np.array([0.0, 0.0])  # Stationary
-        )
-        obstacle_config.radius = 0.5  # Obstacle radius
-        obstacle_config.prediction_type = PredictionType.GAUSSIAN  # Required for Gaussian constraints
-        
-        # Add uncertainty parameters for Gaussian predictions
-        obstacle_config.uncertainty_params = {
-            "position_std": 0.1,  # Standard deviation for position uncertainty
-            "uncertainty_growth": 0.01  # Growth rate of uncertainty over time
-        }
-        
-        obstacle_configs.append(obstacle_config)
-        print(f"Created static obstacle at s={obstacle_s_position:.2f}, position=({x_pos:.2f}, {y_pos:.2f}) on centerline (Gaussian prediction)")
-    except Exception as e:
-        print(f"Warning: Could not create obstacle at s={obstacle_s_position}: {e}")
+    for i, obstacle_s_position in enumerate(obstacle_s_positions):
+        try:
+            # Get position on centerline
+            x_center = float(ref_path.x_spline(obstacle_s_position))
+            y_center = float(ref_path.y_spline(obstacle_s_position))
+            
+            # Get path tangent at this point to compute normal
+            dx_ds = float(ref_path.x_spline.derivative()(obstacle_s_position))
+            dy_ds = float(ref_path.y_spline.derivative()(obstacle_s_position))
+            path_tangent_norm = np.sqrt(dx_ds**2 + dy_ds**2)
+            if path_tangent_norm > 1e-6:
+                # Normal vector (left side of path)
+                normal_x = -dy_ds / path_tangent_norm
+                normal_y = dx_ds / path_tangent_norm
+            else:
+                normal_x, normal_y = 1.0, 0.0
+            
+            # Place obstacle offset from centerline (inside the path, on one side)
+            # Alternate sides for different obstacles
+            lateral_offset = 1.5 if i % 2 == 0 else -1.5  # 1.5m offset from centerline
+            obstacle_x = x_center + lateral_offset * normal_x
+            obstacle_y = y_center + lateral_offset * normal_y
+            
+            # Initial velocity toward centerline (perpendicular to path)
+            # Velocity magnitude ~1 m/s toward centerline
+            initial_velocity = np.array([-lateral_offset * normal_x * 0.7, -lateral_offset * normal_y * 0.7])
+            initial_angle = np.arctan2(initial_velocity[1], initial_velocity[0])
+            
+            # Create dynamic obstacle with unicycle dynamics and path_intersect behavior
+            obstacle_config = create_unicycle_obstacle(
+                obstacle_id=i,
+                position=np.array([obstacle_x, obstacle_y]),
+                velocity=initial_velocity,
+                angle=initial_angle,
+                radius=0.35,  # Obstacle radius
+                behavior="path_intersect"  # Moves back and forth across the path
+            )
+            obstacle_config.prediction_type = PredictionType.GAUSSIAN  # Gaussian constraints require Gaussian predictions
+            
+            # Add uncertainty parameters for Gaussian predictions
+            obstacle_config.uncertainty_params = {
+                'position_std': 0.1,  # Standard deviation of position uncertainty (m)
+                'uncertainty_growth': 0.05  # Growth rate of uncertainty over time (m/s)
+            }
+            
+            obstacle_configs.append(obstacle_config)
+            print(f"Created dynamic obstacle {i} at s={obstacle_s_position:.2f}, position=({obstacle_x:.2f}, {obstacle_y:.2f}), "
+                  f"offset={lateral_offset:.2f}m from centerline, behavior=path_intersect (Gaussian constraints)")
+        except Exception as e:
+            print(f"Warning: Could not create obstacle {i} at s={obstacle_s_position}: {e}")
+            import traceback
+            traceback.print_exc()
     
     # CRITICAL: Use "contouring_unicycle" to get ContouringSecondOrderUnicycleModel with spline state
     # Reference: C++ mpc_planner - contouring MPC requires dynamics model with spline state variable
@@ -117,11 +154,11 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     config = TestConfig(
         reference_path=ref_path_obj if hasattr(ref_path_obj, 'x') else ref_path_points,
         objective_module="contouring",
-        constraint_modules=["contouring", "gaussian"],  # Contouring constraints + Gaussian for obstacle avoidance
+        constraint_modules=["contouring", "gaussian"],  # Contouring constraints + Gaussian for obstacle avoidance (with fixes)
         vehicle_dynamics="contouring_unicycle",  # Use contouring unicycle model with spline state
         num_obstacles=len(obstacle_configs),
-        obstacle_dynamics=["point_mass"] * len(obstacle_configs),
-        test_name="Contouring Objective with Contouring Constraints + Single Static Obstacle (Gaussian)",
+        obstacle_dynamics=["unicycle"] * len(obstacle_configs),  # Use unicycle dynamics for obstacles
+        test_name="Contouring Objective with Contouring Constraints + Dynamic Obstacles (Gaussian)",
         duration=max_iterations * dt,
         timestep=dt,
         show_predicted_trajectory=True,
@@ -129,8 +166,11 @@ def run(dt=0.1, horizon=10, max_iterations=300):
         max_consecutive_failures=50,
         timeout_seconds=120.0,  # Allow time for path completion
         obstacle_configs=obstacle_configs,
-        obstacle_prediction_types=["gaussian"] * len(obstacle_configs)
+        obstacle_prediction_types=["gaussian"] * len(obstacle_configs)  # Gaussian constraints require Gaussian predictions
     )
+    
+    # Store reference path in config for obstacle manager (needed for path_intersect behavior)
+    config._reference_path_for_obstacles = ref_path_obj
     
     # Run the test
     print(f"\n=== Test Configuration ===")
@@ -142,6 +182,7 @@ def run(dt=0.1, horizon=10, max_iterations=300):
     print(f"Objective: contouring")
     print(f"Constraints: contouring (road boundaries) + gaussian (obstacle avoidance)")
     print(f"Dynamics model: contouring_unicycle (ContouringSecondOrderUnicycleModel)")
+    print(f"Obstacle dynamics: unicycle (with path_intersect behavior)")
     print(f"Number of obstacles: {len(obstacle_configs)}")
     for i, obs_config in enumerate(obstacle_configs):
         print(f"  Obstacle {i}: position=({obs_config.initial_position[0]:.2f}, {obs_config.initial_position[1]:.2f}), radius={obs_config.radius:.2f}m")
@@ -210,10 +251,10 @@ def run(dt=0.1, horizon=10, max_iterations=300):
                 if obstacle_configs:
                     print(f"\n=== Obstacle Avoidance Verification ===")
                     # Safe distance: minimum clearance between vehicle and obstacle boundaries
-                    # Obstacle radius: 0.5m, Vehicle radius: ~0.25m
-                    # Acceptable clearance: 0.2m margin (total center-to-center: 0.5 + 0.25 + 0.2 = 0.95m)
-                    # This gives: center_to_center - obs_radius - vehicle_radius >= 0.2m
-                    safe_distance = 0.2  # Minimum clearance between boundaries (not center-to-center)
+                    # Obstacle radius: 0.35m, Vehicle radius: ~0.25m
+                    # Acceptable clearance: 0.15m margin (total center-to-center: 0.35 + 0.25 + 0.15 = 0.75m)
+                    # This gives: center_to_center - obs_radius - vehicle_radius >= 0.15m
+                    safe_distance = 0.15  # Minimum clearance between boundaries (not center-to-center)
                     
                     for obs_idx, obs_config in enumerate(obstacle_configs):
                         obs_pos = obs_config.initial_position

@@ -1009,17 +1009,23 @@ class IntegrationTestFramework:
                                         closest_s = float(s_sample[closest_idx])
                                         closest_dist = distances[closest_idx]
                                         
-                                        # Use closest point if it's significantly different from propagated value
-                                        # or if vehicle is far from path (indicates drift)
+                                        # CRITICAL: The spline value should be reset in ContouringConstraints.update() 
+                                        # during the MPC solve, not here. Only reset here if there's significant drift
+                                        # (e.g., > 2.0m difference) to prevent the spline from getting too far off.
+                                        # The ContouringConstraints.update() method handles the normal reset to closest point.
                                         propagated_s = spline_val
-                                        if closest_dist > 0.5 or abs(closest_s - propagated_s) > 1.0:
+                                        # Only reset if there's significant drift (> 2.0m) - this is a safety check
+                                        # The normal reset happens in ContouringConstraints.update() during MPC solve
+                                        drift_threshold = 2.0  # Only reset if spline differs > 2.0m from closest point
+                                        if closest_dist > 2.0 or abs(closest_s - propagated_s) > drift_threshold:
                                             spline_val = closest_s
-                                            logger.info(f"Step {step}: Re-initialized spline from {propagated_s:.4f} to {closest_s:.4f} "
+                                            logger.info(f"Step {step}: Safety reset spline from {propagated_s:.4f} to {closest_s:.4f} "
                                                       f"(vehicle at ({vehicle_pos[0]:.2f}, {vehicle_pos[1]:.2f}), "
                                                       f"closest path point at ({x_sample[closest_idx]:.2f}, {y_sample[closest_idx]:.2f}), "
-                                                      f"distance={closest_dist:.3f}m)")
+                                                      f"distance={closest_dist:.3f}m, drift={abs(closest_s - propagated_s):.3f}m)")
                                         else:
-                                            logger.debug(f"Step {step}: Using propagated spline {spline_val:.4f} (close to path, dist={closest_dist:.3f}m)")
+                                            logger.debug(f"Step {step}: Using propagated spline {spline_val:.4f} "
+                                                       f"(close to path, dist={closest_dist:.3f}m, drift={abs(closest_s - propagated_s):.3f}m)")
                             except Exception as e:
                                 logger.warning(f"Step {step}: Could not re-initialize spline from closest point: {e}, using propagated value")
                                 import traceback
@@ -1102,6 +1108,48 @@ class IntegrationTestFramework:
                                     last_state = obstacle_states[i][-1] if obstacle_states[i] else obstacle.position
                                     obstacle.position = last_state.copy()  # Update position
                                     obstacle_states[i].append(last_state.copy())
+                
+                # CRITICAL: Regenerate obstacle predictions AFTER updating positions
+                # This ensures constraints use predictions based on CURRENT obstacle positions, not stale ones
+                # Reference: C++ mpc_planner - predictions are regenerated each MPC iteration
+                if data.dynamic_obstacles:
+                    try:
+                        horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
+                        timestep_val = self.solver.timestep if self.solver.timestep is not None else 0.1
+                        
+                        # Save prediction types before propagation (propagate_obstacles may reset them)
+                        from planning.types import PredictionType
+                        saved_prediction_types = []
+                        for obs in data.dynamic_obstacles:
+                            if hasattr(obs, 'prediction') and obs.prediction is not None:
+                                saved_prediction_types.append(obs.prediction.type)
+                            else:
+                                saved_prediction_types.append(None)
+                        
+                        # Compute average speed for obstacles that don't have explicit velocity
+                        avg_speed = 1.0
+                        obstacle_speeds = []
+                        for obs in data.dynamic_obstacles:
+                            if hasattr(obs, 'velocity') and obs.velocity is not None:
+                                speed = np.linalg.norm(obs.velocity)
+                                obstacle_speeds.append(speed)
+                            elif hasattr(obs, 'speed') and obs.speed is not None:
+                                obstacle_speeds.append(float(obs.speed))
+                        if obstacle_speeds:
+                            avg_speed = np.mean(obstacle_speeds)
+                        
+                        # Regenerate predictions from current obstacle positions
+                        propagate_obstacles(data, dt=timestep_val, horizon=horizon_val, speed=avg_speed)
+                        
+                        # Restore prediction types after propagation
+                        for i, obs in enumerate(data.dynamic_obstacles):
+                            if i < len(saved_prediction_types) and saved_prediction_types[i] is not None:
+                                if hasattr(obs, 'prediction') and obs.prediction is not None:
+                                    obs.prediction.type = saved_prediction_types[i]
+                    except Exception as e:
+                        logger.warning(f"Failed to regenerate obstacle predictions: {e}")
+                        import traceback
+                        logger.debug(f"Traceback: {traceback.format_exc()}")
                 
                 # Update modules with current state (critical for contouring to work)
                 # Ensure all modules are using planner's solver before update
@@ -1200,35 +1248,21 @@ class IntegrationTestFramework:
                             logger.debug(f"Step {step}: Checking path alignment: vehicle=({vehicle_pos[0]:.3f}, {vehicle_pos[1]:.3f}), "
                                        f"path_start=({ref_path_start[0]:.3f}, {ref_path_start[1]:.3f}), dist={dist:.3f}m")
                             
-                            if dist > 0.01:  # More than 1cm difference - update path
-                                x_offset = vehicle_pos[0] - ref_path_start[0]
-                                y_offset = vehicle_pos[1] - ref_path_start[1]
-                                
-                                # Adjust all path points
-                                data.reference_path.x = np.asarray(data.reference_path.x, dtype=float) + x_offset
-                                data.reference_path.y = np.asarray(data.reference_path.y, dtype=float) + y_offset
-                                
-                                # Rebuild numeric splines with adjusted coordinates using TKSpline
-                                from utils.math_tools import TKSpline
-                                s_arr = np.asarray(data.reference_path.s, dtype=float)
-                                data.reference_path.x_spline = TKSpline(s_arr, data.reference_path.x)
-                                data.reference_path.y_spline = TKSpline(s_arr, data.reference_path.y)
-                                if hasattr(data.reference_path, 'z') and data.reference_path.z is not None:
-                                    data.reference_path.z_spline = TKSpline(s_arr, data.reference_path.z)
-                                
-                                logger.info(f"Step {step}: Updated reference path to start at vehicle position: "
-                                           f"({data.reference_path.x[0]:.2f}, {data.reference_path.y[0]:.2f}), "
-                                           f"offset=({x_offset:.3f}, {y_offset:.3f}), distance={dist:.3f}m")
-                                
-                                # Also update the reference_path in contouring objective/constraints modules if they have cached it
-                                if hasattr(planner, 'module_manager') and planner.module_manager is not None:
-                                    for module in planner.module_manager.get_modules():
-                                        if hasattr(module, 'reference_path') and module.reference_path is not None:
-                                            # Update the cached reference path in the module
-                                            module.reference_path = data.reference_path
-                                            logger.debug(f"  Updated cached reference_path in module {module.name}")
-                        except Exception as path_update_err:
-                            logger.warning(f"Could not update reference path at step {step}: {path_update_err}")
+                            # CRITICAL: Reference path must remain STATIONARY throughout the problem
+                            # Reference: C++ mpc_planner, ttk592/spline, oscardegroot/ros_tools
+                            # - The reference path is fixed (stationary) in the world frame
+                            # - The spline parameter tracks the vehicle's position along the fixed path
+                            # - Path shifting breaks spline progression and violates the reference implementation
+                            # - Only log a warning if vehicle is very far from path start (> 10m)
+                            if dist > 10.0:
+                                logger.warning(f"Step {step}: Vehicle is far from path start (dist={dist:.3f}m), "
+                                             f"but path remains FIXED per C++ reference. "
+                                             f"Spline parameter tracks position along fixed path.")
+                            # DO NOT shift the path - it must remain stationary
+                            # The spline parameter will track the vehicle's position along the fixed path
+                            # This matches the C++ reference implementation where the path remains fixed
+                        except Exception as path_check_err:
+                            logger.debug(f"Could not check path alignment at step {step}: {path_check_err}")
                     
                     logger.info(f"=== Calling planner.solve_mpc() at step {step} ===")
                     planner_output = planner.solve_mpc(data)
@@ -1644,14 +1678,22 @@ class IntegrationTestFramework:
                         control_dict = getattr(planner.output, 'control', {}) if hasattr(planner, 'output') else {}
                         logger.info(f"  Control dict from planner: {control_dict}")
                         logger.info(f"  Expected input names: {u_names}")
-                        logger.info(f"  Planner output success: {planner_output.success if hasattr(planner_output, 'success') else 'unknown'}")
+                        planner_success = planner_output.success if hasattr(planner_output, 'success') else False
+                        logger.info(f"  Planner output success: {planner_success}")
+                        
+                        # CRITICAL: When solver fails, planner sets safe fallback control (gentle braking, zero angular velocity)
+                        # We should apply this safe control instead of using old/extreme control values
+                        if not planner_success:
+                            if control_dict:
+                                logger.warning(f"  MPC solve failed - applying safe fallback control: {control_dict}")
+                            else:
+                                logger.warning(f"  MPC solve failed - no fallback control available, using zero control")
+                                # Create zero control as last resort
+                                control_dict = {u_name: 0.0 for u_name in u_names}
                         
                         if not control_dict:
-                            logger.warning(f"  No control dict available! Checking if solve succeeded...")
-                            if not planner_output.success:
-                                logger.warning(f"  MPC solve failed - no control to apply. Using fallback trajectory.")
-                            else:
-                                logger.warning(f"  MPC solved but control dict is empty!")
+                            logger.warning(f"  No control dict available! Using zero control as fallback.")
+                            control_dict = {u_name: 0.0 for u_name in u_names}
                         
                         if control_dict and u_names:
                             # Use the dynamics model's discrete_dynamics method for proper state update
@@ -1665,31 +1707,54 @@ class IntegrationTestFramework:
                                 dt = self.solver.timestep
                                 
                                 # Build z vector: [u, x] = [a, w, x, y, psi, v, ...]
+                                # CRITICAL: z vector must match the order expected by discrete_dynamics
+                                # Format: [control_vars..., state_vars...] where state_vars match dependent_vars order
                                 u_vec = [a, w]
                                 x_vec = []
                                 dep_vars = vehicle_dynamics.dependent_vars
-                                for idx, var_name in enumerate(dep_vars):
+                                
+                                # Build state vector ensuring all dependent_vars are included
+                                for var_name in dep_vars:
                                     value = None
                                     
-                                    # Prefer planner.state numeric value if available
+                                    # Prefer planner.state numeric value if available (most reliable)
                                     if planner.state.has(var_name):
                                         try:
                                             value = float(planner.state.get(var_name))
                                         except Exception:
                                             value = None
                                     
-                                    # Fallback to vehicle_state (always numeric) using same ordering as dependent_vars
+                                    # Fallback: try to find variable in vehicle_state by matching variable names
+                                    # This handles cases where vehicle_state might be in a different order
                                     if value is None:
-                                        if idx < len(vehicle_state):
-                                            try:
-                                                value = float(vehicle_state[idx])
-                                            except Exception:
-                                                value = None
+                                        # Try to find the variable index in the original state construction
+                                        # by matching against dependent_vars order
+                                        try:
+                                            # Get all state variable names in order
+                                            all_vars = vehicle_dynamics.get_all_vars()
+                                            if var_name in all_vars:
+                                                var_idx = all_vars.index(var_name)
+                                                if var_idx < len(vehicle_state):
+                                                    value = float(vehicle_state[var_idx])
+                                        except Exception:
+                                            value = None
                                     
+                                    # Final fallback: use 0.0
                                     if value is None:
                                         value = 0.0
                                     
                                     x_vec.append(value)
+                                
+                                # CRITICAL: Verify x_vec length matches dependent_vars length
+                                if len(x_vec) != len(dep_vars):
+                                    logger.warning(f"State vector length mismatch: x_vec has {len(x_vec)} elements, "
+                                                 f"but dependent_vars has {len(dep_vars)} elements. "
+                                                 f"dependent_vars={dep_vars}, vehicle_state length={len(vehicle_state)}")
+                                    # Pad or truncate to match expected length
+                                    if len(x_vec) < len(dep_vars):
+                                        x_vec.extend([0.0] * (len(dep_vars) - len(x_vec)))
+                                    elif len(x_vec) > len(dep_vars):
+                                        x_vec = x_vec[:len(dep_vars)]
                                 
                                 z_vec = u_vec + x_vec
                                 # CRITICAL: For numeric evaluation, use CasADi DM (not MX)
