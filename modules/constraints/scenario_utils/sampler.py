@@ -96,10 +96,9 @@ class ScenarioSampler:
                 minor_radius = float(getattr(pred_step, 'minor_radius', 0.5))
                 angle = float(getattr(pred_step, 'angle', 0.0))
                 
-                # Create covariance matrix (simplified - assumes circular for now)
-                # TODO: Use proper ellipsoidal covariance with rotation
-                sigma = max(major_radius, minor_radius)
-                cov_matrix = np.array([[sigma**2, 0], [0, sigma**2]])
+                R = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+                cov_matrix = R @ np.diag([major_radius**2, minor_radius**2]) @ R.T
+        
                 
                 # Sample position for this time step
                 mean_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])

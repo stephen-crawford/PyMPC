@@ -69,7 +69,7 @@ def compute_sample_size(epsilon_p: float, beta: float, n_bar: int) -> int:
     """
     if epsilon_p <= 0 or epsilon_p >= 1:
         LOG_WARN(f"Invalid epsilon_p: {epsilon_p}, using default 0.1")
-        epsilon_p = 0.1
+        epsilon_p = 0.05
         
     if beta <= 0 or beta >= 1:
         LOG_WARN(f"Invalid beta: {beta}, using default 0.01")

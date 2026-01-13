@@ -1,6 +1,7 @@
 """
 Main scenario module for safe horizon constraints.
 """
+from tkinter import NO
 import numpy as np
 from typing import List, Dict
 from planning.types import Data, Scenario, ScenarioStatus, ScenarioSolveStatus, SupportSubsample
@@ -128,7 +129,9 @@ class SafeHorizonModule:
         self.support_subsample = SupportSubsample()
         self.status = ScenarioStatus.NONE
         self.solve_status = ScenarioSolveStatus.SUCCESS
-        
+
+        self.support_estimator = GreedySupportEstimator(self.n_bar, tolerance=config.get("support_estimator_tolerance", 1e-4))
+        self.current_risk_bound = None
         LOG_DEBUG("SafeHorizonModule initialized")
     
     def update(self, data: Data):
@@ -170,6 +173,8 @@ class SafeHorizonModule:
         """
         try:
             LOG_DEBUG("Starting scenario optimization")
+
+            self.support_estimator.reset()
             
             # CRITICAL: Ensure warmstart is initialized before optimization
             # Reference: C++ mpc_planner - warmstart must be initialized before constraint linearization
@@ -288,6 +293,7 @@ class SafeHorizonModule:
                                 LOG_INFO(f"Created {len(ref_states)} reference states from warmstart values (matching linearized_constraints.py)")
                             else:
                                 LOG_WARN(f"Warmstart x or y is not an array: x={type(x_vals)}, y={type(y_vals)}")
+
                 except Exception as e:
                     LOG_WARN(f"Could not create reference states from warmstart: {e}")
                     import traceback
@@ -484,6 +490,39 @@ class SafeHorizonModule:
                     # Process scenarios for this step with reference position
                     self._process_scenarios_for_step(disc_id, step, data, reference_robot_pos)
             
+               # After optimization, estimate support from solution
+            if hasattr(self.solver, 'get_solution_trajectory'):
+                solution_traj = self.solver.get_solution_trajectory()
+                if solution_traj:
+                    # Get all constraints
+                    all_constraints = []
+                    for disc_id in range(self.num_discs):
+                        for step in range(self.horizon_length):
+                            constraints = self.disc_manager[disc_id].get_constraints_for_step(step)
+                            all_constraints.extend(constraints)
+                   
+                    # Estimate support
+                    support_size = self.support_estimator.update_from_solution(
+                        all_constraints, solution_traj
+                    )
+                   
+                    LOG_INFO(f"Support estimation: {support_size} active constraints "
+                            f"(limit: {self.n_bar})")
+                   
+                    # Check if support exceeded
+                    if self.support_estimator.check_support_exceeded():
+                        LOG_WARN(f"⚠️ Support exceeded! {support_size} > {self.n_bar}")
+                        self.solve_status = ScenarioSolveStatus.SUPPORT_EXCEEDED
+                       
+                        # Compute adjusted risk bound
+                        self.current_risk_bound = self.compute_risk_bound_after_removal(
+                            n_support=support_size,
+                            n_samples=len(self.scenarios),
+                            n_removed=self.num_removal,
+                            beta=self.beta
+                        )
+                        LOG_WARN(f"Adjusted risk bound: ε = {self.current_risk_bound:.4f}")
+           
             self.status = ScenarioStatus.SUCCESS
             LOG_DEBUG("Scenario optimization completed successfully")
             return 1
@@ -496,6 +535,27 @@ class SafeHorizonModule:
     def compute_sample_size(self) -> int:
         """Compute required sample size for scenario optimization."""
         return compute_sample_size(self.epsilon_p, self.beta, self.n_bar)
+
+     
+    def get_certified_risk_bound(self) -> Tuple[float, bool]:
+        """
+        Get the certified risk bound and whether it's valid.
+       
+        Returns:
+            Tuple of (epsilon, is_certified)
+            - epsilon: Upper bound on collision probability
+            - is_certified: True if support didn't exceed limit
+        """
+        stats = self.support_estimator.get_statistics()
+       
+        if stats['exceeded']:
+            # Support exceeded - risk bound is not certified
+            epsilon = self.current_risk_bound if self.current_risk_bound else 1.0
+            return epsilon, False
+        else:
+            # Support within limit - original risk bound holds
+            return self.epsilon_p, True
+
     
     def _process_scenarios_for_step(self, disc_id: int, step: int, data: Data, reference_robot_pos: np.ndarray = None):
         """
@@ -851,33 +911,124 @@ class SafeHorizonModule:
         else:
             LOG_DEBUG(f"Step {step}, disc {disc_id}: {len(constraints)} constraints (within limit {self.n_bar})")
     
-    def remove_scenarios_with_big_m(self, scenarios: List[ScenarioConstraint], 
-                                  num_removal: int, _big_m: float = 1000.0) -> List[ScenarioConstraint]:
+    def remove_scenarios_with_big_m(self, constraints: List[ScenarioConstraint],
+                                    num_removal: int,
+                                    reference_pos: np.ndarray = None,
+                                    big_m: float = 1e6) -> Tuple[List[ScenarioConstraint], List[int]]:
         """
-        Remove scenarios using big-M relaxation method.
+        Remove scenarios using support-based analysis with big-M relaxation.
+        
+        Reference: Safe Horizon MPC paper, Algorithm 1 (Greedy Scenario Removal)
+        
+        The algorithm identifies which scenarios are "of support" (active at the solution)
+        and removes the most constraining ones to improve feasibility while tracking
+        the impact on the probabilistic guarantee.
+        
+        Strategy:
+        1. Compute constraint "tightness" at reference position
+        2. Identify scenarios that are binding (active constraints)
+        3. Remove the most restrictive binding scenarios
+        4. Track removed scenario indices for risk bound adjustment
         
         Args:
-            scenarios: List of scenario constraints
-            num_removal: Number of scenarios to remove
-            big_m: Big-M parameter for relaxation
+            constraints: List of scenario constraints
+            num_removal: Maximum number of scenarios to remove (R in paper)
+            reference_pos: Reference position for evaluating constraint tightness
+            big_m: Big-M parameter for constraint relaxation
             
         Returns:
-            List of remaining scenarios after removal
+            Tuple of (remaining_constraints, removed_indices)
         """
-        if num_removal <= 0 or len(scenarios) <= num_removal:
-            return scenarios
+        if num_removal <= 0 or len(constraints) <= num_removal:
+            return constraints, []
         
-        # Sort scenarios by constraint violation potential (simplified heuristic)
-        # In practice, this would use more sophisticated criteria
-        sorted_scenarios = sorted(scenarios, key=lambda s: abs(s.b), reverse=True)
+        if reference_pos is None:
+            reference_pos = np.array([0.0, 0.0])
         
-        # Remove the most restrictive scenarios
-        remaining_scenarios = sorted_scenarios[num_removal:]
+        # =============================================================
+        # STEP 1: Compute constraint tightness (slack) at reference position
+        # Tightness = b - (a1*x + a2*y)
+        # Smaller tightness = more constraining = higher priority for removal
+        # =============================================================
+        constraint_tightness = []
+        for i, c in enumerate(constraints):
+            # Constraint: a1*x + a2*y <= b
+            # Slack = b - (a1*x + a2*y)  [positive means satisfied, negative means violated]
+            constraint_value = c.a1 * reference_pos[0] + c.a2 * reference_pos[1]
+            slack = c.b - constraint_value
+            
+            # Store (slack, index, constraint, is_binding)
+            # A constraint is "binding" if slack is very small (near zero)
+            is_binding = abs(slack) < 0.1  # Threshold for "active" constraint
+            constraint_tightness.append({
+                'index': i,
+                'constraint': c,
+                'slack': slack,
+                'is_binding': is_binding,
+                'violation': max(0, -slack)  # How much it's violated (if at all)
+            })
         
-        LOG_DEBUG(f"Removed {num_removal} scenarios using big-M relaxation, "
-                 f"{len(remaining_scenarios)} remaining")
+        # =============================================================
+        # STEP 2: Sort by tightness (most constraining first)
+        # Priority: 1) Violated constraints, 2) Binding constraints, 3) Slack
+        # =============================================================
+        constraint_tightness.sort(key=lambda x: (
+            -x['violation'],  # Violated constraints first (highest violation)
+            -int(x['is_binding']),  # Then binding constraints
+            x['slack']  # Then by slack (smallest slack = most constraining)
+        ))
         
-        return remaining_scenarios
+        # =============================================================
+        # STEP 3: Remove most constraining scenarios
+        # Reference: Paper Algorithm 1 - greedy removal of support scenarios
+        # =============================================================
+        removed_indices = []
+        remaining_constraints = []
+        
+        for item in constraint_tightness:
+            if len(removed_indices) < num_removal:
+                # Remove this constraint (relax with big-M)
+                removed_indices.append(item['index'])
+                LOG_DEBUG(f"Removing scenario {item['index']}: slack={item['slack']:.4f}, "
+                         f"binding={item['is_binding']}, violation={item['violation']:.4f}")
+            else:
+                remaining_constraints.append(item['constraint'])
+        
+        LOG_INFO(f"Scenario removal: removed {len(removed_indices)} of {len(constraints)} constraints "
+                 f"(removed indices: {removed_indices})")
+        
+        return remaining_constraints, removed_indices
+
+    def compute_risk_bound_after_removal(self, n_support: int, n_samples: int,
+                                          n_removed: int, beta: float) -> float:
+        """
+        Compute the probability of constraint violation after scenario removal.
+        
+        Reference: Safe Horizon MPC paper, Theorem 1 with removal adjustment
+        
+        The effective support dimension increases by the number of removed scenarios.
+        
+        Args:
+            n_support: Estimated support size (number of binding constraints)
+            n_samples: Total number of scenarios sampled
+            n_removed: Number of scenarios removed
+            beta: Confidence level
+            
+        Returns:
+            epsilon: Upper bound on probability of constraint violation
+        """
+        # Effective dimension = support + removed
+        d = n_support + n_removed
+        
+        # Inverse of sample size formula to get epsilon
+        # From: S >= 2/ε × (ln(1/β) + d)
+        # We get: ε >= 2 × (ln(1/β) + d) / S
+        epsilon = 2.0 * (np.log(1.0 / beta) + d) / n_samples
+        
+        LOG_DEBUG(f"Risk bound: epsilon={epsilon:.4f} (support={n_support}, "
+                 f"removed={n_removed}, samples={n_samples})")
+        
+        return epsilon
     
     def get_constraint_info(self) -> Dict:
         """Get information about current constraints."""
@@ -971,3 +1122,97 @@ class ScenarioSolver:
     def get_sampler(self):
         """Get the sampler from the scenario module."""
         return self.scenario_module.sampler
+
+
+class GreedySupportEstimator:
+    """
+    Estimates the support set during SQP optimization iterations.
+   
+    Reference: Safe Horizon MPC paper, Section V.B
+   
+    The support set consists of scenarios whose constraints are "active" (binding)
+    at the current solution. We estimate this during optimization by tracking
+    which constraints have near-zero slack.
+   
+    Key insight: Support estimation during optimization avoids the need to solve
+    S additional optimization problems after the main solve (which would be
+    computationally intractable for real-time).
+    """
+   
+    def __init__(self, n_bar: int, tolerance: float = 1e-4):
+        """
+        Args:
+            n_bar: Maximum allowed support size
+            tolerance: Threshold for considering a constraint "active"
+        """
+        self.n_bar = n_bar
+        self.tolerance = tolerance
+        self.support_set = set()  # Set of (scenario_idx, obstacle_idx) tuples
+        self.constraint_slacks = {}  # Track slack values per constraint
+        self.iteration_supports = []  # Support size per SQP iteration
+       
+    def reset(self):
+        """Reset for new optimization."""
+        self.support_set = set()
+        self.constraint_slacks = {}
+        self.iteration_supports = []
+   
+    def update_from_solution(self, constraints: List[ScenarioConstraint],
+                             solution_trajectory: List[np.ndarray]) -> int:
+        """
+        Update support estimate from current SQP solution.
+       
+        Args:
+            constraints: List of all scenario constraints
+            solution_trajectory: Current solution trajectory [(x0,y0), (x1,y1), ...]
+           
+        Returns:
+            Current estimated support size
+        """
+        self.support_set.clear()
+       
+        for constraint in constraints:
+            # Get robot position at constraint's time step
+            step = constraint.time_step
+            if step >= len(solution_trajectory):
+                continue
+               
+            robot_pos = solution_trajectory[step]
+           
+            # Compute constraint slack
+            # Constraint: a1*x + a2*y <= b
+            # Slack = b - (a1*x + a2*y)
+            constraint_value = constraint.a1 * robot_pos[0] + constraint.a2 * robot_pos[1]
+            slack = constraint.b - constraint_value
+           
+            # Store slack for analysis
+            key = (constraint.scenario_idx, constraint.obstacle_idx, step)
+            self.constraint_slacks[key] = slack
+           
+            # Constraint is "active" (in support) if slack is near zero
+            if abs(slack) < self.tolerance:
+                self.support_set.add((constraint.scenario_idx, constraint.obstacle_idx))
+       
+        support_size = len(self.support_set)
+        self.iteration_supports.append(support_size)
+       
+        return support_size
+   
+    def check_support_exceeded(self) -> bool:
+        """Check if support exceeds the allowed limit."""
+        return len(self.support_set) > self.n_bar
+   
+    def get_support_scenarios(self) -> List[Tuple[int, int]]:
+        """Get list of (scenario_idx, obstacle_idx) in support."""
+        return list(self.support_set)
+   
+    def get_statistics(self) -> dict:
+        """Get support estimation statistics."""
+        return {
+            'current_support': len(self.support_set),
+            'max_support': self.n_bar,
+            'exceeded': self.check_support_exceeded(),
+            'iteration_history': self.iteration_supports.copy(),
+            'num_active_constraints': len([s for s in self.constraint_slacks.values()
+                                          if abs(s) < self.tolerance])
+        }

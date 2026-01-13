@@ -74,7 +74,26 @@ class SafeHorizonConstraint(BaseConstraint):
 		# Diagnostics output (optional, enabled via enable_diagnostics flag)
 		self.diagnostics = None
 		self.enable_diagnostics = bool(self.get_config_value("safe_horizon_constraints.enable_diagnostics", False))
-		
+		self.safe_horizon_steps = config.get("safe_horizon_steps", 8)
+
+			# Scenario optimization parameters
+		self.epsilon_p = float(self.get_config_value("safe_horizon_constraints.epsilon_p", 0.05))
+		self.beta = float(self.get_config_value("safe_horizon_constraints.beta", 0.01))
+		self.n_bar = int(self.get_config_value("safe_horizon_constraints.n_bar", 10))
+		self.num_removal = int(self.get_config_value("safe_horizon_constraints.num_removal", 1))
+	
+		# Compute required sample size using paper formula
+		from modules.constraints.scenario_utils.math_utils import compute_sample_size
+		self.num_scenarios = compute_sample_size(
+			epsilon_p=self.epsilon_p,
+			beta=self.beta,
+			n_bar=self.n_bar,
+			num_removal=self.num_removal
+    	)
+   
+		LOG_INFO(f"SafeHorizonConstraint: Computed sample size S={self.num_scenarios} "
+				f"(ε={self.epsilon_p}, β={self.beta}, n_bar={self.n_bar}, R={self.num_removal})")
+
 		LOG_INFO(f"SafeHorizonConstraint initialized: num_discs={self.num_discs}, "
 		        f"epsilon_p={self.epsilon_p}, beta={self.beta}, n_bar={self.n_bar}, "
 		        f"num_scenarios={self.num_scenarios}")
@@ -232,6 +251,8 @@ class SafeHorizonConstraint(BaseConstraint):
 			total_cached = 0
 			for disc_id in range(self.num_discs):
 				for stage_idx in range(self.horizon_length):
+					current_x = x.get('x') if hasattr(x, 'has') and x.has('x') else None
+					current_y = x.get('y') if hasattr(x, 'has') and x.has('y') else None
 					# Get optimized constraints from polytope for this disc and stage
 					constraints = self.scenario_module.disc_manager[disc_id].get_constraints_for_step(stage_idx)
 					key = (disc_id, stage_idx)
@@ -359,7 +380,7 @@ class SafeHorizonConstraint(BaseConstraint):
 			# At 3 m/s velocity and 0.1s timestep, each stage is 0.3m of lookahead
 			# With obstacles moving at ~1.7 m/s, we need at least 8 stages (0.8s) to react
 			# Reference: C++ mpc_planner - typically uses full horizon for collision constraints
-			max_stage_for_constraints = 8  # Apply constraints to stages 0-8 for better lookahead
+			max_stage_for_constraints = min(self.safe_horizon_steps, self.horizon_length - 1)  # Apply constraints to stages 0-8 for better lookahead
 			if stage_idx > max_stage_for_constraints:
 				constraints_to_apply = []
 				LOG_DEBUG(f"SafeHorizonConstraint: Skipping constraints for stage {stage_idx} (only applying to stages 0-{max_stage_for_constraints})")
@@ -951,18 +972,36 @@ class SafeHorizonConstraint(BaseConstraint):
 				LOG_INFO(f"SafeHorizonConstraintsVisualizer: Drew {trajectories_drawn} hypothetical trajectories")
 				
 				# Draw selected trajectory from MPC solution (if available)
-				# Get predicted trajectory from solver
+				# Get predicted trajectory from solver - try multiple methods
 				if hasattr(self.module, 'solver') and self.module.solver is not None:
 					try:
-						# Try to get the reference trajectory or solution trajectory
-						if hasattr(self.module.solver, 'get_reference_trajectory'):
+						x_traj = []
+						y_traj = []
+						
+						# Method 1: Try to get directly from warmstart_values (most reliable fallback)
+						if hasattr(self.module.solver, 'warmstart_values') and self.module.solver.warmstart_values:
+							ws = self.module.solver.warmstart_values
+							if 'x' in ws and 'y' in ws:
+								try:
+									x_vals = ws['x']
+									y_vals = ws['y']
+									for i in range(min(len(x_vals), len(y_vals))):
+										x_traj.append(float(x_vals[i]))
+										y_traj.append(float(y_vals[i]))
+									if len(x_traj) > 1:
+										LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Got trajectory from warmstart_values: {len(x_traj)} points")
+								except Exception as e:
+									LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Error extracting warmstart: {e}")
+						
+						# Method 2: Try to get from reference trajectory (if warmstart didn't work)
+						if len(x_traj) <= 1 and hasattr(self.module.solver, 'get_reference_trajectory'):
 							traj = self.module.solver.get_reference_trajectory()
 							if traj is not None:
 								if hasattr(traj, 'get_states'):
 									states = traj.get_states()
 									if states and len(states) > 0:
 										LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Got {len(states)} states from trajectory")
-										x_traj = []
+										x_traj = []  # Reset in case partial extraction failed
 										y_traj = []
 										for state in states:
 											try:
@@ -1033,39 +1072,30 @@ class SafeHorizonConstraint(BaseConstraint):
 											ax.scatter([x_traj[-1]], [y_traj[-1]], c='red', s=150, 
 											          marker='*', label='Trajectory End', zorder=21, edgecolors='black', linewidths=2.5)
 										else:
-											LOG_WARN(f"SafeHorizonConstraintsVisualizer: Selected trajectory has insufficient points: x={len(x_traj)}, y={len(y_traj)}")
+											LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Method 2 trajectory has insufficient points: x={len(x_traj)}, y={len(y_traj)}")
 									else:
-										LOG_WARN(f"SafeHorizonConstraintsVisualizer: Trajectory has no states (empty)")
+										LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Trajectory has no states (empty)")
 								else:
-									LOG_WARN(f"SafeHorizonConstraintsVisualizer: Trajectory has no get_states method")
+									LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Trajectory has no get_states method")
 							else:
-								LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: get_reference_trajectory returned None (no solution or warmstart available)")
+								LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: get_reference_trajectory returned None")
+						
+						# Draw trajectory if we got valid points from either method
+						if len(x_traj) > 1 and len(y_traj) > 1 and len(x_traj) == len(y_traj):
+							LOG_INFO(f"SafeHorizonConstraintsVisualizer: Drawing predicted trajectory with {len(x_traj)} points")
+							# Draw predicted trajectory - bold blue line
+							ax.plot(x_traj, y_traj, '-', color='blue', linewidth=3.0, 
+							        alpha=0.9, label='Predicted Trajectory', zorder=20)
+							# Mark start with green square
+							ax.scatter([x_traj[0]], [y_traj[0]], c='lime', s=120, 
+							          marker='o', label='Trajectory Start', zorder=21, edgecolors='black', linewidths=1.5)
+							# Mark end with red star
+							ax.scatter([x_traj[-1]], [y_traj[-1]], c='red', s=150, 
+							          marker='*', label='Trajectory End', zorder=21, edgecolors='black', linewidths=1.5)
 						else:
-							LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Solver has no get_reference_trajectory method")
+							LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: No valid trajectory to draw (x={len(x_traj)}, y={len(y_traj)})")
 					except Exception as e:
-						LOG_WARN(f"Could not visualize selected trajectory: {e}")
-						import traceback
-						tb_str = traceback.format_exc()
-						LOG_DEBUG(f"Traceback: {tb_str}")
-						# If it's a KeyError with 'x', log more details
-						if isinstance(e, KeyError) and str(e) == "'x'":
-							LOG_DEBUG(f"KeyError 'x' detected. Checking trajectory state...")
-							try:
-								if hasattr(self.module, 'solver') and self.module.solver is not None:
-									if hasattr(self.module.solver, 'get_reference_trajectory'):
-										traj = self.module.solver.get_reference_trajectory()
-										if traj is not None and hasattr(traj, 'get_states'):
-											states = traj.get_states()
-											if states and len(states) > 0:
-												LOG_DEBUG(f"Trajectory has {len(states)} states")
-												first_state = states[0]
-												LOG_DEBUG(f"First state type: {type(first_state)}")
-												if hasattr(first_state, 'has'):
-													LOG_DEBUG(f"First state has('x'): {first_state.has('x')}, has('y'): {first_state.has('y')}")
-												if hasattr(first_state, '_state_dict'):
-													LOG_DEBUG(f"First state _state_dict keys: {list(first_state._state_dict.keys())}")
-							except Exception as debug_err:
-								LOG_DEBUG(f"Could not debug trajectory state: {debug_err}")
+						LOG_DEBUG(f"Could not visualize selected trajectory: {e}")
 		
 		return SafeHorizonConstraintsVisualizer(self)
 	
@@ -1379,17 +1409,19 @@ class SafeHorizonConstraint(BaseConstraint):
 		if not scenarios or len(scenarios) == 0:
 			return
 		
-		# Build set of (scenario_idx, obstacle_idx) tuples from support set constraints
-		# This identifies which scenarios are already being plotted by _plot_constraints_for_stage
-		support_set_scenarios = set()
+		# CRITICAL: Track obstacle_idx values that are already drawn by _plot_constraints_for_stage
+		# We need to exclude by OBSTACLE INDEX, not (scenario, obstacle) tuples, because
+		# multiple scenarios can exist for the same obstacle. If we only check (scenario, obstacle),
+		# we'd draw the same obstacle multiple times from different scenarios - causing double lines!
+		support_set_obstacles = set()
 		for disc_id in range(self.num_discs):
 			key = (disc_id, stage_idx)
 			if key in self.scenario_cache:
 				constraints = self.scenario_cache[key]
 				for constraint in constraints:
 					if isinstance(constraint, ScenarioConstraint):
-						if hasattr(constraint, 'scenario_idx') and hasattr(constraint, 'obstacle_idx'):
-							support_set_scenarios.add((int(constraint.scenario_idx), int(constraint.obstacle_idx)))
+						if hasattr(constraint, 'obstacle_idx') and constraint.obstacle_idx is not None:
+							support_set_obstacles.add(int(constraint.obstacle_idx))
 		
 		# Get current robot position
 		if current_robot_pos is None:
@@ -1410,18 +1442,23 @@ class SafeHorizonConstraint(BaseConstraint):
 		max_scenarios_to_plot = min(50, len(scenarios))  # Show up to 50 scenarios
 		
 		# Plot linearized halfspace for each scenario obstacle at this stage
-		# EXCLUDE scenarios that are already in the support set (to avoid duplicates)
+		# EXCLUDE obstacles that are already drawn by _plot_constraints_for_stage (to avoid duplicate lines)
 		plotted_count = 0
+		plotted_obstacles_in_all_scenarios = set()  # Track obstacles already drawn in this function
 		for i, scenario in enumerate(scenarios):
 			if plotted_count >= max_scenarios_to_plot:
 				break
 			
-			# Check if this scenario is in the support set
-			if hasattr(scenario, 'idx_') and hasattr(scenario, 'obstacle_idx_'):
-				scenario_key = (int(scenario.idx_), int(scenario.obstacle_idx_))
-				if scenario_key in support_set_scenarios:
-					# Skip this scenario - it's already being plotted by _plot_constraints_for_stage
+			# Check if this obstacle is already drawn by support set (in _plot_constraints_for_stage)
+			if hasattr(scenario, 'obstacle_idx_'):
+				obstacle_id = int(scenario.obstacle_idx_)
+				if obstacle_id in support_set_obstacles:
+					# Skip this obstacle - it's already being plotted by _plot_constraints_for_stage
 					continue
+				# Also skip if we've already drawn this obstacle in this function
+				if obstacle_id in plotted_obstacles_in_all_scenarios:
+					continue
+				plotted_obstacles_in_all_scenarios.add(obstacle_id)
 			# Get obstacle position from scenario at current stage
 			obstacle_pos = None
 			obstacle_radius = None
@@ -1556,7 +1593,7 @@ class SafeHorizonConstraint(BaseConstraint):
 				                        lw=1.0, alpha=alpha*0.7, zorder=0))
 		
 		if stage_idx == 0:  # Only log for stage 0 to avoid spam
-			LOG_DEBUG(f"SafeHorizonConstraint._plot_all_scenario_halfspaces: Plotted {plotted_count} scenario halfspaces for stage {stage_idx} (excluded {len(support_set_scenarios)} support set scenarios to avoid duplicates)")
+			LOG_DEBUG(f"SafeHorizonConstraint._plot_all_scenario_halfspaces: Plotted {plotted_count} scenario halfspaces for stage {stage_idx} (excluded obstacles {support_set_obstacles} from support set)")
 	
 	def _project_warmstart_to_safety(self, data: Data):
 		"""
@@ -1590,6 +1627,7 @@ class SafeHorizonConstraint(BaseConstraint):
 		# Check each stage that has constraints
 		projections_made = 0
 		for stage_idx in range(min(horizon_val + 1, len(x_ws))):
+			
 			# Get constraints for this stage (use disc_id=0 for now, can extend to multiple discs)
 			disc_id = 0
 			key = (disc_id, stage_idx)
