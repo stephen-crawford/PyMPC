@@ -59,6 +59,10 @@ class SafeHorizonConstraint(BaseConstraint):
 		# Cache for scenarios per stage (scenarios are independent of robot position)
 		self.scenario_cache: Dict[int, List] = {}  # Key: (disc_id, stage_idx), Value: List[Scenario]
 		
+		# Diagnostics output (optional, enabled via enable_diagnostics flag)
+		self.diagnostics = None
+		self.enable_diagnostics = bool(self.get_config_value("safe_horizon_constraints.enable_diagnostics", False))
+		
 		LOG_INFO(f"SafeHorizonConstraint initialized: num_discs={self.num_discs}, "
 		        f"epsilon_p={self.epsilon_p}, beta={self.beta}, n_bar={self.n_bar}, "
 		        f"num_scenarios={self.num_scenarios}")
@@ -99,6 +103,49 @@ class SafeHorizonConstraint(BaseConstraint):
 				}
 				
 				self.scenario_module = SafeHorizonModule(self.solver, config)
+				
+				# Initialize diagnostics if enabled (after scenario module is created)
+				if self.enable_diagnostics:
+					from modules.constraints.safe_horizon_diagnostics import SafeHorizonDiagnostics
+					# Get output folder from solver if available
+					output_folder = getattr(self.solver, 'output_folder', None)
+					if output_folder is None:
+						# Try to get from data or use default
+						output_folder = getattr(data, 'output_folder', None)
+					if output_folder is None or not isinstance(output_folder, str):
+						# Use default if still None or not a string
+						output_folder = 'test_outputs'
+					# Ensure output folder exists
+					import os
+					os.makedirs(output_folder, exist_ok=True)
+					self.diagnostics = SafeHorizonDiagnostics(output_folder)
+					self.scenario_module.diagnostics = self.diagnostics
+					LOG_INFO(f"SafeHorizonConstraint: Diagnostics enabled, output folder: {output_folder}")
+			
+			# CRITICAL: Update diagnostics output folder if it changed (e.g., new test run)
+			# This ensures diagnostics are always saved to the correct test output folder
+			if self.enable_diagnostics:
+				current_output_folder = getattr(self.solver, 'output_folder', None) if hasattr(self, 'solver') and self.solver is not None else None
+				if current_output_folder is None:
+					current_output_folder = getattr(data, 'output_folder', None)
+				if current_output_folder is None or not isinstance(current_output_folder, str):
+					current_output_folder = 'test_outputs'
+				
+				# Initialize diagnostics if not already done
+				if self.diagnostics is None:
+					from modules.constraints.safe_horizon_diagnostics import SafeHorizonDiagnostics
+					import os
+					os.makedirs(current_output_folder, exist_ok=True)
+					self.diagnostics = SafeHorizonDiagnostics(current_output_folder)
+					self.scenario_module.diagnostics = self.diagnostics
+					LOG_INFO(f"SafeHorizonConstraint: Diagnostics initialized, output folder: {current_output_folder}")
+				# Update output folder if it changed
+				elif self.diagnostics.output_folder != current_output_folder:
+					LOG_INFO(f"SafeHorizonConstraint: Updating diagnostics output folder from {self.diagnostics.output_folder} to {current_output_folder}")
+					self.diagnostics.output_folder = current_output_folder
+					import os
+					os.makedirs(current_output_folder, exist_ok=True)
+				
 				LOG_DEBUG("SafeHorizonConstraint: Initialized scenario module")
 			
 			# Check if data is ready
@@ -116,6 +163,28 @@ class SafeHorizonConstraint(BaseConstraint):
 				elif state is not None:
 					# Update data.state with current state to ensure it's current
 					data.state = state
+			
+			# Record scenario sampling for diagnostics (before optimization)
+			if self.diagnostics is not None:
+				from planning.types import propagate_obstacles
+				# Ensure obstacles are propagated before recording
+				if data.has("dynamic_obstacles") and data.dynamic_obstacles:
+					propagate_obstacles(data, dt=self.timestep, horizon=self.horizon_length)
+				self.diagnostics.record_scenario_sampling(
+					self.scenario_module, 
+					data.dynamic_obstacles if data.has("dynamic_obstacles") else [],
+					self.timestep
+				)
+				self.diagnostics.record_obstacle_trajectories(
+					data.dynamic_obstacles if data.has("dynamic_obstacles") else [],
+					self.horizon_length,
+					self.timestep
+				)
+			
+			# CRITICAL: Reset scenario module state before optimization to prevent compounding
+			# This ensures constraints are recomputed from scratch at each MPC iteration
+			# Reference: C++ mpc_planner - scenario module is reset at each iteration
+			self.scenario_module.reset()
 			
 			# Optimize scenario constraints (samples scenarios and creates polytopes)
 			# Reference: scenario_module - optimize() processes scenarios and creates constraints
@@ -142,6 +211,10 @@ class SafeHorizonConstraint(BaseConstraint):
 			
 			# Log constraint info
 			LOG_INFO(f"SafeHorizonConstraint.update: Cached {total_cached} optimized constraints across {len(self.scenario_cache)} (disc, stage) keys")
+			
+			# Add verification summary for diagnostics
+			if self.diagnostics is not None:
+				self.diagnostics.add_verification_summary(self.scenario_module)
 			
 			# CRITICAL: After caching constraints, project warmstart again to ensure it satisfies cached constraints
 			# This is necessary because constraints are now available in scenario_cache
@@ -453,26 +526,51 @@ class SafeHorizonConstraint(BaseConstraint):
 					LOG_WARN(f"SafeHorizonConstraint.calculate_constraints: Expected ScenarioConstraint, got {type(constraint)}")
 					continue
 				
-				# CRITICAL: Compute constraint symbolically using predicted robot position
-				# Reference: C++ mpc_planner (linearized_constraints.cpp) - constraint normal is computed symbolically
-				# This matches linearized_constraints.py lines 776-798 exactly
-				# The constraint normal adapts to the robot's predicted position, ensuring correct linearization
-				
-				# Extract obstacle position from constraint (must be stored)
+				# CRITICAL: Get obstacle position at CURRENT stage from obstacle's predicted trajectory
+				# Reference: C++ mpc_planner - constraints use obstacle positions at each stage from predictions
+				# This ensures constraints move with obstacles and don't compound across iterations
 				obstacle_pos = None
 				obstacle_radius = None
-				if hasattr(constraint, 'obstacle_pos') and constraint.obstacle_pos is not None:
-					# Convert to numpy array if needed
-					if isinstance(constraint.obstacle_pos, (list, tuple)):
-						obstacle_pos = np.array([float(constraint.obstacle_pos[0]), float(constraint.obstacle_pos[1])])
+				
+				# First, try to get obstacle position from data.dynamic_obstacles at current stage
+				# This ensures we use the obstacle's predicted position at this stage, not cached position
+				if data is not None and hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles:
+					obstacle_idx = getattr(constraint, 'obstacle_idx', None)
+					if obstacle_idx is not None and obstacle_idx < len(data.dynamic_obstacles):
+						obstacle = data.dynamic_obstacles[obstacle_idx]
+						if obstacle is not None:
+							# Get obstacle position at current stage from prediction
+							if hasattr(obstacle, 'prediction') and obstacle.prediction is not None:
+								if hasattr(obstacle.prediction, 'steps') and obstacle.prediction.steps:
+									if stage_idx < len(obstacle.prediction.steps):
+										pred_step = obstacle.prediction.steps[stage_idx]
+										if hasattr(pred_step, 'position') and pred_step.position is not None:
+											obstacle_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+											obstacle_radius = float(pred_step.radius) if hasattr(pred_step, 'radius') and pred_step.radius is not None else (float(obstacle.radius) if hasattr(obstacle, 'radius') else self.robot_radius)
+											LOG_DEBUG(f"SafeHorizonConstraint: Using obstacle {obstacle_idx} predicted position at stage {stage_idx}: ({obstacle_pos[0]:.3f}, {obstacle_pos[1]:.3f})")
+							
+							# Fallback: use current obstacle position if prediction not available
+							if obstacle_pos is None and hasattr(obstacle, 'position') and obstacle.position is not None:
+								obstacle_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+								obstacle_radius = float(obstacle.radius) if hasattr(obstacle, 'radius') else self.robot_radius
+								LOG_DEBUG(f"SafeHorizonConstraint: Using obstacle {obstacle_idx} current position (no prediction): ({obstacle_pos[0]:.3f}, {obstacle_pos[1]:.3f})")
+				
+				# Fallback: use cached obstacle position from constraint (for backward compatibility)
+				if obstacle_pos is None:
+					if hasattr(constraint, 'obstacle_pos') and constraint.obstacle_pos is not None:
+						# Convert to numpy array if needed
+						if isinstance(constraint.obstacle_pos, (list, tuple)):
+							obstacle_pos = np.array([float(constraint.obstacle_pos[0]), float(constraint.obstacle_pos[1])])
+						else:
+							obstacle_pos = np.array([float(constraint.obstacle_pos[0]), float(constraint.obstacle_pos[1])])
+						obstacle_radius = float(constraint.obstacle_radius) if hasattr(constraint, 'obstacle_radius') and constraint.obstacle_radius is not None else self.robot_radius
+						LOG_DEBUG(f"SafeHorizonConstraint: Using cached obstacle position from constraint (fallback)")
 					else:
-						obstacle_pos = np.array([float(constraint.obstacle_pos[0]), float(constraint.obstacle_pos[1])])
-					obstacle_radius = float(constraint.obstacle_radius) if hasattr(constraint, 'obstacle_radius') and constraint.obstacle_radius is not None else self.robot_radius
-				else:
-					# Obstacle position must be stored - this is a critical error
-					LOG_WARN(f"SafeHorizonConstraint: Constraint missing obstacle_pos at stage {stage_idx}, disc {disc_id}, "
-					         f"scenario_idx={getattr(constraint, 'scenario_idx', 'N/A')}, cannot compute symbolically")
-					continue
+						# Obstacle position must be available - this is a critical error
+						LOG_WARN(f"SafeHorizonConstraint: Cannot get obstacle position at stage {stage_idx}, disc {disc_id}, "
+						         f"obstacle_idx={getattr(constraint, 'obstacle_idx', 'N/A')}, scenario_idx={getattr(constraint, 'scenario_idx', 'N/A')}, "
+						         f"cannot compute symbolically")
+						continue
 				
 				# Compute constraint symbolically: a·p_disc <= b
 				# Reference: C++ mpc_planner - _a1[d][k](obs_id) = diff_x / dist where diff = obstacle_pos - ego_position
@@ -659,8 +757,13 @@ class SafeHorizonConstraint(BaseConstraint):
 							current_robot_pos = np.array([float(data.state.get('x')), float(data.state.get('y'))])
 				
 				# Plot constraints (halfspaces) for this stage
-				# CRITICAL: Pass current robot position so constraints are recomputed correctly
-				self.module._plot_constraints_for_stage(ax, stage_idx, current_robot_pos=current_robot_pos)
+				# CRITICAL: Pass current robot position and data so constraints are recomputed correctly
+				# and obstacle positions are taken from data at current stage
+				self.module._plot_constraints_for_stage(ax, stage_idx, current_robot_pos=current_robot_pos, data=data)
+				
+				# Plot linearized halfspaces for ALL sampled scenario obstacles (not just support set)
+				# This shows all the constraints that could be applied, not just the ones selected for optimization
+				self.module._plot_all_scenario_halfspaces(ax, stage_idx, current_robot_pos=current_robot_pos, data=data)
 				
 				# Debug: Check if scenario module exists
 				if self.module.scenario_module is None:
@@ -884,17 +987,19 @@ class SafeHorizonConstraint(BaseConstraint):
 		
 		return SafeHorizonConstraintsVisualizer(self)
 	
-	def _plot_constraints_for_stage(self, ax, stage_idx, current_robot_pos=None):
+	def _plot_constraints_for_stage(self, ax, stage_idx, current_robot_pos=None, data=None):
 		"""
 		Plot constraints (halfspaces) applied at a specific stage.
 		
 		CRITICAL: Constraints are recomputed at the current robot position to show correct halfspace orientation.
 		The halfspaces should rotate as the vehicle moves, pointing FROM vehicle TO obstacle.
+		Obstacle positions are taken from data.dynamic_obstacles at the current stage to ensure they move with obstacles.
 		
 		Args:
 			ax: Matplotlib axes to plot on
 			stage_idx: Stage index to plot constraints for
 			current_robot_pos: Current robot position (x, y) for recomputing constraints. If None, uses (0, 0).
+			data: Data object containing dynamic obstacles with predictions (optional, for getting current obstacle positions)
 		"""
 		try:
 			import matplotlib.pyplot as plt
@@ -903,6 +1008,7 @@ class SafeHorizonConstraint(BaseConstraint):
 			return
 		
 		if not self.scenario_cache:
+			LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: scenario_cache is empty for stage {stage_idx} (cache keys: {list(self.scenario_cache.keys())})")
 			return
 		
 		# Get current robot position (for recomputing constraints)
@@ -933,15 +1039,25 @@ class SafeHorizonConstraint(BaseConstraint):
 		for disc_id in range(self.num_discs):
 			key = (disc_id, stage_idx)
 			if key not in self.scenario_cache:
+				if stage_idx == 0 and disc_id == 0:  # Only log for first disc/stage to avoid spam
+					LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Key {key} not in scenario_cache (available keys: {list(self.scenario_cache.keys())[:10]})")
 				continue
 			
 			constraints = self.scenario_cache[key]
 			if not constraints:
+				if stage_idx == 0 and disc_id == 0:  # Only log for first disc/stage to avoid spam
+					LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Key {key} found but constraints list is empty")
 				continue
 			
 			# Limit number of constraints to plot (avoid clutter)
 			max_constraints_to_plot = min(10, len(constraints))
 			constraints_to_plot = constraints[:max_constraints_to_plot]
+			
+			if stage_idx == 0 and disc_id == 0:  # Debug logging for first disc/stage
+				LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Found {len(constraints)} constraints for key {key}, plotting up to {max_constraints_to_plot}")
+			
+			# Color palette for different obstacles (matching linearized constraints visualization)
+			obstacle_colors = ['red', 'orange', 'purple', 'brown', 'pink', 'cyan', 'magenta', 'yellow']
 			
 			# Plot each constraint as a halfspace line
 			for i, constraint in enumerate(constraints_to_plot):
@@ -953,6 +1069,15 @@ class SafeHorizonConstraint(BaseConstraint):
 				# The constraint normal should point FROM vehicle TO obstacle
 				obstacle_pos = None
 				obstacle_radius = None
+				
+				# Get obstacle ID from constraint (for color assignment)
+				# ScenarioConstraint stores obstacle_idx which maps to the original obstacle
+				if hasattr(constraint, 'obstacle_idx') and constraint.obstacle_idx is not None:
+					obstacle_id = int(constraint.obstacle_idx)
+				else:
+					# Fallback: use constraint index
+					obstacle_id = i % len(obstacle_colors)
+				
 				if hasattr(constraint, 'obstacle_pos') and constraint.obstacle_pos is not None:
 					if isinstance(constraint.obstacle_pos, (list, tuple)):
 						obstacle_pos = np.array([float(constraint.obstacle_pos[0]), float(constraint.obstacle_pos[1])])
@@ -961,17 +1086,48 @@ class SafeHorizonConstraint(BaseConstraint):
 					obstacle_radius = float(constraint.obstacle_radius) if hasattr(constraint, 'obstacle_radius') and constraint.obstacle_radius is not None else self.robot_radius
 				else:
 					# Fallback to stored values if obstacle_pos not available
-					LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Constraint missing obstacle_pos, using stored a1, a2, b")
+					LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Constraint {i} missing obstacle_pos, using stored a1, a2, b (obstacle_idx={obstacle_id})")
 					a1 = float(constraint.a1)
 					a2 = float(constraint.a2)
 					b = float(constraint.b)
 					obstacle_pos = None  # Will skip recomputation
 				
+				# CRITICAL: Get obstacle position at CURRENT stage from obstacle's predicted trajectory
+				# This ensures visualization moves with obstacles (matching calculate_constraints logic)
+				# First try to get from data.dynamic_obstacles if available
+				obstacle_pos_current = None
+				obstacle_radius_current = None
+				
+				# Try to get obstacle position from data at current stage (matching calculate_constraints)
+				if data is not None and hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles:
+					obstacle_idx = getattr(constraint, 'obstacle_idx', None)
+					if obstacle_idx is not None and obstacle_idx < len(data.dynamic_obstacles):
+						obstacle = data.dynamic_obstacles[obstacle_idx]
+						if obstacle is not None:
+							# Get obstacle position at current stage from prediction
+							if hasattr(obstacle, 'prediction') and obstacle.prediction is not None:
+								if hasattr(obstacle.prediction, 'steps') and obstacle.prediction.steps:
+									if stage_idx < len(obstacle.prediction.steps):
+										pred_step = obstacle.prediction.steps[stage_idx]
+										if hasattr(pred_step, 'position') and pred_step.position is not None:
+											obstacle_pos_current = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+											obstacle_radius_current = float(pred_step.radius) if hasattr(pred_step, 'radius') and pred_step.radius is not None else (float(obstacle.radius) if hasattr(obstacle, 'radius') else self.robot_radius)
+							
+							# Fallback: use current obstacle position if prediction not available
+							if obstacle_pos_current is None and hasattr(obstacle, 'position') and obstacle.position is not None:
+								obstacle_pos_current = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
+								obstacle_radius_current = float(obstacle.radius) if hasattr(obstacle, 'radius') else self.robot_radius
+				
+				# Fallback: use stored obstacle_pos from constraint (for backward compatibility)
+				if obstacle_pos_current is None and obstacle_pos is not None:
+					obstacle_pos_current = obstacle_pos.copy()
+					obstacle_radius_current = obstacle_radius
+				
 				# Recompute constraint normal using current robot position (matching calculate_constraints)
-				if obstacle_pos is not None:
+				if obstacle_pos_current is not None:
 					# Compute direction FROM robot TO obstacle
-					diff_x = obstacle_pos[0] - current_robot_pos[0]
-					diff_y = obstacle_pos[1] - current_robot_pos[1]
+					diff_x = obstacle_pos_current[0] - current_robot_pos[0]
+					diff_y = obstacle_pos_current[1] - current_robot_pos[1]
 					dist = np.sqrt(diff_x * diff_x + diff_y * diff_y)
 					dist = max(dist, 1e-6)  # Avoid division by zero
 					
@@ -980,10 +1136,10 @@ class SafeHorizonConstraint(BaseConstraint):
 					a2 = diff_y / dist
 					
 					# Safety margin: robot_radius + obstacle_radius
-					safety_margin = self.robot_radius + obstacle_radius
+					safety_margin = self.robot_radius + obstacle_radius_current
 					
 					# Compute b: a·obs_pos - safety_margin
-					b = a1 * obstacle_pos[0] + a2 * obstacle_pos[1] - safety_margin
+					b = a1 * obstacle_pos_current[0] + a2 * obstacle_pos_current[1] - safety_margin
 				
 				# Constraint: a1*x + a2*y <= b
 				# To plot: find two points on the line a1*x + a2*y = b
@@ -1023,35 +1179,267 @@ class SafeHorizonConstraint(BaseConstraint):
 					y1 = y_center - extend
 					y2 = y_center + extend
 				
-				# Plot constraint line (halfspace boundary)
+				# Plot constraint line (halfspace boundary) - similar to linearized constraints
 				# The feasible region is on the side where a1*x + a2*y <= b
-				# We'll use a dashed line to indicate it's a constraint boundary
-				color = plt.cm.tab10(disc_id % 10)
-				alpha = 0.3 if i < max_constraints_to_plot - 1 else 0.5  # Make last constraint more visible
-				linewidth = 1.0 if i < max_constraints_to_plot - 1 else 1.5
+				# Use obstacle-specific color (matching linearized constraints visualization)
+				color = obstacle_colors[obstacle_id % len(obstacle_colors)]
+				alpha = 0.6  # Match linearized constraints alpha
+				linewidth = 1.0
 				
-				ax.plot([x1, x2], [y1, y2], '--', color=color, alpha=alpha, linewidth=linewidth, 
-				        label=f'Safe Horizon Constraints (disc {disc_id})' if disc_id == 0 and i == 0 else None,
-				        zorder=1)
-				
-				# Draw arrow indicating feasible side (pointing away from obstacle)
-				# The normal vector (a1, a2) points FROM robot TO obstacle
-				# So feasible side is opposite to normal (where a1*x + a2*y < b)
-				mid_x = (x1 + x2) / 2
-				mid_y = (y1 + y2) / 2
-				arrow_length = min(x_range, y_range) * 0.1
-				arrow_dx = -a1_norm * arrow_length  # Opposite to normal (feasible side)
-				arrow_dy = -a2_norm * arrow_length
-				
-				if i == max_constraints_to_plot - 1:  # Only draw arrow for last constraint to avoid clutter
-					ax.arrow(mid_x, mid_y, arrow_dx, arrow_dy, head_width=arrow_length*0.3, 
-					        head_length=arrow_length*0.3, fc=color, ec=color, alpha=alpha*0.7, zorder=1)
+				# Calculate shorter line segment (similar to linearized constraints)
+				# If obstacle position is available, draw line segment near obstacle
+				if obstacle_pos_current is not None:
+					# Calculate line center point (where constraint line intersects vehicle-to-obstacle line)
+					vehicle_to_obstacle = obstacle_pos_current - current_robot_pos
+					vehicle_to_obstacle_dist = np.linalg.norm(vehicle_to_obstacle)
+					
+					if vehicle_to_obstacle_dist > 1e-6:
+						# Find intersection point on vehicle-to-obstacle line
+						A_dot_vehicle = a1_norm * current_robot_pos[0] + a2_norm * current_robot_pos[1]
+						t = b_norm - A_dot_vehicle
+						line_center_point = current_robot_pos + t * np.array([a1_norm, a2_norm])
+						
+						# Use shorter line segment (similar to linearized constraints)
+						line_length = max(3.0, vehicle_to_obstacle_dist * 0.6)  # At least 3m, or 60% of distance
+						
+						# Direction along the line (perpendicular to A)
+						dir_x = -a2_norm
+						dir_y = a1_norm
+						
+						# Draw line segment centered at line_center
+						x1 = line_center_point[0] - dir_x * line_length / 2
+						y1 = line_center_point[1] - dir_y * line_length / 2
+						x2 = line_center_point[0] + dir_x * line_length / 2
+						y2 = line_center_point[1] + dir_y * line_length / 2
+						
+						# Draw constraint line with obstacle-specific color
+						ax.plot([x1, x2], [y1, y2], '--', color=color, alpha=alpha, linewidth=linewidth, 
+						        label=f'Safe Horizon Constraint (obstacle {obstacle_id})' if disc_id == 0 and i == 0 and obstacle_id == 0 else None,
+						        zorder=1)
+						
+						# Add arrow showing restriction direction (away from obstacle, toward allowed region)
+						arrow_length = 1.0  # Smaller arrow
+						arrow_mid_x = line_center_point[0]
+						arrow_mid_y = line_center_point[1]
+						arrow_dx = -a1_norm * arrow_length  # Opposite to normal (feasible side)
+						arrow_dy = -a2_norm * arrow_length
+						
+						ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
+						          xytext=(arrow_mid_x, arrow_mid_y),
+						          arrowprops=dict(arrowstyle='->', color=color, 
+						                        lw=1.5, alpha=alpha, zorder=2))
+					else:
+						# Fallback: vehicle and obstacle are at same position, use full line
+						# (x1, x2, y1, y2 already computed above from line equation)
+						ax.plot([x1, x2], [y1, y2], '--', color=color, alpha=alpha, linewidth=linewidth, 
+						        label=f'Safe Horizon Constraint (obstacle {obstacle_id})' if disc_id == 0 and i == 0 and obstacle_id == 0 else None,
+						        zorder=1)
+				else:
+					# Fallback: use full line across plot if obstacle position not available
+					# (x1, x2, y1, y2 already computed above from line equation)
+					ax.plot([x1, x2], [y1, y2], '--', color=color, alpha=alpha, linewidth=linewidth, 
+					        label=f'Safe Horizon Constraint (obstacle {obstacle_id})' if disc_id == 0 and i == 0 and obstacle_id == 0 else None,
+					        zorder=1)
+					
+					# Draw arrow indicating feasible side
+					mid_x = (x1 + x2) / 2
+					mid_y = (y1 + y2) / 2
+					arrow_length = min(x_range, y_range) * 0.1
+					arrow_dx = -a1_norm * arrow_length  # Opposite to normal (feasible side)
+					arrow_dy = -a2_norm * arrow_length
+					
+					if i == max_constraints_to_plot - 1:  # Only draw arrow for last constraint to avoid clutter
+						ax.arrow(mid_x, mid_y, arrow_dx, arrow_dy, head_width=arrow_length*0.3, 
+						        head_length=arrow_length*0.3, fc=color, ec=color, alpha=alpha*0.7, zorder=1)
 		
-		# Log constraint count
+		# Log constraint count with detailed debugging
 		total_constraints = sum(len(self.scenario_cache.get((disc_id, stage_idx), [])) 
 		                       for disc_id in range(self.num_discs))
 		if total_constraints > 0:
-			LOG_DEBUG(f"Plotted {total_constraints} constraints for stage {stage_idx}")
+			LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Plotted {total_constraints} constraints for stage {stage_idx} (discs: {self.num_discs})")
+		else:
+			LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: No constraints to plot for stage {stage_idx} (scenario_cache keys: {list(self.scenario_cache.keys())})")
+	
+	def _plot_all_scenario_halfspaces(self, ax, stage_idx, current_robot_pos=None, data=None):
+		"""
+		Plot linearized halfspace constraints for ALL sampled scenario obstacles.
+		
+		This shows all the constraints that could be applied from the sampled scenarios,
+		not just the ones selected for the support set. This gives a complete picture
+		of all possible obstacle positions and their corresponding constraints.
+		
+		Args:
+			ax: Matplotlib axes to plot on
+			stage_idx: Stage index to plot constraints for
+			current_robot_pos: Current robot position (x, y) for computing constraints. If None, uses (0, 0).
+			data: Data object containing dynamic obstacles with predictions (optional, for getting current obstacle positions)
+		"""
+		try:
+			import matplotlib.pyplot as plt
+			import numpy as np
+		except Exception:
+			return
+		
+		# Check if scenario module exists
+		if self.scenario_module is None or not hasattr(self.scenario_module, 'scenarios'):
+			return
+		
+		scenarios = self.scenario_module.scenarios
+		if not scenarios or len(scenarios) == 0:
+			return
+		
+		# Get current robot position
+		if current_robot_pos is None:
+			current_robot_pos = np.array([0.0, 0.0])
+		else:
+			current_robot_pos = np.array([float(current_robot_pos[0]), float(current_robot_pos[1])])
+		
+		# Get current axis limits
+		xlim = ax.get_xlim()
+		ylim = ax.get_ylim()
+		x_range = xlim[1] - xlim[0]
+		y_range = ylim[1] - ylim[0]
+		
+		# Color palette for different obstacles (matching linearized constraints visualization)
+		obstacle_colors = ['red', 'orange', 'purple', 'brown', 'pink', 'cyan', 'magenta', 'yellow']
+		
+		# Limit number of scenarios to visualize to avoid clutter (show a sample)
+		max_scenarios_to_plot = min(50, len(scenarios))  # Show up to 50 scenarios
+		
+		# Plot linearized halfspace for each scenario obstacle at this stage
+		for i, scenario in enumerate(scenarios[:max_scenarios_to_plot]):
+			# Get obstacle position from scenario at current stage
+			obstacle_pos = None
+			obstacle_radius = None
+			obstacle_idx = None
+			
+			# Get obstacle index from scenario
+			if hasattr(scenario, 'obstacle_idx_'):
+				obstacle_idx = int(scenario.obstacle_idx_)
+			else:
+				continue
+			
+			# Get obstacle position at current stage from scenario trajectory
+			if hasattr(scenario, 'trajectory') and scenario.trajectory and stage_idx < len(scenario.trajectory):
+				# Use position from trajectory at this time step
+				obstacle_pos = np.array([float(scenario.trajectory[stage_idx][0]), float(scenario.trajectory[stage_idx][1])])
+				obstacle_radius = float(scenario.radius) if hasattr(scenario, 'radius') else self.robot_radius
+			elif hasattr(scenario, 'position'):
+				# Fallback: use initial scenario position
+				obstacle_pos = np.array([float(scenario.position[0]), float(scenario.position[1])])
+				obstacle_radius = float(scenario.radius) if hasattr(scenario, 'radius') else self.robot_radius
+			else:
+				continue
+			
+			# Also try to get from data.dynamic_obstacles at current stage (for moving obstacles)
+			if data is not None and hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles:
+				if obstacle_idx < len(data.dynamic_obstacles):
+					obstacle = data.dynamic_obstacles[obstacle_idx]
+					if obstacle is not None:
+						# Get obstacle position at current stage from prediction
+						if hasattr(obstacle, 'prediction') and obstacle.prediction is not None:
+							if hasattr(obstacle.prediction, 'steps') and obstacle.prediction.steps:
+								if stage_idx < len(obstacle.prediction.steps):
+									pred_step = obstacle.prediction.steps[stage_idx]
+									if hasattr(pred_step, 'position') and pred_step.position is not None:
+										obstacle_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
+										obstacle_radius = float(pred_step.radius) if hasattr(pred_step, 'radius') and pred_step.radius is not None else (float(obstacle.radius) if hasattr(obstacle, 'radius') else self.robot_radius)
+			
+			if obstacle_pos is None:
+				continue
+			
+			# Compute linearized halfspace constraint (matching linearized_constraints.py)
+			# Direction vector FROM robot TO obstacle
+			diff_x = obstacle_pos[0] - current_robot_pos[0]
+			diff_y = obstacle_pos[1] - current_robot_pos[1]
+			dist = np.sqrt(diff_x**2 + diff_y**2)
+			dist = max(dist, 1e-6)  # Avoid division by zero
+			
+			# Normalized direction vector (points FROM vehicle TO obstacle)
+			a1 = diff_x / dist
+			a2 = diff_y / dist
+			
+			# Safety margin: robot_radius + obstacle_radius
+			safety_margin = self.robot_radius + obstacle_radius
+			
+			# Compute b: a·obs_pos - safety_margin
+			b = a1 * obstacle_pos[0] + a2 * obstacle_pos[1] - safety_margin
+			
+			# Normalize the normal vector
+			norm = np.sqrt(a1**2 + a2**2)
+			if norm < 1e-6:
+				continue
+			
+			a1_norm = a1 / norm
+			a2_norm = a2 / norm
+			b_norm = b / norm
+			
+			# Calculate constraint line position (similar to linearized constraints visualization)
+			vehicle_to_obstacle = obstacle_pos - current_robot_pos
+			vehicle_to_obstacle_dist = np.linalg.norm(vehicle_to_obstacle)
+			
+			if vehicle_to_obstacle_dist > 1e-6:
+				# Find intersection point on vehicle-to-obstacle line
+				A_dot_vehicle = a1_norm * current_robot_pos[0] + a2_norm * current_robot_pos[1]
+				t = b_norm - A_dot_vehicle
+				line_center_point = current_robot_pos + t * np.array([a1_norm, a2_norm])
+				
+				# Use shorter line segment (similar to linearized constraints)
+				line_length = max(2.0, vehicle_to_obstacle_dist * 0.5)  # At least 2m, or 50% of distance
+				
+				# Direction along the line (perpendicular to A)
+				dir_x = -a2_norm
+				dir_y = a1_norm
+				
+				# Draw line segment centered at line_center
+				x1 = line_center_point[0] - dir_x * line_length / 2
+				y1 = line_center_point[1] - dir_y * line_length / 2
+				x2 = line_center_point[0] + dir_x * line_length / 2
+				y2 = line_center_point[1] + dir_y * line_length / 2
+			else:
+				# Fallback: use full line
+				extend = max(x_range, y_range) * 0.3
+				x_center = (xlim[0] + xlim[1]) / 2
+				y_center = (ylim[0] + ylim[1]) / 2
+				
+				if abs(a2_norm) > 1e-6:
+					x1 = x_center - extend
+					x2 = x_center + extend
+					y1 = (b_norm - a1_norm * x1) / a2_norm
+					y2 = (b_norm - a1_norm * x2) / a2_norm
+				else:
+					x1 = b_norm / a1_norm
+					x2 = x1
+					y1 = y_center - extend
+					y2 = y_center + extend
+			
+			# Use obstacle-specific color (matching linearized constraints visualization)
+			color = obstacle_colors[obstacle_idx % len(obstacle_colors)]
+			alpha = 0.3  # More transparent than support set constraints to show they're potential constraints
+			linewidth = 0.8
+			
+			# Draw constraint line with obstacle-specific color
+			ax.plot([x1, x2], [y1, y2], '--', color=color, alpha=alpha, linewidth=linewidth, zorder=0)
+			
+			# Optionally add small arrow (less prominent than support set constraints)
+			if i % 10 == 0:  # Only show arrow for every 10th scenario to reduce clutter
+				arrow_length = 0.5
+				if vehicle_to_obstacle_dist > 1e-6:
+					arrow_mid_x = line_center_point[0]
+					arrow_mid_y = line_center_point[1]
+				else:
+					arrow_mid_x = (x1 + x2) / 2
+					arrow_mid_y = (y1 + y2) / 2
+				arrow_dx = -a1_norm * arrow_length
+				arrow_dy = -a2_norm * arrow_length
+				
+				ax.annotate('', xy=(arrow_mid_x + arrow_dx, arrow_mid_y + arrow_dy),
+				          xytext=(arrow_mid_x, arrow_mid_y),
+				          arrowprops=dict(arrowstyle='->', color=color, 
+				                        lw=1.0, alpha=alpha*0.7, zorder=0))
+		
+		if stage_idx == 0:  # Only log for stage 0 to avoid spam
+			LOG_DEBUG(f"SafeHorizonConstraint._plot_all_scenario_halfspaces: Plotted {min(max_scenarios_to_plot, len(scenarios))} scenario halfspaces for stage {stage_idx}")
 	
 	def _project_warmstart_to_safety(self, data: Data):
 		"""

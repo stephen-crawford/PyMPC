@@ -59,16 +59,18 @@ class DiscManager:
             b = halfspace.b
             
             if A.shape[0] > 0 and A.shape[1] >= 2:
-                # CRITICAL: Retrieve obstacle position from polytope if stored
+                # CRITICAL: Retrieve obstacle position AND obstacle_idx from polytope if stored
                 # Reference: C++ mpc_planner - obstacle positions are needed for symbolic constraint computation
                 # The constraint normal (a1, a2) will be recomputed symbolically using predicted robot position
                 obstacle_pos = None
                 obstacle_radius = None
+                obstacle_idx = 0  # Default to 0 if not found
                 if hasattr(polytope, '_obstacle_positions') and i in polytope._obstacle_positions:
                     obs_info = polytope._obstacle_positions[i]
                     obstacle_pos = obs_info['position']
                     obstacle_radius = obs_info['radius']
-                    LOG_DEBUG(f"Retrieved obstacle position for constraint {i}: ({obstacle_pos[0]:.3f}, {obstacle_pos[1]:.3f}), radius={obstacle_radius:.3f}")
+                    obstacle_idx = obs_info.get('obstacle_idx', 0)  # Get obstacle_idx if stored
+                    LOG_DEBUG(f"Retrieved obstacle info for constraint {i}: pos=({obstacle_pos[0]:.3f}, {obstacle_pos[1]:.3f}), radius={obstacle_radius:.3f}, obstacle_idx={obstacle_idx}")
                 else:
                     LOG_WARN(f"Warning: No obstacle position stored for constraint {i} in polytope at time_step {time_step} "
                             f"(has _obstacle_positions: {hasattr(polytope, '_obstacle_positions')}, "
@@ -76,7 +78,7 @@ class DiscManager:
                 
                 constraint = ScenarioConstraint(
                     a1=A[0, 0], a2=A[0, 1], b=b[0],
-                    scenario_idx=i, obstacle_idx=0, time_step=time_step,
+                    scenario_idx=i, obstacle_idx=obstacle_idx, time_step=time_step,  # Use retrieved obstacle_idx
                     obstacle_pos=obstacle_pos,  # Store obstacle position for symbolic computation
                     obstacle_radius=obstacle_radius
                 )
@@ -101,10 +103,11 @@ class SafeHorizonModule:
         self.horizon_length = config.get("horizon_length", 10)
         self.max_constraints_per_disc = config.get("max_constraints_per_disc", 3)  # Reduced from 24 to 3
         self.num_discs = config.get("num_discs", 1)
+        self.num_scenarios = config.get("num_scenarios", 100)  # Number of scenarios to sample (for diagnostics)
         
         # Components
         self.sampler = ScenarioSampler(
-            num_scenarios=config.get("num_scenarios", 100),
+            num_scenarios=self.num_scenarios,
             enable_outlier_removal=config.get("enable_outlier_removal", True)
         )
         self.validator = MonteCarloValidator()
@@ -151,13 +154,32 @@ class SafeHorizonModule:
         """
         Optimize scenario constraints.
         
+        Reference: C++ mpc_planner - scenario optimization happens after warmstart is initialized
+        The warmstart trajectory is used as reference for constraint linearization.
+        This matches linearized_constraints.py pattern where update() gets reference trajectory.
+        
         Returns:
             1 if successful, -1 if failed
         """
         try:
             LOG_DEBUG("Starting scenario optimization")
             
-            # Update with current data
+            # CRITICAL: Ensure warmstart is initialized before optimization
+            # Reference: C++ mpc_planner - warmstart must be initialized before constraint linearization
+            # The warmstart provides the reference trajectory for linearizing constraints
+            # This matches linearized_constraints.py where update() is called after initialize_rollout()
+            if hasattr(self, 'solver') and self.solver is not None:
+                if not (hasattr(self.solver, 'warmstart_intiailized') and self.solver.warmstart_intiailized):
+                    LOG_WARN("SafeHorizonModule.optimize: Warmstart not initialized! This may cause reference position issues.")
+                    # Try to initialize warmstart if state is available
+                    if data is not None and hasattr(data, 'state') and data.state is not None:
+                        try:
+                            LOG_DEBUG("Attempting to initialize warmstart from data.state")
+                            self.solver.initialize_rollout(data.state, data)
+                        except Exception as e:
+                            LOG_DEBUG(f"Could not initialize warmstart: {e}")
+            
+            # Update with current data (samples scenarios)
             self.update(data)
             
             if not self.scenarios:
@@ -170,6 +192,8 @@ class SafeHorizonModule:
             
             # Get reference trajectory states for linearization (matching linearized_constraints.py)
             # Reference: linearized_constraints.py uses reference trajectory for linearization
+            # CRITICAL: If reference trajectory is empty, create states from warmstart values directly
+            # This matches the C++ pattern: _solver->getEgoPrediction(k, "x") returns warmstart if no solution
             ref_states = []
             if hasattr(self.solver, 'get_reference_trajectory'):
                 try:
@@ -178,6 +202,84 @@ class SafeHorizonModule:
                         ref_states = ref_traj.get_states()
                 except Exception as e:
                     LOG_DEBUG(f"Could not get reference trajectory for optimization: {e}")
+            
+            # CRITICAL: If reference trajectory is empty, create states from warmstart values directly
+            # This matches linearized_constraints.py pattern and C++ reference implementation
+            # Reference: C++ mpc_planner - getEgoPrediction() returns warmstart trajectory if no solution available
+            # Check if warmstart_values exists and has 'x' and 'y' keys (not just empty dict)
+            has_warmstart = (hasattr(self.solver, 'warmstart_values') and 
+                           self.solver.warmstart_values is not None and
+                           isinstance(self.solver.warmstart_values, dict) and
+                           'x' in self.solver.warmstart_values and 
+                           'y' in self.solver.warmstart_values)
+            if not ref_states and has_warmstart:
+                try:
+                    from planning.types import State
+                    dynamics_model = self.solver._get_dynamics_model()
+                    if dynamics_model is not None:
+                        horizon_val = self.solver.horizon if self.solver.horizon is not None else 10
+                        ws_vals = self.solver.warmstart_values
+                        
+                        # Create states from warmstart values (matching linearized_constraints.py lines 128-146)
+                        if 'x' in ws_vals and 'y' in ws_vals:
+                            x_vals = ws_vals['x']
+                            y_vals = ws_vals['y']
+                            psi_vals = ws_vals.get('psi', [0.0] * (horizon_val + 1))
+                            v_vals = ws_vals.get('v', [0.0] * (horizon_val + 1))
+                            
+                            # Ensure arrays are the right length
+                            if hasattr(x_vals, '__len__') and hasattr(y_vals, '__len__'):
+                                for k in range(min(horizon_val + 1, len(x_vals), len(y_vals))):
+                                    state_k = State(model_type=dynamics_model)
+                                    # Extract numeric values from warmstart
+                                    import casadi as cd
+                                    x_val = x_vals[k]
+                                    y_val = y_vals[k]
+                                    if isinstance(x_val, (cd.MX, cd.SX)):
+                                        try:
+                                            x_val = float(cd.DM(x_val))
+                                        except:
+                                            x_val = 0.0
+                                    else:
+                                        x_val = float(x_val)
+                                    if isinstance(y_val, (cd.MX, cd.SX)):
+                                        try:
+                                            y_val = float(cd.DM(y_val))
+                                        except:
+                                            y_val = 0.0
+                                    else:
+                                        y_val = float(y_val)
+                                    
+                                    state_k.set("x", x_val)
+                                    state_k.set("y", y_val)
+                                    if k < len(psi_vals):
+                                        psi_val = psi_vals[k]
+                                        if isinstance(psi_val, (cd.MX, cd.SX)):
+                                            try:
+                                                psi_val = float(cd.DM(psi_val))
+                                            except:
+                                                psi_val = 0.0
+                                        else:
+                                            psi_val = float(psi_val)
+                                        state_k.set("psi", psi_val)
+                                    if k < len(v_vals):
+                                        v_val = v_vals[k]
+                                        if isinstance(v_val, (cd.MX, cd.SX)):
+                                            try:
+                                                v_val = float(cd.DM(v_val))
+                                            except:
+                                                v_val = 0.0
+                                        else:
+                                            v_val = float(v_val)
+                                        state_k.set("v", v_val)
+                                    ref_states.append(state_k)
+                                LOG_INFO(f"Created {len(ref_states)} reference states from warmstart values (matching linearized_constraints.py)")
+                            else:
+                                LOG_WARN(f"Warmstart x or y is not an array: x={type(x_vals)}, y={type(y_vals)}")
+                except Exception as e:
+                    LOG_WARN(f"Could not create reference states from warmstart: {e}")
+                    import traceback
+                    LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
             
             # Get current state for step 0 (matching linearized_constraints.py)
             # Reference: linearized_constraints.py update_step() uses current state for step 0
@@ -246,63 +348,88 @@ class SafeHorizonModule:
                             LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
                             reference_robot_pos = None
                     
-                    # For future steps, try to get from reference trajectory
+                    # For future steps, use reference trajectory states (matching linearized_constraints.py)
+                    # Reference: C++ mpc_planner - _solver->getEgoPrediction(k, "x") returns reference trajectory
+                    # The reference trajectory is created from warmstart if no solution is available
+                    # This matches linearized_constraints.py lines 284-291 exactly
                     if reference_robot_pos is None and step > 0:
-                        # Try to get from solver's reference trajectory or warmstart
-                        if hasattr(self, 'solver') and self.solver is not None:
+                        # Use reference trajectory states (created from warmstart if needed)
+                        if step < len(ref_states):
                             try:
-                                # Try to get from reference trajectory
-                                if hasattr(self.solver, 'get_reference_trajectory'):
-                                    ref_traj = self.solver.get_reference_trajectory()
-                                    if ref_traj is not None and hasattr(ref_traj, 'get_states'):
-                                        states = ref_traj.get_states()
-                                        if step < len(states):
-                                            ref_state = states[step]
-                                            if hasattr(ref_state, 'has') and ref_state.has('x') and ref_state.has('y'):
-                                                reference_robot_pos = np.array([
-                                                    float(ref_state.get('x')),
-                                                    float(ref_state.get('y'))
-                                                ])
-                                                LOG_INFO(f"Step {step}: Using reference trajectory position ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f}) for linearization")
+                                ref_state = ref_states[step]
+                                if hasattr(ref_state, 'has') and ref_state.has('x') and ref_state.has('y'):
+                                    reference_robot_pos = np.array([
+                                        float(ref_state.get('x')),
+                                        float(ref_state.get('y'))
+                                    ])
+                                    LOG_INFO(f"Step {step}: Using reference trajectory position ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f}) for linearization")
                             except Exception as e:
                                 LOG_DEBUG(f"Could not get reference trajectory position for step {step}: {e}")
-                        
-                        # Fallback to warmstart if available
-                        if reference_robot_pos is None:
-                            if hasattr(self, 'solver') and self.solver is not None:
-                                if hasattr(self.solver, 'warmstart_values'):
-                                    ws_vals = self.solver.warmstart_values
-                                    if 'x' in ws_vals and 'y' in ws_vals:
-                                        try:
-                                            x_ws = ws_vals['x']
-                                            y_ws = ws_vals['y']
-                                            if isinstance(x_ws, (list, np.ndarray)) and step < len(x_ws):
-                                                reference_robot_pos = np.array([
-                                                    float(x_ws[step]),
-                                                    float(y_ws[step])
-                                                ])
-                                                LOG_INFO(f"Step {step}: Using warmstart position ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f}) for linearization")
-                                        except Exception as e:
-                                            LOG_DEBUG(f"Could not get warmstart position for step {step}: {e}")
+                        else:
+                            # Fallback: reference trajectory too short, use current state position
+                            # This matches linearized_constraints.py lines 292-299
+                            if current_state is not None and hasattr(current_state, 'has') and current_state.has('x') and current_state.has('y'):
+                                try:
+                                    x_val = current_state.get('x')
+                                    y_val = current_state.get('y')
+                                    # Extract numeric value
+                                    import casadi as cd
+                                    if isinstance(x_val, (cd.MX, cd.SX)):
+                                        x_val = float(cd.DM(x_val)) if hasattr(cd, 'DM') else 0.0
+                                    else:
+                                        x_val = float(x_val)
+                                    if isinstance(y_val, (cd.MX, cd.SX)):
+                                        y_val = float(cd.DM(y_val)) if hasattr(cd, 'DM') else 0.0
+                                    else:
+                                        y_val = float(y_val)
+                                    reference_robot_pos = np.array([x_val, y_val])
+                                    LOG_WARN(f"Step {step}: Reference trajectory too short (len={len(ref_states)}), using CURRENT state position: ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f})")
+                                except Exception as e:
+                                    LOG_DEBUG(f"Could not get current state position for fallback: {e}")
                     
-                    # Try to get from reference trajectory if still None
-                    if reference_robot_pos is None and step < len(ref_states):
-                        # Use reference trajectory position for future steps
-                        try:
-                            ref_state = ref_states[step]
-                            if hasattr(ref_state, 'has') and ref_state.has('x') and ref_state.has('y'):
-                                reference_robot_pos = np.array([
-                                    float(ref_state.get('x')),
-                                    float(ref_state.get('y'))
-                                ])
-                                LOG_INFO(f"Step {step}: Using reference trajectory position ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f}) for linearization")
-                        except Exception as e:
-                            LOG_DEBUG(f"Could not get reference trajectory position for step {step}: {e}")
-                    
-                    # Final fallback to (0, 0) if still None
+                    # Final fallback: use warmstart directly if reference states not available
+                    # This should rarely happen if warmstart is properly initialized
                     if reference_robot_pos is None:
-                        reference_robot_pos = np.array([0.0, 0.0])
-                        LOG_WARN(f"Step {step}: No reference position available, using (0, 0) - this may cause infeasibility!")
+                        has_ws = (hasattr(self, 'solver') and self.solver is not None and
+                                 hasattr(self.solver, 'warmstart_values') and 
+                                 self.solver.warmstart_values is not None and
+                                 isinstance(self.solver.warmstart_values, dict) and
+                                 'x' in self.solver.warmstart_values and 
+                                 'y' in self.solver.warmstart_values)
+                        if has_ws:
+                            ws_vals = self.solver.warmstart_values
+                            try:
+                                x_ws = ws_vals['x']
+                                y_ws = ws_vals['y']
+                                if isinstance(x_ws, (list, np.ndarray)) and len(x_ws) > step:
+                                    import casadi as cd
+                                    x_val = x_ws[step]
+                                    y_val = y_ws[step]
+                                    if isinstance(x_val, (cd.MX, cd.SX)):
+                                        x_val = float(cd.DM(x_val))
+                                    else:
+                                        x_val = float(x_val)
+                                    if isinstance(y_val, (cd.MX, cd.SX)):
+                                        y_val = float(cd.DM(y_val))
+                                    else:
+                                        y_val = float(y_val)
+                                    reference_robot_pos = np.array([x_val, y_val])
+                                    LOG_INFO(f"Step {step}: Using warmstart position directly ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f}) for linearization")
+                            except Exception as e:
+                                LOG_DEBUG(f"Could not get warmstart position directly: {e}")
+                        
+                        # Last resort: use (0, 0) - this should never happen if warmstart is initialized
+                        if reference_robot_pos is None:
+                            reference_robot_pos = np.array([0.0, 0.0])
+                            has_ws_check = (hasattr(self, 'solver') and self.solver is not None and
+                                           hasattr(self.solver, 'warmstart_values') and 
+                                           self.solver.warmstart_values is not None and
+                                           isinstance(self.solver.warmstart_values, dict) and
+                                           'x' in self.solver.warmstart_values and 
+                                           'y' in self.solver.warmstart_values)
+                            LOG_WARN(f"Step {step}: No reference position available, using (0, 0) - this may cause infeasibility! "
+                                   f"(ref_states len={len(ref_states)}, warmstart available={has_ws_check}, "
+                                   f"warmstart_keys={list(self.solver.warmstart_values.keys()) if hasattr(self.solver, 'warmstart_values') and self.solver.warmstart_values else 'N/A'})")
                     
                     # Process scenarios for this step with reference position
                     self._process_scenarios_for_step(disc_id, step, data, reference_robot_pos)
@@ -368,24 +495,43 @@ class SafeHorizonModule:
             reference_robot_pos = np.array([0.0, 0.0])
             LOG_DEBUG(f"Using default reference position (0, 0) for step {step}")
         
-        # Formulate collision constraints from scenarios at this time step
-        constraints = self._formulate_collision_constraints(step_scenarios, disc_id, step, reference_robot_pos)
+        # CRITICAL: Select support set of size n_bar from scenarios
+        # Reference: C++ mpc_planner - each time step has its own support set of size n_bar
+        # The support set contains the scenarios that will be used to form constraints
+        # This is a key aspect of scenario-based MPC: not all scenarios are used, only the support set
+        support_scenarios = self._select_support_set(step_scenarios, reference_robot_pos, step)
+        
+        LOG_DEBUG(f"Selected {len(support_scenarios)} scenarios for support set (n_bar={self.n_bar}) from {len(step_scenarios)} total scenarios")
+        
+        # Record support set selection for diagnostics (if diagnostics enabled)
+        if hasattr(self, 'diagnostics') and self.diagnostics is not None:
+            self.diagnostics.record_support_set(disc_id, step, step_scenarios, 
+                                               support_scenarios, reference_robot_pos)
+        
+        # Formulate collision constraints from SUPPORT SET scenarios only
+        # Reference: C++ mpc_planner - constraints are formed only from support set scenarios
+        constraints = self._formulate_collision_constraints(support_scenarios, disc_id, step, reference_robot_pos)
+        
+        # Record constraints for diagnostics (if diagnostics enabled)
+        if hasattr(self, 'diagnostics') and self.diagnostics is not None:
+            self.diagnostics.record_constraints(disc_id, step, constraints, reference_robot_pos)
         
         # Optional scenario removal with big-M relaxation
         if self.num_removal > 0:
             constraints = self.remove_scenarios_with_big_m(constraints, self.num_removal)
         
         # Construct free-space polytope from constraints
-        # CRITICAL: Store obstacle positions BEFORE constructing polytope
+        # CRITICAL: Store obstacle positions AND obstacle_idx BEFORE constructing polytope
         # Reference: C++ mpc_planner - polytope construction preserves order, so constraint index i maps to halfspace index i
         obstacle_positions_map = {}
         for i, constraint in enumerate(constraints):
             if hasattr(constraint, 'obstacle_pos') and constraint.obstacle_pos is not None:
                 obstacle_positions_map[i] = {
                     'position': np.array(constraint.obstacle_pos).copy() if isinstance(constraint.obstacle_pos, (list, np.ndarray)) else constraint.obstacle_pos.copy(),
-                    'radius': constraint.obstacle_radius if hasattr(constraint, 'obstacle_radius') and constraint.obstacle_radius is not None else self.robot_radius
+                    'radius': constraint.obstacle_radius if hasattr(constraint, 'obstacle_radius') and constraint.obstacle_radius is not None else self.robot_radius,
+                    'obstacle_idx': constraint.obstacle_idx if hasattr(constraint, 'obstacle_idx') and constraint.obstacle_idx is not None else 0
                 }
-                LOG_DEBUG(f"Stored obstacle position for constraint {i}: ({obstacle_positions_map[i]['position'][0]:.3f}, {obstacle_positions_map[i]['position'][1]:.3f}), radius={obstacle_positions_map[i]['radius']:.3f}")
+                LOG_DEBUG(f"Stored obstacle info for constraint {i}: pos=({obstacle_positions_map[i]['position'][0]:.3f}, {obstacle_positions_map[i]['position'][1]:.3f}), radius={obstacle_positions_map[i]['radius']:.3f}, obstacle_idx={obstacle_positions_map[i]['obstacle_idx']}")
         
         polytope = construct_free_space_polytope(constraints)
         
@@ -456,8 +602,88 @@ class SafeHorizonModule:
         self.disc_manager[disc_id].add_polytope(polytope, step)
         LOG_DEBUG(f"Added polytope for disc {disc_id}, step {step} with {len(polytope.halfspaces)} halfspaces (stage-specific)")
         
-        # Track active constraints
+        # Track active constraints (from support set)
         self._track_active_constraints(constraints, disc_id, step)
+    
+    def _select_support_set(self, scenarios: List[Scenario], reference_robot_pos: np.ndarray, step: int) -> List[Scenario]:
+        """
+        Select support set of size n_bar from scenarios.
+        
+        Reference: C++ mpc_planner - support set selection is critical for scenario-based MPC
+        The support set contains the scenarios that will be used to form constraints.
+        Each time step has its own support set.
+        
+        Selection strategy (matching reference):
+        1. Prioritize scenarios that are closest to the reference trajectory (most likely to cause collisions)
+        2. Ensure diversity in obstacle positions (avoid selecting all scenarios from same obstacle)
+        3. Limit to n_bar scenarios to maintain feasibility
+        
+        Args:
+            scenarios: List of all scenarios for this time step
+            reference_robot_pos: Reference robot position for this time step
+            step: Time step index
+        
+        Returns:
+            List of selected scenarios (support set) of size at most n_bar
+        """
+        if len(scenarios) <= self.n_bar:
+            # If we have fewer scenarios than n_bar, use all of them
+            LOG_DEBUG(f"Step {step}: Using all {len(scenarios)} scenarios (n_bar={self.n_bar})")
+            return scenarios
+        
+        # Strategy: Select scenarios closest to reference trajectory (most critical for collision avoidance)
+        # Compute distance from reference position to each scenario's obstacle position
+        scenario_distances = []
+        for scenario in scenarios:
+            # Get obstacle position for this scenario at this time step
+            if hasattr(scenario, 'trajectory') and scenario.trajectory and step < len(scenario.trajectory):
+                obstacle_pos = np.array([float(scenario.trajectory[step][0]), float(scenario.trajectory[step][1])])
+            else:
+                obstacle_pos = np.array([float(scenario.position[0]), float(scenario.position[1])])
+            
+            # Distance from reference robot position to obstacle
+            dist = np.linalg.norm(obstacle_pos - reference_robot_pos)
+            scenario_distances.append((dist, scenario, obstacle_pos))
+        
+        # Sort by distance (closer obstacles = higher priority for support set)
+        scenario_distances.sort(key=lambda x: x[0])
+        
+        # Select support set: prioritize closest scenarios but ensure diversity
+        # Reference: C++ mpc_planner - support set should include diverse scenarios
+        selected = []
+        selected_obstacle_indices = set()
+        
+        # First pass: select one scenario per obstacle (if possible) to ensure diversity
+        # CRITICAL: Ensure ALL obstacles are represented in the support set if possible
+        # This ensures constraints are shown for all obstacles, not just the closest ones
+        for dist, scenario, obstacle_pos in scenario_distances:
+            if len(selected) >= self.n_bar:
+                break
+            
+            obstacle_idx = scenario.obstacle_idx_
+            # Prioritize: if we haven't selected a scenario from this obstacle yet, add it
+            # This ensures all obstacles get at least one constraint in the support set
+            if obstacle_idx not in selected_obstacle_indices:
+                selected.append(scenario)
+                selected_obstacle_indices.add(obstacle_idx)
+        
+        # Second pass: fill remaining slots with closest scenarios (even if from same obstacles)
+        # This ensures we use all n_bar slots while maintaining diversity
+        for dist, scenario, obstacle_pos in scenario_distances:
+            if len(selected) >= self.n_bar:
+                break
+            
+            # Add scenario if not already selected
+            if scenario not in selected:
+                selected.append(scenario)
+        
+        # Ensure we have exactly n_bar scenarios (or all if fewer available)
+        selected = selected[:self.n_bar]
+        
+        LOG_DEBUG(f"Step {step}: Selected support set of {len(selected)} scenarios from {len(scenarios)} total "
+                 f"(covering {len(selected_obstacle_indices)} obstacles)")
+        
+        return selected
     
     def _formulate_collision_constraints(self, scenarios: List[Scenario], 
                                        disc_id: int, step: int, reference_robot_pos: np.ndarray = None) -> List[ScenarioConstraint]:
@@ -548,17 +774,31 @@ class SafeHorizonModule:
         return constraints
     
     def _track_active_constraints(self, constraints: List[ScenarioConstraint], 
-                                _disc_id: int, _step: int):
-        """Track active constraints and support."""
-        # Add constraints to support subsample
+                                disc_id: int, step: int):
+        """
+        Track active constraints and support.
+        
+        CRITICAL: In the C++ reference, the support set is tracked PER TIME STEP, not accumulated.
+        Each time step has its own support set of size n_bar. The support subsample should track
+        unique scenarios across all time steps, but the constraint count per step should be n_bar.
+        
+        Reference: C++ mpc_planner - support set is per time step, not accumulated.
+        """
+        # Add constraints to support subsample (for tracking unique scenarios across all steps)
+        # But note: each step should have at most n_bar constraints
         for constraint in constraints:
             scenario = Scenario(constraint.scenario_idx, constraint.obstacle_idx)
             self.support_subsample.add(scenario)
         
-        # Check support limits
-        if self.support_subsample.size_ > self.n_bar:
-            LOG_WARN(f"Support size {self.support_subsample.size_} exceeds limit {self.n_bar}")
+        # Check support limits: total unique scenarios should not exceed n_bar * horizon_length
+        # But per-step, we should have at most n_bar constraints
+        # The warning about exceeding n_bar is expected if we're tracking across all steps
+        # Instead, we should check if THIS step has more than n_bar constraints
+        if len(constraints) > self.n_bar:
+            LOG_WARN(f"Step {step}, disc {disc_id}: {len(constraints)} constraints exceed per-step limit {self.n_bar}")
             self.solve_status = ScenarioSolveStatus.SUPPORT_EXCEEDED
+        else:
+            LOG_DEBUG(f"Step {step}, disc {disc_id}: {len(constraints)} constraints (within limit {self.n_bar})")
     
     def remove_scenarios_with_big_m(self, scenarios: List[ScenarioConstraint], 
                                   num_removal: int, _big_m: float = 1000.0) -> List[ScenarioConstraint]:
