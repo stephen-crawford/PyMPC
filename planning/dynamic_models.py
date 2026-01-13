@@ -747,10 +747,10 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
                                         # CRITICAL FIX: Use closest point as PRIMARY update when contour error is large
                                         # Reference: C++ mpc_planner - when vehicle drifts far off path, re-sync spline
                                         # to closest point to ensure accurate tracking
-                                        
-                                        # Sample path to find closest point to predicted position
-                                        min_dist = float('inf')
-                                        closest_s = s_arr[0]
+                                
+                                # Sample path to find closest point to predicted position
+                                min_dist = float('inf')
+                                closest_s = s_arr[0]
                                         num_samples = min(200, max(100, len(s_arr)))
                                         
                                         # Search around current s first (most likely location)
@@ -762,16 +762,16 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
                                         s_samples = np.linspace(s_search_min, s_search_max, num_samples)
                                         
                                         for s_sample in s_samples:
-                                            try:
-                                                path_x_sample = float(ref_path.x_spline(s_sample))
-                                                path_y_sample = float(ref_path.y_spline(s_sample))
-                                                dist = np.sqrt((integrated_x_val - path_x_sample)**2 + (integrated_y_val - path_y_sample)**2)
-                                                if dist < min_dist:
-                                                    min_dist = dist
-                                                    closest_s = s_sample
-                                            except:
-                                                continue
-                                        
+                                    try:
+                                        path_x_sample = float(ref_path.x_spline(s_sample))
+                                        path_y_sample = float(ref_path.y_spline(s_sample))
+                                        dist = np.sqrt((integrated_x_val - path_x_sample)**2 + (integrated_y_val - path_y_sample)**2)
+                                        if dist < min_dist:
+                                            min_dist = dist
+                                            closest_s = s_sample
+                                    except:
+                                        continue
+                                
                                         # If closest point is at boundary, expand search to full path
                                         if closest_s <= s_search_min + 0.1 or closest_s >= s_search_max - 0.1:
                                             s_samples_full = np.linspace(float(s_arr[0]), float(s_arr[-1]), num_samples)
@@ -818,10 +818,10 @@ class ContouringSecondOrderUnicycleModel(DynamicsModel):
                                                 # Ensure spline doesn't lag too far behind vehicle position
                                                 s_min_based_on_position = closest_s - 1.0  # Allow 1m backward tolerance (tighter)
                                                 new_s = cd.fmax(new_s, s_min_based_on_position)
-                                                
+                                
                                                 # Ensure spline doesn't get too far ahead of vehicle
                                                 s_max_ahead = closest_s + 2.0  # Allow 2m ahead tolerance (tighter)
-                                                new_s = cd.fmin(new_s, s_max_ahead)
+                                new_s = cd.fmin(new_s, s_max_ahead)
                                         else:
                                             # If path tangent is invalid, use closest point directly
                                             new_s = closest_s

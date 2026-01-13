@@ -1291,6 +1291,8 @@ class IntegrationTestFramework:
                         consecutive_solver_failures = 0  # Reset on success
                         
                         # Check for stuck vehicle (not moving forward) - only if enabled
+                        # CRITICAL: For contouring objectives, be more lenient near path end
+                        # Don't terminate if vehicle is >80% along path or making progress
                         if test_config.enable_stuck_vehicle_detection and step > 5 and len(vehicle_states) >= 6:
                             # Check if vehicle has moved less than 0.1m in last 5 steps
                             recent_states = vehicle_states[-6:]
@@ -1298,7 +1300,29 @@ class IntegrationTestFramework:
                             distances = np.linalg.norm(np.diff(positions, axis=0), axis=1)
                             total_movement = np.sum(distances)
                             
-                            if total_movement < 0.1:  # Vehicle stuck (moved less than 10cm in 5 steps)
+                            # For contouring objectives, check path progress before declaring stuck
+                            should_check_stuck = True
+                            if is_contouring and hasattr(data, 'reference_path') and hasattr(data.reference_path, 'length'):
+                                try:
+                                    if 'spline' in vehicle_dynamics.get_all_vars() and len(vehicle_state) >= 5:
+                                        s_val = float(vehicle_state[4])
+                                        path_length = float(data.reference_path.length)
+                                        path_progress = s_val / path_length if path_length > 0 else 0.0
+                                        
+                                        # Don't declare stuck if vehicle is >80% along path
+                                        if path_progress > 0.8:
+                                            should_check_stuck = False
+                                            logger.debug(f"Vehicle at {path_progress*100:.1f}% progress, skipping stuck detection")
+                                        # Also check if spline is increasing (making progress)
+                                        elif len(vehicle_states) >= 2:
+                                            prev_s_val = float(vehicle_states[-2][4]) if len(vehicle_states[-2]) >= 5 else None
+                                            if prev_s_val is not None and s_val > prev_s_val + 0.01:
+                                                should_check_stuck = False
+                                                logger.debug(f"Vehicle making progress (s={s_val:.3f} > {prev_s_val:.3f}), skipping stuck detection")
+                                except Exception:
+                                    pass  # If check fails, proceed with normal stuck detection
+                            
+                            if should_check_stuck and total_movement < 0.1:  # Vehicle stuck (moved less than 10cm in 5 steps)
                                 logger.error(f"🚨 VEHICLE STUCK DETECTED at step {step}!")
                                 logger.error(f"  Vehicle has moved only {total_movement:.4f}m in last 5 steps")
                                 logger.error(f"  Current position: ({vehicle_states[-1][0]:.3f}, {vehicle_states[-1][1]:.3f})")

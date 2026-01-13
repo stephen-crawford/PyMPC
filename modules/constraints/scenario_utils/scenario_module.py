@@ -98,10 +98,17 @@ class SafeHorizonModule:
         self.epsilon_p = config.get("epsilon_p", 0.1)  # Constraint violation probability
         self.beta = config.get("beta", 0.01)  # Confidence level
         self.n_bar = config.get("n_bar", 10)  # Support dimension
+        
+        # Get halfspace offset from config (matching linearized_constraints.py)
+        self.halfspace_offset = float(config.get("linearized_constraints", {}).get("halfspace_offset", 0.0))
+        if self.halfspace_offset is None:
+            self.halfspace_offset = 0.0
         self.num_removal = config.get("num_removal", 0)  # Number of scenarios to remove
         self.robot_radius = config.get("robot_radius", 0.5)
         self.horizon_length = config.get("horizon_length", 10)
-        self.max_constraints_per_disc = config.get("max_constraints_per_disc", 3)  # Reduced from 24 to 3
+        # CRITICAL: Must have enough constraints to cover all obstacles
+        # Reference: C++ scenario_module - uses enough constraints to ensure obstacle diversity
+        self.max_constraints_per_disc = config.get("max_constraints_per_disc", 5)  # Increased to cover all obstacles
         self.num_discs = config.get("num_discs", 1)
         self.num_scenarios = config.get("num_scenarios", 100)  # Number of scenarios to sample (for diagnostics)
         
@@ -203,15 +210,20 @@ class SafeHorizonModule:
                 except Exception as e:
                     LOG_DEBUG(f"Could not get reference trajectory for optimization: {e}")
             
-            # CRITICAL: If reference trajectory is empty, create states from warmstart values directly
-            # This matches linearized_constraints.py pattern and C++ reference implementation
-            # Reference: C++ mpc_planner - getEgoPrediction() returns warmstart trajectory if no solution available
-            # Check if warmstart_values exists and has 'x' and 'y' keys (not just empty dict)
+            # CRITICAL FIX: If reference trajectory is empty, use warmstart values directly
+            # This matches the C++ pattern: _solver->getEgoPrediction(k, "x") returns warmstart if no solution
+            # Warmstart values already contain the predicted trajectory from previous solve or initialization
+            # Reference: linearized_constraints.py lines 100-148 - uses warmstart values directly
             has_warmstart = (hasattr(self.solver, 'warmstart_values') and 
                            self.solver.warmstart_values is not None and
                            isinstance(self.solver.warmstart_values, dict) and
                            'x' in self.solver.warmstart_values and 
                            'y' in self.solver.warmstart_values)
+            
+            # PRIORITY 1: Use warmstart values directly (matching C++ getEgoPrediction pattern)
+            # Warmstart values already contain the forward-propagated trajectory from previous solve
+            # This is the correct C++ reference pattern: getEgoPrediction() returns warmstart
+            # Reference: linearized_constraints.py lines 100-148
             if not ref_states and has_warmstart:
                 try:
                     from planning.types import State
@@ -350,25 +362,63 @@ class SafeHorizonModule:
                     
                     # For future steps, use reference trajectory states (matching linearized_constraints.py)
                     # Reference: C++ mpc_planner - _solver->getEgoPrediction(k, "x") returns reference trajectory
-                    # The reference trajectory is created from warmstart if no solution is available
+                    # The reference trajectory is created from forward propagation if no solution is available
                     # This matches linearized_constraints.py lines 284-291 exactly
                     if reference_robot_pos is None and step > 0:
-                        # Use reference trajectory states (created from warmstart if needed)
+                        # CRITICAL FIX: Use forward-propagated trajectory states (created above)
+                        # This ensures each step uses a different position, not the same current position
                         if step < len(ref_states):
                             try:
                                 ref_state = ref_states[step]
                                 if hasattr(ref_state, 'has') and ref_state.has('x') and ref_state.has('y'):
-                                    reference_robot_pos = np.array([
-                                        float(ref_state.get('x')),
-                                        float(ref_state.get('y'))
-                                    ])
-                                    LOG_INFO(f"Step {step}: Using reference trajectory position ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f}) for linearization")
+                                    x_val = ref_state.get('x')
+                                    y_val = ref_state.get('y')
+                                    # Extract numeric value (may be symbolic from propagation)
+                                    import casadi as cd
+                                    if isinstance(x_val, (cd.MX, cd.SX)):
+                                        try:
+                                            x_val = float(cd.DM(x_val))
+                                        except:
+                                            # Fallback: use warmstart if available
+                                            if has_warmstart and 'x' in self.solver.warmstart_values and step < len(self.solver.warmstart_values['x']):
+                                                x_val = float(self.solver.warmstart_values['x'][step])
+                                            else:
+                                                x_val = 0.0
+                                    else:
+                                        x_val = float(x_val)
+                                    
+                                    if isinstance(y_val, (cd.MX, cd.SX)):
+                                        try:
+                                            y_val = float(cd.DM(y_val))
+                                        except:
+                                            # Fallback: use warmstart if available
+                                            if has_warmstart and 'y' in self.solver.warmstart_values and step < len(self.solver.warmstart_values['y']):
+                                                y_val = float(self.solver.warmstart_values['y'][step])
+                                            else:
+                                                y_val = 0.0
+                                    else:
+                                        y_val = float(y_val)
+                                    
+                                    reference_robot_pos = np.array([x_val, y_val])
+                                    LOG_INFO(f"Step {step}: Using forward-propagated reference trajectory position ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f}) for linearization")
                             except Exception as e:
                                 LOG_DEBUG(f"Could not get reference trajectory position for step {step}: {e}")
                         else:
-                            # Fallback: reference trajectory too short, use current state position
+                            # Fallback: reference trajectory too short, use last available state
                             # This matches linearized_constraints.py lines 292-299
-                            if current_state is not None and hasattr(current_state, 'has') and current_state.has('x') and current_state.has('y'):
+                            if len(ref_states) > 0:
+                                try:
+                                    last_state = ref_states[-1]
+                                    if hasattr(last_state, 'has') and last_state.has('x') and last_state.has('y'):
+                                        x_val = float(last_state.get('x'))
+                                        y_val = float(last_state.get('y'))
+                                        reference_robot_pos = np.array([x_val, y_val])
+                                        LOG_WARN(f"Step {step}: Reference trajectory too short (len={len(ref_states)}), using LAST trajectory state: ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f})")
+                                except Exception as e:
+                                    LOG_DEBUG(f"Could not get last trajectory state: {e}")
+                            
+                            # Final fallback: use current state position
+                            if reference_robot_pos is None and current_state is not None and hasattr(current_state, 'has') and current_state.has('x') and current_state.has('y'):
                                 try:
                                     x_val = current_state.get('x')
                                     y_val = current_state.get('y')
@@ -743,8 +793,9 @@ class SafeHorizonModule:
             a1 = diff_x / dist
             a2 = diff_y / dist
             
-            # Safety margin
-            safety_margin = self.robot_radius + obstacle_radius
+            # Safety margin: robot_radius + obstacle_radius + halfspace_offset
+            # Matching linearized_constraints.py line 931: safe_distance = robot_radius + target_obstacle_radius + self.halfspace_offset
+            safety_margin = self.robot_radius + obstacle_radius + self.halfspace_offset
             
             # Compute b: a·obs_pos - safety_margin
             # Matching linearized_constraints.py line 794: b_sym = a1_sym * obs_pos[0] + a2_sym * obs_pos[1] - safe_distance

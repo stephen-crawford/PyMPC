@@ -1338,8 +1338,8 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
               obstacle.s = s_samples[closest_idx]
           except Exception:
               # Fallback: use existing s or initialize to 0
-              if not hasattr(obstacle, "s"):
-                  obstacle.s = 0.0
+      if not hasattr(obstacle, "s"):
+          obstacle.s = 0.0
       else:
           # Initialize progress in arc length if no position available
           if not hasattr(obstacle, "s"):
@@ -1390,7 +1390,7 @@ def propagate_obstacles(data, dt=0.1, horizon=10, speed=0, sigma_pos=0.2):
       if hasattr(obstacle, 'position') and obstacle.position is not None:
           try:
               # Check if position matches what we would compute from current s
-              s_now = min(obstacle.s, total_length)
+      s_now = min(obstacle.s, total_length)
               x_from_s = path.x_spline(s_now)
               y_from_s = path.y_spline(s_now)
               pos_from_s = np.array([x_from_s, y_from_s])
@@ -1521,7 +1521,7 @@ def ensure_obstacle_size(obstacles: list[DynamicObstacle], state: 'State') -> No
     """Ensure that the number of obstacles matches the configured maximum."""
     import logging
     try:
-        max_obstacles = CONFIG["max_obstacles"]
+    max_obstacles = CONFIG["max_obstacles"]
     except KeyError:
         # Fallback to default if max_obstacles not in CONFIG
         max_obstacles = 10

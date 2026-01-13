@@ -40,6 +40,16 @@ class SafeHorizonConstraint(BaseConstraint):
 		self.horizon_length = int(self.get_config_value("horizon", 10))
 		self.timestep = float(self.get_config_value("timestep", 0.1))
 		
+		# Get halfspace offset from obstacles (additional safety margin for constraints)
+		# This offset is added to the safe_distance when computing constraint b values
+		# Matching linearized_constraints.py line 39
+		self.halfspace_offset = self.get_config_value("linearized_constraints.halfspace_offset", 0.0)
+		if self.halfspace_offset is None:
+			self.halfspace_offset = 0.0
+		else:
+			self.halfspace_offset = float(self.halfspace_offset)
+		LOG_DEBUG(f"SafeHorizonConstraint: halfspace_offset={self.halfspace_offset:.3f}m")
+		
 		# Scenario optimization parameters
 		# Reference: C++ mpc_planner - reduce support size to avoid over-constraining
 		# Smaller support dimension reduces the number of constraints per stage
@@ -50,7 +60,9 @@ class SafeHorizonConstraint(BaseConstraint):
 		# Reference: mpc_planner - limit constraints per disc to avoid over-constraining
 		# Typical values: 3-5 constraints per disc per stage (reduced to maintain feasibility)
 		# The reference codebase applies constraints more selectively to maintain feasibility
-		self.max_constraints_per_disc = int(self.get_config_value("safe_horizon_constraints.max_constraints_per_disc", 3))  # Reduced from 5 to 3
+		# CRITICAL: max_constraints_per_disc must be >= number of obstacles to ensure all obstacles are covered
+		# Reference: C++ mpc_planner - typically uses 3-5 constraints per disc to cover multiple obstacles
+		self.max_constraints_per_disc = int(self.get_config_value("safe_horizon_constraints.max_constraints_per_disc", 5))  # Increased to cover all obstacles
 		self.num_removal = int(self.get_config_value("safe_horizon_constraints.num_removal", 0))  # Scenarios to remove with big-M
 		
 		# Initialize scenario module (will be set in update when solver is available)
@@ -103,6 +115,23 @@ class SafeHorizonConstraint(BaseConstraint):
 				}
 				
 				self.scenario_module = SafeHorizonModule(self.solver, config)
+				
+				# CRITICAL VALIDATION: Check if max_constraints_per_disc is sufficient for the number of obstacles
+				# Reference: C++ scenario_module requires enough constraints to cover all obstacles
+				if hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles:
+					num_obstacles = len(data.dynamic_obstacles)
+					if self.max_constraints_per_disc < num_obstacles:
+						LOG_WARN(f"⚠️  CRITICAL: max_constraints_per_disc ({self.max_constraints_per_disc}) < num_obstacles ({num_obstacles})!")
+						LOG_WARN(f"    This may cause collisions as not all obstacles can be constrained!")
+						LOG_WARN(f"    Recommended: Set max_constraints_per_disc >= {num_obstacles} in config")
+						# Raise an error to prevent the test from continuing with insufficient constraints
+						raise ValueError(
+							f"SafeHorizonConstraint: max_constraints_per_disc ({self.max_constraints_per_disc}) "
+							f"must be >= number of obstacles ({num_obstacles}) to ensure collision avoidance. "
+							f"Set safe_horizon_constraints.max_constraints_per_disc >= {num_obstacles} in config."
+						)
+					else:
+						LOG_INFO(f"SafeHorizonConstraint: max_constraints_per_disc ({self.max_constraints_per_disc}) >= num_obstacles ({num_obstacles}) ✓")
 				
 				# Initialize diagnostics if enabled (after scenario module is created)
 				if self.enable_diagnostics:
@@ -323,12 +352,14 @@ class SafeHorizonConstraint(BaseConstraint):
 			# Reference: mpc_planner - constraints (a1, a2, b) are pre-computed from scenarios
 			# and then applied symbolically using the predicted robot position
 			# Limit constraints per disc to avoid over-constraining (reference: max_constraints_per_disc)
-			# CRITICAL: Apply constraints to early stages (0-3) to allow planning while avoiding over-constraining
+			# CRITICAL: Apply constraints to early stages (0-4) to allow planning while avoiding over-constraining
 			# Reference: C++ mpc_planner - constraints are typically applied to first few stages only
 			# The constraints are computed symbolically at each stage using predicted robot position
-			# This allows the vehicle to plan avoidance maneuvers for immediate obstacles
-			# Applying to stages 0-3 provides enough lookahead for avoidance while maintaining feasibility
-			max_stage_for_constraints = 3  # Apply constraints to stages 0, 1, 2, 3
+			# CRITICAL: Constraint horizon must be long enough to plan avoidance maneuvers
+			# At 3 m/s velocity and 0.1s timestep, each stage is 0.3m of lookahead
+			# With obstacles moving at ~1.7 m/s, we need at least 8 stages (0.8s) to react
+			# Reference: C++ mpc_planner - typically uses full horizon for collision constraints
+			max_stage_for_constraints = 8  # Apply constraints to stages 0-8 for better lookahead
 			if stage_idx > max_stage_for_constraints:
 				constraints_to_apply = []
 				LOG_DEBUG(f"SafeHorizonConstraint: Skipping constraints for stage {stage_idx} (only applying to stages 0-{max_stage_for_constraints})")
@@ -462,7 +493,7 @@ class SafeHorizonConstraint(BaseConstraint):
 									a2_sym_val = diff_y / dist
 									
 									obstacle_radius = float(constraint.obstacle_radius) if hasattr(constraint, 'obstacle_radius') and constraint.obstacle_radius is not None else self.robot_radius
-									safety_margin = self.robot_radius + obstacle_radius
+									safety_margin = self.robot_radius + obstacle_radius + self.halfspace_offset
 									
 									b_sym_val = a1_sym_val * obstacle_pos[0] + a2_sym_val * obstacle_pos[1] - safety_margin
 									
@@ -526,36 +557,39 @@ class SafeHorizonConstraint(BaseConstraint):
 					LOG_WARN(f"SafeHorizonConstraint.calculate_constraints: Expected ScenarioConstraint, got {type(constraint)}")
 					continue
 				
-				# CRITICAL: Get obstacle position at CURRENT stage from obstacle's predicted trajectory
-				# Reference: C++ mpc_planner - constraints use obstacle positions at each stage from predictions
-				# This ensures constraints move with obstacles and don't compound across iterations
+				# CRITICAL: Get obstacle position from the scenario's trajectory at the current stage
+				# The constraint was formulated from a scenario, which has a trajectory representing
+				# the obstacle's predicted positions at different time steps. We must use the scenario's
+				# trajectory position at this stage, not from data.dynamic_obstacles, to maintain consistency.
+				# Reference: C++ mpc_planner - constraints use scenario trajectory positions
 				obstacle_pos = None
 				obstacle_radius = None
 				
-				# First, try to get obstacle position from data.dynamic_obstacles at current stage
-				# This ensures we use the obstacle's predicted position at this stage, not cached position
-				if data is not None and hasattr(data, 'dynamic_obstacles') and data.dynamic_obstacles:
+				# First, try to get obstacle position from the scenario's trajectory at this stage
+				# The scenario module stores scenarios with trajectories, and constraints reference scenarios
+				if self.scenario_module is not None and hasattr(self.scenario_module, 'scenarios'):
+					scenario_idx = getattr(constraint, 'scenario_idx', None)
 					obstacle_idx = getattr(constraint, 'obstacle_idx', None)
-					if obstacle_idx is not None and obstacle_idx < len(data.dynamic_obstacles):
-						obstacle = data.dynamic_obstacles[obstacle_idx]
-						if obstacle is not None:
-							# Get obstacle position at current stage from prediction
-							if hasattr(obstacle, 'prediction') and obstacle.prediction is not None:
-								if hasattr(obstacle.prediction, 'steps') and obstacle.prediction.steps:
-									if stage_idx < len(obstacle.prediction.steps):
-										pred_step = obstacle.prediction.steps[stage_idx]
-										if hasattr(pred_step, 'position') and pred_step.position is not None:
-											obstacle_pos = np.array([float(pred_step.position[0]), float(pred_step.position[1])])
-											obstacle_radius = float(pred_step.radius) if hasattr(pred_step, 'radius') and pred_step.radius is not None else (float(obstacle.radius) if hasattr(obstacle, 'radius') else self.robot_radius)
-											LOG_DEBUG(f"SafeHorizonConstraint: Using obstacle {obstacle_idx} predicted position at stage {stage_idx}: ({obstacle_pos[0]:.3f}, {obstacle_pos[1]:.3f})")
-							
-							# Fallback: use current obstacle position if prediction not available
-							if obstacle_pos is None and hasattr(obstacle, 'position') and obstacle.position is not None:
-								obstacle_pos = np.array([float(obstacle.position[0]), float(obstacle.position[1])])
-								obstacle_radius = float(obstacle.radius) if hasattr(obstacle, 'radius') else self.robot_radius
-								LOG_DEBUG(f"SafeHorizonConstraint: Using obstacle {obstacle_idx} current position (no prediction): ({obstacle_pos[0]:.3f}, {obstacle_pos[1]:.3f})")
+					if scenario_idx is not None and obstacle_idx is not None:
+						# Find the scenario that matches this constraint
+						for scenario in self.scenario_module.scenarios:
+							if (hasattr(scenario, 'idx_') and int(scenario.idx_) == int(scenario_idx) and
+							    hasattr(scenario, 'obstacle_idx_') and int(scenario.obstacle_idx_) == int(obstacle_idx)):
+								# Get obstacle position from scenario's trajectory at this stage
+								if hasattr(scenario, 'trajectory') and scenario.trajectory and stage_idx < len(scenario.trajectory):
+									obstacle_pos = np.array([float(scenario.trajectory[stage_idx][0]), float(scenario.trajectory[stage_idx][1])])
+									obstacle_radius = float(scenario.radius) if hasattr(scenario, 'radius') else self.robot_radius
+									LOG_DEBUG(f"SafeHorizonConstraint: Using scenario {scenario_idx} trajectory position at stage {stage_idx}: ({obstacle_pos[0]:.3f}, {obstacle_pos[1]:.3f})")
+									break
+								elif hasattr(scenario, 'position'):
+									# Fallback: use initial scenario position if trajectory not available
+									obstacle_pos = np.array([float(scenario.position[0]), float(scenario.position[1])])
+									obstacle_radius = float(scenario.radius) if hasattr(scenario, 'radius') else self.robot_radius
+									LOG_DEBUG(f"SafeHorizonConstraint: Using scenario {scenario_idx} initial position (no trajectory): ({obstacle_pos[0]:.3f}, {obstacle_pos[1]:.3f})")
+									break
 				
-				# Fallback: use cached obstacle position from constraint (for backward compatibility)
+				# Fallback: use cached obstacle position from constraint (from when it was formulated)
+				# This is the obstacle position at the time step when the constraint was created
 				if obstacle_pos is None:
 					if hasattr(constraint, 'obstacle_pos') and constraint.obstacle_pos is not None:
 						# Convert to numpy array if needed
@@ -564,7 +598,7 @@ class SafeHorizonConstraint(BaseConstraint):
 						else:
 							obstacle_pos = np.array([float(constraint.obstacle_pos[0]), float(constraint.obstacle_pos[1])])
 						obstacle_radius = float(constraint.obstacle_radius) if hasattr(constraint, 'obstacle_radius') and constraint.obstacle_radius is not None else self.robot_radius
-						LOG_DEBUG(f"SafeHorizonConstraint: Using cached obstacle position from constraint (fallback)")
+						LOG_DEBUG(f"SafeHorizonConstraint: Using cached obstacle position from constraint (scenario_idx={getattr(constraint, 'scenario_idx', 'N/A')}, stage={getattr(constraint, 'time_step', 'N/A')})")
 					else:
 						# Obstacle position must be available - this is a critical error
 						LOG_WARN(f"SafeHorizonConstraint: Cannot get obstacle position at stage {stage_idx}, disc {disc_id}, "
@@ -587,10 +621,10 @@ class SafeHorizonConstraint(BaseConstraint):
 				a1_sym = diff_x_sym / dist_sym
 				a2_sym = diff_y_sym / dist_sym
 				
-				# Safety margin: robot_radius + obstacle_radius
-				# Matching C++: safe_distance = radius + CONFIG["robot_radius"]
-				# Matching linearized_constraints.py line 770: safe_distance = robot_radius + target_obstacle_radius + self.halfspace_offset
-				safety_margin = self.robot_radius + obstacle_radius
+				# Safety margin: robot_radius + obstacle_radius + halfspace_offset
+				# Matching C++: safe_distance = radius + CONFIG["robot_radius"] + halfspace_offset
+				# Matching linearized_constraints.py line 931: safe_distance = robot_radius + target_obstacle_radius + self.halfspace_offset
+				safety_margin = self.robot_radius + obstacle_radius + self.halfspace_offset
 				
 				# Compute b: a·obs_pos - safety_margin
 				# Matching C++: _b[d][k](obs_id) = _a1[d][k](obs_id) * obstacle_pos(0) + _a2[d][k](obs_id) * obstacle_pos(1) - safe_distance
@@ -927,37 +961,65 @@ class SafeHorizonConstraint(BaseConstraint):
 								if hasattr(traj, 'get_states'):
 									states = traj.get_states()
 									if states and len(states) > 0:
+										LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Got {len(states)} states from trajectory")
 										x_traj = []
 										y_traj = []
 										for state in states:
 											try:
 												if hasattr(state, 'get') and hasattr(state, 'has'):
 													# Check if state has 'x' and 'y' using has() method
+													# State.get() returns 0.0 if variable not found, so check has() first
 													if state.has('x') and state.has('y'):
-														x_val = state.get('x')
-														y_val = state.get('y')
+														try:
+															x_val = state.get('x')
+															y_val = state.get('y')
+														except (KeyError, AttributeError) as get_err:
+															LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Error getting x/y from state: {get_err}, state type={type(state)}")
+															continue
+														
 														if x_val is not None and y_val is not None:
 															try:
-																x_traj.append(float(x_val))
-																y_traj.append(float(y_val))
-															except (ValueError, TypeError) as e:
-																LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Error converting state values: {e}")
+																# Handle CasADi symbolic values - try to evaluate if needed
+																# State values from solution.value() should be numeric, but handle edge cases
+																if isinstance(x_val, (int, float, np.number)):
+																	x_traj.append(float(x_val))
+																elif hasattr(x_val, '__float__'):
+																	x_traj.append(float(x_val))
+																elif hasattr(x_val, 'value'):  # CasADi DM/MX
+																	x_traj.append(float(x_val.value()))
+																else:
+																	# Try direct conversion
+																	x_traj.append(float(x_val))
+																
+																if isinstance(y_val, (int, float, np.number)):
+																	y_traj.append(float(y_val))
+																elif hasattr(y_val, '__float__'):
+																	y_traj.append(float(y_val))
+																elif hasattr(y_val, 'value'):  # CasADi DM/MX
+																	y_traj.append(float(y_val.value()))
+																else:
+																	# Try direct conversion
+																	y_traj.append(float(y_val))
+															except (ValueError, TypeError, AttributeError) as e:
+																LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Error converting state values: {e}, x_val type={type(x_val)}, y_val type={type(y_val)}")
 																continue
 													else:
 														# State doesn't have 'x' or 'y', skip
+														LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: State missing x or y: has('x')={state.has('x') if hasattr(state, 'has') else 'N/A'}, has('y')={state.has('y') if hasattr(state, 'has') else 'N/A'}")
 														continue
 												elif isinstance(state, (list, tuple, np.ndarray)) and len(state) >= 2:
 													x_traj.append(float(state[0]))
 													y_traj.append(float(state[1]))
 												else:
 													# State format not recognized, skip
+													LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: State format not recognized: type={type(state)}")
 													continue
 											except (KeyError, AttributeError) as e:
 												# KeyError means 'x' key doesn't exist, AttributeError means state doesn't have expected methods
-												LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: State format issue: {e}")
+												LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: State format issue: {e}, state type={type(state)}")
 												continue
 											except Exception as e:
-												LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Error extracting state: {e}")
+												LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Error extracting state: {e}, state type={type(state)}")
 												continue
 										
 										if len(x_traj) > 1 and len(y_traj) > 1 and len(x_traj) == len(y_traj):
@@ -973,17 +1035,37 @@ class SafeHorizonConstraint(BaseConstraint):
 										else:
 											LOG_WARN(f"SafeHorizonConstraintsVisualizer: Selected trajectory has insufficient points: x={len(x_traj)}, y={len(y_traj)}")
 									else:
-										LOG_WARN(f"SafeHorizonConstraintsVisualizer: Trajectory has no states")
+										LOG_WARN(f"SafeHorizonConstraintsVisualizer: Trajectory has no states (empty)")
 								else:
 									LOG_WARN(f"SafeHorizonConstraintsVisualizer: Trajectory has no get_states method")
 							else:
-								LOG_WARN(f"SafeHorizonConstraintsVisualizer: get_reference_trajectory returned None")
+								LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: get_reference_trajectory returned None (no solution or warmstart available)")
 						else:
-							LOG_WARN(f"SafeHorizonConstraintsVisualizer: Solver has no get_reference_trajectory method")
+							LOG_DEBUG(f"SafeHorizonConstraintsVisualizer: Solver has no get_reference_trajectory method")
 					except Exception as e:
 						LOG_WARN(f"Could not visualize selected trajectory: {e}")
 						import traceback
-						LOG_DEBUG(f"Traceback: {traceback.format_exc()}")
+						tb_str = traceback.format_exc()
+						LOG_DEBUG(f"Traceback: {tb_str}")
+						# If it's a KeyError with 'x', log more details
+						if isinstance(e, KeyError) and str(e) == "'x'":
+							LOG_DEBUG(f"KeyError 'x' detected. Checking trajectory state...")
+							try:
+								if hasattr(self.module, 'solver') and self.module.solver is not None:
+									if hasattr(self.module.solver, 'get_reference_trajectory'):
+										traj = self.module.solver.get_reference_trajectory()
+										if traj is not None and hasattr(traj, 'get_states'):
+											states = traj.get_states()
+											if states and len(states) > 0:
+												LOG_DEBUG(f"Trajectory has {len(states)} states")
+												first_state = states[0]
+												LOG_DEBUG(f"First state type: {type(first_state)}")
+												if hasattr(first_state, 'has'):
+													LOG_DEBUG(f"First state has('x'): {first_state.has('x')}, has('y'): {first_state.has('y')}")
+												if hasattr(first_state, '_state_dict'):
+													LOG_DEBUG(f"First state _state_dict keys: {list(first_state._state_dict.keys())}")
+							except Exception as debug_err:
+								LOG_DEBUG(f"Could not debug trajectory state: {debug_err}")
 		
 		return SafeHorizonConstraintsVisualizer(self)
 	
@@ -1049,34 +1131,41 @@ class SafeHorizonConstraint(BaseConstraint):
 					LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Key {key} found but constraints list is empty")
 				continue
 			
-			# Limit number of constraints to plot (avoid clutter)
-			max_constraints_to_plot = min(10, len(constraints))
-			constraints_to_plot = constraints[:max_constraints_to_plot]
+			# CRITICAL: Only plot ONE constraint per obstacle to avoid duplicate halfspace lines
+			# Multiple constraints for the same obstacle would create overlapping lines
+			# Track which obstacles we've already plotted for this disc/stage
+			plotted_obstacles = set()
 			
 			if stage_idx == 0 and disc_id == 0:  # Debug logging for first disc/stage
-				LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Found {len(constraints)} constraints for key {key}, plotting up to {max_constraints_to_plot}")
+				LOG_DEBUG(f"SafeHorizonConstraint._plot_constraints_for_stage: Found {len(constraints)} constraints for key {key}")
 			
 			# Color palette for different obstacles (matching linearized constraints visualization)
 			obstacle_colors = ['red', 'orange', 'purple', 'brown', 'pink', 'cyan', 'magenta', 'yellow']
 			
-			# Plot each constraint as a halfspace line
-			for i, constraint in enumerate(constraints_to_plot):
+			# Plot each constraint as a halfspace line (one per obstacle)
+			for i, constraint in enumerate(constraints):
 				if not isinstance(constraint, ScenarioConstraint):
 					continue
 				
-				# CRITICAL: Recompute constraint normal (a1, a2) using CURRENT robot position
-				# This matches calculate_constraints() which computes symbolically
-				# The constraint normal should point FROM vehicle TO obstacle
-				obstacle_pos = None
-				obstacle_radius = None
-				
-				# Get obstacle ID from constraint (for color assignment)
+				# Get obstacle ID from constraint (for color assignment and duplicate detection)
 				# ScenarioConstraint stores obstacle_idx which maps to the original obstacle
 				if hasattr(constraint, 'obstacle_idx') and constraint.obstacle_idx is not None:
 					obstacle_id = int(constraint.obstacle_idx)
 				else:
 					# Fallback: use constraint index
 					obstacle_id = i % len(obstacle_colors)
+				
+				# CRITICAL: Skip if we've already plotted a halfspace for this obstacle
+				# This prevents duplicate/overlapping halfspace lines for the same obstacle
+				if obstacle_id in plotted_obstacles:
+					continue
+				plotted_obstacles.add(obstacle_id)
+				
+				# CRITICAL: Recompute constraint normal (a1, a2) using CURRENT robot position
+				# This matches calculate_constraints() which computes symbolically
+				# The constraint normal should point FROM vehicle TO obstacle
+				obstacle_pos = None
+				obstacle_radius = None
 				
 				if hasattr(constraint, 'obstacle_pos') and constraint.obstacle_pos is not None:
 					if isinstance(constraint.obstacle_pos, (list, tuple)):
@@ -1135,8 +1224,8 @@ class SafeHorizonConstraint(BaseConstraint):
 					a1 = diff_x / dist
 					a2 = diff_y / dist
 					
-					# Safety margin: robot_radius + obstacle_radius
-					safety_margin = self.robot_radius + obstacle_radius_current
+					# Safety margin: robot_radius + obstacle_radius + halfspace_offset
+					safety_margin = self.robot_radius + obstacle_radius_current + self.halfspace_offset
 					
 					# Compute b: a·obs_pos - safety_margin
 					b = a1 * obstacle_pos_current[0] + a2 * obstacle_pos_current[1] - safety_margin
@@ -1268,6 +1357,8 @@ class SafeHorizonConstraint(BaseConstraint):
 		not just the ones selected for the support set. This gives a complete picture
 		of all possible obstacle positions and their corresponding constraints.
 		
+		CRITICAL: Excludes scenarios that are already in the support set (to avoid duplicate visualization).
+		
 		Args:
 			ax: Matplotlib axes to plot on
 			stage_idx: Stage index to plot constraints for
@@ -1288,6 +1379,18 @@ class SafeHorizonConstraint(BaseConstraint):
 		if not scenarios or len(scenarios) == 0:
 			return
 		
+		# Build set of (scenario_idx, obstacle_idx) tuples from support set constraints
+		# This identifies which scenarios are already being plotted by _plot_constraints_for_stage
+		support_set_scenarios = set()
+		for disc_id in range(self.num_discs):
+			key = (disc_id, stage_idx)
+			if key in self.scenario_cache:
+				constraints = self.scenario_cache[key]
+				for constraint in constraints:
+					if isinstance(constraint, ScenarioConstraint):
+						if hasattr(constraint, 'scenario_idx') and hasattr(constraint, 'obstacle_idx'):
+							support_set_scenarios.add((int(constraint.scenario_idx), int(constraint.obstacle_idx)))
+		
 		# Get current robot position
 		if current_robot_pos is None:
 			current_robot_pos = np.array([0.0, 0.0])
@@ -1307,7 +1410,18 @@ class SafeHorizonConstraint(BaseConstraint):
 		max_scenarios_to_plot = min(50, len(scenarios))  # Show up to 50 scenarios
 		
 		# Plot linearized halfspace for each scenario obstacle at this stage
-		for i, scenario in enumerate(scenarios[:max_scenarios_to_plot]):
+		# EXCLUDE scenarios that are already in the support set (to avoid duplicates)
+		plotted_count = 0
+		for i, scenario in enumerate(scenarios):
+			if plotted_count >= max_scenarios_to_plot:
+				break
+			
+			# Check if this scenario is in the support set
+			if hasattr(scenario, 'idx_') and hasattr(scenario, 'obstacle_idx_'):
+				scenario_key = (int(scenario.idx_), int(scenario.obstacle_idx_))
+				if scenario_key in support_set_scenarios:
+					# Skip this scenario - it's already being plotted by _plot_constraints_for_stage
+					continue
 			# Get obstacle position from scenario at current stage
 			obstacle_pos = None
 			obstacle_radius = None
@@ -1317,7 +1431,10 @@ class SafeHorizonConstraint(BaseConstraint):
 			if hasattr(scenario, 'obstacle_idx_'):
 				obstacle_idx = int(scenario.obstacle_idx_)
 			else:
-				continue
+				continue  # Skip scenarios without obstacle_idx_
+			
+			# Increment plotted count (only count scenarios we actually plot)
+			plotted_count += 1
 			
 			# Get obstacle position at current stage from scenario trajectory
 			if hasattr(scenario, 'trajectory') and scenario.trajectory and stage_idx < len(scenario.trajectory):
@@ -1359,8 +1476,8 @@ class SafeHorizonConstraint(BaseConstraint):
 			a1 = diff_x / dist
 			a2 = diff_y / dist
 			
-			# Safety margin: robot_radius + obstacle_radius
-			safety_margin = self.robot_radius + obstacle_radius
+			# Safety margin: robot_radius + obstacle_radius + halfspace_offset
+			safety_margin = self.robot_radius + obstacle_radius + self.halfspace_offset
 			
 			# Compute b: a·obs_pos - safety_margin
 			b = a1 * obstacle_pos[0] + a2 * obstacle_pos[1] - safety_margin
@@ -1439,7 +1556,7 @@ class SafeHorizonConstraint(BaseConstraint):
 				                        lw=1.0, alpha=alpha*0.7, zorder=0))
 		
 		if stage_idx == 0:  # Only log for stage 0 to avoid spam
-			LOG_DEBUG(f"SafeHorizonConstraint._plot_all_scenario_halfspaces: Plotted {min(max_scenarios_to_plot, len(scenarios))} scenario halfspaces for stage {stage_idx}")
+			LOG_DEBUG(f"SafeHorizonConstraint._plot_all_scenario_halfspaces: Plotted {plotted_count} scenario halfspaces for stage {stage_idx} (excluded {len(support_set_scenarios)} support set scenarios to avoid duplicates)")
 	
 	def _project_warmstart_to_safety(self, data: Data):
 		"""
@@ -1517,7 +1634,7 @@ class SafeHorizonConstraint(BaseConstraint):
 				
 				a1 = diff[0] / dist
 				a2 = diff[1] / dist
-				safety_margin = self.robot_radius + obstacle_radius
+				safety_margin = self.robot_radius + obstacle_radius + self.halfspace_offset
 				b = a1 * obstacle_pos[0] + a2 * obstacle_pos[1] - safety_margin
 				
 				# Check constraint violation: a1*x + a2*y - b <= 0

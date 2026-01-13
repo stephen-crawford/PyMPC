@@ -630,7 +630,7 @@ class LinearizedConstraints(BaseConstraint):
 
 	def project_to_safety(self, copied_obstacles, step, pos):
 		# Placeholder projection if needed; left as-is
-		return
+			return
 	
 	def _project_warmstart_to_safety(self, data):
 		"""
