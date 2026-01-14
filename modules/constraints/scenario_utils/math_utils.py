@@ -55,7 +55,7 @@ class ScenarioConstraint:
         return Halfspace(A, b)
 
 
-def compute_sample_size(epsilon_p: float, beta: float, n_bar: int) -> int:
+def compute_sample_size(epsilon_p: float, beta: float, n_bar: int, num_removal: int = 0) -> int:
     """
     Compute the required sample size for scenario optimization.
     
@@ -76,11 +76,13 @@ def compute_sample_size(epsilon_p: float, beta: float, n_bar: int) -> int:
         beta = 0.01
         
     # Sample size formula for scenario optimization
+    # Adjust for removed scenarios
+    d = n_bar + num_removal
     # n >= (2/epsilon_p) * ln(1/beta) + 2*n_bar + (2*n_bar/epsilon_p) * ln(2/epsilon_p)
     n = int(np.ceil(
         (2.0 / epsilon_p) * np.log(1.0 / beta) + 
-        2.0 * n_bar + 
-        (2.0 * n_bar / epsilon_p) * np.log(2.0 / epsilon_p)
+        2.0 * d + 
+        (2.0 * d / epsilon_p) * np.log(2.0 / epsilon_p)
     ))
     
     LOG_DEBUG(f"Computed sample size: {n} (epsilon_p={epsilon_p}, beta={beta}, n_bar={n_bar})")

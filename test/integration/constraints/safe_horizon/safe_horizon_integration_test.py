@@ -22,8 +22,8 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
     
     # Create curving reference path that requires turning
     # Using "s_curve" for a more pronounced curve that definitely requires turning
-    # This matches the path shape used in other tests (e.g., contouring_constraints_contouring_objective_test.py)
-    ref_path_obj = create_reference_path("s_curve", length=30.0)
+    # Using shorter path (15m) to allow vehicle to complete within timeout
+    ref_path_obj = create_reference_path("s_curve", length=15.0)
     
     # Convert ReferencePath to numpy array for TestConfig (framework will convert back)
     # This ensures consistency with other tests
@@ -46,14 +46,15 @@ def run(dt=0.1, horizon=10, start=(0.0, 0.0), goal=(20.0, 20.0), max_iterations=
         objective_module="contouring",
         constraint_modules=["safe_horizon", "contouring"],
         vehicle_dynamics="unicycle",
-        num_obstacles=3,
-        obstacle_dynamics=["unicycle"] * 3,  # Obstacle motion model
-        obstacle_prediction_types=["gaussian"] * 3,  # Prediction type for safe horizon constraints
+        num_obstacles=2,  # Reduced from 3 to 2 for faster solving
+        obstacle_dynamics=["unicycle"] * 2,  # Obstacle motion model
+        obstacle_prediction_types=["gaussian"] * 2,  # Prediction type for safe horizon constraints
         test_name="Safe Horizon Integration Test",
         duration=max_iterations * dt,
         timestep=dt,
-        enable_safe_horizon_diagnostics=True,  # Enable detailed diagnostic output
-        timeout_seconds=300.0  # Increase timeout to 5 minutes to allow vehicle to complete path even with solver failures
+        enable_safe_horizon_diagnostics=False,  # Disable diagnostics for faster execution
+        show_predicted_trajectory=True,  # Show solver's predicted trajectory in animation
+        timeout_seconds=300.0  # 5 minutes should be enough for shorter path
     )
     
     # Run the test

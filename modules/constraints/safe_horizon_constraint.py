@@ -74,9 +74,9 @@ class SafeHorizonConstraint(BaseConstraint):
 		# Diagnostics output (optional, enabled via enable_diagnostics flag)
 		self.diagnostics = None
 		self.enable_diagnostics = bool(self.get_config_value("safe_horizon_constraints.enable_diagnostics", False))
-		self.safe_horizon_steps = config.get("safe_horizon_steps", 8)
+		self.safe_horizon_steps = int(self.get_config_value("safe_horizon_constraints.safe_horizon_steps", 8))
 
-			# Scenario optimization parameters
+		# Scenario optimization parameters
 		self.epsilon_p = float(self.get_config_value("safe_horizon_constraints.epsilon_p", 0.05))
 		self.beta = float(self.get_config_value("safe_horizon_constraints.beta", 0.01))
 		self.n_bar = int(self.get_config_value("safe_horizon_constraints.n_bar", 10))
