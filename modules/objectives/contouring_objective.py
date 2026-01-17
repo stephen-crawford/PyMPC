@@ -1,6 +1,5 @@
 import numpy as np
 import casadi as cd
-# from docutils.nodes import reference  # Not needed - was incorrect import
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from utils.math_tools import TKSpline
@@ -240,14 +239,6 @@ class ContouringObjective(BaseObjective):
 			[self.reference_path.x[self.closest_point_idx], self.reference_path.y[self.closest_point_idx]])
 		vehicle_pos = np.array(state.get_position())
 		LOG_DEBUG(f"Distance to closest point: {np.linalg.norm(closest_pt - vehicle_pos)}")
-
-		# NOTE: Road constraints are already constructed above if needed (line 198-216)
-		# This duplicate call is removed to avoid creating constraints twice
-		# if self.add_road_constraints:
-		#	self.construct_road_constraints(data)
-
-		# if self.get_config_value("plot.debug", True):
-		# 	self.animate_forecasted_bounds(state, data)
 
 	def define_parameters(self, params):
 		"""Define all parameters used by this module"""

@@ -121,6 +121,10 @@ class State:
     def get_state_dict(self):
         return self._state_dict.copy()
 
+    def get_all_vars(self):
+        """Get list of all variable names in this state."""
+        return list(self._state_dict.keys())
+
     def get_model_type(self):
         return self._model_type
 

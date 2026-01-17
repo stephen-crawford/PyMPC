@@ -412,5 +412,100 @@ class Module:
     def get_visualizer(self):
         return self.visualizer
 
+    def get_warmstart_position(self, stage_idx: int):
+        """Get warmstart position (x, y) at a specific stage.
+
+        Args:
+            stage_idx: The stage index.
+
+        Returns:
+            Tuple of (x, y) or None if not available.
+        """
+        if not hasattr(self, 'solver') or self.solver is None:
+            return None
+
+        ws = getattr(self.solver, 'warmstart_values', None)
+        if ws is None or not ws:
+            return None
+
+        if 'x' in ws and 'y' in ws:
+            x_vals = ws['x']
+            y_vals = ws['y']
+            if stage_idx < len(x_vals) and stage_idx < len(y_vals):
+                return (float(x_vals[stage_idx]), float(y_vals[stage_idx]))
+        return None
+
+    def get_effective_horizon(self, data=None) -> int:
+        """Get the effective planning horizon.
+
+        Checks solver, data, and config in order of priority.
+
+        Args:
+            data: Optional data object with horizon attribute.
+
+        Returns:
+            The effective horizon value.
+        """
+        # Try solver first
+        if hasattr(self, 'solver') and self.solver is not None:
+            h = getattr(self.solver, 'horizon', None)
+            if h is not None:
+                return int(h)
+
+        # Try data
+        if data is not None:
+            h = getattr(data, 'horizon', None)
+            if h is not None:
+                return int(h)
+
+        # Fall back to config
+        return self.get_horizon(data)
+
+    def filter_constraints_by_stage(self, constraints, stage_idx: int, horizon: int = None):
+        """Filter constraints based on stage index.
+
+        Some constraints only apply at specific stages (first, last, intermediate).
+        This helper filters a list of constraints based on stage information.
+
+        Args:
+            constraints: List of constraint dicts or values.
+            stage_idx: Current stage index.
+            horizon: Total horizon length (for detecting final stage).
+
+        Returns:
+            Filtered list of constraints applicable to this stage.
+        """
+        if not constraints:
+            return []
+
+        if horizon is None:
+            horizon = self.get_effective_horizon()
+
+        is_first = (stage_idx == 0)
+        is_last = (stage_idx >= horizon)
+
+        filtered = []
+        for constraint in constraints:
+            # If constraint is a dict with stage specification, filter it
+            if isinstance(constraint, dict):
+                apply_at = constraint.get('apply_at', 'all')
+                if apply_at == 'all':
+                    filtered.append(constraint)
+                elif apply_at == 'first' and is_first:
+                    filtered.append(constraint)
+                elif apply_at == 'last' and is_last:
+                    filtered.append(constraint)
+                elif apply_at == 'intermediate' and not is_first and not is_last:
+                    filtered.append(constraint)
+                elif apply_at == 'not_first' and not is_first:
+                    filtered.append(constraint)
+                elif apply_at == 'not_last' and not is_last:
+                    filtered.append(constraint)
+            else:
+                # Non-dict constraints apply to all stages
+                filtered.append(constraint)
+
+        return filtered
+
     def copy(self):
         return copy.deepcopy(self)

@@ -1042,22 +1042,46 @@ class CasADiSolver(BaseSolver):
 			LOG_WARN("solve: data.dynamics_model is not set - cannot solve")
 			return -1
 		
-		# Initialize solver if not already initialized
-		if not hasattr(self, 'opti') or self.opti is None:
-			self.opti = cs.Opti()
-			if not self.var_dict:
-				self.var_dict = {}
-			if not self.warmstart_values:
-				self.warmstart_values = {}
-			
-			# Ensure data has dynamics_model - it should be set by planner
-			if not hasattr(data, 'dynamics_model') or data.dynamics_model is None:
-				LOG_WARN("solve: data.dynamics_model is not set - cannot initialize solver")
-				return -1
-			
-			# Initialize solver with data
-			self.intialize_solver(data)
-		
+		# CRITICAL FIX: Create a fresh Opti problem for each solve.
+		# CasADi Opti accumulates constraints and objectives - they don't reset automatically.
+		# We must create a new Opti() each time, but preserve warmstart values for continuity.
+		# Reference: Standard CasADi pattern - rebuild problem each solve, warm start from previous solution.
+
+		# Save warmstart values before recreating opti
+		saved_warmstart = {}
+		if hasattr(self, 'warmstart_values') and self.warmstart_values:
+			for k, v in self.warmstart_values.items():
+				saved_warmstart[k] = np.array(v) if isinstance(v, np.ndarray) else v
+
+		# Create fresh Opti problem
+		self.opti = cs.Opti()
+		self.var_dict = {}
+		# CRITICAL: Clear old solution to prevent using variables from old opti instance
+		self.solution = None
+
+		# Restore warmstart values
+		if saved_warmstart:
+			self.warmstart_values = saved_warmstart
+		elif not hasattr(self, 'warmstart_values') or not self.warmstart_values:
+			self.warmstart_values = {}
+
+		# Ensure data has dynamics_model - it should be set by planner
+		if not hasattr(data, 'dynamics_model') or data.dynamics_model is None:
+			LOG_WARN("solve: data.dynamics_model is not set - cannot initialize solver")
+			return -1
+
+		# Initialize solver with data (creates variables and adds dynamics constraints)
+		self.intialize_solver(data)
+
+		# Apply warmstart values to the new opti problem
+		# This sets initial guesses for IPOPT based on previous solution or computed warmstart
+		self._set_opti_initial_values()
+
+		# Set initial state constraints (x[0] == current_state)
+		state = data.state if hasattr(data, 'state') and data.state is not None else None
+		if state is not None:
+			self._set_initial_state(state)
+
 		total_objective = 0
 		total_constraints_added = 0
 		constraints_per_stage = {}  # Track constraints per stage for summary

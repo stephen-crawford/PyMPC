@@ -82,19 +82,42 @@ def numeric_rk4(next_state, vehicle, params, timestep):
             LOG_DEBUG(f"Got symbolic result from discrete_dynamics. Using RK4 integration directly.")
 
             u = vehicle.get_z()[0:vehicle.nu]
-            x = vehicle.get_z()[vehicle.nu:vehicle.nu + vehicle.state_dimension]
+            x_full = vehicle.get_z()[vehicle.nu:vehicle.nu + vehicle.state_dimension]
+
+            # Get number of states to integrate (some models have algebraic states not integrated)
+            nx_integrate = getattr(vehicle, 'state_dimension_integrate', None)
+            if nx_integrate is None:
+                nx_integrate = vehicle.state_dimension
+
+            # Split state into integrated and algebraic parts
+            x_integrate = x_full[:nx_integrate]
+            x_algebraic = x_full[nx_integrate:] if nx_integrate < vehicle.state_dimension else None
 
             # Get parameters
             p = params
 
-            # Use continuous model directly
-            k1 = vehicle.continuous_model(x, u, p)
-            k2 = vehicle.continuous_model(x + timestep / 2 * k1, u, p)
-            k3 = vehicle.continuous_model(x + timestep / 2 * k2, u, p)
-            k4 = vehicle.continuous_model(x + timestep * k3, u, p)
+            # Use continuous model directly for RK4 integration
+            # continuous_model returns derivatives for integrated states only
+            k1 = vehicle.continuous_model(x_full, u, p)
+            k2 = vehicle.continuous_model(cd.vertcat(x_integrate + timestep / 2 * k1, x_algebraic) if x_algebraic is not None else x_integrate + timestep / 2 * k1, u, p)
+            k3 = vehicle.continuous_model(cd.vertcat(x_integrate + timestep / 2 * k2, x_algebraic) if x_algebraic is not None else x_integrate + timestep / 2 * k2, u, p)
+            k4 = vehicle.continuous_model(cd.vertcat(x_integrate + timestep * k3, x_algebraic) if x_algebraic is not None else x_integrate + timestep * k3, u, p)
 
-            # Compute next state
-            next_state = x + timestep / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+            # Compute next state for integrated states
+            x_next_integrate = x_integrate + timestep / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+            # Handle algebraic states (e.g., spline = arc length, updated as s + v*dt)
+            if x_algebraic is not None:
+                # For contouring models, spline is updated based on velocity
+                v = x_next_integrate[3] if x_next_integrate.size1() > 3 else 1.0
+                s = x_algebraic[0] if x_algebraic.size1() > 0 else 0.0
+                s_next = s + v * timestep
+                s_next = cd.fmax(s_next, 0.0)  # Clamp to non-negative
+                x_next_algebraic = cd.vertcat(s_next)
+                next_state = cd.vertcat(x_next_integrate, x_next_algebraic)
+            else:
+                next_state = x_next_integrate
+
             return next_state
         else:
             raise NotImplementedError
@@ -460,7 +483,9 @@ class SecondOrderUnicycleModel(DynamicsModel):
 
         self.dependent_vars = ["x", "y", "psi", "v"]
         self.inputs = ["a", "w"]
-        self.lower_bound = [-2.0, -2.0, -200.0, -200.0, -np.pi * 4, -2.0]
+        # Bounds format: [a_lb, w_lb, x_lb, y_lb, psi_lb, v_lb], [a_ub, w_ub, x_ub, y_ub, psi_ub, v_ub]
+        # v_lb >= 0 to prevent backward motion (forward-only vehicle)
+        self.lower_bound = [-2.0, -2.0, -200.0, -200.0, -np.pi * 4, 0.0]
         self.upper_bound = [2.0, 2.0, 200.0, 200.0, np.pi * 4, 3.0]
 
     def continuous_model(self, x, u, p):

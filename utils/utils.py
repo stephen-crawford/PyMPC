@@ -1,48 +1,92 @@
-import datetime
+"""
+PyMPC Utilities.
+
+This module provides core utilities used throughout the codebase:
+- Logging functions (LOG_INFO, LOG_DEBUG, etc.)
+- Configuration management (load_yaml, CONFIG)
+- Time profiling (PROFILE_SCOPE, TimeTracker)
+- Display utilities (print_value, print_header, etc.)
+
+Note: For new code, prefer importing from pympc directly:
+    from pympc import LOG_INFO, LOG_DEBUG, TimeTracker
+"""
+
 import inspect
-import json
 import logging
-import sys
+import os
 import time
 from contextlib import contextmanager
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 import numpy as np
-
-# Initialize logger
-
-import logging
-
-# Configure logging once at module level
-
-import os
 import yaml
-from typing import List, Tuple, Dict, Union, Any
+
+# Re-export from pympc.logging for new code that imports from here
+try:
+    from pympc.logging import (
+        LOG_DEBUG as _LOG_DEBUG,
+        LOG_INFO as _LOG_INFO,
+        LOG_WARN as _LOG_WARN,
+        LOG_ERROR as _LOG_ERROR,
+        PYMPC_ASSERT as _PYMPC_ASSERT,
+        TimeTracker as _TimeTracker,
+        PROFILE_SCOPE as _PROFILE_SCOPE,
+    )
+    _USE_PYMPC_LOGGING = True
+except ImportError:
+    _USE_PYMPC_LOGGING = False
 
 
-######## CONFIGURATION MANAGEMENT
+# ============================================================================
+# Configuration Management
+# ============================================================================
 
-def load_yaml(path, target_dict):
-    """Load YAML configuration file into the target dictionary."""
+def load_yaml(path: str, target_dict: Dict) -> None:
+    """Load YAML configuration file into the target dictionary.
+
+    Args:
+        path: Path to the YAML file.
+        target_dict: Dictionary to update with loaded data.
+    """
     try:
         with open(path, 'r') as f:
             data = yaml.safe_load(f)
-            target_dict.update(data)
+            if data:
+                target_dict.update(data)
     except Exception as e:
         LOG_DEBUG(f"Error loading config from {path}: {e}")
 
 
-def read_config_file():
+def read_config_file() -> Optional[Dict]:
+    """Read the main configuration file.
+
+    Returns:
+        Configuration dictionary or None if reading fails.
+    """
     print("Reading config file")
     config_path = os.path.join(os.path.dirname(__file__), "../../PyMPC/config/CONFIG.yml")
     config_path = os.path.abspath(config_path)
-    with open(config_path, 'r') as file:
-        try:
+    try:
+        with open(config_path, 'r') as file:
             return yaml.safe_load(file)
-        except yaml.YAMLError as e:
-            print(f"Error reading YAML file: {e}")
-            return None
+    except yaml.YAMLError as e:
+        print(f"Error reading YAML file: {e}")
+        return None
+    except FileNotFoundError:
+        print(f"Config file not found: {config_path}")
+        return {}
 
-def write_to_config(key, value):
+
+def write_to_config(key: str, value: Any) -> bool:
+    """Write a key-value pair to the configuration file.
+
+    Args:
+        key: Configuration key.
+        value: Value to set.
+
+    Returns:
+        True if successful, False otherwise.
+    """
     config_path = os.path.join(os.path.dirname(__file__), "../../PyMPC/config/CONFIG.yml")
     config_path = os.path.abspath(config_path)
 
@@ -67,20 +111,21 @@ def write_to_config(key, value):
         print(f"Error writing to config file: {e}")
         return False
 
-def get_config_dotted(config, dotted_key, default=None):
-    """Get a nested config value using dotted key notation (e.g., 'planner.horizon').
-    
+
+def get_config_dotted(config: Optional[Dict], dotted_key: str, default: Any = None) -> Any:
+    """Get a nested config value using dotted key notation.
+
     Args:
-        config: The config dictionary
-        dotted_key: Dot-separated key path (e.g., 'planner.horizon')
-        default: Default value if key not found
-        
+        config: The config dictionary.
+        dotted_key: Dot-separated key path (e.g., 'planner.horizon').
+        default: Default value if key not found.
+
     Returns:
-        The config value or default if not found
+        The config value or default if not found.
     """
     if config is None:
         return default
-    
+
     keys = dotted_key.split('.')
     value = config
     for key in keys:
@@ -91,72 +136,158 @@ def get_config_dotted(config, dotted_key, default=None):
     return value
 
 
-CONFIG = read_config_file()
-SAVE_FOLDER = CONFIG["recording"]["folder"]
-SAVE_FILE = CONFIG["recording"]["file"]
+# Initialize global configuration
+CONFIG = read_config_file() or {}
+SAVE_FOLDER = CONFIG.get("recording", {}).get("folder", "recordings")
+SAVE_FILE = CONFIG.get("recording", {}).get("file", "data")
 
-##### LOGGING MANAGEMENT
-# Original Python utilities - keeping these intact
-@contextmanager
-def PROFILE_SCOPE(name):
-    start_time = time.time()
+
+# ============================================================================
+# Logging
+# ============================================================================
+
+# Use pympc.logging if available, otherwise fall back to local logger
+if _USE_PYMPC_LOGGING:
+    # Re-export from pympc.logging
+    LOG_DEBUG = _LOG_DEBUG
+    LOG_INFO = _LOG_INFO
+    LOG_WARN = _LOG_WARN
+    LOG_ERROR = _LOG_ERROR
+    PYMPC_ASSERT = _PYMPC_ASSERT
+
+    # Get the logger from pympc
+    from pympc.logging import get_logger
+    logger = get_logger()
+else:
+    # Fallback: Create and configure local logger
+    logger = logging.getLogger("PyMPC")
+    logger.setLevel(logging.INFO)
+
+    # Console handler
+    _console_handler = logging.StreamHandler()
+    _console_handler.setLevel(logging.DEBUG)
+    _console_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    logger.addHandler(_console_handler)
+
+    # File handler
     try:
-        yield
-    finally:
-        end_time = time.time()
-        elapsed_time = end_time - start_time
-        logging.debug(f"{name} took {elapsed_time:.6f} seconds")
+        _file_handler = logging.FileHandler('debug.log')
+        _file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+        logger.addHandler(_file_handler)
+    except (IOError, OSError):
+        pass  # Skip file handler if we can't write to debug.log
 
-# Optional named logger for your module
-logger = logging.getLogger("PyMPC")
-logger.setLevel(logging.INFO)  # Set logger level to INFO to ensure INFO messages are shown
+    def LOG_DEBUG(msg: str) -> None:
+        """Log a debug message."""
+        logger.debug(msg)
 
-# Create a handler that outputs to the console (stdout)
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)  # Set the handler to DEBUG level
+    def LOG_INFO(msg: str) -> None:
+        """Log an info message."""
+        logger.info(msg)
 
-# Create a simple format for the log messages
-formatter = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
-console_handler.setFormatter(formatter)
+    def LOG_WARN(msg: str) -> None:
+        """Log a warning message."""
+        logger.warning(msg)
 
-# Add the handler to the logger
-logger.addHandler(console_handler)
+    def LOG_ERROR(msg: str) -> None:
+        """Log an error message."""
+        logger.error(msg)
 
-file_handler = logging.FileHandler('debug.log')
-file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
-logger.addHandler(file_handler)
+    def PYMPC_ASSERT(expr: bool, msg: str) -> None:
+        """Assert with detailed error logging.
 
-# Export short-hand debug logging
-def LOG_DEBUG(msg):
-    logger.debug(msg)
+        Args:
+            expr: Expression to assert.
+            msg: Error message if assertion fails.
+
+        Raises:
+            AssertionError: If expr is False.
+        """
+        if not expr:
+            frame = inspect.currentframe().f_back
+            file = frame.f_code.co_filename
+            line = frame.f_lineno
+            expr_str = frame.f_globals.get("__name__", "Unknown")
+
+            logger.error(f"Assert failed:\t{msg}\n"
+                         f"Expected:\t{expr_str}\n"
+                         f"Source:\t\t{file}, line {line}\n")
+            raise AssertionError(msg)
 
 
-def LOG_INFO(msg):
-    logger.info(msg)
+# ============================================================================
+# Time Profiling
+# ============================================================================
 
-def LOG_WARN(msg):
-    logger.warning(msg)
+# Use pympc versions if available
+if _USE_PYMPC_LOGGING:
+    PROFILE_SCOPE = _PROFILE_SCOPE
+    TimeTracker = _TimeTracker
+else:
+    @contextmanager
+    def PROFILE_SCOPE(name: str):
+        """Context manager for profiling code execution time.
 
-def LOG_ERROR(msg):
-    logger.error(msg)
+        Args:
+            name: Name of the profiled scope.
 
-def PYMPC_ASSERT(expr, msg):
-    logging.basicConfig(level=logging.ERROR)
-    logger = logging.getLogger(__name__)
+        Yields:
+            None
+        """
+        start_time = time.time()
+        try:
+            yield
+        finally:
+            elapsed_time = time.time() - start_time
+            logging.debug(f"{name} took {elapsed_time:.6f} seconds")
 
-    if not expr:
-        frame = inspect.currentframe().f_back  # Get the caller's frame
-        file = frame.f_code.co_filename
-        line = frame.f_lineno
-        expr_str = frame.f_globals.get("__name__", "Unknown")  # Expression string not available directly
+    class TimeTracker:
+        """Track execution times for performance analysis."""
 
-        logger.error(f"Assert failed:\t{msg}\n"
-                     f"Expected:\t{expr_str}\n"
-                     f"Source:\t\t{file}, line {line}\n")
-        raise AssertionError(msg)
+        def __init__(self, name: str):
+            """Initialize the time tracker.
 
+            Args:
+                name: Name of the tracked operation.
+            """
+            self.name = name
+            self._times = []
+
+        def add(self, timing: float) -> None:
+            """Add a timing measurement.
+
+            Args:
+                timing: Time in milliseconds.
+            """
+            self._times.append(timing)
+
+        def get_stats(self):
+            """Get timing statistics.
+
+            Returns:
+                Tuple of (mean, max, count).
+            """
+            if not self._times:
+                return 0.0, 0.0, 0
+            return np.mean(self._times), np.max(self._times), len(self._times)
+
+        def print_stats(self) -> None:
+            """Print timing statistics."""
+            if not self._times:
+                print(f"--- No timing data for {self.name} ---")
+                return
+            print(f"--- Computation Times {self.name} ---")
+            print_value("Mean", f"{np.mean(self._times):.1f} ms", tab=True)
+            print_value("Max", f"{np.max(self._times):.1f} ms", tab=True)
+            print_value("Number of calls", len(self._times), tab=True)
+
+
+# ============================================================================
+# Display Utilities
+# ============================================================================
 
 class bcolors:
+    """ANSI color codes for terminal output."""
     OKBLUE = '\033[94m'
     OKCYAN = '\033[96m'
     OKGREEN = '\033[92m'
@@ -167,154 +298,115 @@ class bcolors:
     UNDERLINE = '\033[4m'
     HEADER = BOLD
 
-def print_value(name, value, tab=False, **kwargs):
-    if tab:
-        string = " "
-    else:
-        string = ""
 
-    print(string + bcolors.BOLD + bcolors.UNDERLINE + f"{name}" + bcolors.ENDC + f": {value}", **kwargs)
+def print_value(name: str, value: Any, tab: bool = False, **kwargs) -> None:
+    """Print a formatted name-value pair.
+
+    Args:
+        name: Name/label to display.
+        value: Value to display.
+        tab: Whether to indent with a space.
+        **kwargs: Additional kwargs passed to print().
+    """
+    prefix = " " if tab else ""
+    print(prefix + bcolors.BOLD + bcolors.UNDERLINE + f"{name}" + bcolors.ENDC + f": {value}", **kwargs)
 
 
-def print_path(name, value, tab=False, **kwargs):
+def print_path(name: str, value: str, tab: bool = False, **kwargs) -> None:
+    """Print a formatted path value.
+
+    Args:
+        name: Name/label to display.
+        value: Path to display (will be converted to absolute).
+        tab: Whether to indent with a space.
+        **kwargs: Additional kwargs passed to print().
+    """
     print_value(name, os.path.abspath(value), tab, **kwargs)
 
 
-def print_success(msg):
+def print_success(msg: str) -> None:
+    """Print a success message in green.
+
+    Args:
+        msg: Message to display.
+    """
     print(bcolors.BOLD + bcolors.OKGREEN + f"{msg}" + bcolors.ENDC)
 
 
-def print_warning(msg, no_tab=False):
-    if no_tab:
-        print(bcolors.BOLD + bcolors.WARNING + f"Warning: {msg}" + bcolors.ENDC)
-    else:
-        print("\t" + bcolors.BOLD + bcolors.WARNING + f"Warning: {msg}" + bcolors.ENDC)
+def print_warning(msg: str, no_tab: bool = False) -> None:
+    """Print a warning message in yellow.
+
+    Args:
+        msg: Message to display.
+        no_tab: If True, don't indent the message.
+    """
+    prefix = "" if no_tab else "\t"
+    print(prefix + bcolors.BOLD + bcolors.WARNING + f"Warning: {msg}" + bcolors.ENDC)
 
 
-def print_header(msg):
+def print_header(msg: str) -> None:
+    """Print a formatted header.
+
+    Args:
+        msg: Header text to display.
+    """
     print("==============================================")
     print("\t" + bcolors.HEADER + f"{msg}" + bcolors.ENDC)
     print("==============================================")
 
 
+# ============================================================================
+# Path Utilities
+# ============================================================================
 
-#### TIME TRACKING
-class TimeTracker:
-
-    def __init__(self, name):
-        self.name = name
-        self._times = []
-
-    def add(self, timing):
-        self._times.append(timing)
-
-    def get_stats(self):
-        return np.mean(self._times), np.max(self._times), len(self._times)
-
-    def print_stats(self):
-        print(f"--- Computation Times {self.name} ---")
-        print_value("Mean", f"{np.mean(self._times):.1f} ms", tab=True)
-        print_value("Max", f"{np.max(self._times):.1f} ms", tab=True)
-        print_value("Number of calls", len(self._times), tab=True)
-
-def get_base_path():
-  return os.path.dirname(os.path.realpath('../../utils'))
+def get_base_path() -> str:
+    """Get the base path for configuration files."""
+    return os.path.dirname(os.path.realpath('../../utils'))
 
 
-def get_current_package():
-  return os.path.dirname(os.path.realpath(sys.argv[0])).split("/")[-2]
+def save_config_path() -> str:
+    """Get the path for saving configuration files."""
+    config_path = os.path.join(get_base_path(), "utils/")
+    os.makedirs(os.path.dirname(config_path), exist_ok=True)
+    return config_path
 
 
-def get_package_path(package_name):
-  return os.path.join(os.path.dirname(__file__), f"../../{package_name}")
+def model_map_path() -> str:
+    """Get the path for the model map YAML file."""
+    return os.path.join(save_config_path(), "model_map.yml")
 
 
-def get_solver_package_path():
-  return get_package_path("mpc_planner_solver")
+def write_to_yaml(filename: str, data: Dict) -> None:
+    """Write data to a YAML file.
+
+    Args:
+        filename: Path to the YAML file.
+        data: Dictionary to write.
+    """
+    with open(filename, "w") as outfile:
+        yaml.dump(data, outfile, default_flow_style=False)
 
 
-def save_config_path():
-  config_path = os.path.join(get_base_path(), "utils/")
-  os.makedirs(os.path.dirname(config_path), exist_ok=True)
-  return config_path
+# ============================================================================
+# Robot Area Definition (re-exported from planning.types)
+# ============================================================================
 
-
-def load_config_path():
-  print("Joining base path of " + str(get_base_path()) + " and /utils")
-  util_path = str(get_base_path())+"/utils"
-  print("Returning path of " + str(util_path))
-  return util_path
-
-
-def load_settings_path(setting_file_name="CONFIG"):
-  return str(load_config_path()) + f"/{setting_file_name}.yml"
-
-
-def load_settings(setting_file_name="CONFIG"):
-  path = load_settings_path(setting_file_name)
-  print_path("Settings", path, end="")
-  with open(path, "r") as stream:
-    settings = yaml.safe_load(stream)
-  print_success(f" -> loaded")
-  return settings
-
-
-def load_test_settings(setting_file_name="settings"):
-  path = f"{get_package_path('mpc_planner')}/config/{setting_file_name}.yml"
-  print_path("Settings", path, end="")
-  with open(path, "r") as stream:
-    settings = yaml.safe_load(stream)
-  print_success(f" -> loaded")
-  return settings
-
-
-def default_solver_path(settings):
-  return os.path.join(os.getcwd(), f"{solver_name(settings)}")
-
-
-def solver_path(settings):
-  return os.path.join(get_solver_package_path(), f"{solver_name(settings)}")
-
-
-def default_casadi_solver_path(settings):
-  return os.path.join(get_package_path("solver_generator"), f"casadi")
-
-
-def casadi_solver_path(settings):
-  return os.path.join(get_solver_package_path(), f"casadi")
-
-
-def parameter_map_path():
-  return os.path.join(save_config_path(), f"parameter_map.yml")
-
-
-def model_map_path():
-  return os.path.join(save_config_path(), f"model_map.yml")
-
-
-def solver_settings_path():
-  return os.path.join(save_config_path(), f"solver_settings.yml")
-
-def generated_src_file(settings):
-  return os.path.join(solver_path(settings), f"mpc_planner_generated.py")
-
-def planner_path():
-  return get_package_path("mpc_planner")
-
-def solver_name(settings):
-  return "Solver"
-
-def write_to_yaml(filename, data):
-  with open(filename, "w") as outfile:
-    yaml.dump(data, outfile, default_flow_style=False)
-
-# Forward reference for type hints - Disc is defined in planning.types
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from planning.types import Disc
 
-def define_robot_area(length: float, width: float, n_discs: int):
-    """Define robot area with discs. Implementation moved to planning.types."""
-    from planning.types import define_robot_area as _define_robot_area, Disc
-    return _define_robot_area(length, width, n_discs)
 
+def define_robot_area(length: float, width: float, n_discs: int):
+    """Define robot area with discs.
+
+    This function is re-exported from planning.types for backward compatibility.
+
+    Args:
+        length: Robot length.
+        width: Robot width.
+        n_discs: Number of collision discs.
+
+    Returns:
+        List of Disc objects.
+    """
+    from planning.types import define_robot_area as _define_robot_area
+    return _define_robot_area(length, width, n_discs)

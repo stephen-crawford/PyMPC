@@ -3,7 +3,7 @@ import casadi as cd
 
 from planning.types import PredictionType
 from utils.const import GAUSSIAN, DYNAMIC
-from utils.math_tools import exponential_quantile, rotation_matrix, casadi_rotation_matrix, DouglasRachford
+from utils.math_tools import rotation_matrix, casadi_rotation_matrix, DouglasRachford
 from utils.utils import LOG_DEBUG, PROFILE_SCOPE, CONFIG, LOG_INFO, LOG_WARN
 from modules.constraints.base_constraint import BaseConstraint
 

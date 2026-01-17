@@ -1,13 +1,17 @@
 """
 ROS-free visualizer module for PyMPC.
+
 This module provides visualization capabilities without ROS dependencies.
+It includes mock implementations of ROS visualization markers for use
+in standalone Python environments.
 """
-import numpy as np
+
 from enum import Enum
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 from typing import List, Optional, Tuple
-import utils.math_utils
+
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Colormap(Enum):
