@@ -35,6 +35,17 @@ class WarmstartManager:
         self._solver = solver
         self._warmstart_values: Dict[str, np.ndarray] = {}
         self._initialized = False
+        self._path_length: Optional[float] = None  # Set by solver when reference path is available
+    
+    @property
+    def path_length(self) -> Optional[float]:
+        """Get the path length for spline clamping."""
+        return self._path_length
+    
+    @path_length.setter
+    def path_length(self, val: Optional[float]):
+        """Set the path length for spline clamping."""
+        self._path_length = val
 
     @property
     def values(self) -> Dict[str, np.ndarray]:
@@ -97,7 +108,7 @@ class WarmstartManager:
                 continue
 
             if var_name == 'spline':
-                # Special handling for spline - ensure monotonicity
+                # Special handling for spline - ensure monotonicity and clamp to path length
                 old_spline = values.copy()
                 values[:-1] = old_spline[1:]
 
@@ -109,7 +120,18 @@ class WarmstartManager:
                 else:
                     values[-1] = old_spline[-1]
 
-                # Ensure monotonicity
+                # CRITICAL FIX: Clamp spline values to path length to prevent infeasible dynamics
+                # When vehicle approaches path end, extrapolated spline can exceed path_length,
+                # causing dynamics constraints to become infeasible
+                if self._path_length is not None and self._path_length > 0:
+                    # Clamp all spline values to path length
+                    # When at path end, all future spline values should be at path_length
+                    for k in range(len(values)):
+                        if values[k] > self._path_length:
+                            values[k] = self._path_length
+                    LOG_DEBUG(f"Clamped spline warmstart to path_length={self._path_length:.2f}")
+
+                # Ensure monotonicity (but allow equal values at path end)
                 for k in range(1, len(values)):
                     if values[k] < values[k - 1]:
                         values[k] = values[k - 1]

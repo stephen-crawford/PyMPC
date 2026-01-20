@@ -889,13 +889,21 @@ class ContouringConstraints(BaseConstraint):
 			s_start_sym = cd.fmax(s_min, s_center - total_span * 0.3)  # 30% backward, 70% forward
 			s_end_sym = cd.fmin(s_max, s_center + total_span * 0.7)
 			
-			# Adjust if at boundaries
-			if s_start_sym == s_min:
-				# At start: extend forward
-				s_end_sym = cd.fmin(s_max, s_start_sym + total_span)
-			elif s_end_sym == s_max:
-				# At end: extend backward
-				s_start_sym = cd.fmax(s_min, s_end_sym - total_span)
+			# CRITICAL FIX: Use CasADi's if_else for boundary adjustments
+			# Cannot use Python if/else with symbolic values - causes "Can only determine truth value" error
+			# Check if at start boundary (s_start_sym would be clamped to s_min)
+			at_start = s_center - total_span * 0.3 < s_min
+			# Check if at end boundary (s_end_sym would be clamped to s_max)
+			at_end = s_center + total_span * 0.7 > s_max
+			
+			# At start boundary: extend forward (s_end = s_start + total_span)
+			s_end_extended = cd.fmin(s_max, s_min + total_span)
+			# At end boundary: extend backward (s_start = s_end - total_span)
+			s_start_extended = cd.fmax(s_min, s_max - total_span)
+			
+			# Apply boundary adjustments symbolically using if_else
+			s_end_sym = cd.if_else(at_start, s_end_extended, s_end_sym)
+			s_start_sym = cd.if_else(at_end, s_start_extended, s_start_sym)
 			
 			# Create evenly spaced segment s values symbolically
 			segment_s_sym_list = []

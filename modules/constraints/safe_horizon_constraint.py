@@ -251,9 +251,8 @@ class SafeHorizonConstraint(BaseConstraint):
 			total_cached = 0
 			for disc_id in range(self.num_discs):
 				for stage_idx in range(self.horizon_length):
-					current_x = x.get('x') if hasattr(x, 'has') and x.has('x') else None
-					current_y = x.get('y') if hasattr(x, 'has') and x.has('y') else None
 					# Get optimized constraints from polytope for this disc and stage
+					# CRITICAL FIX: Removed unused variables current_x/current_y that referenced undefined 'x'
 					constraints = self.scenario_module.disc_manager[disc_id].get_constraints_for_step(stage_idx)
 					key = (disc_id, stage_idx)
 					self.scenario_cache[key] = constraints

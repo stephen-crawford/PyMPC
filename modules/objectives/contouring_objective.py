@@ -1121,6 +1121,18 @@ class ContouringObjective(BaseObjective):
 		if self.dynamic_velocity_reference:
 
 			velocity_cost = velocity_weight * (v - reference_velocity) ** 2
+		
+		# CRITICAL FIX: Add minimum velocity penalty to prevent vehicle from stopping
+		# When obstacles block the path, the MPC may find a local minimum where v ≈ 0
+		# This penalty strongly discourages stopping and encourages finding alternate routes
+		import casadi as cd
+		min_velocity_threshold = 0.5  # Minimum desired velocity (m/s)
+		min_velocity_weight = 10.0    # Strong penalty for going too slow
+		# Soft penalty: increases quadratically when v < threshold
+		# Using smooth max to avoid discontinuities
+		velocity_deficit = cd.fmax(0.0, min_velocity_threshold - v)
+		min_velocity_penalty = min_velocity_weight * velocity_deficit ** 2
+		velocity_cost = velocity_cost + min_velocity_penalty
 
 		terminal_cost = 0
 		horizon_val = self.solver.horizon if (hasattr(self.solver, 'horizon') and self.solver.horizon is not None) else 10

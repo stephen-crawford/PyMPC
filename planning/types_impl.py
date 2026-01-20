@@ -747,6 +747,29 @@ class ReferencePath:
         return "\n".join(lines)
 
 def generate_reference_path(start, goal, path_type="curved", num_points=11) -> ReferencePath:
+    """
+    Generate a reference path for MPC tracking.
+    
+    Reference: C++ mpc_planner (tud-amr/mpc_planner) - uses arc length parameterization
+    with continuous curvature to prevent boundary self-intersection.
+    
+    Key design decisions:
+    - Use sufficient point density for smooth boundaries (minimum 50 points)
+    - Limit curvature to prevent boundary self-intersection with typical road widths (3-4m half-width)
+    - Maximum curvature κ should satisfy: κ < 1/road_half_width to prevent inner boundary crossing
+    
+    Args:
+        start: Start position [x, y, z] or [x, y]
+        goal: Goal position [x, y, z] or [x, y]
+        path_type: "straight", "curved", "s-turn", or "circle"
+        num_points: Number of path points (minimum 50 for smooth boundaries)
+    
+    Returns:
+        ReferencePath object with x, y, z, s arrays and splines
+    """
+    # Ensure sufficient point density for smooth boundaries
+    # Reference: C++ mpc_planner uses dense sampling for smooth constraint evaluation
+    num_points = max(num_points, 50)
     t = np.linspace(0, 1, num_points)
 
     if path_type == "straight":
@@ -757,21 +780,57 @@ def generate_reference_path(start, goal, path_type="curved", num_points=11) -> R
     elif path_type == "curved":
         start_np = np.array(start[:2])
         goal_np = np.array(goal[:2])
-        mid = 0.5 * (start_np + goal_np) + np.array([0.0, goal_np[1]])
-        # Use TKSpline for intermediate computation
-        x_spline = TKSpline([0, 0.5, 1.0], [start_np[0], mid[0], goal_np[0]])
-        y_spline = TKSpline([0, 0.5, 1.0], [start_np[1], mid[1], goal_np[1]])
-        x = x_spline.at(t)
-        y = y_spline.at(t)
+        direction = goal_np - start_np
+        length_sg = np.linalg.norm(direction)
+        
+        if length_sg > 1e-6:
+            # Perpendicular vector (90 degrees counterclockwise)
+            perp = np.array([-direction[1], direction[0]]) / length_sg
+            
+            # CRITICAL: Limit curve offset to prevent boundary self-intersection
+            # For road half-width w, max curvature κ = 1/w means offset ≈ κ * L² / 8
+            # With typical road half-width 3.5m, keep offset < 10% of path length
+            # This ensures inner boundary radius > 0 (no self-intersection)
+            max_offset_ratio = 0.1  # 10% of path length
+            offset_ratio = min(0.15, max_offset_ratio)  # Slight curve
+            
+            mid = 0.5 * (start_np + goal_np) + offset_ratio * length_sg * perp
+        else:
+            mid = 0.5 * (start_np + goal_np)
+        
+        # Use cubic Bezier curve for smoother curvature distribution
+        # Control points: P0=start, P1=control1, P2=control2, P3=goal
+        # This gives C1 continuity and bounded curvature
+        control1 = start_np + 0.33 * direction + 0.5 * (mid - 0.5 * (start_np + goal_np))
+        control2 = start_np + 0.67 * direction + 0.5 * (mid - 0.5 * (start_np + goal_np))
+        
+        # Cubic Bezier: B(t) = (1-t)³P0 + 3(1-t)²tP1 + 3(1-t)t²P2 + t³P3
+        x = ((1-t)**3 * start_np[0] + 
+             3*(1-t)**2*t * control1[0] + 
+             3*(1-t)*t**2 * control2[0] + 
+             t**3 * goal_np[0])
+        y = ((1-t)**3 * start_np[1] + 
+             3*(1-t)**2*t * control1[1] + 
+             3*(1-t)*t**2 * control2[1] + 
+             t**3 * goal_np[1])
         z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
-
 
     elif path_type == "s-turn":
+        # S-turn with controlled amplitude to prevent boundary self-intersection
+        # Reference: C++ mpc_planner - curvature-aware paths
         x = np.linspace(start[0], goal[0], num_points)
-        amplitude = 2.0
-        y = np.linspace(start[1], goal[1], num_points) + amplitude * np.sin(2 * np.pi * t)
+        path_length = abs(goal[0] - start[0])
+        
+        # CRITICAL: Limit amplitude to prevent boundary self-intersection
+        # For sinusoidal path: curvature κ ≈ amplitude * (2π/wavelength)²
+        # With wavelength = path_length and road half-width 3.5m:
+        # amplitude < road_half_width * wavelength² / (4π²) ≈ 0.09 * path_length
+        # Use 1.5m fixed amplitude for typical road widths
+        amplitude = min(1.5, path_length * 0.08)
+        
+        # Single period sine for smooth S-curve (one complete oscillation)
+        y = np.linspace(start[1], goal[1], num_points) + amplitude * np.sin(np.pi * t)
         z = np.linspace(start[2], goal[2], num_points) if len(start) > 2 else np.zeros(num_points)
-
 
     elif path_type == "circle":
         radius = 5.0
@@ -853,62 +912,96 @@ def calculate_path_normals_improved(reference_path):
 
 def generate_road_boundaries_improved(reference_path, road_width):
     """
-    Generate road boundaries with improved normal calculation and
-    curvature compensation.
+    Generate road boundaries with curvature-aware offset to prevent self-intersection.
+    
+    Reference: C++ mpc_planner (tud-amr/mpc_planner) - road boundaries are computed
+    by offsetting perpendicular to the path, with curvature compensation to prevent
+    inner boundary from crossing itself.
+    
+    Key insight: For a curve with curvature κ, the inner boundary crosses itself
+    when offset distance d > 1/κ (radius of curvature). We reduce offset in
+    high-curvature regions to prevent this.
+    
+    Args:
+        reference_path: ReferencePath object with x, y, s arrays
+        road_width: Total road width (left + right boundary width)
+    
+    Returns:
+        left_x, left_y, right_x, right_y: Lists of boundary coordinates
     """
-    # Calculate improved normals
+    # Calculate improved normals using spline derivatives for accuracy
     normals = calculate_path_normals_improved(reference_path)
-
-    # Use a smaller offset for curved sections
+    
     half_width = road_width / 2.0
-
-    # Adjust width based on curvature to prevent crossing
-    adjusted_half_width = []
-
-    for i in range(len(reference_path.x)):
-        # Calculate local curvature (simplified)
-        if i > 0 and i < len(reference_path.x) - 1:
-            # Use three points to estimate curvature
-            p1 = np.array([reference_path.x[i - 1], reference_path.y[i - 1]])
-            p2 = np.array([reference_path.x[i], reference_path.y[i]])
-            p3 = np.array([reference_path.x[i + 1], reference_path.y[i + 1]])
-
-            # Vectors
-            v1 = p2 - p1
-            v2 = p3 - p2
-
-            # Estimate curvature using cross product
-            cross_prod = np.cross(v1, v2)
-            v1_norm = np.linalg.norm(v1)
-            v2_norm = np.linalg.norm(v2)
-
-            if v1_norm > 1e-6 and v2_norm > 1e-6:
-                curvature = abs(cross_prod) / (v1_norm * v2_norm)
-                # Reduce width in high curvature areas
-                width_factor = max(0.3, 1.0 - curvature * 2.0)
-                adjusted_half_width.append(half_width * width_factor)
-            else:
-                adjusted_half_width.append(half_width)
+    n_points = len(reference_path.x)
+    
+    # Compute curvature at each point for adaptive boundary offset
+    # Reference: Curvature κ = |x'y'' - y'x''| / (x'² + y'²)^(3/2)
+    curvatures = np.zeros(n_points)
+    
+    for i in range(n_points):
+        if i > 0 and i < n_points - 1:
+            # Use three-point finite difference for first derivatives
+            p_prev = np.array([reference_path.x[i-1], reference_path.y[i-1]])
+            p_curr = np.array([reference_path.x[i], reference_path.y[i]])
+            p_next = np.array([reference_path.x[i+1], reference_path.y[i+1]])
+            
+            # Arc length segments
+            ds_prev = np.linalg.norm(p_curr - p_prev)
+            ds_next = np.linalg.norm(p_next - p_curr)
+            
+            if ds_prev > 1e-6 and ds_next > 1e-6:
+                # First derivatives (tangent)
+                dx = (p_next[0] - p_prev[0]) / (ds_prev + ds_next)
+                dy = (p_next[1] - p_prev[1]) / (ds_prev + ds_next)
+                
+                # Second derivatives (curvature direction)
+                ddx = (p_next[0] - 2*p_curr[0] + p_prev[0]) / (0.5*(ds_prev + ds_next))**2
+                ddy = (p_next[1] - 2*p_curr[1] + p_prev[1]) / (0.5*(ds_prev + ds_next))**2
+                
+                # Curvature magnitude
+                denom = (dx**2 + dy**2)**(1.5)
+                if denom > 1e-10:
+                    curvatures[i] = abs(dx * ddy - dy * ddx) / denom
+    
+    # Smooth curvature estimate to reduce noise
+    if n_points >= 5:
+        from scipy.ndimage import gaussian_filter1d
+        curvatures = gaussian_filter1d(curvatures, sigma=2.0)
+    
+    # Compute adaptive half-width based on curvature
+    # CRITICAL: Reduce width where curvature * half_width > 0.8 to prevent self-intersection
+    # The critical condition is: half_width < 1/curvature (radius of curvature)
+    adjusted_half_width = np.zeros(n_points)
+    
+    for i in range(n_points):
+        κ = curvatures[i]
+        if κ > 1e-6:
+            # Radius of curvature
+            R = 1.0 / κ
+            # Limit offset to 80% of radius to prevent self-intersection
+            max_offset = 0.8 * R
+            adjusted_half_width[i] = min(half_width, max_offset)
         else:
-            adjusted_half_width.append(half_width)
-
-    # Generate boundaries
+            adjusted_half_width[i] = half_width
+    
+    # Generate boundaries with adjusted widths
     left_x = []
     left_y = []
     right_x = []
     right_y = []
 
-    for i in range(len(reference_path.x)):
+    for i in range(n_points):
         nx, ny = normals[i]
         width = adjusted_half_width[i]
 
-        # Left boundary (offset in the positive normal direction)
-        left_x.append(reference_path.x[i] + nx * width)
-        left_y.append(reference_path.y[i] + ny * width)
+        # Left boundary (offset in positive normal direction)
+        left_x.append(float(reference_path.x[i]) + nx * width)
+        left_y.append(float(reference_path.y[i]) + ny * width)
 
-        # Right boundary (offset in the negative normal direction)
-        right_x.append(reference_path.x[i] - nx * width)
-        right_y.append(reference_path.y[i] - ny * width)
+        # Right boundary (offset in negative normal direction)
+        right_x.append(float(reference_path.x[i]) - nx * width)
+        right_y.append(float(reference_path.y[i]) - ny * width)
 
     return left_x, left_y, right_x, right_y
 

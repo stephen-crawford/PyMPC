@@ -15,6 +15,12 @@ planner:
     width: 7.0
   robot:
     radius: 0.5
+# Safe Horizon Constraints - at root level for get_config_value to find
+safe_horizon_constraints:
+  epsilon_p: 0.05    # 5% violation probability - good safety with reasonable computation
+  beta: 0.05         # 5% confidence level
+  n_bar: 5           # Support dimension
+  num_removal: 1     # Outlier removal
 contouring:
   num_segments: 10
   add_road_constraints: true
@@ -84,7 +90,18 @@ modules:
       name: test
       obstacle_radius: 0.35
       halfspace_offset: 0.5
-    gaussian_constraints: null
+    gaussian_constraints:
+      # Higher risk level means less conservative constraints
+      # 0.20 = 20% risk (80% confidence) instead of default 0.05 (95% confidence)
+      # This allows tighter maneuvering around obstacles
+      risk_level: 0.20
+    safe_horizon_constraints:
+      # Reduce computational cost by increasing epsilon_p (risk tolerance)
+      # Higher epsilon_p = fewer scenarios required = faster computation
+      epsilon_p: 0.15  # 15% violation probability (default 0.05)
+      beta: 0.05       # 5% confidence level (default 0.01)
+      n_bar: 5         # Support dimension (default 10) - lower = fewer scenarios
+      num_removal: 1   # Outlier removal
     scenario_constraints:
       num_constraints: 0
       parallel_solvers: 1

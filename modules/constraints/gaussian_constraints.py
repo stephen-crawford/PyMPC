@@ -349,12 +349,11 @@ class GaussianConstraints(BaseConstraint):
 				# A larger margin ensures the vehicle maintains greater distance, which requires turning
 				# rather than just slowing down or moving in a straight line
 				
-				# IMPROVEMENT: Adaptive safety margin based on obstacle speed
-				# Fast-moving obstacles require larger safety margins to account for:
-				# - Higher prediction uncertainty
-				# - Faster approach rates
-				# - Less time to react
-				base_safety_margin = 1.5  # Base 50% safety margin
+				# CRITICAL FIX: Minimal safety margin for Gaussian constraints
+				# The effective covariance already includes safe_distance, so additional margin
+				# makes constraints overly conservative for narrow roads
+				# Use minimal margin (1.0 = no extra margin) to allow feasible solutions
+				base_safety_margin = 1.0  # No additional margin beyond chi-squared threshold
 				obstacle_speed = 0.0
 				if hasattr(obstacle, 'velocity') and obstacle.velocity is not None:
 					obstacle_speed = np.linalg.norm(obstacle.velocity)

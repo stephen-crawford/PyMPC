@@ -48,11 +48,13 @@ class ObstacleManager:
         self.temperature = float(np.clip(temperature, 0.0, 1.0))
         
         # Default uncertainty parameters
+        # CRITICAL: Smaller uncertainty values allow vehicle to navigate more easily
+        # while still providing probabilistic safety guarantees
         self.default_uncertainty = {
-            "position_std": 0.1,
-            "velocity_std": 0.05,
-            "angle_std": 0.1,
-            "uncertainty_growth": 0.02
+            "position_std": 0.05,      # Reduced from 0.1 to allow tighter maneuvering
+            "velocity_std": 0.025,     # Reduced from 0.05
+            "angle_std": 0.05,         # Reduced from 0.1
+            "uncertainty_growth": 0.01  # Reduced from 0.02 to limit horizon growth
         }
         
         # Track heading change timing for each obstacle (for arbitrary heading changes)

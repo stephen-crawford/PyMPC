@@ -23,6 +23,9 @@ Usage:
 # This ensures all existing code continues to work
 from planning.types_impl import *
 
+# Import ScenarioDisc from state submodule (it's a nested class in Disc)
+from planning.types.state import ScenarioDisc
+
 # Also re-export from submodules for those who prefer the new structure
 # Note: These are the same classes, just accessible via different import paths
 
@@ -74,6 +77,4 @@ __all__ = [
     'Partition',
     # Type alias
     'trajectory_sample',
-    # Planner output
-    'PlannerOutput',
 ]

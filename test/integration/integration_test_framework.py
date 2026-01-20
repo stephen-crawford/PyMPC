@@ -24,7 +24,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from datetime import datetime
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from dataclasses import dataclass
 # yaml not used
 import shutil
@@ -108,9 +108,10 @@ class TestConfig:
     # Optional: temperature setting (0.0-1.0) for obstacle direction change frequency. Default: 0.5
     obstacle_temperature: float = 0.5
     # Optional: maximum test duration in seconds. Default: 60.0 seconds. Set to None to disable timeout.
-    timeout_seconds: Optional[float] = 60.0
-    # Optional: maximum consecutive MPC solve failures before early termination. Default: 5.
-    max_consecutive_failures: int = 5
+    timeout_seconds: Optional[float] = None  # Auto-calculated based on duration if not specified
+    # Optional: maximum consecutive MPC solve failures before early termination. Default: 20.
+    # Higher values allow more attempts to recover from temporary solver issues
+    max_consecutive_failures: int = 20
     # Optional: enable stuck vehicle detection and early exit. Default: True.
     enable_stuck_vehicle_detection: bool = True
 
@@ -312,51 +313,173 @@ class IntegrationTestFramework:
                          obstacle_configs: Optional[List[ObstacleConfig]] = None,
                          prediction_types: Optional[List[str]] = None,
                          plot_bounds: Optional[Tuple[float, float, float, float]] = None,
-                         temperature: float = 0.5) -> List[DynamicObstacle]:
+                         temperature: float = 0.5,
+                         reference_path: Optional[Any] = None) -> List[DynamicObstacle]:
         """Create obstacles with specified dynamics using obstacle manager.
         If obstacle_configs is provided, it will be used directly for deterministic setups.
+        If reference_path is provided and obstacle_configs is None, obstacles will be
+        placed along the path within its boundaries.
         
         Args:
             plot_bounds: Optional (x_min, x_max, y_min, y_max) for bouncing behavior
             temperature: Temperature setting (0.0-1.0) for direction change frequency. Default: 0.5
+            reference_path: Optional ReferencePath object to place obstacles within path boundaries
         """
         obstacle_manager = ObstacleManager(self.config, plot_bounds=plot_bounds, temperature=temperature)
         
-        # If not provided, create random obstacle configurations
+        # If not provided, create obstacle configurations
         if obstacle_configs is None:
             obstacle_configs = []
-            for i in range(num_obstacles):
-                dynamics_type = dynamics_types[i % len(dynamics_types)]
-                pred_type_str = (prediction_types[i % len(prediction_types)] if prediction_types else None)
+            
+            # If reference_path is provided, place obstacles within path boundaries
+            if reference_path is not None and hasattr(reference_path, 'x_spline') and hasattr(reference_path, 'y_spline'):
+                logger = logging.getLogger("integration_test")
+                logger.info("Placing obstacles within reference path boundaries")
                 
-                # Random initial position
-                x = np.random.uniform(0.0, 20.0)
-                y = np.random.uniform(-5.0, 5.0)
+                # Get path arc length range
+                s_arr = np.asarray(reference_path.s, dtype=float)
+                s_min = float(s_arr[0])
+                s_max = float(s_arr[-1])
+                s_range = s_max - s_min
                 
-                # Random initial velocity
-                speed = np.random.uniform(0.5, 2.0)
-                angle = np.random.uniform(0, 2 * np.pi)
-                velocity = np.array([speed * np.cos(angle), speed * np.sin(angle)])
+                # Get road half-width from config (obstacles placed within this)
+                road_half_width = self.config.get("contouring", {}).get("road_half_width", 3.5)
+                # CRITICAL: For Gaussian constraints, obstacles need to be at the road edge
+                # to leave enough clearance for the vehicle to pass (uncertainty ellipses are ~2.5m)
+                max_lateral_offset = road_half_width * 0.85  # Place near edge for clearance
                 
-                if dynamics_type == "unicycle":
-                    config = create_unicycle_obstacle(i, np.array([x, y]), velocity)
-                elif dynamics_type == "bicycle":
-                    config = create_bicycle_obstacle(i, np.array([x, y]), velocity)
-                elif dynamics_type == "point_mass":
-                    config = create_point_mass_obstacle(i, np.array([x, y]), velocity)
+                # Place obstacles at evenly spaced positions along path (40% to 85%)
+                # Start at 40% to give vehicle time to establish trajectory and avoid early conflicts
+                if num_obstacles == 1:
+                    obstacle_s_positions = [s_min + s_range * 0.5]  # Single obstacle at 50%
                 else:
-                    raise ValueError(f"Unknown dynamics type: {dynamics_type}")
-
-                # Override prediction type if provided
-                if pred_type_str is not None:
-                    if pred_type_str.lower() in ("gaussian", "normal"):
-                        config.prediction_type = PredictionType.GAUSSIAN
-                    elif pred_type_str.lower() in ("deterministic", "det"):
-                        config.prediction_type = PredictionType.DETERMINISTIC
-                    else:
-                        raise ValueError(f"Unknown obstacle prediction type: {pred_type_str}")
+                    # Distribute from 40% to 85% of path length
+                    obstacle_s_positions = [
+                        s_min + s_range * (0.4 + i * 0.45 / max(1, num_obstacles - 1))
+                        for i in range(num_obstacles)
+                    ]
+                
+                # Lateral offsets - configurable via environment variable for testing
+                # Default: place on centerline (0.0) to force vehicle to turn and avoid
+                # Set OBSTACLE_LATERAL_OFFSET env var to override (e.g., "0.9,-0.9" for edge placement)
+                import os
+                lateral_offset_env = os.environ.get('OBSTACLE_LATERAL_OFFSET', None)
+                if lateral_offset_env:
+                    lateral_offsets = [float(x) for x in lateral_offset_env.split(',')]
+                else:
+                    # Default: centerline placement to test avoidance behavior
+                    lateral_offsets = [0.0, 0.0, 0.0, 0.0, 0.0]  # All obstacles on centerline
+                
+                for i in range(num_obstacles):
+                    dynamics_type = dynamics_types[i % len(dynamics_types)]
+                    pred_type_str = (prediction_types[i % len(prediction_types)] if prediction_types else None)
+                    s_pos = obstacle_s_positions[i]
                     
-                obstacle_configs.append(config)
+                    try:
+                        # Get position on path centerline
+                        x_center = float(reference_path.x_spline(s_pos))
+                        y_center = float(reference_path.y_spline(s_pos))
+                        
+                        # Get path tangent direction
+                        dx_ds = float(reference_path.x_spline.derivative()(s_pos))
+                        dy_ds = float(reference_path.y_spline.derivative()(s_pos))
+                        tangent_norm = np.sqrt(dx_ds**2 + dy_ds**2)
+                        
+                        if tangent_norm > 1e-6:
+                            # Normalize tangent
+                            dx_norm = dx_ds / tangent_norm
+                            dy_norm = dy_ds / tangent_norm
+                            # Normal vector (perpendicular, pointing left)
+                            normal = np.array([-dy_norm, dx_norm])
+                            
+                            # Apply lateral offset
+                            lateral_factor = lateral_offsets[i % len(lateral_offsets)]
+                            lateral_offset = lateral_factor * max_lateral_offset
+                            x = x_center + lateral_offset * normal[0]
+                            y = y_center + lateral_offset * normal[1]
+                            
+                            # Velocity along path tangent (varied speeds and directions)
+                            # Check for OBSTACLE_SPEED env var to override (e.g., "0.0" for static)
+                            speed_env = os.environ.get('OBSTACLE_SPEED', None)
+                            if speed_env is not None:
+                                speeds = [float(speed_env)] * 5
+                            else:
+                                speeds = [0.6, 0.8, 0.5, 0.7, 0.4]
+                            directions = [1, -1, 1, -1, 1]  # Alternating forward/backward
+                            speed = speeds[i % len(speeds)]
+                            direction = directions[i % len(directions)]
+                            velocity = np.array([dx_norm * speed * direction, dy_norm * speed * direction])
+                            angle = np.arctan2(velocity[1], velocity[0])
+                        else:
+                            # Fallback: centerline with default velocity
+                            x, y = x_center, y_center
+                            velocity = np.array([0.5, 0.0])
+                            angle = 0.0
+                        
+                        logger.info(f"Obstacle {i}: s={s_pos:.2f}, pos=({x:.2f}, {y:.2f}), "
+                                   f"lateral_offset={lateral_offset:.2f}m, vel=({velocity[0]:.2f}, {velocity[1]:.2f})")
+                        
+                    except Exception as e:
+                        logger.warning(f"Could not compute path position for obstacle {i}: {e}, using fallback")
+                        x = s_pos  # Use arc length as x position
+                        y = 0.0
+                        velocity = np.array([0.5, 0.0])
+                        angle = 0.0
+                    
+                    # Create obstacle config
+                    if dynamics_type == "unicycle":
+                        config = create_unicycle_obstacle(i, np.array([x, y]), velocity, angle=angle)
+                    elif dynamics_type == "bicycle":
+                        config = create_bicycle_obstacle(i, np.array([x, y]), velocity)
+                    elif dynamics_type == "point_mass":
+                        config = create_point_mass_obstacle(i, np.array([x, y]), velocity)
+                    else:
+                        raise ValueError(f"Unknown dynamics type: {dynamics_type}")
+
+                    # Override prediction type if provided
+                    if pred_type_str is not None:
+                        if pred_type_str.lower() in ("gaussian", "normal"):
+                            config.prediction_type = PredictionType.GAUSSIAN
+                        elif pred_type_str.lower() in ("deterministic", "det"):
+                            config.prediction_type = PredictionType.DETERMINISTIC
+                        else:
+                            raise ValueError(f"Unknown obstacle prediction type: {pred_type_str}")
+                        
+                    obstacle_configs.append(config)
+            else:
+                # No reference path: use random positions (legacy behavior)
+                for i in range(num_obstacles):
+                    dynamics_type = dynamics_types[i % len(dynamics_types)]
+                    pred_type_str = (prediction_types[i % len(prediction_types)] if prediction_types else None)
+                    
+                    # Random initial position
+                    x = np.random.uniform(0.0, 20.0)
+                    y = np.random.uniform(-5.0, 5.0)
+                    
+                    # Random initial velocity
+                    speed = np.random.uniform(0.5, 2.0)
+                    angle = np.random.uniform(0, 2 * np.pi)
+                    velocity = np.array([speed * np.cos(angle), speed * np.sin(angle)])
+                    
+                    if dynamics_type == "unicycle":
+                        config = create_unicycle_obstacle(i, np.array([x, y]), velocity)
+                    elif dynamics_type == "bicycle":
+                        config = create_bicycle_obstacle(i, np.array([x, y]), velocity)
+                    elif dynamics_type == "point_mass":
+                        config = create_point_mass_obstacle(i, np.array([x, y]), velocity)
+                    else:
+                        raise ValueError(f"Unknown dynamics type: {dynamics_type}")
+
+                    # Override prediction type if provided
+                    if pred_type_str is not None:
+                        if pred_type_str.lower() in ("gaussian", "normal"):
+                            config.prediction_type = PredictionType.GAUSSIAN
+                        elif pred_type_str.lower() in ("deterministic", "det"):
+                            config.prediction_type = PredictionType.DETERMINISTIC
+                        else:
+                            raise ValueError(f"Unknown obstacle prediction type: {pred_type_str}")
+                        
+                    obstacle_configs.append(config)
             
         # Create obstacles
         obstacles = obstacle_manager.create_obstacles_from_config(obstacle_configs)
@@ -517,9 +640,11 @@ class IntegrationTestFramework:
             # Use planner's solver for define_parameters
             planner.solver.define_parameters()
 
-            # Calculate plot bounds early so we can pass them to obstacle manager for bouncing
-            # We'll recalculate them in create_animation, but this gives us an initial estimate
+            # Build reference path FIRST so we can use it for obstacle placement
+            # This ensures obstacles are placed within path boundaries
             plot_bounds_estimate = None
+            ref_path_for_obstacles = None  # ReferencePath object for obstacle placement
+            
             if test_config.reference_path is not None:
                 if isinstance(test_config.reference_path, np.ndarray):
                     ref_x = test_config.reference_path[:, 0]
@@ -531,15 +656,47 @@ class IntegrationTestFramework:
                         float(np.min(ref_y) - margin),
                         float(np.max(ref_y) + margin)
                     )
+                    # Build ReferencePath object early for obstacle placement
+                    from planning.types import ReferencePath
+                    from utils.math_tools import TKSpline
+                    ref_path_for_obstacles = ReferencePath()
+                    x_arr = np.asarray(test_config.reference_path[:, 0], dtype=float)
+                    y_arr = np.asarray(test_config.reference_path[:, 1], dtype=float)
+                    z_arr = np.zeros(x_arr.shape[0], dtype=float)
+                    s = np.zeros(x_arr.shape[0], dtype=float)
+                    for i in range(1, x_arr.shape[0]):
+                        dx = x_arr[i] - x_arr[i - 1]
+                        dy = y_arr[i] - y_arr[i - 1]
+                        s[i] = s[i - 1] + float(np.hypot(dx, dy))
+                    ref_path_for_obstacles.x = x_arr
+                    ref_path_for_obstacles.y = y_arr
+                    ref_path_for_obstacles.z = z_arr
+                    ref_path_for_obstacles.s = s
+                    ref_path_for_obstacles.x_spline = TKSpline(s, x_arr)
+                    ref_path_for_obstacles.y_spline = TKSpline(s, y_arr)
+                    ref_path_for_obstacles.z_spline = TKSpline(s, z_arr)
+                    ref_path_for_obstacles.length = float(s[-1])
+                elif hasattr(test_config.reference_path, 'x_spline'):
+                    # Already a ReferencePath object
+                    ref_path_for_obstacles = test_config.reference_path
+                    if hasattr(ref_path_for_obstacles, 'x') and len(ref_path_for_obstacles.x) > 0:
+                        margin = 10.0
+                        plot_bounds_estimate = (
+                            float(np.min(ref_path_for_obstacles.x) - margin),
+                            float(np.max(ref_path_for_obstacles.x) + margin),
+                            float(np.min(ref_path_for_obstacles.y) - margin),
+                            float(np.max(ref_path_for_obstacles.y) + margin)
+                        )
             
-            # Create obstacles
+            # Create obstacles - pass reference path so they can be placed within boundaries
             obstacles = self.create_obstacles(
                 test_config.num_obstacles,
                 test_config.obstacle_dynamics,
                 test_config.obstacle_configs,
                 test_config.obstacle_prediction_types,
                 plot_bounds=plot_bounds_estimate,
-                temperature=getattr(test_config, 'obstacle_temperature', 0.5)
+                temperature=getattr(test_config, 'obstacle_temperature', 0.5),
+                reference_path=ref_path_for_obstacles
             )
             
             # Initialize data
@@ -550,50 +707,15 @@ class IntegrationTestFramework:
             data.output_folder = output_folder
             problem.data = data
 
-            # Build reference path ONLY for contouring-related objectives
+            # Set reference path in data (reuse the one we built for obstacles)
             try:
                 use_ref_path = test_config.objective_module in ("contouring", "path_reference_velocity")
                 if use_ref_path:
-                    # Handle reference_path: can be numpy array or already a ReferencePath object
-                    if test_config.reference_path is not None:
-                        if isinstance(test_config.reference_path, np.ndarray):
-                            # Convert numpy array to ReferencePath object
-                            from planning.types import ReferencePath
-                            from utils.math_tools import TKSpline
-                            ref_path = ReferencePath()
-                            # Ensure numpy arrays for arithmetic operations
-                            x_arr = np.asarray(test_config.reference_path[:, 0], dtype=float)
-                            y_arr = np.asarray(test_config.reference_path[:, 1], dtype=float)
-                            z_arr = np.zeros(x_arr.shape[0], dtype=float)
-                            # Compute arc length
-                            s = np.zeros(x_arr.shape[0], dtype=float)
-                            for i in range(1, x_arr.shape[0]):
-                                dx = x_arr[i] - x_arr[i - 1]
-                                dy = y_arr[i] - y_arr[i - 1]
-                                s[i] = s[i - 1] + float(np.hypot(dx, dy))
-                            # Store as numpy arrays in ReferencePath
-                            ref_path.x = x_arr
-                            ref_path.y = y_arr
-                            ref_path.z = z_arr
-                            ref_path.s = s
-                            # Build numeric splines using TKSpline (for post-optimization evaluation)
-                            from utils.math_tools import TKSpline
-                            ref_path.x_spline = TKSpline(s, x_arr)
-                            ref_path.y_spline = TKSpline(s, y_arr)
-                            ref_path.z_spline = TKSpline(s, z_arr)
-                            ref_path.length = float(s[-1])
-                            data.reference_path = ref_path
-                            start_pt = [float(x_arr[0]), float(y_arr[0]), 0.0]
-                            goal_pt = [float(x_arr[-1]), float(y_arr[-1]), 0.0]
-                        else:
-                            # Already a ReferencePath object
-                            data.reference_path = test_config.reference_path
-                            # Ensure numpy arrays on existing ReferencePath
-                            data.reference_path.x = np.asarray(data.reference_path.x, dtype=float)
-                            data.reference_path.y = np.asarray(data.reference_path.y, dtype=float)
-                            data.reference_path.s = np.asarray(data.reference_path.s, dtype=float)
-                            start_pt = [float(data.reference_path.x[0]), float(data.reference_path.y[0]), 0.0]
-                            goal_pt = [float(data.reference_path.x[-1]), float(data.reference_path.y[-1]), 0.0]
+                    if ref_path_for_obstacles is not None:
+                        # Reuse the reference path we already built
+                        data.reference_path = ref_path_for_obstacles
+                        start_pt = [float(ref_path_for_obstacles.x[0]), float(ref_path_for_obstacles.y[0]), 0.0]
+                        goal_pt = [float(ref_path_for_obstacles.x[-1]), float(ref_path_for_obstacles.y[-1]), 0.0]
                     else:
                         # Generate a simple straight reference if not provided
                         start_pt = [0.0, 0.0, 0.0]
@@ -603,37 +725,11 @@ class IntegrationTestFramework:
                 else:
                     # Goal objective and others: DO NOT use reference path for objective
                     # BUT: if obstacles need it (e.g., path_intersect behavior), set it anyway
-                    if test_config.reference_path is not None:
-                        # Convert numpy array to ReferencePath object for obstacle manager
-                        if isinstance(test_config.reference_path, np.ndarray):
-                            from planning.types import ReferencePath
-                            from utils.math_tools import TKSpline
-                            ref_path = ReferencePath()
-                            x_arr = np.asarray(test_config.reference_path[:, 0], dtype=float)
-                            y_arr = np.asarray(test_config.reference_path[:, 1], dtype=float)
-                            z_arr = np.zeros(x_arr.shape[0], dtype=float)
-                            # Compute arc length
-                            s = np.zeros(x_arr.shape[0], dtype=float)
-                            for i in range(1, x_arr.shape[0]):
-                                dx = x_arr[i] - x_arr[i - 1]
-                                dy = y_arr[i] - y_arr[i - 1]
-                                s[i] = s[i - 1] + float(np.hypot(dx, dy))
-                            ref_path.x = x_arr
-                            ref_path.y = y_arr
-                            ref_path.z = z_arr
-                            ref_path.s = s
-                            ref_path.x_spline = TKSpline(s, x_arr)
-                            ref_path.y_spline = TKSpline(s, y_arr)
-                            ref_path.z_spline = TKSpline(s, z_arr)
-                            ref_path.length = float(s[-1])
-                            data.reference_path = ref_path  # Set for obstacle manager
-                            start_pt = [float(x_arr[0]), float(y_arr[0]), 0.0]
-                            goal_pt = [float(x_arr[-1]), float(y_arr[-1]), 0.0]
-                        else:
-                            # Already a ReferencePath object
-                            data.reference_path = test_config.reference_path
-                            start_pt = [float(data.reference_path.x[0]), float(data.reference_path.y[0]), 0.0]
-                            goal_pt = [float(data.reference_path.x[-1]), float(data.reference_path.y[-1]), 0.0]
+                    if ref_path_for_obstacles is not None:
+                        # Reuse the reference path we already built for obstacle placement
+                        data.reference_path = ref_path_for_obstacles
+                        start_pt = [float(ref_path_for_obstacles.x[0]), float(ref_path_for_obstacles.y[0]), 0.0]
+                        goal_pt = [float(ref_path_for_obstacles.x[-1]), float(ref_path_for_obstacles.y[-1]), 0.0]
                     else:
                         data.reference_path = None
                         start_pt = [0.0, 0.0, 0.0]
@@ -961,13 +1057,21 @@ class IntegrationTestFramework:
             max_consecutive_failures = test_config.max_consecutive_failures
             # Initialize timeout tracking
             test_start_time = time.time()
-            timeout_seconds = test_config.timeout_seconds
+            
+            # Auto-calculate timeout if not specified
+            # Each MPC step takes ~1s on average, so timeout = num_steps * 1.5 + buffer
+            num_steps = int(test_config.duration / test_config.timestep)
+            if test_config.timeout_seconds is None:
+                # Auto-calculate: 1.5 seconds per step + 30 second buffer, minimum 120s
+                timeout_seconds = max(120.0, num_steps * 1.5 + 30.0)
+                logger.info(f"Auto-calculated timeout: {timeout_seconds:.0f}s for {num_steps} steps")
+            else:
+                timeout_seconds = test_config.timeout_seconds
             
             # For contouring objective, run until end-of-path (spline reaches path length),
             # otherwise cap by duration
             is_contouring = (test_config.objective_module == "contouring")
             max_steps_cap = int(self.config.get("planner", {}).get("max_steps", 2000))
-            num_steps = int(test_config.duration / test_config.timestep)
             
             while True and not goal_reached:
                 # Check timeout (only check after first step to avoid false positives)

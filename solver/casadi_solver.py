@@ -549,6 +549,15 @@ class CasADiSolver(BaseSolver):
 			except Exception:
 				spline_profile = np.clip(spline_profile, s_min, s_max)
 			
+			# CRITICAL FIX: Clamp spline to path_length to prevent infeasible dynamics at path end
+			# When approaching path end, forecasted spline can exceed path_length, causing
+			# dynamics constraints (spline_next - spline_current) to become infeasible
+			path_length = s_max  # s_max is the path length
+			if path_length is not None and path_length > 0:
+				spline_profile = np.clip(spline_profile, 0.0, path_length)
+				self._path_length = path_length  # Store for use in _shift_warmstart_forward
+				LOG_DEBUG(f"  Clamped spline warmstart to path_length={path_length:.2f}")
+			
 			self.warmstart_values['x'] = x_pos
 			self.warmstart_values['y'] = y_pos
 			self.warmstart_values['v'] = v_profile
@@ -748,6 +757,7 @@ class CasADiSolver(BaseSolver):
 		warmstart for step k+1, shifted forward by one timestep.
 		
 		CRITICAL: For spline variable, ensure monotonic increase (vehicle should progress along path).
+		CRITICAL FIX: Clamp spline values to path_length to prevent infeasible dynamics when approaching path end.
 		"""
 		dynamics_model = self._get_dynamics_model()
 		if dynamics_model is None:
@@ -756,6 +766,16 @@ class CasADiSolver(BaseSolver):
 		LOG_DEBUG("Shifting warmstart forward by one step")
 		horizon_val = self.horizon if self.horizon is not None else 10
 		timestep_val = self.timestep if self.timestep is not None else 0.1
+		
+		# Get path_length for spline clamping (prevents infeasibility at path end)
+		path_length = getattr(self, '_path_length', None)
+		if path_length is None and hasattr(self, 'data') and self.data is not None:
+			if hasattr(self.data, 'reference_path') and self.data.reference_path is not None:
+				ref_path = self.data.reference_path
+				if hasattr(ref_path, 'length'):
+					path_length = float(ref_path.length)
+				elif hasattr(ref_path, 's') and len(ref_path.s) > 0:
+					path_length = float(ref_path.s[-1])
 		
 		for var_name in dynamics_model.get_all_vars():
 			if var_name in self.warmstart_values:
@@ -778,7 +798,19 @@ class CasADiSolver(BaseSolver):
 							# Fallback: repeat last value
 							self.warmstart_values[var_name][-1] = old_spline[-1]
 						
-						# Verify monotonicity
+						# CRITICAL FIX: Clamp spline values to path_length to prevent infeasible dynamics
+						# When vehicle approaches path end, extrapolated spline can exceed path_length,
+						# causing dynamics constraints to become infeasible (spline_next - spline_current mismatch)
+						if path_length is not None and path_length > 0:
+							clamped = False
+							for k in range(len(self.warmstart_values[var_name])):
+								if self.warmstart_values[var_name][k] > path_length:
+									self.warmstart_values[var_name][k] = path_length
+									clamped = True
+							if clamped:
+								LOG_DEBUG(f"  Clamped spline warmstart to path_length={path_length:.2f}")
+						
+						# Verify monotonicity (allow equal values at path end)
 						spline_diff = np.diff(self.warmstart_values[var_name])
 						if np.any(spline_diff < -1e-6):  # Allow small numerical errors
 							LOG_WARN(f"  WARNING: Spline warmstart is not monotonic after shifting! Diffs: {spline_diff}")
