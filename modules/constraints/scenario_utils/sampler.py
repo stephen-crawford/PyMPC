@@ -635,7 +635,8 @@ class AdaptiveModeSampler(ScenarioSampler):
         self,
         obstacle_id: int,
         observed_mode: str,
-        available_modes: Optional[List[str]] = None
+        available_modes: Optional[List[str]] = None,
+        initial_mode: Optional[str] = None
     ) -> None:
         """
         Update mode history with a new observation.
@@ -646,8 +647,11 @@ class AdaptiveModeSampler(ScenarioSampler):
             obstacle_id: Obstacle identifier
             observed_mode: The mode observed for this obstacle
             available_modes: List of available modes for this obstacle (optional)
+            initial_mode: The initial mode from configuration (recorded on first call)
         """
-        if obstacle_id not in self.mode_histories:
+        is_new_history = obstacle_id not in self.mode_histories
+
+        if is_new_history:
             # Initialize mode history for new obstacle
             if available_modes:
                 modes = {m: self.mode_models[m] for m in available_modes if m in self.mode_models}
@@ -657,12 +661,18 @@ class AdaptiveModeSampler(ScenarioSampler):
                 obstacle_id=obstacle_id,
                 available_modes=modes
             )
+            LOG_INFO(f"Created mode history for obstacle {obstacle_id} with modes: {list(modes.keys())}")
+
+            # Record initial mode first if provided and different from observed
+            if initial_mode and initial_mode in self.mode_models and initial_mode != observed_mode:
+                self.mode_histories[obstacle_id].record_observation(0, initial_mode)
+                LOG_INFO(f"Recorded INITIAL mode for obstacle {obstacle_id}: {initial_mode}")
 
         self.mode_histories[obstacle_id].record_observation(
             self.current_timestep, observed_mode
         )
-        LOG_DEBUG(f"Recorded mode observation: obstacle {obstacle_id}, mode={observed_mode}, "
-                 f"timestep={self.current_timestep}")
+        LOG_INFO(f"Recorded mode observation: obstacle {obstacle_id}, mode={observed_mode}, "
+                 f"timestep={self.current_timestep}, history_size={len(self.mode_histories[obstacle_id].observed_modes)}")
 
     def advance_timestep(self) -> None:
         """Advance the current timestep."""
@@ -737,13 +747,19 @@ class AdaptiveModeSampler(ScenarioSampler):
         )
 
         # If obstacle has initial mode, record it
-        initial_mode = getattr(obstacle, 'initial_mode', None) or getattr(obstacle, 'current_mode', None)
-        if initial_mode and initial_mode in self.mode_models:
+        # IMPORTANT: Use initial_mode (static config) over current_mode (dynamic detection)
+        initial_mode = getattr(obstacle, 'initial_mode', None)
+        current_mode = getattr(obstacle, 'current_mode', None)
+        mode_to_record = initial_mode or current_mode
+
+        LOG_INFO(f"Initializing mode history for obstacle {obstacle_idx}: "
+                f"initial_mode={initial_mode}, current_mode={current_mode}, "
+                f"recording={mode_to_record}")
+
+        if mode_to_record and mode_to_record in self.mode_models:
             self.mode_histories[obstacle_idx].record_observation(
-                self.current_timestep, initial_mode
+                self.current_timestep, mode_to_record
             )
-            LOG_DEBUG(f"Initialized mode history for obstacle {obstacle_idx} "
-                     f"with initial mode: {initial_mode}")
 
     def _sample_adaptive_scenarios(
         self,
@@ -775,7 +791,11 @@ class AdaptiveModeSampler(ScenarioSampler):
             LOG_WARN(f"No mode weights computed for obstacle {obstacle_idx}")
             return scenarios
 
-        LOG_DEBUG(f"Mode weights for obstacle {obstacle_idx}: {mode_weights}")
+        # Log mode weights at INFO level to verify adaptive sampling is working
+        LOG_INFO(f"Obstacle {obstacle_idx} mode weights: {mode_weights}")
+
+        # Count sampled modes for verification
+        mode_counts = {}
 
         # Get initial state from obstacle
         initial_state = self._get_obstacle_state(obstacle)
@@ -787,6 +807,12 @@ class AdaptiveModeSampler(ScenarioSampler):
                 initial_state, mode_weights, horizon_length
             )
             scenarios.append(scenario)
+            # Count modes for verification
+            if hasattr(scenario, 'mode_id'):
+                mode_counts[scenario.mode_id] = mode_counts.get(scenario.mode_id, 0) + 1
+
+        # Log mode distribution in sampled scenarios
+        LOG_INFO(f"Obstacle {obstacle_idx} sampled mode distribution: {mode_counts}")
 
         return scenarios
 

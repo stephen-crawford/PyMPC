@@ -940,14 +940,68 @@ class SafeHorizonConstraint(BaseConstraint):
 				for key in scenario_trajectories:
 					scenario_trajectories[key].sort(key=lambda x: x[0])
 				
-				# Limit trajectories to show (sample evenly)
+				# Limit trajectories to show - ensure diversity by sampling from each obstacle
+				# Group scenarios by obstacle and mode for better diversity
 				trajectory_keys = list(scenario_trajectories.keys())
-				if len(trajectory_keys) > max_trajectories_to_show:
-					# Sample evenly across all trajectories
-					step = len(trajectory_keys) // max_trajectories_to_show
-					trajectory_keys = trajectory_keys[::step][:max_trajectories_to_show]
-				
-				LOG_INFO(f"SafeHorizonConstraintsVisualizer: Grouped into {len(scenario_trajectories)} trajectory groups, showing {len(trajectory_keys)}")
+
+				# Get mode info for each scenario to enable mode-diverse sampling
+				mode_info = {}  # key -> mode_id
+				if hasattr(self.module, 'scenario_module') and self.module.scenario_module is not None:
+					for scenario in self.module.scenario_module.scenarios:
+						if hasattr(scenario, 'obstacle_idx_') and hasattr(scenario, 'idx_'):
+							key = (scenario.obstacle_idx_, scenario.idx_)
+							if hasattr(scenario, 'mode_id'):
+								mode_info[key] = scenario.mode_id
+
+				# Group keys by obstacle, then by mode
+				keys_by_obstacle_mode = {}  # (obstacle_idx, mode_id) -> [keys]
+				keys_by_obstacle = {}
+				for key in trajectory_keys:
+					obstacle_idx = key[0]
+					mode_id = mode_info.get(key, 'unknown')
+
+					if obstacle_idx not in keys_by_obstacle:
+						keys_by_obstacle[obstacle_idx] = []
+					keys_by_obstacle[obstacle_idx].append(key)
+
+					obs_mode_key = (obstacle_idx, mode_id)
+					if obs_mode_key not in keys_by_obstacle_mode:
+						keys_by_obstacle_mode[obs_mode_key] = []
+					keys_by_obstacle_mode[obs_mode_key].append(key)
+
+				# Sample diverse trajectories: pick from different modes for each obstacle
+				selected_keys = []
+				num_obstacles = len(keys_by_obstacle)
+				per_obstacle = max(1, max_trajectories_to_show // max(1, num_obstacles))
+
+				for obstacle_idx in sorted(keys_by_obstacle.keys()):
+					# Get modes for this obstacle
+					obstacle_modes = {}
+					for (obs_idx, mode_id), keys in keys_by_obstacle_mode.items():
+						if obs_idx == obstacle_idx:
+							obstacle_modes[mode_id] = keys
+
+					# Sample from each mode proportionally
+					if len(obstacle_modes) > 0:
+						per_mode = max(1, per_obstacle // len(obstacle_modes))
+						for mode_id, keys in obstacle_modes.items():
+							if len(keys) <= per_mode:
+								selected_keys.extend(keys)
+							else:
+								# Sample spread across the range
+								step = max(1, len(keys) // per_mode)
+								sampled = keys[::step][:per_mode]
+								selected_keys.extend(sampled)
+
+				trajectory_keys = selected_keys[:max_trajectories_to_show]
+
+				# Log mode diversity in shown trajectories
+				shown_modes = {}
+				for key in trajectory_keys:
+					mode = mode_info.get(key, 'unknown')
+					shown_modes[mode] = shown_modes.get(mode, 0) + 1
+
+				LOG_INFO(f"SafeHorizonConstraintsVisualizer: Showing {len(trajectory_keys)} trajectories with mode diversity: {shown_modes}")
 				
 				# Draw hypothetical trajectories (scenarios) - lighter, semi-transparent
 				# Use different colors for different obstacles

@@ -222,12 +222,14 @@ class SafeHorizonModule:
             # Check if obstacle has a current mode
             current_mode = getattr(obstacle, 'current_mode', None)
             if current_mode:
-                # Get available modes for this obstacle
+                # Get available modes and initial mode for this obstacle
                 available_modes = getattr(obstacle, 'available_modes', None)
+                initial_mode = getattr(obstacle, 'initial_mode', None)
                 self.sampler.update_mode_observation(
                     obstacle_id=idx,
                     observed_mode=current_mode,
-                    available_modes=available_modes
+                    available_modes=available_modes,
+                    initial_mode=initial_mode
                 )
                 LOG_DEBUG(f"Updated mode observation for obstacle {idx}: mode={current_mode}")
 

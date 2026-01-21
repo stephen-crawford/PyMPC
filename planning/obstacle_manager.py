@@ -108,7 +108,19 @@ class ObstacleManager:
         # Store uncertainty_params on obstacle for propagate_obstacles to use
         if hasattr(obstacle_config, 'uncertainty_params') and obstacle_config.uncertainty_params:
             obstacle.uncertainty_params = obstacle_config.uncertainty_params
-        
+
+        # Transfer mode attributes for adaptive mode sampling
+        if hasattr(obstacle_config, 'available_modes'):
+            obstacle.available_modes = obstacle_config.available_modes
+        if hasattr(obstacle_config, 'initial_mode'):
+            obstacle.initial_mode = obstacle_config.initial_mode
+        if hasattr(obstacle_config, 'current_mode'):
+            obstacle.current_mode = obstacle_config.current_mode
+        if hasattr(obstacle_config, 'mode_switch_probability'):
+            obstacle.mode_switch_probability = obstacle_config.mode_switch_probability
+        if hasattr(obstacle_config, 'mode_name'):
+            obstacle.mode_name = obstacle_config.mode_name
+
         # Initialize heading change tracking for this obstacle
         # Temperature affects period: higher temperature = shorter period (more frequent changes)
         # Period range: [5, 15] at temp=0.0, [2, 8] at temp=1.0
@@ -1164,12 +1176,130 @@ class ObstacleManager:
                 
                 # Store new state
                 self.obstacle_states[i].append(next_state.copy())
-                
+
                 # Update obstacle position
                 obstacle.position = next_state[:2]
                 if len(next_state) > 2:
                     obstacle.angle = next_state[2]
-                    
+
+                # Detect and update current mode based on observed behavior
+                # This enables adaptive mode sampling to track mode changes
+                if hasattr(obstacle, 'available_modes') and obstacle.available_modes:
+                    detected_mode = self._detect_obstacle_mode(i, obstacle, dynamics_model)
+                    current_mode = getattr(obstacle, 'current_mode', None)
+                    # Log mode detection periodically (every 10 steps)
+                    if len(self.obstacle_states[i]) % 10 == 0:
+                        self.logger.info(f"Obstacle {i} mode detection: detected={detected_mode}, current={current_mode}")
+                    if detected_mode and detected_mode != current_mode:
+                        obstacle.current_mode = detected_mode
+                        self.logger.info(f"Obstacle {i} mode changed: {current_mode} -> {detected_mode}")
+
+    def _detect_obstacle_mode(self, obstacle_idx: int, obstacle: DynamicObstacle,
+                              dynamics_model: DynamicsModel) -> Optional[str]:
+        """
+        Detect the current mode of an obstacle based on its recent state history.
+
+        Modes are detected by analyzing:
+        - Acceleration (speed change): constant_velocity, accelerating, decelerating
+        - Angular velocity (heading change): turn_left, turn_right
+        - Lateral drift: lane_change_left, lane_change_right
+
+        Args:
+            obstacle_idx: Index of the obstacle
+            obstacle: The obstacle object
+            dynamics_model: The dynamics model for this obstacle
+
+        Returns:
+            Detected mode string or None if detection fails
+        """
+        states = self.obstacle_states[obstacle_idx]
+        if len(states) < 3:
+            # Not enough history to detect mode
+            return getattr(obstacle, 'current_mode', None)
+
+        # Get recent states for analysis
+        recent_states = states[-5:] if len(states) >= 5 else states
+
+        # Extract velocities and headings
+        if dynamics_model.__class__.__name__ == "PointMassModel":
+            # State is [x, y, vx, vy]
+            velocities = [np.array([s[2], s[3]]) for s in recent_states if len(s) >= 4]
+            speeds = [np.linalg.norm(v) for v in velocities]
+            # Compute heading from velocity
+            headings = [np.arctan2(v[1], v[0]) for v in velocities if np.linalg.norm(v) > 0.01]
+        else:
+            # Unicycle/bicycle: state is [x, y, psi, v, ...]
+            speeds = [s[3] if len(s) > 3 else 0.0 for s in recent_states]
+            headings = [s[2] if len(s) > 2 else 0.0 for s in recent_states]
+
+        if len(speeds) < 2 or len(headings) < 2:
+            return getattr(obstacle, 'current_mode', None)
+
+        # Compute acceleration (speed change rate)
+        speed_changes = [speeds[i+1] - speeds[i] for i in range(len(speeds)-1)]
+        avg_acceleration = np.mean(speed_changes) if speed_changes else 0.0
+
+        # Compute angular velocity (heading change rate)
+        def angle_diff(a1, a2):
+            """Compute smallest angle difference."""
+            diff = a2 - a1
+            while diff > np.pi:
+                diff -= 2 * np.pi
+            while diff < -np.pi:
+                diff += 2 * np.pi
+            return diff
+
+        heading_changes = [angle_diff(headings[i], headings[i+1]) for i in range(len(headings)-1)]
+        avg_angular_velocity = np.mean(heading_changes) if heading_changes else 0.0
+
+        # Compute lateral drift (perpendicular to heading)
+        positions = [s[:2] for s in recent_states]
+        if len(positions) >= 2 and len(headings) >= 1:
+            avg_heading = np.mean(headings)
+            # Normal vector to heading (perpendicular)
+            normal = np.array([-np.sin(avg_heading), np.cos(avg_heading)])
+            # Project position change onto normal
+            pos_change = positions[-1] - positions[0]
+            lateral_drift = np.dot(pos_change, normal)
+        else:
+            lateral_drift = 0.0
+
+        # Mode detection thresholds
+        accel_threshold = 0.05  # m/s per timestep
+        angular_threshold = 0.05  # rad per timestep
+        lateral_threshold = 0.1  # m total drift
+
+        available_modes = obstacle.available_modes if hasattr(obstacle, 'available_modes') else []
+
+        # Priority-based mode detection
+        # 1. Check for lane change (lateral drift dominates)
+        if abs(lateral_drift) > lateral_threshold:
+            if lateral_drift > 0 and "lane_change_left" in available_modes:
+                return "lane_change_left"
+            elif lateral_drift < 0 and "lane_change_right" in available_modes:
+                return "lane_change_right"
+
+        # 2. Check for turning (angular velocity dominates)
+        if abs(avg_angular_velocity) > angular_threshold:
+            if avg_angular_velocity > 0 and "turn_left" in available_modes:
+                return "turn_left"
+            elif avg_angular_velocity < 0 and "turn_right" in available_modes:
+                return "turn_right"
+
+        # 3. Check for acceleration/deceleration
+        if abs(avg_acceleration) > accel_threshold:
+            if avg_acceleration > 0 and "accelerating" in available_modes:
+                return "accelerating"
+            elif avg_acceleration < 0 and "decelerating" in available_modes:
+                return "decelerating"
+
+        # 4. Default to constant velocity if available
+        if "constant_velocity" in available_modes:
+            return "constant_velocity"
+
+        # Fallback to current mode
+        return getattr(obstacle, 'current_mode', None)
+
     def get_obstacle_states(self, obstacle_id: int) -> List[np.ndarray]:
         """Get state history for specific obstacle."""
         if 0 <= obstacle_id < len(self.obstacle_states):
