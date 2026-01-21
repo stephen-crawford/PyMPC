@@ -269,7 +269,7 @@ class IntegrationTestFramework:
             
             if constraint_type == "safe_horizon":
                 from modules.constraints.safe_horizon_constraint import SafeHorizonConstraint
-                module = SafeHorizonConstraint()
+                module = SafeHorizonConstraint(settings=self.config)
                 # Enable diagnostics if requested in test config
                 # Note: test_config is not available here, so we'll enable it later in run_test
             elif constraint_type == "contouring":

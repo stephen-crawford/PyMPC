@@ -30,8 +30,8 @@ class SafeHorizonConstraint(BaseConstraint):
 	Reference: "Safe Horizon MPC" by de Groot et al.
 	"""
 	
-	def __init__(self):
-		super().__init__()
+	def __init__(self, settings=None):
+		super().__init__(settings=settings)
 		self.name = "safe_horizon_constraint"
 		
 		# Configuration parameters
@@ -81,7 +81,18 @@ class SafeHorizonConstraint(BaseConstraint):
 		self.beta = float(self.get_config_value("safe_horizon_constraints.beta", 0.01))
 		self.n_bar = int(self.get_config_value("safe_horizon_constraints.n_bar", 10))
 		self.num_removal = int(self.get_config_value("safe_horizon_constraints.num_removal", 1))
-	
+
+		# Adaptive mode sampling configuration (following guide.md)
+		# When enabled, scenarios are sampled based on observed mode history
+		self.enable_adaptive_mode_sampling = bool(self.get_config_value(
+			"safe_horizon_constraints.enable_adaptive_mode_sampling", False))
+		self.mode_weight_type = str(self.get_config_value(
+			"safe_horizon_constraints.mode_weight_type", "frequency"))  # uniform, recency, frequency
+		self.mode_recency_decay = float(self.get_config_value(
+			"safe_horizon_constraints.mode_recency_decay", 0.9))
+		self.mode_prior_type = str(self.get_config_value(
+			"safe_horizon_constraints.mode_prior_type", "constant"))  # constant (C1) or switching (C2)
+
 		# Compute required sample size using paper formula
 		from modules.constraints.scenario_utils.math_utils import compute_sample_size
 		self.num_scenarios = compute_sample_size(
@@ -90,9 +101,13 @@ class SafeHorizonConstraint(BaseConstraint):
 			n_bar=self.n_bar,
 			num_removal=self.num_removal
     	)
-   
+
 		LOG_INFO(f"SafeHorizonConstraint: Computed sample size S={self.num_scenarios} "
 				f"(ε={self.epsilon_p}, β={self.beta}, n_bar={self.n_bar}, R={self.num_removal})")
+
+		if self.enable_adaptive_mode_sampling:
+			LOG_INFO(f"SafeHorizonConstraint: Adaptive mode sampling ENABLED "
+					f"(weight_type={self.mode_weight_type}, prior_type={self.mode_prior_type})")
 
 		LOG_INFO(f"SafeHorizonConstraint initialized: num_discs={self.num_discs}, "
 		        f"epsilon_p={self.epsilon_p}, beta={self.beta}, n_bar={self.n_bar}, "
@@ -130,9 +145,15 @@ class SafeHorizonConstraint(BaseConstraint):
 					"num_discs": self.num_discs,
 					"num_scenarios": self.num_scenarios,
 					"num_removal": self.num_removal,
-					"enable_outlier_removal": True
+					"enable_outlier_removal": True,
+					"timestep": self.timestep,
+					# Adaptive mode sampling configuration (following guide.md)
+					"enable_adaptive_mode_sampling": self.enable_adaptive_mode_sampling,
+					"mode_weight_type": self.mode_weight_type,
+					"mode_recency_decay": self.mode_recency_decay,
+					"mode_prior_type": self.mode_prior_type
 				}
-				
+
 				self.scenario_module = SafeHorizonModule(self.solver, config)
 				
 				# CRITICAL VALIDATION: Check if max_constraints_per_disc is sufficient for the number of obstacles

@@ -1,14 +1,21 @@
 """
 Main scenario module for safe horizon constraints.
+
+Supports adaptive mode-based sampling following guide.md:
+- Mode history tracking for behavioral adaptation
+- Mode weight computation (uniform, recency, frequency)
+- Mode-dependent dynamics for trajectory prediction
 """
 import numpy as np
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from planning.types import Data, Scenario, ScenarioStatus, ScenarioSolveStatus, SupportSubsample
 from modules.constraints.scenario_utils.math_utils import (
     Polytope, ScenarioConstraint, compute_sample_size, linearize_collision_constraint,
     construct_free_space_polytope, validate_polytope_feasibility
 )
-from modules.constraints.scenario_utils.sampler import ScenarioSampler, MonteCarloValidator
+from modules.constraints.scenario_utils.sampler import (
+    ScenarioSampler, MonteCarloValidator, AdaptiveModeSampler, WeightType
+)
 from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO
 
 
@@ -88,17 +95,24 @@ class DiscManager:
 
 
 class SafeHorizonModule:
-    """Main module for safe horizon scenario-based constraints."""
-    
+    """
+    Main module for safe horizon scenario-based constraints.
+
+    Supports adaptive mode-based sampling following guide.md:
+    - Mode history tracking for behavioral adaptation
+    - Mode weight computation (uniform, recency, frequency)
+    - Mode-dependent dynamics for trajectory prediction
+    """
+
     def __init__(self, solver, config: Dict):
         self.solver = solver
         self.config = config
-        
+
         # Parameters
         self.epsilon_p = config.get("epsilon_p", 0.1)  # Constraint violation probability
         self.beta = config.get("beta", 0.01)  # Confidence level
         self.n_bar = config.get("n_bar", 10)  # Support dimension
-        
+
         # Get halfspace offset from config (matching linearized_constraints.py)
         self.halfspace_offset = float(config.get("linearized_constraints", {}).get("halfspace_offset", 0.0))
         if self.halfspace_offset is None:
@@ -111,12 +125,35 @@ class SafeHorizonModule:
         self.max_constraints_per_disc = config.get("max_constraints_per_disc", 5)  # Increased to cover all obstacles
         self.num_discs = config.get("num_discs", 1)
         self.num_scenarios = config.get("num_scenarios", 100)  # Number of scenarios to sample (for diagnostics)
-        
-        # Components
-        self.sampler = ScenarioSampler(
-            num_scenarios=self.num_scenarios,
-            enable_outlier_removal=config.get("enable_outlier_removal", True)
-        )
+
+        # Adaptive mode sampling configuration (following guide.md)
+        self.enable_adaptive_mode_sampling = config.get("enable_adaptive_mode_sampling", False)
+        self.mode_weight_type = config.get("mode_weight_type", "frequency")  # uniform, recency, frequency
+        self.mode_recency_decay = config.get("mode_recency_decay", 0.9)
+        self.mode_prior_type = config.get("mode_prior_type", "constant")  # constant (C1) or switching (C2)
+
+        # Components - choose sampler based on configuration
+        if self.enable_adaptive_mode_sampling:
+            # Use adaptive mode-based sampler
+            weight_type = WeightType(self.mode_weight_type)
+            self.sampler = AdaptiveModeSampler(
+                num_scenarios=self.num_scenarios,
+                enable_outlier_removal=config.get("enable_outlier_removal", True),
+                weight_type=weight_type,
+                recency_decay=self.mode_recency_decay,
+                dt=config.get("timestep", 0.1),
+                prior_type=self.mode_prior_type
+            )
+            LOG_INFO(f"SafeHorizonModule: Using AdaptiveModeSampler with "
+                    f"weight_type={self.mode_weight_type}, prior_type={self.mode_prior_type}")
+        else:
+            # Use standard Gaussian sampler
+            self.sampler = ScenarioSampler(
+                num_scenarios=self.num_scenarios,
+                enable_outlier_removal=config.get("enable_outlier_removal", True)
+            )
+            LOG_DEBUG("SafeHorizonModule: Using standard ScenarioSampler")
+
         self.validator = MonteCarloValidator()
         
         # State
@@ -134,10 +171,15 @@ class SafeHorizonModule:
         LOG_DEBUG("SafeHorizonModule initialized")
     
     def update(self, data: Data):
-        """Update module with new data.
-        
+        """
+        Update module with new data.
+
         Reference: scenario_module - samples scenarios from obstacle predictions.
         This is called before optimize() to populate scenarios.
+
+        For adaptive mode sampling, this also:
+        1. Updates mode observations from obstacle data
+        2. Advances the timestep counter
         """
         try:
             # Check if we have dynamic obstacles
@@ -145,19 +187,77 @@ class SafeHorizonModule:
                 LOG_WARN("No dynamic obstacles in data")
                 self.scenarios = []
                 return
-            
+
+            # Update mode observations for adaptive mode sampling
+            if self.enable_adaptive_mode_sampling and isinstance(self.sampler, AdaptiveModeSampler):
+                self._update_mode_observations(data.dynamic_obstacles)
+                self.sampler.advance_timestep()
+
             # Sample scenarios from obstacle predictions
             # Reference: scenario_module - samples full trajectories for each scenario
             self.scenarios = self.sampler.sample_scenarios(
-                data.dynamic_obstacles, self.horizon_length, 
+                data.dynamic_obstacles, self.horizon_length,
                 getattr(self.solver, 'timestep', 0.1)
             )
-            
+
             LOG_DEBUG(f"Updated with {len(self.scenarios)} scenarios")
-            
+
         except Exception as e:
             LOG_WARN(f"Error updating SafeHorizonModule: {e}")
             return
+
+    def _update_mode_observations(self, obstacles: List) -> None:
+        """
+        Update mode observations from obstacle data for adaptive sampling.
+
+        Reference: guide.md Eq. 7 - H_t^C = H_{t-1}^C ∪ {m_t^v}
+
+        Args:
+            obstacles: List of dynamic obstacles
+        """
+        if not isinstance(self.sampler, AdaptiveModeSampler):
+            return
+
+        for idx, obstacle in enumerate(obstacles):
+            # Check if obstacle has a current mode
+            current_mode = getattr(obstacle, 'current_mode', None)
+            if current_mode:
+                # Get available modes for this obstacle
+                available_modes = getattr(obstacle, 'available_modes', None)
+                self.sampler.update_mode_observation(
+                    obstacle_id=idx,
+                    observed_mode=current_mode,
+                    available_modes=available_modes
+                )
+                LOG_DEBUG(f"Updated mode observation for obstacle {idx}: mode={current_mode}")
+
+    def get_mode_weights(self, obstacle_idx: int) -> Optional[Dict[str, float]]:
+        """
+        Get current mode weights for an obstacle.
+
+        Args:
+            obstacle_idx: Obstacle index
+
+        Returns:
+            Dictionary mapping mode_id to weight, or None if not using adaptive sampling
+        """
+        if isinstance(self.sampler, AdaptiveModeSampler):
+            return self.sampler.get_mode_weights_for_obstacle(obstacle_idx)
+        return None
+
+    def get_observed_modes(self, obstacle_idx: int) -> Optional[set]:
+        """
+        Get observed modes for an obstacle.
+
+        Args:
+            obstacle_idx: Obstacle index
+
+        Returns:
+            Set of observed mode IDs, or None if not using adaptive sampling
+        """
+        if isinstance(self.sampler, AdaptiveModeSampler):
+            return self.sampler.get_observed_modes(obstacle_idx)
+        return None
     
     def optimize(self, data: Data) -> int:
         """
