@@ -91,7 +91,9 @@ class CasADiSolver(BaseSolver):
 		# States are computed via RK4 integration (or model_discrete_dynamics for algebraic states like spline).
 		for var_name in dependent_vars:
 			self.var_dict[var_name] = self.opti.variable(horizon + 1)
-			self.warmstart_values[var_name] = np.zeros(horizon + 1)
+			# Only initialize warmstart to zeros if not already populated with correct shape
+			if var_name not in self.warmstart_values or not isinstance(self.warmstart_values[var_name], np.ndarray) or len(self.warmstart_values[var_name]) != horizon + 1:
+				self.warmstart_values[var_name] = np.zeros(horizon + 1)
 			# Set bounds from dynamics model
 			try:
 				lb, ub, _ = dynamics.get_bounds(var_name)
@@ -110,7 +112,9 @@ class CasADiSolver(BaseSolver):
 		# All other states are computed via RK4 integration or model_discrete_dynamics.
 		for var_name in input_vars:
 			self.var_dict[var_name] = self.opti.variable(horizon)
-			self.warmstart_values[var_name] = np.zeros(horizon)
+			# Only initialize warmstart to zeros if not already populated with correct shape
+			if var_name not in self.warmstart_values or not isinstance(self.warmstart_values[var_name], np.ndarray) or len(self.warmstart_values[var_name]) != horizon:
+				self.warmstart_values[var_name] = np.zeros(horizon)
 			# Set bounds from dynamics model
 			try:
 				lb, ub, _ = dynamics.get_bounds(var_name)
@@ -126,12 +130,14 @@ class CasADiSolver(BaseSolver):
 			'ipopt.tol': 1e-3,  # Slightly relaxed for faster convergence
 			'ipopt.acceptable_tol': 1e-1,  # More relaxed to accept suboptimal solutions
 			'ipopt.acceptable_iter': 10,  # Accept sooner if acceptable_tol met
-			'ipopt.constr_viol_tol': 1e-4,  # Relaxed constraint violation tolerance for scenario constraints (was 1e-6)
+			'ipopt.constr_viol_tol': 1e-3,  # Relaxed constraint violation tolerance for scenario constraints (was 1e-4)
 			# Reference: C++ mpc_planner uses slightly relaxed tolerances for scenario-based constraints
 			# to allow solver convergence while maintaining safety
 			'ipopt.mu_strategy': 'adaptive',
 			'ipopt.hessian_approximation': 'limited-memory',
 			'ipopt.warm_start_init_point': 'yes',
+			'ipopt.warm_start_bound_push': 1e-6,  # Push bounds for warmstart
+			'ipopt.warm_start_mult_bound_push': 1e-6,  # Push multiplier bounds for warmstart
 			'ipopt.nlp_scaling_method': 'gradient-based',  # Better scaling for constraints
 			'ipopt.obj_scaling_factor': 1.0,  # No objective scaling
 		}
@@ -662,6 +668,23 @@ class CasADiSolver(BaseSolver):
 			self.warmstart_values['x'] = x_pos
 			self.warmstart_values['y'] = y_pos
 
+			# CRITICAL FIX: Initialize spline warmstart in fallback branch
+			# Without this, spline warmstart is missing when no reference path is available,
+			# causing solver failures due to uninitialized warmstart values
+			dynamics_model = self._get_dynamics_model()
+			if dynamics_model and 'spline' in dynamics_model.get_dependent_vars():
+				current_spline = state.get('spline') if state.has('spline') else 0.0
+				if current_spline is None:
+					current_spline = 0.0
+				# Initialize spline to progress at current velocity
+				spline_profile = np.zeros(horizon_val + 1)
+				spline_profile[0] = current_spline
+				for k in range(1, horizon_val + 1):
+					# Spline advances proportional to velocity
+					spline_profile[k] = spline_profile[k-1] + v_profile[k-1] * timestep_val
+				self.warmstart_values['spline'] = spline_profile
+				LOG_DEBUG(f"  Initialized spline warmstart in fallback: [{spline_profile[0]:.3f} -> {spline_profile[-1]:.3f}]")
+
 		# Initialize other state variables if they exist
 		dynamics_model = self._get_dynamics_model()
 		if dynamics_model is None:
@@ -877,7 +900,33 @@ class CasADiSolver(BaseSolver):
 					self.warmstart_values['x'] = x_pos
 					self.warmstart_values['y'] = y_pos
 					self.warmstart_values['psi'] = psi_profile
-	
+
+		# CRITICAL FIX: Also ensure spline dynamics consistency
+		# Spline dynamics from RK4: spline[k+1] = spline[k] + v[k+1] * dt
+		# IMPORTANT: The RK4 dynamics use v[k+1] (velocity AFTER integration), not v[k]!
+		# Reference: rk4_integration() uses x_next_integrate[3] (v after RK4) for spline update
+		# This is critical after braking fallback changes the velocity profile
+		if 'spline' in self.warmstart_values and 'v' in self.warmstart_values:
+			spline_profile = self.warmstart_values['spline']
+			v_profile = self.warmstart_values['v']
+
+			if len(spline_profile) > 1 and len(v_profile) >= 1:
+				spline_fixed = False
+				for k in range(1, min(len(spline_profile), horizon_val + 1)):
+					# Use v_profile[k] (velocity at stage k AFTER integration) not v_profile[k-1]
+					# Dynamics: spline[k] = spline[k-1] + v[k] * dt
+					if k < len(v_profile):
+						spline_pred = spline_profile[k - 1] + v_profile[k] * timestep_val
+						spline_actual = spline_profile[k]
+						diff = abs(spline_actual - spline_pred)
+						if diff > 0.01:  # Tolerance for numerical precision
+							spline_fixed = True
+							spline_profile[k] = spline_pred
+
+				if spline_fixed:
+					self.warmstart_values['spline'] = spline_profile
+					LOG_INFO("Fixed spline warmstart dynamics consistency (spline[k] = spline[k-1] + v[k]*dt)")
+
 	def _update_warmstart_current_state(self, state: State):
 		"""Update stage 0 of warmstart to match current vehicle state.
 		
@@ -960,17 +1009,218 @@ class CasADiSolver(BaseSolver):
 		timestep_val = self.timestep if self.timestep is not None else 0.1
 		dynamics_model = self._get_dynamics_model()
 		if dynamics_model is None:
+			LOG_WARN("_create_trajectory_from_warmstart: dynamics_model is None, returning empty trajectory")
 			return Trajectory(timestep=timestep_val, length=0)
+
+		# Check warmstart_values exist and have required keys
+		if not self.warmstart_values:
+			# Try to create a fallback trajectory from current state in data
+			try:
+				if self.data is not None and hasattr(self.data, 'state') and self.data.state is not None:
+					LOG_DEBUG("Creating fallback trajectory from data.state")
+					state = self.data.state
+					traj = Trajectory(timestep=timestep_val, length=horizon_val + 1)
+					# Create states using current position for all steps
+					for k in range(horizon_val + 1):
+						state_k = State(model_type=dynamics_model)
+						for var_name in dynamics_model.get_dependent_vars():
+							val = state.get(var_name) if state.has(var_name) else 0.0
+							state_k.set(var_name, float(val) if val is not None else 0.0)
+						traj.add_state(state_k)
+					return traj
+			except Exception as e:
+				LOG_WARN(f"Error creating fallback trajectory: {e}")
+			return Trajectory(timestep=timestep_val, length=0)
+
+		dep_vars = dynamics_model.get_dependent_vars()
+		missing_vars = [v for v in dep_vars if v not in self.warmstart_values]
+		if missing_vars:
+			LOG_WARN(f"_create_trajectory_from_warmstart: missing warmstart vars: {missing_vars}")
+			return Trajectory(timestep=timestep_val, length=0)
+
 		traj = Trajectory(timestep=timestep_val, length=horizon_val + 1)
-		for k in range(horizon_val + 1):
-			state_k = State(model_type=dynamics_model)
-			for var_name in dynamics_model.get_dependent_vars():
-				state_k.set(var_name, self.warmstart_values[var_name][k])
-			if k < horizon_val:
-				for var_name in dynamics_model.get_inputs():
-					state_k.set(var_name, self.warmstart_values[var_name][k])
-			traj.add_state(state_k)
+		try:
+			for k in range(horizon_val + 1):
+				state_k = State(model_type=dynamics_model)
+				for var_name in dep_vars:
+					ws_val = self.warmstart_values[var_name]
+					if isinstance(ws_val, np.ndarray) and k < len(ws_val):
+						state_k.set(var_name, float(ws_val[k]))
+					elif isinstance(ws_val, (list, tuple)) and k < len(ws_val):
+						state_k.set(var_name, float(ws_val[k]))
+					else:
+						LOG_WARN(f"_create_trajectory_from_warmstart: invalid warmstart for {var_name} at k={k}")
+						state_k.set(var_name, 0.0)
+				if k < horizon_val:
+					for var_name in dynamics_model.get_inputs():
+						if var_name in self.warmstart_values:
+							ws_val = self.warmstart_values[var_name]
+							if isinstance(ws_val, np.ndarray) and k < len(ws_val):
+								state_k.set(var_name, float(ws_val[k]))
+							elif isinstance(ws_val, (list, tuple)) and k < len(ws_val):
+								state_k.set(var_name, float(ws_val[k]))
+				traj.add_state(state_k)
+		except Exception as e:
+			LOG_WARN(f"_create_trajectory_from_warmstart: error creating trajectory: {e}")
+			return Trajectory(timestep=timestep_val, length=0)
+
+		LOG_DEBUG(f"_create_trajectory_from_warmstart: created trajectory with {len(traj.get_states()) if hasattr(traj, 'get_states') else 'unknown'} states")
 		return traj
+
+	def _initialize_with_braking(self, state: State):
+		"""
+		Initialize warmstart with a braking trajectory on solver failure.
+
+		Reference: C++ mpc_planner - initializeWithBraking()
+		When solver fails, generate a safe deceleration trajectory.
+		This prevents the vehicle from drifting and allows recovery.
+
+		Args:
+			state: Current vehicle state
+		"""
+		horizon_val = self.horizon if self.horizon is not None else 10
+		timestep_val = self.timestep if self.timestep is not None else 0.1
+		dynamics_model = self._get_dynamics_model()
+		if dynamics_model is None:
+			LOG_WARN("_initialize_with_braking: no dynamics_model available")
+			return
+
+		# Get current state values
+		current_x = float(state.get('x')) if state.has('x') else 0.0
+		current_y = float(state.get('y')) if state.has('y') else 0.0
+		current_psi = float(state.get('psi')) if state.has('psi') else 0.0
+		current_v = float(state.get('v')) if state.has('v') else 0.0
+		current_spline = float(state.get('spline')) if state.has('spline') else 0.0
+
+		# Get velocity bounds
+		try:
+			v_lb, v_ub, _ = dynamics_model.get_bounds('v')
+		except Exception:
+			v_lb, v_ub = -0.01, 3.0
+
+		# Braking deceleration (negative acceleration)
+		# Reference: C++ mpc_planner - uses configured deceleration rate
+		braking_accel = DEFAULT_BRAKING  # Typically -2.0 m/s^2
+
+		# Compute velocity profile with braking
+		v_profile = np.zeros(horizon_val + 1)
+		v_profile[0] = current_v
+		for k in range(1, horizon_val + 1):
+			v_next = v_profile[k-1] + braking_accel * timestep_val
+			v_profile[k] = np.clip(v_next, v_lb, v_ub)
+
+		# Compute heading profile - try to turn toward reference path if available
+		psi_profile = np.full(horizon_val + 1, current_psi)
+		w_profile = np.zeros(horizon_val)
+
+		# If we have a reference path, compute desired heading toward path
+		if (self.data is not None and hasattr(self.data, 'reference_path') and
+		    self.data.reference_path is not None):
+			try:
+				ref_path = self.data.reference_path
+				if hasattr(ref_path, 'x_spline') and ref_path.x_spline is not None:
+					# Find closest point on path
+					s_clamped = np.clip(current_spline, 0, ref_path.length if hasattr(ref_path, 'length') else float('inf'))
+					path_x = float(ref_path.x_spline(s_clamped))
+					path_y = float(ref_path.y_spline(s_clamped))
+
+					# Compute heading toward path center
+					dx = path_x - current_x
+					dy = path_y - current_y
+					dist_to_path = np.sqrt(dx**2 + dy**2)
+
+					if dist_to_path > 0.1:  # Only steer if significantly off path
+						desired_psi = np.arctan2(dy, dx)
+						heading_error = desired_psi - current_psi
+						# Normalize to [-pi, pi]
+						heading_error = (heading_error + np.pi) % (2 * np.pi) - np.pi
+
+						# Get angular rate bounds
+						try:
+							w_lb, w_ub, _ = dynamics_model.get_bounds('w')
+						except Exception:
+							w_lb, w_ub = -0.8, 0.8
+
+						# Compute steering command (proportional control)
+						w_cmd = np.clip(heading_error * 2.0, w_lb, w_ub)
+
+						# Integrate psi with steering
+						for k in range(horizon_val):
+							w_profile[k] = w_cmd
+							psi_profile[k+1] = psi_profile[k] + w_profile[k] * timestep_val
+
+						LOG_DEBUG(f"Braking fallback: steering toward path (heading_error={np.degrees(heading_error):.1f}deg)")
+			except Exception as e:
+				LOG_DEBUG(f"Braking fallback: could not compute steering: {e}")
+
+		# Integrate positions
+		x_pos = np.zeros(horizon_val + 1)
+		y_pos = np.zeros(horizon_val + 1)
+		x_pos[0] = current_x
+		y_pos[0] = current_y
+		for k in range(1, horizon_val + 1):
+			x_pos[k] = x_pos[k-1] + v_profile[k-1] * np.cos(psi_profile[k-1]) * timestep_val
+			y_pos[k] = y_pos[k-1] + v_profile[k-1] * np.sin(psi_profile[k-1]) * timestep_val
+
+		# Compute spline profile (advance with velocity)
+		spline_profile = np.zeros(horizon_val + 1)
+		spline_profile[0] = current_spline
+		for k in range(1, horizon_val + 1):
+			spline_profile[k] = spline_profile[k-1] + v_profile[k-1] * timestep_val
+
+		# Update warmstart values
+		self.warmstart_values['x'] = x_pos
+		self.warmstart_values['y'] = y_pos
+		self.warmstart_values['psi'] = psi_profile
+		self.warmstart_values['v'] = v_profile
+		if 'spline' in dynamics_model.get_dependent_vars():
+			self.warmstart_values['spline'] = spline_profile
+
+		# Set control inputs
+		self.warmstart_values['a'] = np.full(horizon_val, braking_accel)
+		self.warmstart_values['w'] = w_profile
+
+		LOG_INFO(f"Braking fallback: Initialized warmstart with braking (a={braking_accel:.1f}m/s^2)")
+		LOG_INFO(f"  v profile: [{v_profile[0]:.2f} -> {v_profile[-1]:.2f}] m/s")
+		LOG_INFO(f"  Position: ({x_pos[0]:.2f}, {y_pos[0]:.2f}) -> ({x_pos[-1]:.2f}, {y_pos[-1]:.2f})")
+
+	def apply_braking_fallback(self, state: State = None):
+		"""
+		Apply braking fallback after solver failure and return control values.
+
+		Reference: C++ mpc_planner - initializeWithBraking() on solver failure
+		This should be called by the planner after solve() returns -1.
+
+		Args:
+			state: Current vehicle state. If None, uses self.data.state.
+
+		Returns:
+			dict: Control values {'a': ..., 'w': ...} with braking applied
+		"""
+		if state is None:
+			if self.data is not None and hasattr(self.data, 'state') and self.data.state is not None:
+				state = self.data.state
+			else:
+				LOG_WARN("apply_braking_fallback: No state available, returning zero control")
+				return {'a': 0.0, 'w': 0.0}
+
+		# Apply braking to warmstart
+		self._initialize_with_braking(state)
+
+		# Return first control values from warmstart
+		control = {}
+		if 'a' in self.warmstart_values and len(self.warmstart_values['a']) > 0:
+			control['a'] = float(self.warmstart_values['a'][0])
+		else:
+			control['a'] = DEFAULT_BRAKING  # -2.0 m/s^2
+
+		if 'w' in self.warmstart_values and len(self.warmstart_values['w']) > 0:
+			control['w'] = float(self.warmstart_values['w'][0])
+		else:
+			control['w'] = 0.0
+
+		LOG_INFO(f"Braking fallback control: a={control['a']:.2f} m/s^2, w={control['w']:.4f} rad/s")
+		return control
 
 	def _set_opti_initial_values(self):
 		"""Set initial values for optimization variables from warmstart values."""
@@ -1084,6 +1334,7 @@ class CasADiSolver(BaseSolver):
 		if hasattr(self, 'warmstart_values') and self.warmstart_values:
 			for k, v in self.warmstart_values.items():
 				saved_warmstart[k] = np.array(v) if isinstance(v, np.ndarray) else v
+			LOG_DEBUG(f"Saved {len(saved_warmstart)} warmstart vars")
 
 		# Create fresh Opti problem
 		self.opti = cs.Opti()
@@ -2481,27 +2732,37 @@ class CasADiSolver(BaseSolver):
 
 	def get_output(self, k, var_name):
 		"""Get output value for variable at stage k.
-		
+
 		Args:
 			k: Stage index (0-based). For state variables: k in [0, horizon]. For input variables: k in [0, horizon-1]
 			var_name: Name of variable (state or input)
-		
+
 		Returns:
 			Value at stage k, or None if not available
+
+		Reference: C++ mpc_planner - returns braking fallback values when solver fails
 		"""
 		if not self.solution:
-			LOG_DEBUG(f"get_output({k}, {var_name}): No solution available")
+			# No solution - fall back to warmstart values (which may have braking applied)
+			# Reference: C++ mpc_planner - initializeWithBraking provides fallback trajectory
+			if var_name in self.warmstart_values:
+				ws_vals = self.warmstart_values[var_name]
+				if isinstance(ws_vals, np.ndarray) and k < len(ws_vals):
+					val = float(ws_vals[k])
+					LOG_DEBUG(f"get_output({k}, {var_name}): Using warmstart fallback: {val}")
+					return val
+			LOG_DEBUG(f"get_output({k}, {var_name}): No solution and no warmstart fallback available")
 			return None
-		
+
 		if var_name not in self.var_dict:
 			LOG_DEBUG(f"get_output({k}, {var_name}): Variable not in var_dict")
 			return None
-		
+
 		var = self.var_dict[var_name]
 		if k >= var.shape[0]:
 			LOG_DEBUG(f"get_output({k}, {var_name}): k={k} >= var.shape[0]={var.shape[0]}")
 			return None
-		
+
 		try:
 			val = self.solution.value(var[k])
 			LOG_DEBUG(f"get_output({k}, {var_name}): {val}")
@@ -2512,7 +2773,9 @@ class CasADiSolver(BaseSolver):
 
 	def get_reference_trajectory(self):
 		if not self.solution:
-			LOG_WARN("No solution available. Returning trajectory from warmstart.")
+			LOG_DEBUG("No solution available. Returning trajectory from warmstart.")
+			# NOTE: Braking fallback should be applied via apply_braking_fallback() after solve fails
+			# Do NOT apply here - this method is also called during constraint linearization
 			return self._create_trajectory_from_warmstart()
 
 		horizon_val = self.horizon if self.horizon is not None else 10

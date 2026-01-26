@@ -55,37 +55,43 @@ class ScenarioConstraint:
         return Halfspace(A, b)
 
 
-def compute_sample_size(epsilon_p: float, beta: float, n_bar: int, num_removal: int = 0) -> int:
+def compute_sample_size(epsilon_p: float, beta: float, n_bar: int, num_removal: int = 0,
+                        horizon: int = 10, n_x: int = 4, n_u: int = 2) -> int:
     """
     Compute the required sample size for scenario optimization.
-    
+
+    Reference: guide.md Equation (23)
+    S >= (2/ε)(ln(1/β) + d + R)
+    where d = N·n_x + N·n_u is the number of decision variables.
+
     Args:
-        epsilon_p: Probability of constraint violation
-        beta: Confidence level (1 - beta is the confidence)
-        n_bar: Support dimension
-        
+        epsilon_p: Violation probability ε ∈ (0, 1)
+        beta: Confidence level β ∈ (0, 1)
+        n_bar: Support dimension (not used in guide.md formula, kept for compatibility)
+        num_removal: Number of scenarios to remove R
+        horizon: Planning horizon N
+        n_x: Ego state dimension
+        n_u: Ego input dimension
+
     Returns:
-        Required sample size
+        Required number of scenarios S
     """
     if epsilon_p <= 0 or epsilon_p >= 1:
-        LOG_WARN(f"Invalid epsilon_p: {epsilon_p}, using default 0.1")
+        LOG_WARN(f"Invalid epsilon_p: {epsilon_p}, using default 0.05")
         epsilon_p = 0.05
-        
+
     if beta <= 0 or beta >= 1:
         LOG_WARN(f"Invalid beta: {beta}, using default 0.01")
         beta = 0.01
-        
-    # Sample size formula for scenario optimization
-    # Adjust for removed scenarios
-    d = n_bar + num_removal
-    # n >= (2/epsilon_p) * ln(1/beta) + 2*n_bar + (2*n_bar/epsilon_p) * ln(2/epsilon_p)
-    n = int(np.ceil(
-        (2.0 / epsilon_p) * np.log(1.0 / beta) + 
-        2.0 * d + 
-        (2.0 * d / epsilon_p) * np.log(2.0 / epsilon_p)
-    ))
-    
-    LOG_DEBUG(f"Computed sample size: {n} (epsilon_p={epsilon_p}, beta={beta}, n_bar={n_bar})")
+
+    # Reference: guide.md Equation (23)
+    # S >= (2/ε)(ln(1/β) + d + R)
+    # where d = N·n_x + N·n_u
+    d = horizon * n_x + horizon * n_u
+    S = (2.0 / epsilon_p) * (np.log(1.0 / beta) + d + num_removal)
+    n = int(np.ceil(S))
+
+    LOG_DEBUG(f"Computed sample size: {n} (ε={epsilon_p}, β={beta}, d={d}, R={num_removal})")
     return max(n, 10)  # Minimum sample size
 
 

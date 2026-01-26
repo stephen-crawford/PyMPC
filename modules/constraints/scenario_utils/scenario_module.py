@@ -126,11 +126,14 @@ class SafeHorizonModule:
         self.num_discs = config.get("num_discs", 1)
         self.num_scenarios = config.get("num_scenarios", 100)  # Number of scenarios to sample (for diagnostics)
 
-        # Adaptive mode sampling configuration (following guide.md)
+        # Adaptive mode sampling configuration (following guide.md Section 1.3)
         self.enable_adaptive_mode_sampling = config.get("enable_adaptive_mode_sampling", False)
         self.mode_weight_type = config.get("mode_weight_type", "frequency")  # uniform, recency, frequency
-        self.mode_recency_decay = config.get("mode_recency_decay", 0.9)
+        # Reference: guide.md - recency_decay: float = 0.1 (λ in recency prior, Eq. 12)
+        self.mode_recency_decay = config.get("mode_recency_decay", 0.1)
         self.mode_prior_type = config.get("mode_prior_type", "constant")  # constant (C1) or switching (C2)
+        # Reference: guide.md - frequency_smoothing: float = 1.0 (α in frequency prior, Eq. 13)
+        self.mode_frequency_smoothing = config.get("mode_frequency_smoothing", 1.0)
 
         # Components - choose sampler based on configuration
         if self.enable_adaptive_mode_sampling:
@@ -141,11 +144,13 @@ class SafeHorizonModule:
                 enable_outlier_removal=config.get("enable_outlier_removal", True),
                 weight_type=weight_type,
                 recency_decay=self.mode_recency_decay,
+                frequency_smoothing=self.mode_frequency_smoothing,
                 dt=config.get("timestep", 0.1),
                 prior_type=self.mode_prior_type
             )
             LOG_INFO(f"SafeHorizonModule: Using AdaptiveModeSampler with "
-                    f"weight_type={self.mode_weight_type}, prior_type={self.mode_prior_type}")
+                    f"weight_type={self.mode_weight_type}, prior_type={self.mode_prior_type}, "
+                    f"λ={self.mode_recency_decay}, α={self.mode_frequency_smoothing}")
         else:
             # Use standard Gaussian sampler
             self.sampler = ScenarioSampler(
@@ -690,6 +695,18 @@ class SafeHorizonModule:
             self.diagnostics.record_support_set(disc_id, step, step_scenarios, 
                                                support_scenarios, reference_robot_pos)
         
+        # CRITICAL: Project reference position to safety BEFORE constraint linearization
+        # Reference: C++ mpc_planner - projectToSafety() is called DURING update(), BEFORE linearization
+        # This ensures the linearization point is collision-free, making constraints more feasible
+        # NOTE: We only use the projected position for linearization, we do NOT modify the warmstart
+        # because modifying the warmstart would break dynamics consistency
+        if reference_robot_pos is not None and len(support_scenarios) > 0:
+            projected_pos = self._project_position_to_safety(reference_robot_pos, support_scenarios, step)
+            if projected_pos is not None and not np.allclose(projected_pos, reference_robot_pos):
+                LOG_DEBUG(f"Step {step}: Using projected reference position from ({reference_robot_pos[0]:.3f}, {reference_robot_pos[1]:.3f}) "
+                        f"to ({projected_pos[0]:.3f}, {projected_pos[1]:.3f}) for linearization (warmstart NOT modified)")
+                reference_robot_pos = projected_pos
+
         # Formulate collision constraints from SUPPORT SET scenarios only
         # Reference: C++ mpc_planner - constraints are formed only from support set scenarios
         constraints = self._formulate_collision_constraints(support_scenarios, disc_id, step, reference_robot_pos)
@@ -866,7 +883,196 @@ class SafeHorizonModule:
                  f"(covering {len(selected_obstacle_indices)} obstacles)")
         
         return selected
-    
+
+    def _project_position_to_safety(self, pos: np.ndarray, scenarios: List[Scenario], step: int) -> np.ndarray:
+        """
+        Project robot position to satisfy safety constraints with all obstacles.
+
+        Reference: C++ mpc_planner - projectToSafety() uses Douglas-Rachford projection.
+        This is called BEFORE constraint linearization to ensure the linearization point
+        is collision-free.
+
+        C++ implementation details:
+        - Uses obstacle position at step k-1 (not k) for temporal buffer
+        - Uses first obstacle as anchor point
+        - Executes 3 iterations of Douglas-Rachford projection
+        - Safety radius = robot_radius + obstacle_radius
+
+        Args:
+            pos: Current robot position [x, y]
+            scenarios: List of scenarios containing obstacle positions
+            step: Time step (for accessing obstacle position at this step)
+
+        Returns:
+            Projected position that satisfies safety margins with all obstacles
+        """
+        if pos is None:
+            return pos
+
+        if not scenarios:
+            return pos
+
+        projected_pos = pos.copy()
+        num_iterations = 3  # Reference: C++ uses 3 iterations
+        max_projection_dist = 0.5  # Increased to allow proper DR projection
+
+        # Get anchor point: first obstacle's position at step k-1 (reference: C++ uses k-1)
+        # This provides temporal buffer and stabilizes the projection
+        anchor_step = max(0, step - 1)  # Use k-1, clamped to 0
+        anchor_pos = None
+        if scenarios:
+            first_scenario = scenarios[0]
+            if hasattr(first_scenario, 'trajectory') and first_scenario.trajectory and anchor_step < len(first_scenario.trajectory):
+                anchor_pos = np.array([float(first_scenario.trajectory[anchor_step][0]),
+                                      float(first_scenario.trajectory[anchor_step][1])])
+            else:
+                anchor_pos = np.array([float(first_scenario.position[0]), float(first_scenario.position[1])])
+
+        for iteration in range(num_iterations):
+            for scenario in scenarios:
+                # Reference: C++ uses obstacle position at k-1 for projection
+                # This provides a temporal buffer since obstacles are predicted
+                obs_step = max(0, step - 1)  # Use k-1 for projection
+
+                if hasattr(scenario, 'trajectory') and scenario.trajectory and obs_step < len(scenario.trajectory):
+                    obstacle_pos = np.array([float(scenario.trajectory[obs_step][0]),
+                                            float(scenario.trajectory[obs_step][1])])
+                else:
+                    obstacle_pos = np.array([float(scenario.position[0]), float(scenario.position[1])])
+
+                obstacle_radius = float(scenario.radius)
+                # Reference: C++ uses robot_radius + obstacle_radius (no halfspace_offset in projection)
+                safety_radius = self.robot_radius + obstacle_radius
+
+                # Douglas-Rachford projection for circular obstacle avoidance
+                # Reference: C++ dr_projection_.douglasRachfordProjection(pos, obstacle_pos, anchor_pos, safety_radius, pos)
+                projected_pos = self._douglas_rachford_projection(
+                    projected_pos, obstacle_pos, anchor_pos, safety_radius, max_projection_dist)
+
+        return projected_pos
+
+    def _douglas_rachford_projection(self, pos: np.ndarray, obstacle_pos: np.ndarray,
+                                      anchor_pos: np.ndarray, safety_radius: float,
+                                      max_projection_dist: float) -> np.ndarray:
+        """
+        Douglas-Rachford projection for collision avoidance.
+
+        Reference: C++ ros_tools/projection.h - DouglasRachford class
+
+        The C++ implementation is:
+            p = (p + reflect(reflect(p, anchor, r, p), delta, r, start_pose)) / 2.0
+
+        where:
+            - reflect(point, center, radius, start_pose) = 2 * project(...) - point
+            - project(point, center, radius, start_pose):
+                if dist(point, center) < radius:
+                    return center + (start_pose - center) / |start_pose - center| * radius
+                else:
+                    return point
+
+        Called as: douglasRachfordProjection(pos, obstacle_pos, anchor_pos, safety_radius, pos)
+
+        The algorithm:
+        1. First reflect pos around the ANCHOR circle (with safety_radius)
+        2. Then reflect that result around the OBSTACLE circle (with safety_radius)
+        3. Average with original position: new_pos = (pos + reflected2) / 2
+
+        Args:
+            pos: Current position to project
+            obstacle_pos: Center of the obstacle (delta in C++)
+            anchor_pos: Anchor point - first obstacle's position (anchor in C++)
+            safety_radius: Required minimum distance from obstacle center (r in C++)
+            max_projection_dist: Maximum allowed projection distance (not used in C++)
+
+        Returns:
+            Projected position satisfying safety constraints
+        """
+        # C++ formula: p = (p + reflect(reflect(p, anchor, r, p), delta, r, p)) / 2.0
+        # Note: start_pose = pos (original position is used for projection direction)
+
+        start_pose = pos.copy()  # Original position used for projection direction
+
+        # Step 1: reflect(p, anchor, r, p) - reflect around anchor circle
+        # If anchor_pos is None, use obstacle_pos as anchor (single obstacle case)
+        if anchor_pos is None:
+            anchor_pos = obstacle_pos.copy()
+
+        reflected1 = self._dr_reflect(pos, anchor_pos, safety_radius, start_pose)
+
+        # Step 2: reflect(reflected1, delta, r, start_pose) - reflect around obstacle circle
+        reflected2 = self._dr_reflect(reflected1, obstacle_pos, safety_radius, start_pose)
+
+        # Step 3: DR update: new_pos = (pos + reflected2) / 2
+        new_pos = (pos + reflected2) / 2.0
+
+        return new_pos
+
+    def _dr_project(self, point: np.ndarray, center: np.ndarray,
+                    radius: float, start_pose: np.ndarray) -> np.ndarray:
+        """
+        Project point onto exterior of circle if inside.
+
+        Reference: C++ ros_tools/projection.h - project() method
+
+        C++ implementation:
+            if (dist(point, center) < radius)
+                return center + (start_pose - center) / |start_pose - center| * radius
+            else
+                return point
+
+        The key insight: when projecting, it projects to the boundary in the direction
+        TOWARD start_pose (not away from center). This ensures the projection moves
+        toward the original robot position.
+
+        Args:
+            point: Point to project
+            center: Circle center (delta in C++)
+            radius: Circle radius (r in C++)
+            start_pose: Reference point for projection direction
+
+        Returns:
+            Projected point (on boundary if inside, unchanged if outside)
+        """
+        dist = np.linalg.norm(point - center)
+
+        if dist < radius:
+            # Point is inside circle - project to boundary in direction of start_pose
+            direction_to_start = start_pose - center
+            direction_dist = np.linalg.norm(direction_to_start)
+
+            if direction_dist > 1e-6:
+                # Project to boundary in direction toward start_pose
+                unit_direction = direction_to_start / direction_dist
+                return center + unit_direction * radius
+            else:
+                # Degenerate case: start_pose is at center, use default direction
+                return center + np.array([radius, 0.0])
+        else:
+            # Point is outside circle - return unchanged
+            return point
+
+    def _dr_reflect(self, point: np.ndarray, center: np.ndarray,
+                    radius: float, start_pose: np.ndarray) -> np.ndarray:
+        """
+        Reflect point across circle boundary.
+
+        Reference: C++ ros_tools/projection.h - reflect() method
+
+        C++ implementation:
+            return 2.0 * project(point, center, radius, start_pose) - point
+
+        Args:
+            point: Point to reflect
+            center: Circle center (delta in C++)
+            radius: Circle radius (r in C++)
+            start_pose: Reference point for projection direction
+
+        Returns:
+            Reflected point
+        """
+        projected = self._dr_project(point, center, radius, start_pose)
+        return 2.0 * projected - point
+
     def _formulate_collision_constraints(self, scenarios: List[Scenario], 
                                        disc_id: int, step: int, reference_robot_pos: np.ndarray = None) -> List[ScenarioConstraint]:
         """

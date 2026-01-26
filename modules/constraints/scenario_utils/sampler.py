@@ -104,11 +104,42 @@ class ModeHistory:
         return [mode_id for _, mode_id in self.observed_modes[-n:]]
 
 
+def transform_bias_by_heading(bias: np.ndarray, heading: float) -> np.ndarray:
+    """
+    Transform a mode bias vector to be relative to the obstacle's heading.
+
+    The bias vector is defined in body frame where +x is forward, +y is left.
+    This function transforms it to the world frame based on the obstacle's heading.
+
+    Args:
+        bias: Bias vector [bx, by, bvx, bvy] in body frame
+        heading: Obstacle heading angle in radians (from world +x axis)
+
+    Returns:
+        Transformed bias vector in world frame
+    """
+    cos_h = np.cos(heading)
+    sin_h = np.sin(heading)
+
+    # Rotation matrix for 2D
+    # Transform position drift (bx, by) and velocity drift (bvx, bvy)
+    transformed = np.array([
+        bias[0] * cos_h - bias[1] * sin_h,  # x drift
+        bias[0] * sin_h + bias[1] * cos_h,  # y drift
+        bias[2] * cos_h - bias[3] * sin_h,  # vx drift
+        bias[2] * sin_h + bias[3] * cos_h   # vy drift
+    ])
+    return transformed
+
+
 def create_obstacle_mode_models(dt: float = 0.1) -> Dict[str, ModeModel]:
     """
     Create standard obstacle mode models.
 
     Reference: guide.md Section 3 - Standard Mode Models
+
+    Note: These models are defined in body frame where +x is forward, +y is left.
+    Use transform_bias_by_heading() to transform to world frame based on obstacle heading.
 
     Args:
         dt: Timestep in seconds
@@ -126,12 +157,13 @@ def create_obstacle_mode_models(dt: float = 0.1) -> Dict[str, ModeModel]:
         [0, 0, 0, 1]
     ])
     b_cv = np.zeros(4)
+    # Reduced process noise for cleaner visualization
     G_cv = np.array([
         [0.5 * dt**2, 0],
         [0, 0.5 * dt**2],
         [dt, 0],
         [0, dt]
-    ]) * 0.5  # Scale process noise
+    ]) * 0.15  # Reduced noise for clearer mode differentiation
 
     modes["constant_velocity"] = ModeModel(
         mode_id="constant_velocity",
@@ -139,9 +171,10 @@ def create_obstacle_mode_models(dt: float = 0.1) -> Dict[str, ModeModel]:
         description="Constant velocity motion"
     )
 
-    # Decelerating mode
+    # Decelerating mode - deceleration along forward direction (body frame +x)
+    # Bias is [pos_x, pos_y, vel_x, vel_y] in body frame where +x is forward
     A_dec = A_cv.copy()
-    b_dec = np.array([0, 0, -0.5 * dt, -0.5 * dt])  # Deceleration
+    b_dec = np.array([0, 0, -1.5 * dt, 0])  # Decelerate in forward direction
 
     modes["decelerating"] = ModeModel(
         mode_id="decelerating",
@@ -149,8 +182,8 @@ def create_obstacle_mode_models(dt: float = 0.1) -> Dict[str, ModeModel]:
         description="Decelerating motion"
     )
 
-    # Accelerating mode
-    b_acc = np.array([0, 0, 0.5 * dt, 0.5 * dt])  # Acceleration
+    # Accelerating mode - acceleration along forward direction (body frame +x)
+    b_acc = np.array([0, 0, 1.5 * dt, 0])  # Accelerate in forward direction
 
     modes["accelerating"] = ModeModel(
         mode_id="accelerating",
@@ -158,8 +191,8 @@ def create_obstacle_mode_models(dt: float = 0.1) -> Dict[str, ModeModel]:
         description="Accelerating motion"
     )
 
-    # Left turn mode
-    omega = 0.3  # Turn rate [rad/s]
+    # Left turn mode - INCREASED turn rate for visible curves
+    omega = 1.2  # Turn rate [rad/s] - ~70 degrees/second for visible curves
     cos_w = np.cos(omega * dt)
     sin_w = np.sin(omega * dt)
 
@@ -190,8 +223,8 @@ def create_obstacle_mode_models(dt: float = 0.1) -> Dict[str, ModeModel]:
         description="Right turning motion"
     )
 
-    # Lane change left
-    b_lc_left = np.array([0, 0.3 * dt, 0, 0])  # Lateral drift left
+    # Lane change left - stronger lateral drift for visibility
+    b_lc_left = np.array([0, 1.0 * dt, 0, 0])  # Stronger lateral drift left
 
     modes["lane_change_left"] = ModeModel(
         mode_id="lane_change_left",
@@ -199,8 +232,8 @@ def create_obstacle_mode_models(dt: float = 0.1) -> Dict[str, ModeModel]:
         description="Lane change left"
     )
 
-    # Lane change right
-    b_lc_right = np.array([0, -0.3 * dt, 0, 0])  # Lateral drift right
+    # Lane change right - stronger lateral drift for visibility
+    b_lc_right = np.array([0, -1.0 * dt, 0, 0])  # Stronger lateral drift right
 
     modes["lane_change_right"] = ModeModel(
         mode_id="lane_change_right",
@@ -214,8 +247,9 @@ def create_obstacle_mode_models(dt: float = 0.1) -> Dict[str, ModeModel]:
 def compute_mode_weights(
     mode_history: ModeHistory,
     weight_type: WeightType = WeightType.FREQUENCY,
-    recency_decay: float = 0.9,
-    current_timestep: int = 0
+    recency_decay: float = 0.1,
+    current_timestep: int = 0,
+    frequency_smoothing: float = 1.0
 ) -> Dict[str, float]:
     """
     Compute mode weights based on observation history.
@@ -225,8 +259,9 @@ def compute_mode_weights(
     Args:
         mode_history: Observed mode history for an obstacle
         weight_type: Weight computation strategy
-        recency_decay: Decay factor lambda for recency weighting
+        recency_decay: Decay parameter λ for recency weighting (Eq. 12)
         current_timestep: Current timestep for recency computation
+        frequency_smoothing: Dirichlet smoothing parameter α for frequency weighting (Eq. 13)
 
     Returns:
         Dictionary mapping mode_id to weight (normalized to sum to 1)
@@ -246,17 +281,35 @@ def compute_mode_weights(
         weights = {mode_id: 1.0 / num_modes for mode_id in modes}
 
     elif weight_type == WeightType.RECENCY:
-        # w_m = sum_{t: m_t = m} lambda^(T - t)
+        # Reference: guide.md Equation (12)
+        # π(m) ∝ exp(-λ(t - τ_m))
+        # where τ_m = max{t' : mode m was observed at t'} (most recent observation)
         weights = {mode_id: 0.0 for mode_id in modes}
+
+        # Find the most recent observation time for each mode
+        most_recent_times = {}
         for timestep, mode_id in mode_history.observed_modes:
             if mode_id in weights:
-                age = current_timestep - timestep
-                weights[mode_id] += recency_decay ** age
+                if mode_id not in most_recent_times or timestep > most_recent_times[mode_id]:
+                    most_recent_times[mode_id] = timestep
+
+        # Compute weights using exponential decay from most recent observation
+        for mode_id in modes:
+            if mode_id in most_recent_times:
+                tau_m = most_recent_times[mode_id]
+                # π(m) ∝ exp(-λ(t - τ_m))
+                weights[mode_id] = np.exp(-recency_decay * (current_timestep - tau_m))
+            else:
+                # Mode never observed - assign zero weight (will be normalized later)
+                weights[mode_id] = 0.0
 
     elif weight_type == WeightType.FREQUENCY:
-        # w_m = n_m / sum_j n_j
+        # Reference: guide.md Equation (13)
+        # π(m) = (n_m + α) / Σ(n_{m'} + α)
+        # where α > 0 is the Dirichlet smoothing parameter
         counts = mode_history.get_mode_counts()
-        weights = {mode_id: float(counts.get(mode_id, 0)) for mode_id in modes}
+        # Add smoothing parameter to each count
+        weights = {mode_id: float(counts.get(mode_id, 0)) + frequency_smoothing for mode_id in modes}
 
     else:
         raise ValueError(f"Unknown weight type: {weight_type}")
@@ -598,18 +651,22 @@ class AdaptiveModeSampler(ScenarioSampler):
         num_scenarios: int = 100,
         enable_outlier_removal: bool = True,
         weight_type: WeightType = WeightType.FREQUENCY,
-        recency_decay: float = 0.9,
+        recency_decay: float = 0.1,
+        frequency_smoothing: float = 1.0,
         dt: float = 0.1,
         prior_type: str = "constant"  # "constant" (C1) or "switching" (C2)
     ):
         """
         Initialize adaptive mode sampler.
 
+        Reference: guide.md Section 1.3 - ScenarioMPCConfig
+
         Args:
             num_scenarios: Number of scenarios to sample per obstacle
             enable_outlier_removal: Whether to remove outlier scenarios
             weight_type: Mode weight computation strategy
-            recency_decay: Decay factor for recency weighting
+            recency_decay: Decay parameter λ for recency weighting (Eq. 12), default 0.1
+            frequency_smoothing: Dirichlet smoothing parameter α for frequency weighting (Eq. 13), default 1.0
             dt: Timestep for dynamics propagation
             prior_type: "constant" samples one mode per trajectory,
                        "switching" samples mode at each timestep
@@ -617,6 +674,7 @@ class AdaptiveModeSampler(ScenarioSampler):
         super().__init__(num_scenarios, enable_outlier_removal)
         self.weight_type = weight_type
         self.recency_decay = recency_decay
+        self.frequency_smoothing = frequency_smoothing
         self.dt = dt
         self.prior_type = prior_type
 
@@ -780,11 +838,13 @@ class AdaptiveModeSampler(ScenarioSampler):
         mode_history = self.mode_histories[obstacle_idx]
 
         # Compute mode weights based on history
+        # Reference: guide.md Equations (12)-(13)
         mode_weights = compute_mode_weights(
             mode_history,
             weight_type=self.weight_type,
             recency_decay=self.recency_decay,
-            current_timestep=self.current_timestep
+            current_timestep=self.current_timestep,
+            frequency_smoothing=self.frequency_smoothing
         )
 
         if not mode_weights:
@@ -882,11 +942,29 @@ class AdaptiveModeSampler(ScenarioSampler):
 
         # Propagate trajectory using sampled mode sequence
         # CRITICAL: trajectory[0] should be the CURRENT position, trajectory[k] is position at time k
+        # Reference: guide.md Equation (4) - bias b_m is CONSTANT for the mode, not time-varying
         trajectory_positions = []
         state = initial_state.copy()
 
         # Include initial position at index 0 (current obstacle position)
         trajectory_positions.append(state[:2].copy())
+
+        # Compute initial heading from velocity for heading-relative mode dynamics
+        # This is computed ONCE and used for the entire trajectory (matching guide.md)
+        vx, vy = state[2], state[3]
+        speed = np.sqrt(vx**2 + vy**2)
+        if speed > 0.01:  # Only compute heading if obstacle is moving
+            initial_heading = np.arctan2(vy, vx)
+        else:
+            initial_heading = 0.0
+
+        # Pre-compute transformed biases for each unique mode in the sequence
+        # This is more efficient than computing at each step
+        # Reference: guide.md - bias is constant per mode, we just transform to world frame once
+        transformed_biases = {}
+        for mode_id in set(mode_sequence):
+            mode = mode_history.available_modes[mode_id]
+            transformed_biases[mode_id] = transform_bias_by_heading(mode.b, initial_heading)
 
         for k in range(horizon_length):
             mode_id = mode_sequence[k]
@@ -895,8 +973,17 @@ class AdaptiveModeSampler(ScenarioSampler):
             # Sample process noise
             noise = self.rng.standard_normal(mode.noise_dim)
 
-            # Propagate state
-            state = mode.propagate(state, noise)
+            # Use pre-computed transformed bias (constant for this mode)
+            # Reference: guide.md Eq. (4) - x_{t+1} = A_m @ x_t + b_m + G_m @ omega
+            # The bias b_m is constant, transformed once to world frame based on initial heading
+            transformed_bias = transformed_biases[mode_id]
+
+            # Propagate state with heading-transformed bias
+            # x_next = A @ state + transformed_b + G @ noise
+            x_next = mode.A @ state + transformed_bias
+            if noise is not None:
+                x_next += mode.G @ noise
+            state = x_next
             trajectory_positions.append(state[:2].copy())
 
         # Store scenario
@@ -916,7 +1003,8 @@ class AdaptiveModeSampler(ScenarioSampler):
             self.mode_histories[obstacle_idx],
             weight_type=self.weight_type,
             recency_decay=self.recency_decay,
-            current_timestep=self.current_timestep
+            current_timestep=self.current_timestep,
+            frequency_smoothing=self.frequency_smoothing
         )
 
     def get_observed_modes(self, obstacle_idx: int) -> Set[str]:

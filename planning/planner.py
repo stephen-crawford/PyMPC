@@ -442,27 +442,21 @@ class Planner:
             LOG_WARN("=== SOLVER FAILURE DIAGNOSTICS ===")
             self._diagnose_solver_failure()
             
-            # CRITICAL: Clear or set safe control values when solver fails
-            # This prevents applying old/extreme control values that cause spiraling
-            # Reference: C++ mpc_planner - when solver fails, maintain forward progress toward goal
-            # Use zero acceleration (maintain current speed) and zero angular velocity to prevent reversing
-            if hasattr(self.solver, 'dynamics_model') and self.solver.dynamics_model is not None:
+            # CRITICAL: Apply braking fallback when solver fails
+            # Reference: C++ mpc_planner - generates deceleration trajectory on failure
+            # This slows the vehicle safely while steering toward reference path
+            if hasattr(self.solver, 'apply_braking_fallback'):
+                safe_control = self.solver.apply_braking_fallback(self.state)
+                self.output.control = safe_control
+                LOG_WARN(f"  Applied braking fallback control: {safe_control}")
+            elif hasattr(self.solver, 'dynamics_model') and self.solver.dynamics_model is not None:
+                # Fallback if braking method not available: use zero control
                 input_vars = self.solver.dynamics_model.get_inputs()
                 safe_control = {}
                 for u_name in input_vars:
-                    if u_name == 'a':
-                        # CRITICAL FIX: Use zero acceleration instead of negative to prevent reversing
-                        # This maintains current forward speed and prevents vehicle from backing away from goal
-                        # Reference: C++ mpc_planner - maintain forward progress when solver fails
-                        safe_control[u_name] = 0.0
-                    elif u_name == 'w':
-                        # Zero angular velocity to prevent spinning
-                        safe_control[u_name] = 0.0
-                    else:
-                        # Zero for other control inputs
-                        safe_control[u_name] = 0.0
+                    safe_control[u_name] = 0.0
                 self.output.control = safe_control
-                LOG_WARN(f"  Set safe fallback control: {safe_control} (zero acceleration to maintain forward progress)")
+                LOG_WARN(f"  Set zero fallback control: {safe_control}")
             else:
                 # Clear control if we can't determine inputs
                 self.output.control = {}
