@@ -1,0 +1,84 @@
+# RC Car MPC Server Configuration
+# ================================
+
+# Vicon Motion Capture Settings
+vicon:
+  host: "192.168.1.100"      # Vicon Tracker PC IP address
+  port: 801                   # DataStream port (default)
+  subject_name: "RCCar"       # Name of tracked object in Vicon
+  update_rate: 100.0          # Hz
+
+# RC Car Settings
+car:
+  ip: "192.168.1.105"         # Raspberry Pi IP address
+  port: 12345                  # UDP port (must match car_receiver.py)
+  send_rate: 50.0              # Command send rate in Hz
+
+# MPC Controller Settings
+mpc:
+  horizon: 10                  # Prediction horizon steps
+  timestep: 0.1                # Time step in seconds
+  dynamics_model: "unicycle"   # Vehicle dynamics model
+  objective: "contouring"      # Objective function type
+  constraints:
+    - "contouring"             # Path boundary constraints
+    # - "safe_horizon"         # Uncomment for obstacle avoidance
+
+# Vehicle Physical Parameters
+vehicle:
+  wheelbase: 0.26              # Distance between axles [m]
+  max_velocity: 3.0            # Maximum velocity [m/s]
+  max_acceleration: 2.0        # Maximum acceleration [m/s^2]
+  max_steering_angle: 30.0     # Maximum steering angle [degrees]
+  max_angular_velocity: 0.8    # Maximum yaw rate [rad/s]
+  robot_radius: 0.15           # Collision radius [m]
+
+# Control Loop Settings
+control:
+  rate: 20.0                   # Control loop rate [Hz]
+  timeout: 0.5                 # Command timeout [s]
+
+# Reference Path (waypoints in meters)
+# Define the path the car should follow
+path:
+  waypoints:
+    - [0.0, 0.0]              # Start point
+    - [2.0, 0.0]
+    - [4.0, 1.0]
+    - [4.0, 3.0]
+    - [2.0, 4.0]
+    - [0.0, 3.0]
+    - [0.0, 0.0]              # Return to start (closed loop)
+
+# Obstacle Tracking (Vicon subject names)
+# List additional Vicon subjects to track as obstacles
+obstacles: []
+# Example:
+# obstacles:
+#   - "Obstacle1"
+#   - "Obstacle2"
+
+# Command Conversion Parameters
+command_conversion:
+  throttle_gain: 0.3           # Acceleration to throttle scaling
+  steering_center: 90.0        # Servo center position [degrees]
+  steering_gain: 45.0          # Steering sensitivity
+
+# Safe Horizon Constraints (if enabled)
+safe_horizon_constraints:
+  enable_adaptive_mode_sampling: false
+  num_scenarios: 50
+  epsilon_p: 0.15              # Violation probability
+  beta: 0.1                    # Confidence level
+  max_constraints_per_disc: 5
+
+# Contouring Objective Weights
+contouring_objective:
+  lag_weight: 10.0             # Progress along path
+  contour_weight: 5.0          # Deviation from path
+  velocity_weight: 1.0         # Velocity tracking
+
+# Logging
+logging:
+  level: "INFO"                # DEBUG, INFO, WARNING, ERROR
+  file: null                   # Log file path (null for console only)
