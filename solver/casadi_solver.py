@@ -9,12 +9,32 @@ from solver.base_solver import BaseSolver
 from utils.const import OBJECTIVE, CONSTRAINT, DEFAULT_BRAKING
 from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO
 
+# Import performance optimization module
+try:
+	from solver.performance_optimizations import (
+		PerformanceConfig,
+		PerformanceOptimizer,
+		PerformanceLevel,
+	)
+	HAS_PERF_MODULE = True
+except ImportError:
+	HAS_PERF_MODULE = False
+
 '''
 Casadi solver used for trajectory optimization.
 '''
 
 class CasADiSolver(BaseSolver):
-	def __init__(self, config):
+	def __init__(self, config, performance=None):
+		"""Initialize the CasADi solver.
+
+		Args:
+			config: Configuration dictionary
+			performance: Performance configuration. Can be:
+				- None: Use balanced (default) settings
+				- str: 'fast', 'balanced', or 'safe' preset
+				- PerformanceConfig: Custom performance configuration
+		"""
 		super().__init__(config)
 		# Extract horizon and timestep from config
 		planner_config = config.get("planner", {})
@@ -29,8 +49,95 @@ class CasADiSolver(BaseSolver):
 		self.exit_flag = None
 		self.info = {}
 		self.forecast = []
+
+		# Initialize performance optimizer
+		self._perf_optimizer = None
+		self._perf_config = None
+		if HAS_PERF_MODULE:
+			self._setup_performance(performance, config)
+
 		LOG_INFO(f"{(id(self))} CasADiSolver: Initializing solver")
 	
+	def _setup_performance(self, performance, config):
+		"""Set up performance optimizer based on configuration.
+
+		Args:
+			performance: Performance setting (None, str preset, or PerformanceConfig)
+			config: Full configuration dictionary
+		"""
+		if not HAS_PERF_MODULE:
+			return
+
+		# Determine performance configuration
+		if performance is None:
+			# Check if config has performance settings
+			if "performance" in config:
+				self._perf_config = PerformanceConfig.from_config(config)
+			else:
+				# Default to balanced
+				self._perf_config = PerformanceConfig.balanced()
+		elif isinstance(performance, str):
+			# Use preset
+			if performance.lower() == "fast":
+				self._perf_config = PerformanceConfig.fast()
+			elif performance.lower() == "safe":
+				self._perf_config = PerformanceConfig.safe()
+			else:
+				self._perf_config = PerformanceConfig.balanced()
+		elif isinstance(performance, PerformanceConfig):
+			self._perf_config = performance
+		else:
+			self._perf_config = PerformanceConfig.balanced()
+
+		# Create optimizer and configure
+		self._perf_optimizer = PerformanceOptimizer(self._perf_config)
+		self._perf_optimizer.configure_solver(self)
+
+		LOG_INFO(f"Performance mode: {self._perf_config.level.value}")
+
+	def set_performance_mode(self, mode):
+		"""Change performance mode at runtime.
+
+		Args:
+			mode: 'fast', 'balanced', 'safe', or PerformanceConfig instance
+		"""
+		if not HAS_PERF_MODULE:
+			LOG_WARN("Performance module not available")
+			return
+
+		if isinstance(mode, str):
+			if mode.lower() == "fast":
+				self._perf_config = PerformanceConfig.fast()
+			elif mode.lower() == "safe":
+				self._perf_config = PerformanceConfig.safe()
+			else:
+				self._perf_config = PerformanceConfig.balanced()
+		elif isinstance(mode, PerformanceConfig):
+			self._perf_config = mode
+		else:
+			return
+
+		# Recreate optimizer with new config
+		if self._perf_optimizer:
+			self._perf_optimizer.restore_logging()
+		self._perf_optimizer = PerformanceOptimizer(self._perf_config)
+		self._perf_optimizer.configure_solver(self)
+		LOG_INFO(f"Changed performance mode to: {self._perf_config.level.value}")
+
+	def get_performance_stats(self):
+		"""Get performance statistics from the optimizer."""
+		if self._perf_optimizer:
+			return {
+				"timing": self._perf_optimizer.timing_stats,
+				"cache": self._perf_optimizer.cache_stats,
+				"config": {
+					"level": self._perf_config.level.value if self._perf_config else "unknown",
+					"jit_enabled": self._perf_config.enable_jit if self._perf_config else False,
+					"caching_enabled": self._perf_config.enable_caching if self._perf_config else False,
+				}
+			}
+		return {}
+
 	def _get_dynamics_model(self):
 		"""Get dynamics model from data - always use data as source of truth."""
 		if self.data is None:
@@ -122,25 +229,40 @@ class CasADiSolver(BaseSolver):
 				LOG_INFO(f"  Created CONTROL variable '{var_name}': shape={horizon}, bounds=[{lb}, {ub}] (FREE DECISION VARIABLE)")
 			except Exception as e:
 				LOG_WARN(f"  Created CONTROL variable '{var_name}': shape={horizon}, no bounds (error: {e})")
-		opts = {
-			'ipopt.print_level': 0,
-			'print_time': 0,
-			'ipopt.sb': 'yes',
-			'ipopt.max_iter': 2000,  # Increased for difficult problems
-			'ipopt.tol': 1e-3,  # Slightly relaxed for faster convergence
-			'ipopt.acceptable_tol': 1e-1,  # More relaxed to accept suboptimal solutions
-			'ipopt.acceptable_iter': 10,  # Accept sooner if acceptable_tol met
-			'ipopt.constr_viol_tol': 1e-3,  # Relaxed constraint violation tolerance for scenario constraints (was 1e-4)
-			# Reference: C++ mpc_planner uses slightly relaxed tolerances for scenario-based constraints
-			# to allow solver convergence while maintaining safety
-			'ipopt.mu_strategy': 'adaptive',
-			'ipopt.hessian_approximation': 'limited-memory',
-			'ipopt.warm_start_init_point': 'yes',
-			'ipopt.warm_start_bound_push': 1e-6,  # Push bounds for warmstart
-			'ipopt.warm_start_mult_bound_push': 1e-6,  # Push multiplier bounds for warmstart
-			'ipopt.nlp_scaling_method': 'gradient-based',  # Better scaling for constraints
-			'ipopt.obj_scaling_factor': 1.0,  # No objective scaling
-		}
+		# Get IPOPT options - use performance optimizer if available
+		if self._perf_optimizer is not None:
+			opts = self._perf_optimizer.get_ipopt_options()
+			LOG_DEBUG(f"Using performance-optimized IPOPT options (mode={self._perf_config.level.value})")
+		else:
+			# Default options (balanced mode fallback)
+			opts = {
+				'ipopt.print_level': 0,
+				'print_time': 0,
+				'ipopt.sb': 'yes',
+				# PERFORMANCE: Reduce max iterations for faster termination
+				'ipopt.max_iter': 500,  # Reduced from 2000 - warmstart should converge faster
+				# PERFORMANCE: Relaxed tolerances for faster convergence
+				'ipopt.tol': 1e-2,  # Relaxed from 1e-3 for faster convergence
+				'ipopt.acceptable_tol': 5e-1,  # More relaxed to accept suboptimal solutions faster
+				'ipopt.acceptable_iter': 5,  # Accept sooner if acceptable_tol met (was 10)
+				'ipopt.constr_viol_tol': 1e-2,  # Relaxed from 1e-3 for faster convergence
+				# Reference: C++ mpc_planner uses slightly relaxed tolerances for scenario-based constraints
+				# to allow solver convergence while maintaining safety
+				'ipopt.mu_strategy': 'adaptive',
+				'ipopt.hessian_approximation': 'limited-memory',
+				# PERFORMANCE: Warmstart settings for faster convergence
+				'ipopt.warm_start_init_point': 'yes',
+				'ipopt.warm_start_bound_push': 1e-4,  # Relaxed from 1e-6 for faster warmstart
+				'ipopt.warm_start_mult_bound_push': 1e-4,  # Relaxed from 1e-6
+				'ipopt.warm_start_bound_frac': 1e-4,  # Additional warmstart tuning
+				'ipopt.warm_start_slack_bound_frac': 1e-4,
+				'ipopt.nlp_scaling_method': 'gradient-based',  # Better scaling for constraints
+				'ipopt.obj_scaling_factor': 1.0,  # No objective scaling
+				# PERFORMANCE: Linear solver selection (mumps is usually fastest)
+				'ipopt.linear_solver': 'mumps',
+			}
+			LOG_DEBUG("Using default IPOPT options")
+
 		# Only set fast_step_computation if supported (may not be available in all IPOPT versions)
 		try:
 			opts['ipopt.fast_step_computation'] = 'yes'

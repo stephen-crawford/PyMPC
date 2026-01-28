@@ -1,7 +1,7 @@
 planner:
-  horizon: 10
-  max_constraints: 20
-  max_obstacles: 20
+  horizon: 8  # PERFORMANCE: Reduced from 10 for faster solve
+  max_constraints: 15  # PERFORMANCE: Reduced from 20
+  max_obstacles: 10  # PERFORMANCE: Reduced from 20
   timestep: 0.1
   integrator_step: 0.1
   visualization:
@@ -15,14 +15,38 @@ planner:
     width: 7.0
   robot:
     radius: 0.5
+
+# Performance optimization settings
+# Modes: 'fast', 'balanced', 'safe', or 'custom'
+# - fast: Maximum speed, reduced accuracy (for real-time applications)
+# - balanced: Good trade-off between speed and accuracy (default)
+# - safe: Maximum accuracy, slower (for validation/testing)
+# - custom: Use settings below
+performance:
+  level: balanced
+  # JIT compilation (only used when level=custom or to override preset)
+  enable_jit: false
+  jit_compiler: gcc
+  # Caching options
+  enable_caching: true
+  cache_bounds: true
+  cache_splines: true
+  cache_max_size: 1000
+  # Logging level (DEBUG, INFO, WARNING, ERROR)
+  log_level: WARNING
+  # Constraint optimization
+  constraint_pruning: false
+  max_constraints_per_stage: 15
 # Safe Horizon Constraints - at root level for get_config_value to find
+# PERFORMANCE TUNING: Relaxed parameters for faster computation
 safe_horizon_constraints:
-  epsilon_p: 0.05    # 5% violation probability - good safety with reasonable computation
-  beta: 0.05         # 5% confidence level
-  n_bar: 5           # Support dimension
+  epsilon_p: 0.15    # PERFORMANCE: 15% violation probability (was 5%) - fewer scenarios needed
+  beta: 0.10         # PERFORMANCE: 10% confidence level (was 5%)
+  n_bar: 3           # PERFORMANCE: Reduced support dimension (was 5)
   num_removal: 1     # Outlier removal
+  num_scenarios: 25  # PERFORMANCE: Explicitly limit scenarios
 contouring:
-  num_segments: 10
+  num_segments: 6  # PERFORMANCE: Reduced from 10 for fewer spline evaluations
   add_road_constraints: true
   dynamic_velocity_reference: false
   goal_reaching_contouring: true

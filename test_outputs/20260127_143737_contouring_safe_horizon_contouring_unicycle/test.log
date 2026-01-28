@@ -1,0 +1,589 @@
+2026-01-27 14:37:37,382 - INFO - integration_test - Contouring objective detected: automatically switching to contouring-aware dynamics model
+2026-01-27 14:37:37,382 - INFO - integration_test -   Converted 'unicycle' -> 'contouring_unicycle'
+2026-01-27 14:37:37,382 - INFO - integration_test - Created vehicle dynamics model: ContouringSecondOrderUnicycleModel
+2026-01-27 14:37:37,382 - INFO - integration_test - ✓ Validation passed: Contouring objective with dynamics model that has 'spline' state
+2026-01-27 14:37:37,382 - INFO - integration_test - Creating objective module: contouring
+2026-01-27 14:37:37,388 - INFO - integration_test - Objective module 'contouring' created: contouring_objective
+2026-01-27 14:37:37,388 - INFO - integration_test - Creating 2 constraint module(s): ['safe_horizon', 'contouring']
+2026-01-27 14:37:37,388 - DEBUG - integration_test - Creating constraint module: safe_horizon
+2026-01-27 14:37:37,396 - INFO - integration_test - Constraint module 'safe_horizon' created: safe_horizon_constraint
+2026-01-27 14:37:37,396 - DEBUG - integration_test - Creating constraint module: contouring
+2026-01-27 14:37:37,403 - INFO - integration_test - Constraint module 'contouring' created: contouring_constraints
+2026-01-27 14:37:37,403 - INFO - integration_test - Created 2 constraint module(s)
+2026-01-27 14:37:37,421 - WARNING - integration_test - Error shaping obstacles: name 'get_dummy_obstacle' is not defined
+2026-01-27 14:37:37,421 - WARNING - integration_test - Error in on_data_received: 'Planner' object has no attribute 'on_data_received'
+2026-01-27 14:38:19,712 - WARNING - integration_test - Step 33: MPC solve failed
+2026-01-27 14:38:19,713 - WARNING - integration_test -   Consecutive MPC failures: 1/15
+2026-01-27 14:38:20,659 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': -0.37795991687235464}
+2026-01-27 14:38:22,990 - WARNING - integration_test - Step 34: MPC solve failed
+2026-01-27 14:38:22,990 - WARNING - integration_test -   Consecutive MPC failures: 2/15
+2026-01-27 14:38:23,689 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': -0.8}
+2026-01-27 14:38:26,323 - WARNING - integration_test - Step 35: MPC solve failed
+2026-01-27 14:38:26,323 - WARNING - integration_test -   Consecutive MPC failures: 3/15
+2026-01-27 14:38:27,033 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': -0.5201705730968369}
+2026-01-27 14:38:29,051 - WARNING - integration_test - Step 36: MPC solve failed
+2026-01-27 14:38:29,051 - WARNING - integration_test -   Consecutive MPC failures: 4/15
+2026-01-27 14:38:29,584 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': -0.8}
+2026-01-27 14:38:31,729 - WARNING - integration_test - Step 37: MPC solve failed
+2026-01-27 14:38:31,729 - WARNING - integration_test -   Consecutive MPC failures: 5/15
+2026-01-27 14:38:32,844 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': -0.3745054957911691}
+2026-01-27 14:38:33,035 - WARNING - integration_test - Step 38: Vehicle is far from path start (dist=10.108m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:35,186 - WARNING - integration_test - Step 38: MPC solve failed
+2026-01-27 14:38:35,186 - WARNING - integration_test -   Consecutive MPC failures: 6/15
+2026-01-27 14:38:35,945 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': -0.1054066698559204}
+2026-01-27 14:38:36,088 - WARNING - integration_test - Step 39: Vehicle is far from path start (dist=10.295m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:37,937 - WARNING - integration_test - Step 39: MPC solve failed
+2026-01-27 14:38:37,937 - WARNING - integration_test -   Consecutive MPC failures: 7/15
+2026-01-27 14:38:38,605 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': -0.3050094798840579}
+2026-01-27 14:38:38,748 - WARNING - integration_test - Step 40: Vehicle is far from path start (dist=10.462m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:40,972 - WARNING - integration_test - Step 40: MPC solve failed
+2026-01-27 14:38:40,972 - WARNING - integration_test -   Consecutive MPC failures: 8/15
+2026-01-27 14:38:41,638 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.021253475458513194}
+2026-01-27 14:38:41,792 - WARNING - integration_test - Step 41: Vehicle is far from path start (dist=10.609m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:43,672 - WARNING - integration_test - Step 41: MPC solve failed
+2026-01-27 14:38:43,672 - WARNING - integration_test -   Consecutive MPC failures: 9/15
+2026-01-27 14:38:44,326 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.12361095901497698}
+2026-01-27 14:38:44,467 - WARNING - integration_test - Step 42: Vehicle is far from path start (dist=10.736m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:46,562 - WARNING - integration_test - Step 42: MPC solve failed
+2026-01-27 14:38:46,562 - WARNING - integration_test -   Consecutive MPC failures: 10/15
+2026-01-27 14:38:47,471 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.04926927696967809}
+2026-01-27 14:38:47,606 - WARNING - integration_test - Step 43: Vehicle is far from path start (dist=10.844m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:49,090 - WARNING - integration_test - Step 44: Vehicle is far from path start (dist=10.953m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:50,535 - WARNING - integration_test - Step 45: Vehicle is far from path start (dist=11.082m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:52,086 - WARNING - integration_test - Step 46: Vehicle is far from path start (dist=11.231m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:53,952 - WARNING - integration_test - Step 47: Vehicle is far from path start (dist=11.399m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:55,486 - WARNING - integration_test - Step 48: Vehicle is far from path start (dist=11.587m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:57,081 - WARNING - integration_test - Step 49: Vehicle is far from path start (dist=11.795m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:38:59,018 - WARNING - integration_test - Step 50: Vehicle is far from path start (dist=12.021m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:00,858 - WARNING - integration_test - Step 51: Vehicle is far from path start (dist=12.262m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:02,452 - WARNING - integration_test - Step 52: Vehicle is far from path start (dist=12.517m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:03,999 - WARNING - integration_test - Step 53: Vehicle is far from path start (dist=12.783m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:06,045 - WARNING - integration_test - Step 54: Vehicle is far from path start (dist=13.054m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:07,750 - WARNING - integration_test - Step 55: Vehicle is far from path start (dist=13.325m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:09,473 - WARNING - integration_test - Step 56: Vehicle is far from path start (dist=13.603m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:11,274 - WARNING - integration_test - Step 57: Vehicle is far from path start (dist=13.888m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:13,473 - WARNING - integration_test - Step 58: Vehicle is far from path start (dist=14.181m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:15,417 - WARNING - integration_test - Step 59: Vehicle is far from path start (dist=14.477m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:17,405 - WARNING - integration_test - Step 60: Vehicle is far from path start (dist=14.777m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:19,458 - WARNING - integration_test - Step 61: Vehicle is far from path start (dist=15.077m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:21,772 - WARNING - integration_test - Step 62: Vehicle is far from path start (dist=15.376m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:24,863 - WARNING - integration_test - Step 63: Vehicle is far from path start (dist=15.676m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:27,422 - WARNING - integration_test - Step 64: Vehicle is far from path start (dist=15.976m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:30,297 - WARNING - integration_test - Step 65: Vehicle is far from path start (dist=16.276m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:33,140 - WARNING - integration_test - Step 66: Vehicle is far from path start (dist=16.576m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:35,213 - WARNING - integration_test - Step 66: MPC solve failed
+2026-01-27 14:39:35,213 - WARNING - integration_test -   Consecutive MPC failures: 1/15
+2026-01-27 14:39:37,383 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.8}
+2026-01-27 14:39:37,559 - WARNING - integration_test - Step 67: Vehicle is far from path start (dist=16.866m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:43,587 - WARNING - integration_test - Step 67: MPC solve failed
+2026-01-27 14:39:43,587 - WARNING - integration_test -   Consecutive MPC failures: 2/15
+2026-01-27 14:39:45,280 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.8}
+2026-01-27 14:39:45,432 - WARNING - integration_test - Step 68: Vehicle is far from path start (dist=17.135m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:53,426 - WARNING - integration_test - Step 68: MPC solve failed
+2026-01-27 14:39:53,426 - WARNING - integration_test -   Consecutive MPC failures: 3/15
+2026-01-27 14:39:55,335 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.8}
+2026-01-27 14:39:55,486 - WARNING - integration_test - Step 69: Vehicle is far from path start (dist=17.383m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:39:57,891 - WARNING - integration_test - Step 69: MPC solve failed
+2026-01-27 14:39:57,891 - WARNING - integration_test -   Consecutive MPC failures: 4/15
+2026-01-27 14:39:59,737 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.20100760181323363}
+2026-01-27 14:39:59,888 - WARNING - integration_test - Step 70: Vehicle is far from path start (dist=17.608m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:02,747 - WARNING - integration_test - Step 71: Vehicle is far from path start (dist=17.836m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:06,147 - WARNING - integration_test - Step 72: Vehicle is far from path start (dist=18.065m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:08,887 - WARNING - integration_test - Step 73: Vehicle is far from path start (dist=18.275m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:11,722 - WARNING - integration_test - Step 74: Vehicle is far from path start (dist=18.464m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:14,614 - WARNING - integration_test - Step 75: Vehicle is far from path start (dist=18.632m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:17,405 - WARNING - integration_test - Step 76: Vehicle is far from path start (dist=18.778m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:20,834 - WARNING - integration_test - Step 77: Vehicle is far from path start (dist=18.903m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:23,674 - WARNING - integration_test - Step 78: Vehicle is far from path start (dist=19.009m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:26,524 - WARNING - integration_test - Step 79: Vehicle is far from path start (dist=19.096m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:29,354 - WARNING - integration_test - Step 80: Vehicle is far from path start (dist=19.164m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:32,288 - WARNING - integration_test - Step 81: Vehicle is far from path start (dist=19.212m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:35,232 - WARNING - integration_test - Step 82: Vehicle is far from path start (dist=19.241m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:38,842 - WARNING - integration_test - Step 83: Vehicle is far from path start (dist=19.251m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:41,912 - WARNING - integration_test - Step 84: Vehicle is far from path start (dist=19.250m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:45,023 - WARNING - integration_test - Step 85: Vehicle is far from path start (dist=19.249m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:45,887 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 85!
+2026-01-27 14:40:45,887 - ERROR - integration_test -   Vehicle has moved only 0.0915m in last 5 steps
+2026-01-27 14:40:45,887 - ERROR - integration_test -   Current position: (17.970, 6.899)
+2026-01-27 14:40:45,887 - ERROR - integration_test -   Position 5 steps ago: (17.882, 6.890)
+2026-01-27 14:40:45,887 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:40:45,887 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:40:48,295 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.248m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:49,124 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:40:49,124 - ERROR - integration_test -   Vehicle has moved only 0.0425m in last 5 steps
+2026-01-27 14:40:49,124 - ERROR - integration_test -   Current position: (17.969, 6.899)
+2026-01-27 14:40:49,124 - ERROR - integration_test -   Position 5 steps ago: (17.932, 6.895)
+2026-01-27 14:40:49,124 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:40:49,124 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:40:51,468 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.247m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:52,295 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:40:52,295 - ERROR - integration_test -   Vehicle has moved only 0.0135m in last 5 steps
+2026-01-27 14:40:52,295 - ERROR - integration_test -   Current position: (17.968, 6.899)
+2026-01-27 14:40:52,295 - ERROR - integration_test -   Position 5 steps ago: (17.962, 6.898)
+2026-01-27 14:40:52,295 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:40:52,295 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:40:54,623 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.246m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:55,514 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:40:55,514 - ERROR - integration_test -   Vehicle has moved only 0.0045m in last 5 steps
+2026-01-27 14:40:55,514 - ERROR - integration_test -   Current position: (17.967, 6.899)
+2026-01-27 14:40:55,514 - ERROR - integration_test -   Position 5 steps ago: (17.972, 6.900)
+2026-01-27 14:40:55,514 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:40:55,514 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:40:58,508 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.245m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:40:59,376 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:40:59,376 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:40:59,376 - ERROR - integration_test -   Current position: (17.966, 6.899)
+2026-01-27 14:40:59,376 - ERROR - integration_test -   Position 5 steps ago: (17.971, 6.900)
+2026-01-27 14:40:59,376 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:40:59,376 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:01,876 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.244m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:02,864 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:02,864 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:02,864 - ERROR - integration_test -   Current position: (17.965, 6.899)
+2026-01-27 14:41:02,864 - ERROR - integration_test -   Position 5 steps ago: (17.970, 6.899)
+2026-01-27 14:41:02,864 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:02,864 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:05,423 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.243m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:06,290 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:06,290 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:06,290 - ERROR - integration_test -   Current position: (17.964, 6.898)
+2026-01-27 14:41:06,290 - ERROR - integration_test -   Position 5 steps ago: (17.969, 6.899)
+2026-01-27 14:41:06,290 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:06,290 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:08,812 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.242m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:09,639 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:09,639 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:09,639 - ERROR - integration_test -   Current position: (17.963, 6.898)
+2026-01-27 14:41:09,639 - ERROR - integration_test -   Position 5 steps ago: (17.968, 6.899)
+2026-01-27 14:41:09,639 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:09,639 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:12,195 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.241m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:13,065 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:13,065 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:13,065 - ERROR - integration_test -   Current position: (17.963, 6.898)
+2026-01-27 14:41:13,065 - ERROR - integration_test -   Position 5 steps ago: (17.967, 6.899)
+2026-01-27 14:41:13,065 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:13,065 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:15,663 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.240m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:16,571 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:16,571 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:16,571 - ERROR - integration_test -   Current position: (17.962, 6.897)
+2026-01-27 14:41:16,571 - ERROR - integration_test -   Position 5 steps ago: (17.966, 6.899)
+2026-01-27 14:41:16,571 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:16,571 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:19,938 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.239m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:20,823 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:20,823 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:20,823 - ERROR - integration_test -   Current position: (17.961, 6.897)
+2026-01-27 14:41:20,823 - ERROR - integration_test -   Position 5 steps ago: (17.965, 6.899)
+2026-01-27 14:41:20,823 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:20,823 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:23,556 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.238m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:24,469 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:24,469 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:24,469 - ERROR - integration_test -   Current position: (17.960, 6.896)
+2026-01-27 14:41:24,469 - ERROR - integration_test -   Position 5 steps ago: (17.964, 6.898)
+2026-01-27 14:41:24,469 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:24,469 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:27,389 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.237m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:28,271 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:28,271 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:28,271 - ERROR - integration_test -   Current position: (17.959, 6.896)
+2026-01-27 14:41:28,271 - ERROR - integration_test -   Position 5 steps ago: (17.963, 6.898)
+2026-01-27 14:41:28,271 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:28,271 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:31,204 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.237m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:32,129 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:32,129 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:32,129 - ERROR - integration_test -   Current position: (17.958, 6.895)
+2026-01-27 14:41:32,130 - ERROR - integration_test -   Position 5 steps ago: (17.963, 6.898)
+2026-01-27 14:41:32,130 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:32,130 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:34,892 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.236m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:35,878 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:35,878 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:35,878 - ERROR - integration_test -   Current position: (17.958, 6.894)
+2026-01-27 14:41:35,878 - ERROR - integration_test -   Position 5 steps ago: (17.962, 6.897)
+2026-01-27 14:41:35,878 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:35,878 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:38,577 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.235m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:39,552 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:39,552 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:39,552 - ERROR - integration_test -   Current position: (17.957, 6.894)
+2026-01-27 14:41:39,552 - ERROR - integration_test -   Position 5 steps ago: (17.961, 6.897)
+2026-01-27 14:41:39,552 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:39,552 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:42,392 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.234m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:43,327 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:43,327 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:43,327 - ERROR - integration_test -   Current position: (17.956, 6.893)
+2026-01-27 14:41:43,327 - ERROR - integration_test -   Position 5 steps ago: (17.960, 6.896)
+2026-01-27 14:41:43,327 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:43,327 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:46,786 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.233m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:47,649 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:47,649 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:47,649 - ERROR - integration_test -   Current position: (17.956, 6.892)
+2026-01-27 14:41:47,650 - ERROR - integration_test -   Position 5 steps ago: (17.959, 6.896)
+2026-01-27 14:41:47,650 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:47,650 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:50,584 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.232m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:51,477 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:51,477 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:51,477 - ERROR - integration_test -   Current position: (17.955, 6.891)
+2026-01-27 14:41:51,477 - ERROR - integration_test -   Position 5 steps ago: (17.958, 6.895)
+2026-01-27 14:41:51,477 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:51,477 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:54,178 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.231m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:55,052 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:55,052 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:55,052 - ERROR - integration_test -   Current position: (17.954, 6.891)
+2026-01-27 14:41:55,052 - ERROR - integration_test -   Position 5 steps ago: (17.958, 6.894)
+2026-01-27 14:41:55,052 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:55,052 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:41:57,915 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.230m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:41:58,764 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:41:58,764 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:41:58,764 - ERROR - integration_test -   Current position: (17.954, 6.890)
+2026-01-27 14:41:58,764 - ERROR - integration_test -   Position 5 steps ago: (17.957, 6.894)
+2026-01-27 14:41:58,764 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:41:58,764 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:01,873 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.229m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:02,740 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:02,740 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:02,740 - ERROR - integration_test -   Current position: (17.953, 6.889)
+2026-01-27 14:42:02,740 - ERROR - integration_test -   Position 5 steps ago: (17.956, 6.893)
+2026-01-27 14:42:02,740 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:02,740 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:05,755 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.229m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:06,671 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:06,671 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:06,671 - ERROR - integration_test -   Current position: (17.952, 6.888)
+2026-01-27 14:42:06,671 - ERROR - integration_test -   Position 5 steps ago: (17.956, 6.892)
+2026-01-27 14:42:06,671 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:06,671 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:09,804 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.228m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:10,748 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:10,748 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:10,748 - ERROR - integration_test -   Current position: (17.952, 6.888)
+2026-01-27 14:42:10,748 - ERROR - integration_test -   Position 5 steps ago: (17.955, 6.891)
+2026-01-27 14:42:10,748 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:10,748 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:14,727 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.227m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:15,593 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:15,593 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:15,593 - ERROR - integration_test -   Current position: (17.951, 6.887)
+2026-01-27 14:42:15,593 - ERROR - integration_test -   Position 5 steps ago: (17.954, 6.891)
+2026-01-27 14:42:15,593 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:15,593 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:18,602 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.226m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:19,406 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:19,406 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:19,406 - ERROR - integration_test -   Current position: (17.951, 6.886)
+2026-01-27 14:42:19,406 - ERROR - integration_test -   Position 5 steps ago: (17.954, 6.890)
+2026-01-27 14:42:19,406 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:19,406 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:22,259 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.225m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:23,062 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:23,062 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:23,062 - ERROR - integration_test -   Current position: (17.950, 6.885)
+2026-01-27 14:42:23,062 - ERROR - integration_test -   Position 5 steps ago: (17.953, 6.889)
+2026-01-27 14:42:23,062 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:23,062 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:25,902 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.224m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:26,734 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:26,734 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:26,734 - ERROR - integration_test -   Current position: (17.949, 6.884)
+2026-01-27 14:42:26,734 - ERROR - integration_test -   Position 5 steps ago: (17.952, 6.888)
+2026-01-27 14:42:26,734 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:26,734 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:29,632 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.223m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:30,451 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:30,451 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:30,451 - ERROR - integration_test -   Current position: (17.949, 6.884)
+2026-01-27 14:42:30,451 - ERROR - integration_test -   Position 5 steps ago: (17.952, 6.888)
+2026-01-27 14:42:30,451 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:30,451 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:33,365 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.223m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:34,172 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:34,172 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:34,172 - ERROR - integration_test -   Current position: (17.948, 6.883)
+2026-01-27 14:42:34,172 - ERROR - integration_test -   Position 5 steps ago: (17.951, 6.887)
+2026-01-27 14:42:34,172 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:34,172 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:37,242 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.222m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:38,088 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:38,088 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:38,088 - ERROR - integration_test -   Current position: (17.947, 6.882)
+2026-01-27 14:42:38,088 - ERROR - integration_test -   Position 5 steps ago: (17.951, 6.886)
+2026-01-27 14:42:38,088 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:38,088 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:41,137 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.221m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:42,006 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:42,006 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:42,006 - ERROR - integration_test -   Current position: (17.947, 6.881)
+2026-01-27 14:42:42,006 - ERROR - integration_test -   Position 5 steps ago: (17.950, 6.885)
+2026-01-27 14:42:42,006 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:42,006 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:46,087 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.220m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:47,041 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:47,041 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:47,041 - ERROR - integration_test -   Current position: (17.946, 6.881)
+2026-01-27 14:42:47,041 - ERROR - integration_test -   Position 5 steps ago: (17.949, 6.884)
+2026-01-27 14:42:47,041 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:47,041 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:50,556 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.219m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:51,427 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:51,427 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:51,427 - ERROR - integration_test -   Current position: (17.946, 6.880)
+2026-01-27 14:42:51,427 - ERROR - integration_test -   Position 5 steps ago: (17.949, 6.884)
+2026-01-27 14:42:51,427 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:51,428 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:54,961 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.218m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:42:55,938 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:42:55,938 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:42:55,938 - ERROR - integration_test -   Current position: (17.945, 6.879)
+2026-01-27 14:42:55,938 - ERROR - integration_test -   Position 5 steps ago: (17.948, 6.883)
+2026-01-27 14:42:55,938 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:42:55,938 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:42:59,506 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.217m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:00,441 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:00,441 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:00,441 - ERROR - integration_test -   Current position: (17.944, 6.878)
+2026-01-27 14:43:00,441 - ERROR - integration_test -   Position 5 steps ago: (17.947, 6.882)
+2026-01-27 14:43:00,441 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:00,441 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:03,996 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.216m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:04,927 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:04,928 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:04,928 - ERROR - integration_test -   Current position: (17.944, 6.877)
+2026-01-27 14:43:04,928 - ERROR - integration_test -   Position 5 steps ago: (17.947, 6.881)
+2026-01-27 14:43:04,928 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:04,928 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:08,350 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.216m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:09,314 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:09,314 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:09,314 - ERROR - integration_test -   Current position: (17.943, 6.877)
+2026-01-27 14:43:09,314 - ERROR - integration_test -   Position 5 steps ago: (17.946, 6.881)
+2026-01-27 14:43:09,314 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:09,314 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:12,959 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.215m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:13,954 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:13,954 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:13,954 - ERROR - integration_test -   Current position: (17.942, 6.876)
+2026-01-27 14:43:13,954 - ERROR - integration_test -   Position 5 steps ago: (17.946, 6.880)
+2026-01-27 14:43:13,954 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:13,954 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:17,431 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.214m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:18,366 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:18,366 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:18,366 - ERROR - integration_test -   Current position: (17.942, 6.875)
+2026-01-27 14:43:18,366 - ERROR - integration_test -   Position 5 steps ago: (17.945, 6.879)
+2026-01-27 14:43:18,366 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:18,366 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:22,615 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.213m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:23,485 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:23,485 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:23,485 - ERROR - integration_test -   Current position: (17.941, 6.874)
+2026-01-27 14:43:23,485 - ERROR - integration_test -   Position 5 steps ago: (17.944, 6.878)
+2026-01-27 14:43:23,485 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:23,485 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:26,918 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.212m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:27,800 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:27,800 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:27,800 - ERROR - integration_test -   Current position: (17.940, 6.874)
+2026-01-27 14:43:27,800 - ERROR - integration_test -   Position 5 steps ago: (17.944, 6.877)
+2026-01-27 14:43:27,800 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:27,801 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:31,229 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.211m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:32,137 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:32,137 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:32,137 - ERROR - integration_test -   Current position: (17.940, 6.873)
+2026-01-27 14:43:32,137 - ERROR - integration_test -   Position 5 steps ago: (17.943, 6.877)
+2026-01-27 14:43:32,137 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:32,137 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:35,501 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.210m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:36,413 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:36,414 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:36,414 - ERROR - integration_test -   Current position: (17.939, 6.872)
+2026-01-27 14:43:36,414 - ERROR - integration_test -   Position 5 steps ago: (17.942, 6.876)
+2026-01-27 14:43:36,414 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:36,414 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:39,865 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.210m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:40,766 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:40,766 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:40,766 - ERROR - integration_test -   Current position: (17.939, 6.871)
+2026-01-27 14:43:40,766 - ERROR - integration_test -   Position 5 steps ago: (17.942, 6.875)
+2026-01-27 14:43:40,766 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:40,766 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:44,244 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.209m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:45,370 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:45,370 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:45,370 - ERROR - integration_test -   Current position: (17.938, 6.870)
+2026-01-27 14:43:45,370 - ERROR - integration_test -   Position 5 steps ago: (17.941, 6.874)
+2026-01-27 14:43:45,370 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:45,370 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:49,324 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.208m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:50,463 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:50,463 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:50,463 - ERROR - integration_test -   Current position: (17.937, 6.870)
+2026-01-27 14:43:50,463 - ERROR - integration_test -   Position 5 steps ago: (17.940, 6.874)
+2026-01-27 14:43:50,463 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:50,463 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:54,241 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.207m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:55,200 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:55,200 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:55,200 - ERROR - integration_test -   Current position: (17.937, 6.869)
+2026-01-27 14:43:55,200 - ERROR - integration_test -   Position 5 steps ago: (17.940, 6.873)
+2026-01-27 14:43:55,200 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:55,200 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:43:59,035 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.206m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:43:59,961 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:43:59,961 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:43:59,961 - ERROR - integration_test -   Current position: (17.936, 6.868)
+2026-01-27 14:43:59,961 - ERROR - integration_test -   Position 5 steps ago: (17.939, 6.872)
+2026-01-27 14:43:59,961 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:43:59,961 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:05,214 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.205m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:06,170 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:06,170 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:06,170 - ERROR - integration_test -   Current position: (17.935, 6.867)
+2026-01-27 14:44:06,170 - ERROR - integration_test -   Position 5 steps ago: (17.939, 6.871)
+2026-01-27 14:44:06,171 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:06,171 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:10,198 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.204m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:11,183 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:11,183 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:11,183 - ERROR - integration_test -   Current position: (17.935, 6.867)
+2026-01-27 14:44:11,183 - ERROR - integration_test -   Position 5 steps ago: (17.938, 6.870)
+2026-01-27 14:44:11,183 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:11,183 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:15,205 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.203m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:16,219 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:16,219 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:16,219 - ERROR - integration_test -   Current position: (17.934, 6.866)
+2026-01-27 14:44:16,219 - ERROR - integration_test -   Position 5 steps ago: (17.937, 6.870)
+2026-01-27 14:44:16,219 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:16,219 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:20,237 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.203m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:21,245 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:21,245 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:21,246 - ERROR - integration_test -   Current position: (17.933, 6.865)
+2026-01-27 14:44:21,246 - ERROR - integration_test -   Position 5 steps ago: (17.937, 6.869)
+2026-01-27 14:44:21,246 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:21,246 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:25,464 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.202m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:26,506 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:26,506 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:26,506 - ERROR - integration_test -   Current position: (17.933, 6.864)
+2026-01-27 14:44:26,506 - ERROR - integration_test -   Position 5 steps ago: (17.936, 6.868)
+2026-01-27 14:44:26,506 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:26,506 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:30,833 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.201m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:31,826 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:31,826 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:31,826 - ERROR - integration_test -   Current position: (17.932, 6.864)
+2026-01-27 14:44:31,826 - ERROR - integration_test -   Position 5 steps ago: (17.935, 6.867)
+2026-01-27 14:44:31,826 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:31,826 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:36,143 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.200m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:37,129 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:37,129 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:37,129 - ERROR - integration_test -   Current position: (17.932, 6.863)
+2026-01-27 14:44:37,129 - ERROR - integration_test -   Position 5 steps ago: (17.935, 6.867)
+2026-01-27 14:44:37,129 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:37,129 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:41,371 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.199m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:42,488 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:42,488 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:42,488 - ERROR - integration_test -   Current position: (17.931, 6.862)
+2026-01-27 14:44:42,488 - ERROR - integration_test -   Position 5 steps ago: (17.934, 6.866)
+2026-01-27 14:44:42,488 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:42,488 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:47,164 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.198m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:48,130 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:48,130 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:48,130 - ERROR - integration_test -   Current position: (17.930, 6.861)
+2026-01-27 14:44:48,130 - ERROR - integration_test -   Position 5 steps ago: (17.933, 6.865)
+2026-01-27 14:44:48,130 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:48,131 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:53,435 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.197m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:54,481 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:54,481 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:54,481 - ERROR - integration_test -   Current position: (17.930, 6.860)
+2026-01-27 14:44:54,481 - ERROR - integration_test -   Position 5 steps ago: (17.933, 6.864)
+2026-01-27 14:44:54,481 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:54,481 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:44:58,751 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.196m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:44:59,768 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:44:59,769 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:44:59,769 - ERROR - integration_test -   Current position: (17.929, 6.860)
+2026-01-27 14:44:59,769 - ERROR - integration_test -   Position 5 steps ago: (17.932, 6.864)
+2026-01-27 14:44:59,769 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:44:59,769 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:04,079 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.196m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:05,069 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:05,069 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:05,069 - ERROR - integration_test -   Current position: (17.928, 6.859)
+2026-01-27 14:45:05,069 - ERROR - integration_test -   Position 5 steps ago: (17.932, 6.863)
+2026-01-27 14:45:05,069 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:05,069 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:09,306 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.195m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:10,302 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:10,302 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:10,302 - ERROR - integration_test -   Current position: (17.928, 6.858)
+2026-01-27 14:45:10,302 - ERROR - integration_test -   Position 5 steps ago: (17.931, 6.862)
+2026-01-27 14:45:10,302 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:10,302 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:14,968 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.194m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:15,899 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:15,899 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:15,899 - ERROR - integration_test -   Current position: (17.927, 6.857)
+2026-01-27 14:45:15,899 - ERROR - integration_test -   Position 5 steps ago: (17.930, 6.861)
+2026-01-27 14:45:15,899 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:15,899 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:20,321 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.193m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:21,342 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:21,342 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:21,342 - ERROR - integration_test -   Current position: (17.926, 6.857)
+2026-01-27 14:45:21,342 - ERROR - integration_test -   Position 5 steps ago: (17.930, 6.860)
+2026-01-27 14:45:21,342 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:21,342 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:25,778 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.192m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:26,743 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:26,743 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:26,743 - ERROR - integration_test -   Current position: (17.926, 6.856)
+2026-01-27 14:45:26,743 - ERROR - integration_test -   Position 5 steps ago: (17.929, 6.860)
+2026-01-27 14:45:26,743 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:26,743 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:30,969 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.191m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:31,938 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:31,938 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:31,938 - ERROR - integration_test -   Current position: (17.925, 6.855)
+2026-01-27 14:45:31,938 - ERROR - integration_test -   Position 5 steps ago: (17.928, 6.859)
+2026-01-27 14:45:31,938 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:31,938 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:36,152 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.190m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:37,180 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:37,180 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:37,180 - ERROR - integration_test -   Current position: (17.924, 6.854)
+2026-01-27 14:45:37,180 - ERROR - integration_test -   Position 5 steps ago: (17.928, 6.858)
+2026-01-27 14:45:37,180 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:37,180 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:41,769 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.189m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:42,718 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:42,718 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:42,718 - ERROR - integration_test -   Current position: (17.924, 6.854)
+2026-01-27 14:45:42,718 - ERROR - integration_test -   Position 5 steps ago: (17.927, 6.857)
+2026-01-27 14:45:42,718 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:42,718 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:47,716 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.189m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:48,657 - ERROR - integration_test - 🚨 VEHICLE STUCK DETECTED at step 301!
+2026-01-27 14:45:48,657 - ERROR - integration_test -   Vehicle has moved only 0.0050m in last 5 steps
+2026-01-27 14:45:48,657 - ERROR - integration_test -   Current position: (17.923, 6.853)
+2026-01-27 14:45:48,657 - ERROR - integration_test -   Position 5 steps ago: (17.926, 6.857)
+2026-01-27 14:45:48,658 - ERROR - integration_test -   Checking constraint violations at current position...
+2026-01-27 14:45:48,658 - ERROR - integration_test -   Terminating test early due to stuck vehicle
+2026-01-27 14:45:52,732 - WARNING - integration_test - Step 301: Vehicle is far from path start (dist=19.188m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:45:54,915 - WARNING - integration_test - Step 301: MPC solve failed
+2026-01-27 14:45:54,915 - WARNING - integration_test -   Consecutive MPC failures: 1/15

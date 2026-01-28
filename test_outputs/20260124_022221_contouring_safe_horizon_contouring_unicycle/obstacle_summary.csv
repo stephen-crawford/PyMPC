@@ -1,3 +1,0 @@
-obstacle_id,dynamics_type,radius,initial_x,initial_y,initial_angle
-0,SecondOrderUnicycleModel,0.35,7.737623826510011,6.324915426611258,0.5484620634185151
-1,SecondOrderUnicycleModel,0.35,12.365825387805087,9.126854528423959,1.05674880616761

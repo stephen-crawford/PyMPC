@@ -1,0 +1,86 @@
+# Fast configuration for real-time applications
+# Trade-off: Slightly reduced accuracy for significantly faster solve times
+
+planner:
+  horizon: 6  # Minimal horizon for fast computation
+  max_constraints: 10
+  max_obstacles: 5
+  timestep: 0.1
+  integrator_step: 0.1
+  visualization:
+    draw_every: 10
+    control_frequency: 20
+  debug_limits: false
+  debug_output: false
+  deceleration_at_infeasible: 10.0
+  enable_output: false  # Disable output for speed
+  road:
+    width: 7.0
+  robot:
+    radius: 0.5
+
+# Performance optimization settings - FAST MODE
+performance:
+  level: fast
+  enable_jit: true
+  jit_compiler: gcc
+  enable_caching: true
+  cache_bounds: true
+  cache_splines: true
+  cache_constraints: true
+  cache_max_size: 500
+  log_level: ERROR
+  constraint_pruning: true
+  max_constraints_per_stage: 10
+
+# Fast Safe Horizon settings
+safe_horizon_constraints:
+  epsilon_p: 0.20    # 20% violation probability - fast but safe
+  beta: 0.15         # 15% confidence level
+  n_bar: 2           # Minimal support dimension
+  num_removal: 0     # No outlier removal for speed
+  num_scenarios: 15  # Minimal scenarios
+  max_constraints_per_disc: 3
+  safe_horizon_steps: 5  # Only constrain first 5 steps
+
+contouring:
+  num_segments: 4  # Minimal spline segments
+  add_road_constraints: true
+  dynamic_velocity_reference: false
+  goal_reaching_contouring: true
+  three_dimensional_contouring: false
+
+weights:
+  contour_weight: 5.0
+  contouring_lag_weight: 5
+  goal_weight: 10.0
+  goal_angle_weight: 1.0
+  goal_terminal_weight: 10.0
+  goal_terminal_angle: 1.0
+  acceleration_weight: 0.5
+  angular_velocity: 5.0
+  slack_weight: 5.0
+  velocity_tracking_weight: 3.0
+  reference_velocity: 2.0
+  acceleration_jerk_weight: 2.0
+  angular_jerk_weight: 4.0
+
+solver:
+  solver: casadi
+  shift_previous_solution_forward: true
+
+modules:
+  constraints:
+    linearized_constraints:
+      max_constraints: 5
+      max_obstacles: 3
+      num_discs: 1
+      disc_radius: 0.5
+      obstacle_radius: 0.35
+      halfspace_offset: 0.5
+    gaussian_constraints:
+      risk_level: 0.25  # Higher risk = faster
+    scenario_constraints:
+      num_scenarios: 2
+      max_constraints: 4
+      parallel_solvers: 1

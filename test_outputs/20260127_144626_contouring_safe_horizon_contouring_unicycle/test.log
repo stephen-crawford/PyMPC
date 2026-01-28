@@ -1,0 +1,76 @@
+2026-01-27 14:46:26,526 - INFO - integration_test - Contouring objective detected: automatically switching to contouring-aware dynamics model
+2026-01-27 14:46:26,526 - INFO - integration_test -   Converted 'unicycle' -> 'contouring_unicycle'
+2026-01-27 14:46:26,526 - INFO - integration_test - Created vehicle dynamics model: ContouringSecondOrderUnicycleModel
+2026-01-27 14:46:26,526 - INFO - integration_test - ✓ Validation passed: Contouring objective with dynamics model that has 'spline' state
+2026-01-27 14:46:26,526 - INFO - integration_test - Creating objective module: contouring
+2026-01-27 14:46:26,532 - INFO - integration_test - Objective module 'contouring' created: contouring_objective
+2026-01-27 14:46:26,532 - INFO - integration_test - Creating 2 constraint module(s): ['safe_horizon', 'contouring']
+2026-01-27 14:46:26,532 - DEBUG - integration_test - Creating constraint module: safe_horizon
+2026-01-27 14:46:26,540 - INFO - integration_test - Constraint module 'safe_horizon' created: safe_horizon_constraint
+2026-01-27 14:46:26,540 - DEBUG - integration_test - Creating constraint module: contouring
+2026-01-27 14:46:26,547 - INFO - integration_test - Constraint module 'contouring' created: contouring_constraints
+2026-01-27 14:46:26,547 - INFO - integration_test - Created 2 constraint module(s)
+2026-01-27 14:46:26,563 - WARNING - integration_test - Error shaping obstacles: name 'get_dummy_obstacle' is not defined
+2026-01-27 14:46:26,563 - WARNING - integration_test - Error in on_data_received: 'Planner' object has no attribute 'on_data_received'
+2026-01-27 14:47:10,199 - WARNING - integration_test - Step 37: Vehicle is far from path start (dist=10.008m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:11,515 - WARNING - integration_test - Step 38: Vehicle is far from path start (dist=10.302m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:13,205 - WARNING - integration_test - Step 39: Vehicle is far from path start (dist=10.599m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:14,608 - WARNING - integration_test - Step 40: Vehicle is far from path start (dist=10.899m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:15,942 - WARNING - integration_test - Step 41: Vehicle is far from path start (dist=11.198m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:17,649 - WARNING - integration_test - Step 42: Vehicle is far from path start (dist=11.498m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:19,148 - WARNING - integration_test - Step 43: Vehicle is far from path start (dist=11.798m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:20,587 - WARNING - integration_test - Step 44: Vehicle is far from path start (dist=12.098m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:22,093 - WARNING - integration_test - Step 45: Vehicle is far from path start (dist=12.398m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:23,917 - WARNING - integration_test - Step 46: Vehicle is far from path start (dist=12.698m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:25,392 - WARNING - integration_test - Step 47: Vehicle is far from path start (dist=12.997m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:27,196 - WARNING - integration_test - Step 47: MPC solve failed
+2026-01-27 14:47:27,196 - WARNING - integration_test -   Consecutive MPC failures: 1/15
+2026-01-27 14:47:27,829 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.8}
+2026-01-27 14:47:27,990 - WARNING - integration_test - Step 48: Vehicle is far from path start (dist=13.287m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:29,711 - WARNING - integration_test - Step 48: MPC solve failed
+2026-01-27 14:47:29,711 - WARNING - integration_test -   Consecutive MPC failures: 2/15
+2026-01-27 14:47:30,703 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.5982942820458446}
+2026-01-27 14:47:30,834 - WARNING - integration_test - Step 49: Vehicle is far from path start (dist=13.554m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:32,790 - WARNING - integration_test - Step 49: MPC solve failed
+2026-01-27 14:47:32,790 - WARNING - integration_test -   Consecutive MPC failures: 3/15
+2026-01-27 14:47:33,491 - WARNING - integration_test -   MPC solve failed - applying safe fallback control: {'a': -2.0, 'w': 0.8}
+2026-01-27 14:47:33,623 - WARNING - integration_test - Step 50: Vehicle is far from path start (dist=13.799m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:35,160 - WARNING - integration_test - Step 51: Vehicle is far from path start (dist=14.040m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:36,695 - WARNING - integration_test - Step 52: Vehicle is far from path start (dist=14.300m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:38,714 - WARNING - integration_test - Step 53: Vehicle is far from path start (dist=14.585m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:40,423 - WARNING - integration_test - Step 54: Vehicle is far from path start (dist=14.883m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:42,012 - WARNING - integration_test - Step 55: Vehicle is far from path start (dist=15.183m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:43,787 - WARNING - integration_test - Step 56: Vehicle is far from path start (dist=15.482m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:45,849 - WARNING - integration_test - Step 57: Vehicle is far from path start (dist=15.780m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:47,671 - WARNING - integration_test - Step 58: Vehicle is far from path start (dist=16.073m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:49,456 - WARNING - integration_test - Step 59: Vehicle is far from path start (dist=16.360m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:51,266 - WARNING - integration_test - Step 60: Vehicle is far from path start (dist=16.644m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:53,980 - WARNING - integration_test - Step 61: Vehicle is far from path start (dist=16.929m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:56,067 - WARNING - integration_test - Step 62: Vehicle is far from path start (dist=17.214m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:47:58,024 - WARNING - integration_test - Step 63: Vehicle is far from path start (dist=17.500m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:00,006 - WARNING - integration_test - Step 64: Vehicle is far from path start (dist=17.778m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:02,048 - WARNING - integration_test - Step 65: Vehicle is far from path start (dist=18.037m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:04,550 - WARNING - integration_test - Step 66: Vehicle is far from path start (dist=18.277m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:06,578 - WARNING - integration_test - Step 67: Vehicle is far from path start (dist=18.498m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:08,701 - WARNING - integration_test - Step 68: Vehicle is far from path start (dist=18.701m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:10,747 - WARNING - integration_test - Step 69: Vehicle is far from path start (dist=18.884m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:12,871 - WARNING - integration_test - Step 70: Vehicle is far from path start (dist=19.048m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:15,571 - WARNING - integration_test - Step 71: Vehicle is far from path start (dist=19.193m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:17,897 - WARNING - integration_test - Step 72: Vehicle is far from path start (dist=19.319m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:20,678 - WARNING - integration_test - Step 73: Vehicle is far from path start (dist=19.425m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:23,695 - WARNING - integration_test - Step 74: Vehicle is far from path start (dist=19.512m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:26,520 - WARNING - integration_test - Step 75: Vehicle is far from path start (dist=19.600m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:29,311 - WARNING - integration_test - Step 76: Vehicle is far from path start (dist=19.706m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:31,661 - WARNING - integration_test - Step 77: Vehicle is far from path start (dist=19.833m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:34,117 - WARNING - integration_test - Step 78: Vehicle is far from path start (dist=19.979m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:36,462 - WARNING - integration_test - Step 79: Vehicle is far from path start (dist=20.144m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:38,877 - WARNING - integration_test - Step 80: Vehicle is far from path start (dist=20.329m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:41,369 - WARNING - integration_test - Step 81: Vehicle is far from path start (dist=20.534m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:44,454 - WARNING - integration_test - Step 82: Vehicle is far from path start (dist=20.758m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:46,965 - WARNING - integration_test - Step 83: Vehicle is far from path start (dist=21.002m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:49,591 - WARNING - integration_test - Step 84: Vehicle is far from path start (dist=21.266m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:52,274 - WARNING - integration_test - Step 85: Vehicle is far from path start (dist=21.549m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:55,053 - WARNING - integration_test - Step 86: Vehicle is far from path start (dist=21.842m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:48:57,788 - WARNING - integration_test - Step 87: Vehicle is far from path start (dist=22.136m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:49:01,329 - WARNING - integration_test - Step 88: Vehicle is far from path start (dist=22.430m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.
+2026-01-27 14:49:04,223 - WARNING - integration_test - Step 89: Vehicle is far from path start (dist=22.714m), but path remains FIXED per C++ reference. Spline parameter tracks position along fixed path.

@@ -1,0 +1,16 @@
+2026-01-26 14:23:02,997 - INFO - integration_test - Created vehicle dynamics model: SecondOrderUnicycleModel
+2026-01-26 14:23:02,997 - INFO - integration_test - Creating objective module: goal
+2026-01-26 14:23:03,003 - INFO - integration_test - Objective module 'goal' created: goal_objective
+2026-01-26 14:23:03,003 - INFO - integration_test - Creating 1 constraint module(s): ['linearized']
+2026-01-26 14:23:03,003 - DEBUG - integration_test - Creating constraint module: linearized
+2026-01-26 14:23:03,003 - ERROR - integration_test - Test failed: Unknown constraint type: linearized
+2026-01-26 14:23:03,004 - ERROR - integration_test - Traceback: Traceback (most recent call last):
+  File "/home/stephen/PyMPC/test/../test/integration/integration_test_framework.py", line 581, in run_test
+    constraint_modules = self.create_constraint_modules(test_config.constraint_modules)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/stephen/PyMPC/test/../test/integration/integration_test_framework.py", line 298, in create_constraint_modules
+    raise ValueError(f"Unknown constraint type: {constraint_type}")
+ValueError: Unknown constraint type: linearized
+
+2026-01-26 14:23:03,005 - INFO - integration_test - Starting integration test: performance_rapid_solve
+2026-01-26 14:23:03,005 - INFO - integration_test - Output folder: test_outputs/20260126_142303_contouring_contouring_contouring_unicycle
