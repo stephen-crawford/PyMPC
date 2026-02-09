@@ -55,6 +55,28 @@ class ScenarioConstraint:
         return Halfspace(A, b)
 
 
+def compute_effective_epsilon(S_actual: int, beta: float, d: int, R: int = 0) -> float:
+    """
+    Compute the effective epsilon (violation probability) given the actual sample count.
+
+    Inverse of Theorem 1: eps = 2*(ln(1/beta) + d + R) / S
+
+    Args:
+        S_actual: Actual number of scenario constraints used
+        beta: Confidence level
+        d: Decision variable dimension (N*n_x + N*n_u)
+        R: Number of removed scenarios
+
+    Returns:
+        Effective epsilon (violation probability bound)
+    """
+    if S_actual <= 0:
+        return 1.0
+    if beta <= 0 or beta >= 1:
+        beta = 0.01
+    return 2.0 * (np.log(1.0 / beta) + d + R) / S_actual
+
+
 def compute_sample_size(epsilon_p: float, beta: float, n_bar: int, num_removal: int = 0,
                         horizon: int = 10, n_x: int = 4, n_u: int = 2) -> int:
     """

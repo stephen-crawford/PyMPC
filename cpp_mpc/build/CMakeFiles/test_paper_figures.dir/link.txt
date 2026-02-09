@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o -o test_paper_figures  libscenario_mpc.a 

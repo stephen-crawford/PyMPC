@@ -1,0 +1,8 @@
+CoreTests 15 0.000125325
+SafeHorizonContouringTests 10 2.14377
+OptimalTransportTests 10 0.00061435
+OTPredictorIntegrationTests 9 2.10835
+OTDynamicsVerificationTests 7 0.0471192
+EpsilonGuaranteeTests 5 0.000621563
+PaperFigureTests 3 2.59314
+---

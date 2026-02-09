@@ -23,6 +23,7 @@ class WeightType(Enum):
     UNIFORM = "uniform"
     RECENCY = "recency"
     FREQUENCY = "frequency"
+    WASSERSTEIN = "wasserstein"
 
 
 @dataclass
@@ -310,6 +311,12 @@ def compute_mode_weights(
         counts = mode_history.get_mode_counts()
         # Add smoothing parameter to each count
         weights = {mode_id: float(counts.get(mode_id, 0)) + frequency_smoothing for mode_id in modes}
+
+    elif weight_type == WeightType.WASSERSTEIN:
+        # WASSERSTEIN weights are computed externally via OptimalTransportPredictor.
+        # This function is not called for WASSERSTEIN - the sampler delegates to OT predictor.
+        # Fallback to uniform if this path is reached unexpectedly.
+        weights = {mode_id: 1.0 / num_modes for mode_id in modes}
 
     else:
         raise ValueError(f"Unknown weight type: {weight_type}")
@@ -654,7 +661,8 @@ class AdaptiveModeSampler(ScenarioSampler):
         recency_decay: float = 0.1,
         frequency_smoothing: float = 1.0,
         dt: float = 0.1,
-        prior_type: str = "constant"  # "constant" (C1) or "switching" (C2)
+        prior_type: str = "constant",  # "constant" (C1) or "switching" (C2)
+        ot_predictor=None  # Optional[OptimalTransportPredictor]
     ):
         """
         Initialize adaptive mode sampler.
@@ -670,6 +678,7 @@ class AdaptiveModeSampler(ScenarioSampler):
             dt: Timestep for dynamics propagation
             prior_type: "constant" samples one mode per trajectory,
                        "switching" samples mode at each timestep
+            ot_predictor: Optional OptimalTransportPredictor for WASSERSTEIN weights
         """
         super().__init__(num_scenarios, enable_outlier_removal)
         self.weight_type = weight_type
@@ -677,6 +686,9 @@ class AdaptiveModeSampler(ScenarioSampler):
         self.frequency_smoothing = frequency_smoothing
         self.dt = dt
         self.prior_type = prior_type
+        self.ot_predictor = ot_predictor
+        self.enable_dynamics_learning = False
+        self.dynamics_learning_interval = 10
 
         # Mode models and histories
         self.mode_models: Dict[str, ModeModel] = create_obstacle_mode_models(dt)
@@ -687,7 +699,8 @@ class AdaptiveModeSampler(ScenarioSampler):
         self.rng = np.random.default_rng()
 
         LOG_INFO(f"AdaptiveModeSampler initialized: weight_type={weight_type.value}, "
-                f"prior_type={prior_type}, num_modes={len(self.mode_models)}")
+                f"prior_type={prior_type}, num_modes={len(self.mode_models)}, "
+                f"ot_predictor={'enabled' if ot_predictor is not None else 'disabled'}")
 
     def update_mode_observation(
         self,
@@ -735,6 +748,57 @@ class AdaptiveModeSampler(ScenarioSampler):
     def advance_timestep(self) -> None:
         """Advance the current timestep."""
         self.current_timestep += 1
+        if self.ot_predictor is not None:
+            self.ot_predictor.advance_timestep()
+
+    def feed_observation_to_ot(
+        self,
+        obstacle_id: int,
+        position: np.ndarray,
+        mode_id: Optional[str] = None
+    ) -> None:
+        """
+        Forward an obstacle observation to the OT predictor.
+
+        The OT predictor computes velocity/acceleration internally
+        from consecutive position observations.
+
+        Args:
+            obstacle_id: Obstacle identifier
+            position: Position [x, y]
+            mode_id: Optional observed mode ID
+        """
+        if self.ot_predictor is None:
+            return
+        self.ot_predictor.observe(obstacle_id, position, mode_id=mode_id)
+
+    def update_mode_dynamics_from_ot(self, obstacle_id: int) -> None:
+        """
+        Update ModeModel dynamics (b, G) using OT-based estimation.
+
+        For each mode, calls ot_predictor.estimate_mode_dynamics() to learn
+        the bias vector b and noise matrix G from observed data, then updates
+        the corresponding ModeModel in-place.
+
+        Args:
+            obstacle_id: Obstacle identifier
+        """
+        if self.ot_predictor is None:
+            return
+        if obstacle_id not in self.mode_histories:
+            return
+
+        mode_history = self.mode_histories[obstacle_id]
+        for mode_id, mode_model in mode_history.available_modes.items():
+            result = self.ot_predictor.estimate_mode_dynamics(
+                obstacle_id, mode_id, mode_model.A, self.dt
+            )
+            if result is not None:
+                b_learned, G_learned = result
+                mode_model.b = b_learned
+                mode_model.G = G_learned
+                LOG_DEBUG(f"Updated dynamics for obstacle {obstacle_id}, mode {mode_id}: "
+                         f"b_norm={np.linalg.norm(b_learned):.4f}, G_norm={np.linalg.norm(G_learned):.4f}")
 
     def sample_scenarios(
         self,
@@ -757,6 +821,13 @@ class AdaptiveModeSampler(ScenarioSampler):
         """
         scenarios = []
         self.dt = timestep
+
+        # Periodic dynamics learning from OT (Part 3)
+        if (self.enable_dynamics_learning and self.ot_predictor is not None
+                and self.current_timestep > 0
+                and self.current_timestep % self.dynamics_learning_interval == 0):
+            for obs_id in list(self.mode_histories.keys()):
+                self.update_mode_dynamics_from_ot(obs_id)
 
         for obstacle_idx, obstacle in enumerate(obstacles):
             # Get or create mode history for this obstacle
@@ -839,13 +910,20 @@ class AdaptiveModeSampler(ScenarioSampler):
 
         # Compute mode weights based on history
         # Reference: guide.md Equations (12)-(13)
-        mode_weights = compute_mode_weights(
-            mode_history,
-            weight_type=self.weight_type,
-            recency_decay=self.recency_decay,
-            current_timestep=self.current_timestep,
-            frequency_smoothing=self.frequency_smoothing
-        )
+        # When weight_type is WASSERSTEIN, delegate to OT predictor
+        if self.weight_type == WeightType.WASSERSTEIN and self.ot_predictor is not None:
+            available_modes = list(mode_history.available_modes.keys())
+            mode_weights = self.ot_predictor.compute_mode_weights(
+                obstacle_idx, available_modes
+            )
+        else:
+            mode_weights = compute_mode_weights(
+                mode_history,
+                weight_type=self.weight_type,
+                recency_decay=self.recency_decay,
+                current_timestep=self.current_timestep,
+                frequency_smoothing=self.frequency_smoothing
+            )
 
         if not mode_weights:
             LOG_WARN(f"No mode weights computed for obstacle {obstacle_idx}")
@@ -999,6 +1077,9 @@ class AdaptiveModeSampler(ScenarioSampler):
         """Get current mode weights for an obstacle."""
         if obstacle_idx not in self.mode_histories:
             return {}
+        if self.weight_type == WeightType.WASSERSTEIN and self.ot_predictor is not None:
+            available_modes = list(self.mode_histories[obstacle_idx].available_modes.keys())
+            return self.ot_predictor.compute_mode_weights(obstacle_idx, available_modes)
         return compute_mode_weights(
             self.mode_histories[obstacle_idx],
             weight_type=self.weight_type,

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.o -o example_mpc  libscenario_mpc.a 

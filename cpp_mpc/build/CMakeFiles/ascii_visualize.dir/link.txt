@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o -o ascii_visualize  libscenario_mpc.a 

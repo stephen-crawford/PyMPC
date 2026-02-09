@@ -1,0 +1,365 @@
+Start testing: Feb 05 19:03 EST
+----------------------------------------------------------
+1/6 Testing: CoreTests
+1/6 Test: CoreTests
+Command: "/home/stephen/PyMPC/cpp_mpc/build/test_core"
+Directory: /home/stephen/PyMPC/cpp_mpc/build
+"CoreTests" start time: Feb 05 19:03 EST
+Output:
+----------------------------------------------------------
+Running scenario_mpc tests...
+
+Running ego_state_to_array... PASSED
+Running obstacle_state... PASSED
+Running mode_model_propagate... PASSED
+Running collision_constraint_evaluate... PASSED
+Running config_defaults... PASSED
+Running config_validation... PASSED
+Running required_scenarios_computation... PASSED
+Running ego_dynamics_propagation... PASSED
+Running ego_dynamics_turning... PASSED
+Running obstacle_modes_creation... PASSED
+Running uniform_weights... PASSED
+Running frequency_weights... PASSED
+Running recency_weights... PASSED
+Running single_mode_trajectory... PASSED
+Running trajectory_moments_computation... PASSED
+Running sample_scenarios... PASSED
+Running ego_disc_positions... PASSED
+Running linearized_constraints... PASSED
+Running prune_dominated... PASSED
+Running full_pipeline... PASSED
+
+========================================
+Results: 20 passed, 0 failed
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"CoreTests" end time: Feb 05 19:03 EST
+"CoreTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/6 Testing: OptimalTransportTests
+2/6 Test: OptimalTransportTests
+Command: "/home/stephen/PyMPC/cpp_mpc/build/test_optimal_transport"
+Directory: /home/stephen/PyMPC/cpp_mpc/build
+"OptimalTransportTests" start time: Feb 05 19:03 EST
+Output:
+----------------------------------------------------------
+Running Optimal Transport Predictor tests...
+
+Running trajectory_observation_creation... PASSED
+Running trajectory_buffer_basic... PASSED
+Running trajectory_buffer_circular... PASSED
+Running trajectory_buffer_velocity_samples... PASSED
+Running empirical_distribution_from_samples... PASSED
+Running empirical_distribution_with_weights... PASSED
+Running empirical_distribution_mean... PASSED
+Running empirical_distribution_weighted_mean... PASSED
+Running empirical_distribution_covariance... PASSED
+Running empirical_distribution_empty... PASSED
+Running cost_matrix_computation... PASSED
+Running cost_matrix_empty... PASSED
+Running sinkhorn_uniform_weights... PASSED
+Running sinkhorn_asymmetric_weights... PASSED
+Running sinkhorn_convergence... PASSED
+Running sinkhorn_empty... PASSED
+Running wasserstein_identical_distributions... PASSED
+Running wasserstein_different_distributions... PASSED
+Running wasserstein_empty_distribution... PASSED
+Running wasserstein_translation... PASSED
+Running barycenter_single_distribution... PASSED
+Running barycenter_two_distributions... PASSED
+Running barycenter_weighted... PASSED
+Running barycenter_empty_list... PASSED
+Running ot_predictor_creation... PASSED
+Running ot_predictor_observe... PASSED
+Running ot_predictor_learned_modes... PASSED
+Running ot_predictor_reference_distribution... PASSED
+Running ot_predictor_mode_weights_uniform... PASSED
+Running ot_predictor_mode_weights_wasserstein... PASSED
+Running ot_predictor_predict_trajectory... PASSED
+Running ot_predictor_constant_velocity_fallback... PASSED
+Running ot_predictor_prediction_error... PASSED
+Running ot_predictor_adapt_uncertainty... PASSED
+Running ot_predictor_reset... PASSED
+Running ot_predictor_factory_standard_modes... PASSED
+Running ot_predictor_mode_distribution_stats... PASSED
+Running integration_full_workflow... PASSED
+Running wasserstein_weight_type_exists... PASSED
+Running dynamics_state_method... PASSED
+Running estimate_mode_dynamics_basic... PASSED
+Running estimate_mode_dynamics_insufficient_data... PASSED
+Running enforce_scenario_count_config... PASSED
+Running trajectory_buffer_observations_accessor... PASSED
+
+========================================
+Results: 44 passed, 0 failed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"OptimalTransportTests" end time: Feb 05 19:03 EST
+"OptimalTransportTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/6 Testing: OTPredictorIntegrationTests
+3/6 Test: OTPredictorIntegrationTests
+Command: "/home/stephen/PyMPC/cpp_mpc/build/test_ot_predictor_integration"
+Directory: /home/stephen/PyMPC/cpp_mpc/build
+"OTPredictorIntegrationTests" start time: Feb 05 19:03 EST
+Output:
+----------------------------------------------------------
+================================================================
+  Optimal Transport Predictor Integration Test
+  Safe Horizon Contouring MPC + OT Dynamics Learning
+================================================================
+
+========================================
+Running: OT Predictor Integration Test
+  - 6 diverse obstacles with mode switching
+  - Online OT-based dynamics learning
+  - Wasserstein mode weight computation
+  - Sight radius: 7.0m
+========================================
+Step    0 | Progress:   0.00m | Min Dist:  4.71m | OT Obs: 1 | Solve: 89.42ms
+Step   25 | Progress:   9.19m | Min Dist:  2.29m | OT Obs: 26 | Solve: 85.09ms
+Step   50 | Progress:  24.00m | Min Dist:  1.96m | OT Obs: 26 | Solve: 30.76ms
+Goal reached at step 52! (progress: 25.15m)
+
+--- OT Predictor Integration Test Summary ---
+Success:                YES
+Final Progress:         25.15 / 25.00 m
+Min Obstacle Distance:  1.96 m
+Max Lateral Error:      0.68 m
+Collisions:             0
+Total Steps:            52
+Avg Prediction Error:   0.0013 m
+OT Weight Computations: 134
+
+Learned mode distributions:
+  Obstacle 0: 1 modes learned [turn_right(10) ]
+  Obstacle 1: 1 modes learned [turn_left(21) ]
+  Obstacle 2: 1 modes learned [decelerating(6) ]
+  Obstacle 3: 1 modes learned [lane_change_left(6) ]
+  Obstacle 4: 1 modes learned [decelerating(4) ]
+  Obstacle 5: 0 modes learned []
+
+Generating visualization: test_ot_predictor.gif
+Loading data from: test_ot_predictor_trajectory.csv
+Loaded 52 timesteps with 6 obstacles
+Loading scenarios from: test_ot_predictor_scenarios.csv
+Loaded scenario predictions for 52 timesteps
+Creating animation with 52 frames...
+Animation saved to: test_ot_predictor.gif
+Summary plot saved to: test_ot_predictor_summary.png
+
+Generating visualization: test_ot_predictor_ot.gif
+Loading trajectory data from: test_ot_predictor_trajectory.csv
+Loaded 52 timesteps with 6 obstacles
+Loading scenarios from: test_ot_predictor_scenarios.csv
+Loaded scenario predictions for 52 timesteps
+Loading OT metrics from: test_ot_predictor_ot_metrics.csv
+Loaded OT metrics for 52 timesteps
+Sight radius: 7.0m
+Creating OT predictor animation with 52 frames...
+OT predictor animation saved to: test_ot_predictor_ot.gif
+OT summary plot saved to: test_ot_predictor_ot_summary.png
+
+================================================================
+  RESULT: PASS
+================================================================
+<end of output>
+Test time =  18.98 sec
+----------------------------------------------------------
+Test Passed.
+"OTPredictorIntegrationTests" end time: Feb 05 19:04 EST
+"OTPredictorIntegrationTests" time elapsed: 00:00:18
+----------------------------------------------------------
+
+4/6 Testing: OTDynamicsVerificationTests
+4/6 Test: OTDynamicsVerificationTests
+Command: "/home/stephen/PyMPC/cpp_mpc/build/test_ot_dynamics_verification"
+Directory: /home/stephen/PyMPC/cpp_mpc/build
+"OTDynamicsVerificationTests" start time: Feb 05 19:04 EST
+Output:
+----------------------------------------------------------
+=================================================================
+  Gaussian Hypersphere OT Dynamics Learning Verification (C++)
+=================================================================
+
+=== Test 1: Mode Identification (all 7 modes) ===
+  PASS  mode_id/constant_velocity
+  PASS  mode_id/decelerating
+  PASS  mode_id/accelerating
+  PASS  mode_id/turn_left
+  PASS  mode_id/turn_right
+  PASS  mode_id/lane_change_left
+  PASS  mode_id/lane_change_right
+
+=== Test 2: Velocity Mean Convergence ===
+  PASS  vel_conv/constant_velocity
+  PASS  vel_conv/decelerating
+  PASS  vel_conv/accelerating
+  PASS  vel_conv/turn_left
+  PASS  vel_conv/turn_right
+  PASS  vel_conv/lane_change_left
+  PASS  vel_conv/lane_change_right
+
+=== Test 3: Covariance Tightness ===
+  PASS  cov_tight/constant_velocity
+  PASS  cov_tight/decelerating
+  PASS  cov_tight/accelerating
+  PASS  cov_tight/turn_left
+  PASS  cov_tight/turn_right
+  PASS  cov_tight/lane_change_left
+  PASS  cov_tight/lane_change_right
+
+=== Test 4: Cross-Mode Wasserstein Separation ===
+  PASS  separation/constant_velocity
+  PASS  separation/decelerating
+  PASS  separation/accelerating
+  PASS  separation/turn_left
+  PASS  separation/turn_right
+  PASS  separation/lane_change_left
+  PASS  separation/lane_change_right
+
+=== Test 5: Trajectory Tracking ===
+  PASS  tracking/constant_velocity
+  PASS  tracking/decelerating
+  PASS  tracking/accelerating
+  PASS  tracking/turn_left
+  PASS  tracking/turn_right
+  PASS  tracking/lane_change_left
+  PASS  tracking/lane_change_right
+
+=== Test 6: Per-Obstacle Independence ===
+  PASS  independence/obs0_constant_velocity
+  PASS  independence/obs1_turn_left
+  PASS  independence/obs2_accelerating
+  PASS  independence/obs3_lane_change_right
+  PASS  independence/no_cross_mode
+
+=== Test 7: Weight Convergence Dynamics ===
+  PASS  convergence/turn_left
+  PASS  convergence/decelerating
+  PASS  convergence/accelerating
+
+=== Test 8: Learned Distribution Matches Reference ===
+  PASS  dist_match/constant_velocity
+  PASS  dist_match/decelerating
+  PASS  dist_match/accelerating
+  PASS  dist_match/turn_left
+  PASS  dist_match/turn_right
+  PASS  dist_match/lane_change_left
+  PASS  dist_match/lane_change_right
+
+=== Test 9: Uncertainty Calibration ===
+  PASS  calibration/constant_velocity
+  PASS  calibration/turn_left
+  PASS  calibration/accelerating
+
+=================================================================
+  Results: 53 passed, 0 failed (total 53)
+=================================================================
+<end of output>
+Test time =   0.33 sec
+----------------------------------------------------------
+Test Passed.
+"OTDynamicsVerificationTests" end time: Feb 05 19:04 EST
+"OTDynamicsVerificationTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/6 Testing: EpsilonGuaranteeTests
+5/6 Test: EpsilonGuaranteeTests
+Command: "/home/stephen/PyMPC/cpp_mpc/build/test_epsilon_guarantee"
+Directory: /home/stephen/PyMPC/cpp_mpc/build
+"EpsilonGuaranteeTests" start time: Feb 05 19:04 EST
+Output:
+----------------------------------------------------------
+=== Epsilon Guarantee & OT Integration Tests ===
+Running effective_epsilon_basic... PASSED
+Running effective_epsilon_zero_scenarios... PASSED
+Running effective_epsilon_more_scenarios_lower... PASSED
+Running required_scenarios_with_removal... PASSED
+Running effective_epsilon_roundtrip... PASSED
+Running config_enforce_flags_default_false... PASSED
+Running config_dynamics_learning_interval... PASSED
+Running wasserstein_weight_type_exists... PASSED
+Running ot_predictor_compute_mode_weights_uniform_fallback... PASSED
+Running ot_predictor_mode_weights_with_observations... PASSED
+Running estimate_dynamics_insufficient_data... PASSED
+Running estimate_dynamics_known_system... PASSED
+
+=== Results: 12 passed, 0 failed ===
+<end of output>
+Test time =   0.00 sec
+----------------------------------------------------------
+Test Passed.
+"EpsilonGuaranteeTests" end time: Feb 05 19:04 EST
+"EpsilonGuaranteeTests" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/6 Testing: PaperFigureTests
+6/6 Test: PaperFigureTests
+Command: "/home/stephen/PyMPC/cpp_mpc/build/test_paper_figures"
+Directory: /home/stephen/PyMPC/cpp_mpc/build
+"PaperFigureTests" start time: Feb 05 19:04 EST
+Output:
+----------------------------------------------------------
+========================================
+  Paper Figure Data Generation Tests
+========================================
+Running scenario_fan_comparison... [paper_fig_scenario_fan.csv] PASSED
+Running trajectory_moments... [paper_fig_moments.csv] PASSED
+Running collision_constraints_visualization... [paper_fig_constraints.csv, 55 constraints] PASSED
+Running scenario_pruning... [paper_fig_pruning.csv, 30 -> 10 -> 3] PASSED
+Running mode_weight_evolution... [paper_fig_weight_evolution.csv] PASSED
+Running mpc_avoidance_loop... [paper_fig_mpc_loop.csv + paper_fig_mpc_scenarios.csv] PASSED
+Running epsilon_guarantee_curve... [paper_fig_epsilon.csv] PASSED
+Running ot_weight_comparison... [paper_fig_ot_weights.csv] PASSED
+
+========================================
+  Results: 8 passed, 0 failed
+========================================
+
+Generating paper figure visualizations...
+Generating all paper figures...
+
+--- scenario_fan ---
+  Saved paper_fig_scenario_fan.png
+
+--- moments ---
+  Saved paper_fig_moments.png
+
+--- constraints ---
+  Saved paper_fig_constraints.png
+
+--- pruning ---
+  Saved paper_fig_pruning.png
+
+--- weight_evolution ---
+  Saved paper_fig_weight_evolution.png
+
+--- mpc_loop ---
+  Creating MPC loop animation with 80 frames...
+  Saved paper_fig_mpc_loop.gif
+  Saved paper_fig_mpc_loop.png
+
+--- epsilon ---
+  Saved paper_fig_epsilon.png
+
+--- ot_weights ---
+  Saved paper_fig_ot_weights.png
+
+Done!
+<end of output>
+Test time =   7.78 sec
+----------------------------------------------------------
+Test Passed.
+"PaperFigureTests" end time: Feb 05 19:04 EST
+"PaperFigureTests" time elapsed: 00:00:07
+----------------------------------------------------------
+
+End testing: Feb 05 19:04 EST

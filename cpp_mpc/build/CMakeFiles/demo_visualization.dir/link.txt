@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/demo_visualization.dir/examples/demo_visualization.cpp.o -o demo_visualization  libscenario_mpc.a 

@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.cpp.o -o test_safe_horizon_contouring  libscenario_mpc.a 

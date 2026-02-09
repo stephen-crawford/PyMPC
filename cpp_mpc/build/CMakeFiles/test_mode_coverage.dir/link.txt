@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_mode_coverage.dir/tests/test_mode_coverage.cpp.o -o test_mode_coverage  libscenario_mpc.a 

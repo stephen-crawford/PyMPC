@@ -10,22 +10,28 @@ import numpy as np
 from typing import List, Dict, Tuple, Optional
 from planning.types import Data, Scenario, ScenarioStatus, ScenarioSolveStatus, SupportSubsample
 from modules.constraints.scenario_utils.math_utils import (
-    Polytope, ScenarioConstraint, compute_sample_size, linearize_collision_constraint,
+    Polytope, ScenarioConstraint, compute_sample_size, compute_effective_epsilon,
+    linearize_collision_constraint,
     construct_free_space_polytope, validate_polytope_feasibility
 )
 from modules.constraints.scenario_utils.sampler import (
     ScenarioSampler, MonteCarloValidator, AdaptiveModeSampler, WeightType
+)
+from modules.constraints.scenario_utils.optimal_transport_predictor import (
+    OptimalTransportPredictor, create_ot_predictor_with_standard_modes
 )
 from utils.utils import LOG_DEBUG, LOG_WARN, LOG_INFO
 
 
 class DiscManager:
     """Manages constraints for a single disc of the robot."""
-    
-    def __init__(self, disc_id: int, robot_radius: float, max_constraints: int):
+
+    def __init__(self, disc_id: int, robot_radius: float, max_constraints: int,
+                 enforce_all_scenarios: bool = False):
         self.disc_id = disc_id
         self.robot_radius = robot_radius
         self.max_constraints = max_constraints
+        self.enforce_all_scenarios = enforce_all_scenarios
         self.polytopes = []  # One polytope per time step
         self.active_constraints = []
         
@@ -53,10 +59,13 @@ class DiscManager:
         constraints = []
         
         # Reference: scenario_module - limit constraints to avoid over-constraining
-        # The polytope may have many halfspaces, but we only need the most critical ones
-        # Typically, the polytope optimization already selects the most important constraints
+        # When enforce_all_scenarios is True (Part 1), use ALL constraints for Theorem 1 guarantee
+        # Otherwise, limit to max_constraints to avoid over-constraining
         num_halfspaces = len(polytope.halfspaces)
-        num_to_use = min(num_halfspaces, self.max_constraints)
+        if self.enforce_all_scenarios:
+            num_to_use = num_halfspaces
+        else:
+            num_to_use = min(num_halfspaces, self.max_constraints)
         
         for i in range(num_to_use):
             halfspace = polytope.halfspaces[i]
@@ -126,6 +135,14 @@ class SafeHorizonModule:
         self.num_discs = config.get("num_discs", 1)
         self.num_scenarios = config.get("num_scenarios", 100)  # Number of scenarios to sample (for diagnostics)
 
+        # Epsilon guarantee enforcement (Part 4 + Part 1)
+        self.enforce_all_scenarios = config.get("enforce_all_scenarios", False)
+        self.enable_ot_predictor = config.get("enable_ot_predictor", False)
+        self.ot_base_speed = config.get("ot_base_speed", 0.5)
+        self.ot_sinkhorn_epsilon = config.get("ot_sinkhorn_epsilon", 0.1)
+        self.enable_dynamics_learning = config.get("enable_dynamics_learning", False)
+        self.dynamics_learning_interval = config.get("dynamics_learning_interval", 10)
+
         # Adaptive mode sampling configuration (following guide.md Section 1.3)
         self.enable_adaptive_mode_sampling = config.get("enable_adaptive_mode_sampling", False)
         self.mode_weight_type = config.get("mode_weight_type", "frequency")  # uniform, recency, frequency
@@ -134,6 +151,18 @@ class SafeHorizonModule:
         self.mode_prior_type = config.get("mode_prior_type", "constant")  # constant (C1) or switching (C2)
         # Reference: guide.md - frequency_smoothing: float = 1.0 (α in frequency prior, Eq. 13)
         self.mode_frequency_smoothing = config.get("mode_frequency_smoothing", 1.0)
+
+        # Create OT predictor if enabled (Part 2)
+        self.ot_predictor = None
+        if self.enable_ot_predictor:
+            self.ot_predictor = create_ot_predictor_with_standard_modes(
+                dt=config.get("timestep", 0.1),
+                base_speed=self.ot_base_speed,
+                buffer_size=200,
+                sinkhorn_epsilon=self.ot_sinkhorn_epsilon
+            )
+            LOG_INFO(f"SafeHorizonModule: Created OT predictor (base_speed={self.ot_base_speed}, "
+                     f"sinkhorn_epsilon={self.ot_sinkhorn_epsilon})")
 
         # Components - choose sampler based on configuration
         if self.enable_adaptive_mode_sampling:
@@ -146,8 +175,12 @@ class SafeHorizonModule:
                 recency_decay=self.mode_recency_decay,
                 frequency_smoothing=self.mode_frequency_smoothing,
                 dt=config.get("timestep", 0.1),
-                prior_type=self.mode_prior_type
+                prior_type=self.mode_prior_type,
+                ot_predictor=self.ot_predictor
             )
+            # Configure dynamics learning (Part 3)
+            self.sampler.enable_dynamics_learning = self.enable_dynamics_learning
+            self.sampler.dynamics_learning_interval = self.dynamics_learning_interval
             LOG_INFO(f"SafeHorizonModule: Using AdaptiveModeSampler with "
                     f"weight_type={self.mode_weight_type}, prior_type={self.mode_prior_type}, "
                     f"λ={self.mode_recency_decay}, α={self.mode_frequency_smoothing}")
@@ -164,7 +197,10 @@ class SafeHorizonModule:
         # State
         self.disc_manager = []
         for i in range(self.num_discs):
-            self.disc_manager.append(DiscManager(i, self.robot_radius, self.max_constraints_per_disc))
+            self.disc_manager.append(DiscManager(
+                i, self.robot_radius, self.max_constraints_per_disc,
+                enforce_all_scenarios=self.enforce_all_scenarios
+            ))
         
         self.scenarios = []
         self.support_subsample = SupportSubsample()
@@ -197,6 +233,20 @@ class SafeHorizonModule:
             if self.enable_adaptive_mode_sampling and isinstance(self.sampler, AdaptiveModeSampler):
                 self._update_mode_observations(data.dynamic_obstacles)
                 self.sampler.advance_timestep()
+
+            # Feed observations to OT predictor (Part 2)
+            if self.ot_predictor is not None:
+                self._feed_observations_to_ot(data.dynamic_obstacles)
+
+            # Periodically update mode dynamics from OT learning (Part 3)
+            if (self.enable_dynamics_learning and
+                    isinstance(self.sampler, AdaptiveModeSampler) and
+                    self.ot_predictor is not None and
+                    self.sampler.current_timestep % self.dynamics_learning_interval == 0 and
+                    self.sampler.current_timestep > 0):
+                for obs_idx in self.sampler.mode_histories:
+                    self.sampler.update_mode_dynamics_from_ot(obs_idx)
+                LOG_DEBUG(f"Updated mode dynamics from OT at timestep {self.sampler.current_timestep}")
 
             # Sample scenarios from obstacle predictions
             # Reference: scenario_module - samples full trajectories for each scenario
@@ -237,6 +287,16 @@ class SafeHorizonModule:
                     initial_mode=initial_mode
                 )
                 LOG_DEBUG(f"Updated mode observation for obstacle {idx}: mode={current_mode}")
+
+    def _feed_observations_to_ot(self, obstacles: List) -> None:
+        """Feed obstacle observations to the OT predictor for distribution learning."""
+        if self.ot_predictor is None:
+            return
+
+        for idx, obstacle in enumerate(obstacles):
+            position = np.array(obstacle.position[:2])
+            current_mode = getattr(obstacle, 'current_mode', "")
+            self.ot_predictor.observe(idx, position, mode_id=current_mode)
 
     def get_mode_weights(self, obstacle_idx: int) -> Optional[Dict[str, float]]:
         """
@@ -299,14 +359,32 @@ class SafeHorizonModule:
             
             # Update with current data (samples scenarios)
             self.update(data)
-            
+
             if not self.scenarios:
                 LOG_WARN("No scenarios available for optimization")
                 return -1
-            
-            # Compute sample size
+
+            # Compute sample size and verify sufficiency (Part 4: Runtime epsilon-guarantee)
             sample_size = self.compute_sample_size()
             LOG_DEBUG(f"Computed sample size: {sample_size}")
+
+            # Auto-increase num_scenarios if insufficient for epsilon guarantee
+            is_sufficient, S_actual, S_required, eps_effective = self._verify_scenario_sufficiency()
+            if not is_sufficient and self.enforce_all_scenarios:
+                LOG_WARN(f"Auto-increasing scenarios: S={S_actual} < S_required={S_required}, "
+                         f"eps_effective={eps_effective:.4f} > eps_target={self.epsilon_p:.4f}")
+                additional_needed = S_required - S_actual
+                self.sampler.num_scenarios = S_required
+                additional_scenarios = self.sampler.sample_scenarios(
+                    data.dynamic_obstacles if hasattr(data, 'dynamic_obstacles') else [],
+                    self.horizon_length,
+                    getattr(self.solver, 'timestep', 0.1)
+                )
+                # Take only the additional scenarios needed
+                if len(additional_scenarios) > additional_needed:
+                    additional_scenarios = additional_scenarios[:additional_needed]
+                self.scenarios.extend(additional_scenarios)
+                LOG_INFO(f"Scenario count after auto-increase: {len(self.scenarios)} (target: {S_required})")
             
             # Get reference trajectory states for linearization (matching linearized_constraints.py)
             # Reference: linearized_constraints.py uses reference trajectory for linearization
@@ -614,24 +692,48 @@ class SafeHorizonModule:
         return compute_sample_size(self.epsilon_p, self.beta, self.n_bar)
 
      
+    def _verify_scenario_sufficiency(self, n_x: int = 4, n_u: int = 2) -> Tuple[bool, int, int, float]:
+        """
+        Verify that S >= S_required for the epsilon guarantee (Theorem 1).
+
+        Returns:
+            Tuple of (is_sufficient, S_actual, S_required, epsilon_effective)
+        """
+        d = self.horizon_length * n_x + self.horizon_length * n_u
+        S_actual = len(self.scenarios)
+        S_required = compute_sample_size(
+            self.epsilon_p, self.beta, self.n_bar,
+            self.num_removal, self.horizon_length, n_x, n_u
+        )
+        eps_effective = compute_effective_epsilon(S_actual, self.beta, d, self.num_removal)
+        is_sufficient = S_actual >= S_required
+        return is_sufficient, S_actual, S_required, eps_effective
+
     def get_certified_risk_bound(self) -> Tuple[float, bool]:
         """
         Get the certified risk bound and whether it's valid.
-       
+
+        Incorporates scenario sufficiency check. If S < S_required, the
+        effective epsilon is computed from the actual sample count.
+
         Returns:
             Tuple of (epsilon, is_certified)
             - epsilon: Upper bound on collision probability
-            - is_certified: True if support didn't exceed limit
+            - is_certified: True if guarantee is valid
         """
         stats = self.support_estimator.get_statistics()
-       
+
         if stats['exceeded']:
-            # Support exceeded - risk bound is not certified
             epsilon = self.current_risk_bound if self.current_risk_bound else 1.0
             return epsilon, False
-        else:
-            # Support within limit - original risk bound holds
-            return self.epsilon_p, True
+
+        is_sufficient, S_actual, S_required, eps_effective = self._verify_scenario_sufficiency()
+        if not is_sufficient:
+            LOG_WARN(f"Scenario count insufficient: S={S_actual} < S_required={S_required}, "
+                     f"epsilon_effective={eps_effective:.4f}")
+            return eps_effective, False
+
+        return self.epsilon_p, True
 
     
     def _process_scenarios_for_step(self, disc_id: int, step: int, data: Data, reference_robot_pos: np.ndarray = None):
@@ -682,13 +784,15 @@ class SafeHorizonModule:
             reference_robot_pos = np.array([0.0, 0.0])
             LOG_DEBUG(f"Using default reference position (0, 0) for step {step}")
         
-        # CRITICAL: Select support set of size n_bar from scenarios
-        # Reference: C++ mpc_planner - each time step has its own support set of size n_bar
-        # The support set contains the scenarios that will be used to form constraints
-        # This is a key aspect of scenario-based MPC: not all scenarios are used, only the support set
-        support_scenarios = self._select_support_set(step_scenarios, reference_robot_pos, step)
-        
-        LOG_DEBUG(f"Selected {len(support_scenarios)} scenarios for support set (n_bar={self.n_bar}) from {len(step_scenarios)} total scenarios")
+        # Part 1: When enforce_all_scenarios is True, use ALL scenarios as constraints
+        # (required by Theorem 1 for valid epsilon guarantee).
+        # When False, select support set of size n_bar (original behavior).
+        if self.enforce_all_scenarios:
+            support_scenarios = step_scenarios
+            LOG_DEBUG(f"enforce_all_scenarios=True: using all {len(support_scenarios)} scenarios as constraints for step {step}")
+        else:
+            support_scenarios = self._select_support_set(step_scenarios, reference_robot_pos, step)
+            LOG_DEBUG(f"Selected {len(support_scenarios)} scenarios for support set (n_bar={self.n_bar}) from {len(step_scenarios)} total scenarios")
         
         # Record support set selection for diagnostics (if diagnostics enabled)
         if hasattr(self, 'diagnostics') and self.diagnostics is not None:
