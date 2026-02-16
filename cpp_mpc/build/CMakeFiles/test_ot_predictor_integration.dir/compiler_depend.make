@@ -14,6 +14,7 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
   /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/types.hpp \
+  /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -792,8 +793,6 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:
 
-/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
-
 /usr/include/eigen3/Eigen/src/Core/functors/StlFunctors.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/AssignmentFunctors.h:
@@ -1006,6 +1005,28 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 
 /usr/include/c++/13/bits/locale_facets.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
+
+/usr/include/c++/13/bits/stl_multimap.h:
+
+/usr/include/eigen3/Eigen/src/Core/VectorBlock.h:
+
+/usr/include/c++/13/bits/locale_conv.h:
+
+/usr/include/c++/13/bits/istream.tcc:
+
+/usr/include/c++/13/bits/exception_ptr.h:
+
+/usr/include/c++/13/bits/vector.tcc:
+
+/usr/include/c++/13/optional:
+
+/usr/include/c++/13/bits/uniform_int_dist.h:
+
+/usr/include/c++/13/bits/locale_classes.tcc:
+
+/usr/include/c++/13/bits/stl_bvector.h:
+
 /usr/include/eigen3/Eigen/src/Core/util/Macros.h:
 
 /usr/include/c++/13/backward/binders.h:
@@ -1060,6 +1081,12 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 
 /usr/include/eigen3/Eigen/src/Core/ArrayBase.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
+
+/usr/include/eigen3/Eigen/src/Core/Product.h:
+
+/usr/include/c++/13/bits/charconv.h:
+
 /usr/include/eigen3/Eigen/src/Eigenvalues/Tridiagonalization.h:
 
 /usr/include/eigen3/Eigen/src/Core/VectorwiseOp.h:
@@ -1084,8 +1111,6 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 
 /usr/include/c++/13/bits/codecvt.h:
 
-/usr/include/c++/13/bits/stl_bvector.h:
-
 /usr/include/eigen3/Eigen/src/Core/arch/Default/ConjHelper.h:
 
 /home/stephen/PyMPC/cpp_mpc/include/collision_constraints.hpp:
@@ -1103,6 +1128,10 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 /usr/include/x86_64-linux-gnu/sys/cdefs.h:
 
 /usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
+
+/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp:
 
 /home/stephen/PyMPC/cpp_mpc/include/dynamics.hpp:
 
@@ -1190,22 +1219,6 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 
 /usr/include/c++/13/bits/hashtable_policy.h:
 
-/usr/include/eigen3/Eigen/src/Core/VectorBlock.h:
-
-/usr/include/c++/13/bits/locale_conv.h:
-
-/usr/include/c++/13/bits/istream.tcc:
-
-/usr/include/c++/13/bits/exception_ptr.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
-
-/usr/include/c++/13/bits/stl_multimap.h:
-
-/usr/include/c++/13/bits/vector.tcc:
-
-/usr/include/c++/13/optional:
-
 /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
 
 /usr/include/c++/13/bits/streambuf_iterator.h:
@@ -1221,18 +1234,6 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 /usr/include/c++/13/cassert:
 
 /usr/include/c++/13/bits/cpp_type_traits.h:
-
-/usr/include/eigen3/Eigen/src/Eigenvalues/EigenSolver.h:
-
-/usr/include/eigen3/Eigen/src/Eigenvalues/ComplexEigenSolver.h:
-
-/usr/include/c++/13/climits:
-
-/usr/include/eigen3/Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h:
-
-/usr/include/c++/13/bits/alloc_traits.h:
-
-/usr/include/eigen3/Eigen/src/Core/IndexedView.h:
 
 /usr/include/c++/13/bits/exception.h:
 
@@ -1278,9 +1279,17 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 
 /usr/include/c++/13/bits/locale_classes.h:
 
-/usr/include/c++/13/bits/uniform_int_dist.h:
+/usr/include/eigen3/Eigen/src/Eigenvalues/EigenSolver.h:
 
-/usr/include/c++/13/bits/locale_classes.tcc:
+/usr/include/eigen3/Eigen/src/Eigenvalues/ComplexEigenSolver.h:
+
+/usr/include/c++/13/climits:
+
+/usr/include/eigen3/Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h:
+
+/usr/include/c++/13/bits/alloc_traits.h:
+
+/usr/include/eigen3/Eigen/src/Core/IndexedView.h:
 
 /usr/include/x86_64-linux-gnu/bits/select2.h:
 
@@ -1559,9 +1568,3 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
 /home/stephen/PyMPC/cpp_mpc/include/mpc_controller.hpp:
 
 /usr/include/eigen3/Eigen/src/Core/NumTraits.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
-
-/usr/include/c++/13/bits/charconv.h:
-
-/usr/include/eigen3/Eigen/src/Core/Product.h:

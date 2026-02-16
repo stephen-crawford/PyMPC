@@ -5,6 +5,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o.d"
   "CMakeFiles/scenario_mpc.dir/src/dynamics.cpp.o"
   "CMakeFiles/scenario_mpc.dir/src/dynamics.cpp.o.d"
+  "CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o"
+  "CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o.d"
   "CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.o"
   "CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.o.d"
   "CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o"
@@ -21,6 +23,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o.d"
   "CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o"
   "CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o.d"
+  "CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o"
+  "CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o.d"
   "libscenario_mpc.a"
   "libscenario_mpc.pdb"
 )

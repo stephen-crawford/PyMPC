@@ -11,6 +11,7 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
   /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/types.hpp \
+  /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -783,8 +784,6 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:
 
-/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
-
 /usr/include/eigen3/Eigen/src/Core/functors/StlFunctors.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/AssignmentFunctors.h:
@@ -830,6 +829,8 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 /usr/include/eigen3/Eigen/src/Core/Reverse.h:
 
 /usr/include/eigen3/Eigen/src/Core/Reshaped.h:
+
+/usr/include/eigen3/Eigen/src/Core/Replicate.h:
 
 /usr/include/x86_64-linux-gnu/bits/select2.h:
 
@@ -889,9 +890,9 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 
 /usr/include/c++/13/bits/uses_allocator.h:
 
-/usr/include/c++/13/bits/stl_multiset.h:
-
 /usr/include/c++/13/bits/postypes.h:
+
+/usr/include/c++/13/bits/stl_multiset.h:
 
 /usr/include/strings.h:
 
@@ -953,8 +954,6 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 
 /usr/include/eigen3/Eigen/src/Core/Dot.h:
 
-/usr/include/c++/13/complex:
-
 /usr/include/x86_64-linux-gnu/bits/stdio2-decl.h:
 
 /usr/include/c++/13/bits/ptr_traits.h:
@@ -992,6 +991,8 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 /usr/include/c++/13/bits/move.h:
 
 /usr/include/c++/13/bits/memoryfwd.h:
+
+/usr/include/c++/13/bits/locale_facets_nonio.tcc:
 
 /usr/include/c++/13/bits/atomic_lockfree_defines.h:
 
@@ -1065,14 +1066,6 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 
 /usr/include/c++/13/bits/codecvt.h:
 
-/home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp:
-
-/usr/include/x86_64-linux-gnu/sys/cdefs.h:
-
-/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
-
-/usr/include/c++/13/bits/locale_facets_nonio.h:
-
 /home/stephen/PyMPC/cpp_mpc/include/dynamics.hpp:
 
 /usr/include/c++/13/tr1/exp_integral.tcc:
@@ -1088,6 +1081,18 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 /usr/include/c++/13/bits/concept_check.h:
 
 /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp:
+
+/home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp:
+
+/usr/include/x86_64-linux-gnu/sys/cdefs.h:
+
+/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
+
+/usr/include/c++/13/bits/locale_facets_nonio.h:
+
+/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp:
 
 /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseBinaryOps.h:
 
@@ -1249,7 +1254,7 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 
 /usr/include/c++/13/bits/locale_classes.tcc:
 
-/usr/include/c++/13/bits/locale_facets_nonio.tcc:
+/usr/include/c++/13/complex:
 
 /usr/include/c++/13/cstring:
 
@@ -1536,8 +1541,6 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: /home/stephen/PyM
 /usr/include/eigen3/Eigen/src/SVD/JacobiSVD.h:
 
 /usr/include/eigen3/Eigen/src/Core/ProductEvaluators.h:
-
-/usr/include/eigen3/Eigen/src/Core/Replicate.h:
 
 /usr/include/x86_64-linux-gnu/bits/stdint-intn.h:
 

@@ -11,6 +11,7 @@ CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.o: /home/stephen/PyMPC/cpp_m
   /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/types.hpp \
+  /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -782,8 +783,6 @@ CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.o: /home/stephen/PyMPC/cpp_m
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:
 
-/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
-
 /usr/include/eigen3/Eigen/src/Core/functors/StlFunctors.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/AssignmentFunctors.h:
@@ -827,6 +826,8 @@ CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.o: /home/stephen/PyMPC/cpp_m
 /usr/include/eigen3/Eigen/src/Core/SolveTriangular.h:
 
 /usr/include/eigen3/Eigen/src/Core/SelfAdjointView.h:
+
+/usr/include/eigen3/Eigen/src/Core/Reverse.h:
 
 /usr/include/x86_64-linux-gnu/bits/select2.h:
 
@@ -886,9 +887,9 @@ CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.o: /home/stephen/PyMPC/cpp_m
 
 /usr/include/c++/13/bits/uses_allocator.h:
 
-/usr/include/c++/13/bits/stl_multiset.h:
-
 /usr/include/c++/13/bits/postypes.h:
+
+/usr/include/c++/13/bits/stl_multiset.h:
 
 /usr/include/strings.h:
 
@@ -965,6 +966,8 @@ CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.o: /home/stephen/PyMPC/cpp_m
 /usr/include/c++/13/bits/move.h:
 
 /usr/include/c++/13/bits/memoryfwd.h:
+
+/usr/include/c++/13/bits/locale_facets_nonio.tcc:
 
 /usr/include/c++/13/bits/atomic_lockfree_defines.h:
 
@@ -1086,7 +1089,9 @@ CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.o: /home/stephen/PyMPC/cpp_m
 
 /usr/include/c++/13/bits/locale_facets_nonio.h:
 
-/usr/include/eigen3/Eigen/src/Core/Reverse.h:
+/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp:
 
 /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseBinaryOps.h:
 
@@ -1247,8 +1252,6 @@ CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.o: /home/stephen/PyMPC/cpp_m
 /usr/include/c++/13/bits/uniform_int_dist.h:
 
 /usr/include/c++/13/bits/locale_classes.tcc:
-
-/usr/include/c++/13/bits/locale_facets_nonio.tcc:
 
 /usr/include/c++/13/cstring:
 

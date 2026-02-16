@@ -15,6 +15,17 @@ AdaptiveScenarioMPC::AdaptiveScenarioMPC(const ScenarioMPCConfig& config)
     config_.validate();
     default_modes_ = create_obstacle_mode_models(config_.dt);
 
+    // Initialize DRO module from config
+    if (config_.enable_dro) {
+        DROConfig dro_cfg;
+        dro_cfg.epsilon_base = config_.dro_epsilon_base;
+        dro_cfg.epsilon_min = config_.dro_epsilon_min;
+        dro_cfg.epsilon_max = config_.dro_epsilon_max;
+        dro_cfg.adaptive_epsilon = config_.dro_adaptive_epsilon;
+        dro_cfg.risk_sigma_scale = config_.dro_risk_sigma_scale;
+        dro_ = WassersteinDRO(dro_cfg);
+    }
+
     // Initialize random number generator
     std::random_device rd;
     rng_ = std::mt19937(rd());
@@ -68,7 +79,7 @@ MPCResult AdaptiveScenarioMPC::solve(
     // Step 1: Initialize reference trajectory (warmstart from previous)
     initialize_reference_trajectory(ego_state, goal, reference_velocity);
 
-    // Step 2: Sample scenarios (Algorithm 1)
+    // Step 2: Sample scenarios normally from P_hat (Algorithm 1)
     if (config_.ensure_mode_coverage) {
         scenarios_ = sample_scenarios_with_mode_coverage(
             obstacles,
@@ -91,6 +102,75 @@ MPCResult AdaptiveScenarioMPC::solve(
             iteration_count_,
             &rng_
         );
+    }
+
+    // Pre-compute safe horizon N_s for DRO risk truncation (tighter bound, Eq. 25)
+    int pre_dro_safe_horizon = config_.horizon;
+    if (config_.safe_horizon_enabled) {
+        int n_u = 2;
+        int S_pre = static_cast<int>(scenarios_.size());
+        for (int N_try = config_.horizon; N_try >= config_.safe_horizon_min; --N_try) {
+            int nbar = N_try * n_u;
+            int S_req = config_.compute_required_scenarios_tight(nbar);
+            if (S_pre >= S_req) {
+                pre_dro_safe_horizon = N_try;
+                break;
+            }
+        }
+        pre_dro_safe_horizon = std::clamp(pre_dro_safe_horizon,
+            config_.safe_horizon_min, config_.horizon);
+    }
+
+    // Step 2b: DRO worst-case scenario injection
+    // For each obstacle, solve the Wasserstein DRO to find the single most
+    // dangerous reachable mode (highest CVaR within W1 ball of P_hat), then
+    // deterministically inject its mean trajectory as an additional hard
+    // constraint.  This guarantees rare-mode coverage without scaling S.
+    // OT (W2 Bures metric) provides the ground cost D[i][j] for the
+    // Wasserstein ball, keeping the OT role clean and reviewer-friendly.
+    int dro_injected = 0;
+    if (config_.enable_dro && !reference_trajectory_.empty()) {
+        int next_id = static_cast<int>(scenarios_.size());
+
+        for (const auto& [obs_id, obs_state] : obstacles) {
+            auto hist_it = mode_histories_.find(obs_id);
+            if (hist_it == mode_histories_.end()) continue;
+
+            // Compute nominal weights from mode history
+            auto nominal = compute_mode_weights(
+                hist_it->second, config_.weight_type,
+                config_.recency_decay, iteration_count_
+            );
+
+            // Set observation count for adaptive epsilon
+            dro_.set_observation_count(
+                static_cast<int>(hist_it->second.observed_modes.size()));
+
+            // Solve DRO: find Q* within W1 ball around P_hat
+            // Risk horizon truncated to N_s; multi-disc uses worst disc
+            auto dro_result = dro_.compute_worst_case_weights(
+                nominal, obs_state, hist_it->second.available_modes,
+                reference_trajectory_, config_.horizon,
+                config_.ego_radius, config_.obstacle_radius,
+                config_.safety_margin,
+                pre_dro_safe_horizon,
+                config_.num_discs,
+                config_.vehicle_length
+            );
+
+            // Generate and inject the worst-case scenario (if any risk exists)
+            Scenario wc = dro_.generate_worst_case_scenario(
+                dro_result, obs_id, obs_state,
+                hist_it->second.available_modes,
+                config_.horizon, next_id
+            );
+            if (!wc.trajectories.empty()) {
+                wc.is_injected = true;  // Protect from dominance pruning
+                scenarios_.push_back(std::move(wc));
+                next_id++;
+                dro_injected++;
+            }
+        }
     }
 
     // Step 3: Prune dominated scenarios (Algorithm 3)
@@ -160,20 +240,61 @@ MPCResult AdaptiveScenarioMPC::solve(
         }
     }
 
-    // Step 4: Compute linearized constraints
+    // Step 4: Compute linearized constraints (multi-disc D=num_discs)
     auto constraints = compute_linearized_constraints(
         reference_trajectory_,
         scenarios_,
         config_.ego_radius,
         config_.obstacle_radius,
-        config_.safety_margin
+        config_.safety_margin,
+        config_.num_discs
     );
+
+    // Step 4b: Safe horizon truncation (SH-MPC)
+    // If S_actual < S_required(N), reduce the constraint horizon to N_safe
+    // such that S_actual >= S_required(N_safe). This enforces the epsilon
+    // guarantee from Theorem 1 while trading planning depth for safety.
+    //
+    // Uses tighter bound (Eq. 25): S >= (2/eps)*ln(1/beta) + 2*nbar + (2*nbar/eps)*ln(2/eps)
+    // where nbar = N_safe * n_u.  Binary search on N_safe.
+    int effective_horizon = config_.horizon;
+    if (config_.safe_horizon_enabled) {
+        int n_u = 2;  // decision variables per timestep
+        int S_actual = static_cast<int>(scenarios_.size());
+        // Binary search for largest N_safe such that S_actual >= S_required(N_safe)
+        int N_safe = config_.safe_horizon_min;
+        for (int N_try = config_.horizon; N_try >= config_.safe_horizon_min; --N_try) {
+            int nbar = N_try * n_u;
+            int S_req = config_.compute_required_scenarios_tight(nbar);
+            if (S_actual >= S_req) {
+                N_safe = N_try;
+                break;
+            }
+        }
+        N_safe = std::clamp(N_safe, config_.safe_horizon_min, config_.horizon);
+        effective_horizon = N_safe;
+
+        if (effective_horizon < config_.horizon) {
+            // Filter out constraints beyond the safe horizon
+            constraints.erase(
+                std::remove_if(constraints.begin(), constraints.end(),
+                    [effective_horizon](const CollisionConstraint& c) {
+                        return c.k > effective_horizon;
+                    }),
+                constraints.end()
+            );
+        }
+    }
 
     // Step 5: Solve optimization problem
     MPCResult result = solve_optimization(
         ego_state, goal, reference_velocity, constraints,
         path_progress, path_length
     );
+
+    // Record safe horizon and DRO injection count
+    result.safe_horizon = effective_horizon;
+    result.num_dro_injected = dro_injected;
 
     // Step 6: Remove inactive scenarios (Algorithm 4)
     if (result.success) {
@@ -692,8 +813,10 @@ QPProblem AdaptiveScenarioMPC::build_condensed_qp(
         Eigen::RowVector2d aT = con.a.transpose();
         C.row(i) = aT * P_all[k];
 
-        // d[i] = b - a^T * p_ref[k]
-        d(i) = con.b - con.a.dot(x_ref[k].position());
+        // d[i] = b - a^T * p_ref[k] (uses disc linearization point for multi-disc)
+        Eigen::Vector2d lin_pt = (con.linearization_point.squaredNorm() > 1e-20) ?
+            con.linearization_point : x_ref[k].position();
+        d(i) = con.b - con.a.dot(lin_pt);
     }
 
     // Step 6: Box constraints on delta_u

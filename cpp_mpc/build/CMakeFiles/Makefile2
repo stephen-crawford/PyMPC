@@ -74,6 +74,10 @@ all: CMakeFiles/test_paper_figures.dir/all
 all: CMakeFiles/test_uncertainty_limits.dir/all
 all: CMakeFiles/test_sqp_comparison.dir/all
 all: CMakeFiles/test_mode_coverage.dir/all
+all: CMakeFiles/test_results_section.dir/all
+all: CMakeFiles/test_statistical_power.dir/all
+all: CMakeFiles/test_dro_framework.dir/all
+all: CMakeFiles/experiment_runner.dir/all
 all: CMakeFiles/example_mpc.dir/all
 all: CMakeFiles/demo_visualization.dir/all
 all: CMakeFiles/ascii_visualize.dir/all
@@ -95,6 +99,10 @@ clean: CMakeFiles/test_paper_figures.dir/clean
 clean: CMakeFiles/test_uncertainty_limits.dir/clean
 clean: CMakeFiles/test_sqp_comparison.dir/clean
 clean: CMakeFiles/test_mode_coverage.dir/clean
+clean: CMakeFiles/test_results_section.dir/clean
+clean: CMakeFiles/test_statistical_power.dir/clean
+clean: CMakeFiles/test_dro_framework.dir/clean
+clean: CMakeFiles/experiment_runner.dir/clean
 clean: CMakeFiles/run_tests.dir/clean
 clean: CMakeFiles/example_mpc.dir/clean
 clean: CMakeFiles/demo_visualization.dir/clean
@@ -108,12 +116,12 @@ clean: CMakeFiles/ascii_visualize.dir/clean
 CMakeFiles/scenario_mpc.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=7,8,9,10,11,12,13,14,15,16,17,18 "Built target scenario_mpc"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=9,10,11,12,13,14,15,16,17,18,19,20,21,22 "Built target scenario_mpc"
 .PHONY : CMakeFiles/scenario_mpc.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/scenario_mpc.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 12
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/scenario_mpc.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/scenario_mpc.dir/rule
@@ -134,12 +142,12 @@ CMakeFiles/scenario_mpc.dir/clean:
 CMakeFiles/test_core.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_core.dir/build.make CMakeFiles/test_core.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_core.dir/build.make CMakeFiles/test_core.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=19,20 "Built target test_core"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=23,24 "Built target test_core"
 .PHONY : CMakeFiles/test_core.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_core.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_core.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_core.dir/rule
@@ -160,12 +168,12 @@ CMakeFiles/test_core.dir/clean:
 CMakeFiles/test_safe_horizon_contouring.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_safe_horizon_contouring.dir/build.make CMakeFiles/test_safe_horizon_contouring.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_safe_horizon_contouring.dir/build.make CMakeFiles/test_safe_horizon_contouring.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=33,34 "Built target test_safe_horizon_contouring"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=41,42 "Built target test_safe_horizon_contouring"
 .PHONY : CMakeFiles/test_safe_horizon_contouring.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_safe_horizon_contouring.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_safe_horizon_contouring.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_safe_horizon_contouring.dir/rule
@@ -186,12 +194,12 @@ CMakeFiles/test_safe_horizon_contouring.dir/clean:
 CMakeFiles/test_optimal_transport.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_optimal_transport.dir/build.make CMakeFiles/test_optimal_transport.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_optimal_transport.dir/build.make CMakeFiles/test_optimal_transport.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=25,26 "Built target test_optimal_transport"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=31,32 "Built target test_optimal_transport"
 .PHONY : CMakeFiles/test_optimal_transport.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_optimal_transport.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_optimal_transport.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_optimal_transport.dir/rule
@@ -212,12 +220,12 @@ CMakeFiles/test_optimal_transport.dir/clean:
 CMakeFiles/test_ot_predictor_integration.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_ot_predictor_integration.dir/build.make CMakeFiles/test_ot_predictor_integration.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_ot_predictor_integration.dir/build.make CMakeFiles/test_ot_predictor_integration.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=29,30 "Built target test_ot_predictor_integration"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=35,36 "Built target test_ot_predictor_integration"
 .PHONY : CMakeFiles/test_ot_predictor_integration.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_ot_predictor_integration.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_ot_predictor_integration.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_ot_predictor_integration.dir/rule
@@ -238,12 +246,12 @@ CMakeFiles/test_ot_predictor_integration.dir/clean:
 CMakeFiles/test_ot_dynamics_verification.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_ot_dynamics_verification.dir/build.make CMakeFiles/test_ot_dynamics_verification.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_ot_dynamics_verification.dir/build.make CMakeFiles/test_ot_dynamics_verification.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=27,28 "Built target test_ot_dynamics_verification"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=33,34 "Built target test_ot_dynamics_verification"
 .PHONY : CMakeFiles/test_ot_dynamics_verification.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_ot_dynamics_verification.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_ot_dynamics_verification.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_ot_dynamics_verification.dir/rule
@@ -264,12 +272,12 @@ CMakeFiles/test_ot_dynamics_verification.dir/clean:
 CMakeFiles/test_epsilon_guarantee.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_epsilon_guarantee.dir/build.make CMakeFiles/test_epsilon_guarantee.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_epsilon_guarantee.dir/build.make CMakeFiles/test_epsilon_guarantee.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=21,22 "Built target test_epsilon_guarantee"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=27,28 "Built target test_epsilon_guarantee"
 .PHONY : CMakeFiles/test_epsilon_guarantee.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_epsilon_guarantee.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_epsilon_guarantee.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_epsilon_guarantee.dir/rule
@@ -290,12 +298,12 @@ CMakeFiles/test_epsilon_guarantee.dir/clean:
 CMakeFiles/test_paper_figures.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_paper_figures.dir/build.make CMakeFiles/test_paper_figures.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_paper_figures.dir/build.make CMakeFiles/test_paper_figures.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=31,32 "Built target test_paper_figures"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=37,38 "Built target test_paper_figures"
 .PHONY : CMakeFiles/test_paper_figures.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_paper_figures.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_paper_figures.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_paper_figures.dir/rule
@@ -316,12 +324,12 @@ CMakeFiles/test_paper_figures.dir/clean:
 CMakeFiles/test_uncertainty_limits.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_uncertainty_limits.dir/build.make CMakeFiles/test_uncertainty_limits.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_uncertainty_limits.dir/build.make CMakeFiles/test_uncertainty_limits.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=37,38 "Built target test_uncertainty_limits"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=47,48 "Built target test_uncertainty_limits"
 .PHONY : CMakeFiles/test_uncertainty_limits.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_uncertainty_limits.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_uncertainty_limits.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_uncertainty_limits.dir/rule
@@ -342,12 +350,12 @@ CMakeFiles/test_uncertainty_limits.dir/clean:
 CMakeFiles/test_sqp_comparison.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_sqp_comparison.dir/build.make CMakeFiles/test_sqp_comparison.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_sqp_comparison.dir/build.make CMakeFiles/test_sqp_comparison.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=35,36 "Built target test_sqp_comparison"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=43,44 "Built target test_sqp_comparison"
 .PHONY : CMakeFiles/test_sqp_comparison.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_sqp_comparison.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_sqp_comparison.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_sqp_comparison.dir/rule
@@ -368,12 +376,12 @@ CMakeFiles/test_sqp_comparison.dir/clean:
 CMakeFiles/test_mode_coverage.dir/all: CMakeFiles/scenario_mpc.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_mode_coverage.dir/build.make CMakeFiles/test_mode_coverage.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_mode_coverage.dir/build.make CMakeFiles/test_mode_coverage.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=23,24 "Built target test_mode_coverage"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=29,30 "Built target test_mode_coverage"
 .PHONY : CMakeFiles/test_mode_coverage.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/test_mode_coverage.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_mode_coverage.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/test_mode_coverage.dir/rule
@@ -386,6 +394,110 @@ test_mode_coverage: CMakeFiles/test_mode_coverage.dir/rule
 CMakeFiles/test_mode_coverage.dir/clean:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_mode_coverage.dir/build.make CMakeFiles/test_mode_coverage.dir/clean
 .PHONY : CMakeFiles/test_mode_coverage.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/test_results_section.dir
+
+# All Build rule for target.
+CMakeFiles/test_results_section.dir/all: CMakeFiles/scenario_mpc.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_results_section.dir/build.make CMakeFiles/test_results_section.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_results_section.dir/build.make CMakeFiles/test_results_section.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=39,40 "Built target test_results_section"
+.PHONY : CMakeFiles/test_results_section.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/test_results_section.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_results_section.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
+.PHONY : CMakeFiles/test_results_section.dir/rule
+
+# Convenience name for target.
+test_results_section: CMakeFiles/test_results_section.dir/rule
+.PHONY : test_results_section
+
+# clean rule for target.
+CMakeFiles/test_results_section.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_results_section.dir/build.make CMakeFiles/test_results_section.dir/clean
+.PHONY : CMakeFiles/test_results_section.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/test_statistical_power.dir
+
+# All Build rule for target.
+CMakeFiles/test_statistical_power.dir/all: CMakeFiles/scenario_mpc.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_statistical_power.dir/build.make CMakeFiles/test_statistical_power.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_statistical_power.dir/build.make CMakeFiles/test_statistical_power.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=45,46 "Built target test_statistical_power"
+.PHONY : CMakeFiles/test_statistical_power.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/test_statistical_power.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_statistical_power.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
+.PHONY : CMakeFiles/test_statistical_power.dir/rule
+
+# Convenience name for target.
+test_statistical_power: CMakeFiles/test_statistical_power.dir/rule
+.PHONY : test_statistical_power
+
+# clean rule for target.
+CMakeFiles/test_statistical_power.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_statistical_power.dir/build.make CMakeFiles/test_statistical_power.dir/clean
+.PHONY : CMakeFiles/test_statistical_power.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/test_dro_framework.dir
+
+# All Build rule for target.
+CMakeFiles/test_dro_framework.dir/all: CMakeFiles/scenario_mpc.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dro_framework.dir/build.make CMakeFiles/test_dro_framework.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dro_framework.dir/build.make CMakeFiles/test_dro_framework.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=25,26 "Built target test_dro_framework"
+.PHONY : CMakeFiles/test_dro_framework.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/test_dro_framework.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/test_dro_framework.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
+.PHONY : CMakeFiles/test_dro_framework.dir/rule
+
+# Convenience name for target.
+test_dro_framework: CMakeFiles/test_dro_framework.dir/rule
+.PHONY : test_dro_framework
+
+# clean rule for target.
+CMakeFiles/test_dro_framework.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dro_framework.dir/build.make CMakeFiles/test_dro_framework.dir/clean
+.PHONY : CMakeFiles/test_dro_framework.dir/clean
+
+#=============================================================================
+# Target rules for target CMakeFiles/experiment_runner.dir
+
+# All Build rule for target.
+CMakeFiles/experiment_runner.dir/all: CMakeFiles/scenario_mpc.dir/all
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/depend
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/build
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=7,8 "Built target experiment_runner"
+.PHONY : CMakeFiles/experiment_runner.dir/all
+
+# Build rule for subdir invocation for target.
+CMakeFiles/experiment_runner.dir/rule: cmake_check_build_system
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/experiment_runner.dir/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
+.PHONY : CMakeFiles/experiment_runner.dir/rule
+
+# Convenience name for target.
+experiment_runner: CMakeFiles/experiment_runner.dir/rule
+.PHONY : experiment_runner
+
+# clean rule for target.
+CMakeFiles/experiment_runner.dir/clean:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/clean
+.PHONY : CMakeFiles/experiment_runner.dir/clean
 
 #=============================================================================
 # Target rules for target CMakeFiles/run_tests.dir
@@ -405,7 +517,7 @@ CMakeFiles/run_tests.dir/all: CMakeFiles/test_paper_figures.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/run_tests.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 26
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 28
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/run_tests.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/run_tests.dir/rule
@@ -431,7 +543,7 @@ CMakeFiles/example_mpc.dir/all: CMakeFiles/scenario_mpc.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/example_mpc.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/example_mpc.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/example_mpc.dir/rule
@@ -457,7 +569,7 @@ CMakeFiles/demo_visualization.dir/all: CMakeFiles/scenario_mpc.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/demo_visualization.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/demo_visualization.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/demo_visualization.dir/rule
@@ -483,7 +595,7 @@ CMakeFiles/ascii_visualize.dir/all: CMakeFiles/scenario_mpc.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/ascii_visualize.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 14
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 16
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/ascii_visualize.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles 0
 .PHONY : CMakeFiles/ascii_visualize.dir/rule

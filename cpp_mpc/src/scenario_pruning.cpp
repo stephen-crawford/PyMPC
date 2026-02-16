@@ -118,14 +118,19 @@ std::vector<Scenario> prune_dominated_scenarios(
     int n = static_cast<int>(scenarios.size());
     std::set<int> dominated;
 
-    // Pairwise comparison
+    // Pairwise comparison (never prune DRO-injected scenarios)
     for (int i = 0; i < n; ++i) {
-        if (dominated.count(i)) {
+        if (dominated.count(i) || scenarios[i].is_injected) {
             continue;
         }
 
         for (int j = i + 1; j < n; ++j) {
             if (dominated.count(j)) {
+                continue;
+            }
+
+            // Never prune an injected scenario
+            if (scenarios[j].is_injected) {
                 continue;
             }
 

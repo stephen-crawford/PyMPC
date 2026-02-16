@@ -12,6 +12,7 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o
  /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp
  /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp
  /home/stephen/PyMPC/cpp_mpc/include/types.hpp
+ /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp
  /usr/include/alloca.h
  /usr/include/asm-generic/errno-base.h
  /usr/include/asm-generic/errno.h

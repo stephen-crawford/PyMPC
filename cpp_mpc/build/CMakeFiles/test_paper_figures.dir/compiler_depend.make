@@ -13,6 +13,7 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
   /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/trajectory_moments.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/types.hpp \
+  /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -791,8 +792,6 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:
 
-/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
-
 /usr/include/eigen3/Eigen/src/Core/functors/StlFunctors.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/AssignmentFunctors.h:
@@ -845,7 +844,11 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 
 /usr/include/eigen3/Eigen/src/Core/Random.h:
 
-/usr/include/c++/13/clocale:
+/usr/include/eigen3/Eigen/src/SVD/UpperBidiagonalization.h:
+
+/usr/include/eigen3/Eigen/src/SVD/JacobiSVD.h:
+
+/usr/include/eigen3/Eigen/src/Core/ProductEvaluators.h:
 
 /usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h:
 
@@ -999,8 +1002,6 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 
 /usr/include/c++/13/bits/locale_facets.h:
 
-/usr/include/c++/13/bits/atomic_lockfree_defines.h:
-
 /usr/include/eigen3/Eigen/src/Core/util/Macros.h:
 
 /usr/include/c++/13/backward/binders.h:
@@ -1033,23 +1034,21 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 
 /usr/include/c++/13/iosfwd:
 
-/usr/include/eigen3/Eigen/src/Eigenvalues/Tridiagonalization.h:
+/usr/include/x86_64-linux-gnu/bits/posix2_lim.h:
 
-/usr/include/eigen3/Eigen/src/Core/VectorwiseOp.h:
+/usr/include/c++/13/bits/enable_special_members.h:
 
-/usr/include/c++/13/cstdio:
-
-/usr/include/c++/13/bits/allocated_ptr.h:
-
-/usr/include/c++/13/bit:
+/usr/include/c++/13/bits/atomic_lockfree_defines.h:
 
 /usr/include/c++/13/bits/basic_string.tcc:
 
 /usr/include/eigen3/Eigen/src/Core/ArrayBase.h:
 
-/usr/include/x86_64-linux-gnu/bits/posix2_lim.h:
+/usr/include/eigen3/Eigen/src/Eigenvalues/Tridiagonalization.h:
 
-/usr/include/c++/13/bits/enable_special_members.h:
+/usr/include/eigen3/Eigen/src/Core/VectorwiseOp.h:
+
+/usr/include/c++/13/cstdio:
 
 /usr/include/c++/13/bits/stl_vector.h:
 
@@ -1066,6 +1065,16 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 /usr/include/c++/13/bits/stl_tree.h:
 
 /usr/include/c++/13/bits/codecvt.h:
+
+/usr/include/c++/13/bits/stl_bvector.h:
+
+/usr/include/eigen3/Eigen/src/Core/arch/Default/ConjHelper.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/collision_constraints.hpp:
+
+/usr/include/eigen3/Eigen/Jacobi:
+
+/usr/include/c++/13/pstl/pstl_config.h:
 
 /home/stephen/PyMPC/cpp_mpc/include/dynamics.hpp:
 
@@ -1103,6 +1112,8 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 
 /usr/include/c++/13/algorithm:
 
+/usr/include/alloca.h:
+
 /usr/include/c++/13/bits/refwrap.h:
 
 /usr/include/c++/13/bits/fstream.tcc:
@@ -1115,11 +1126,19 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 
 /usr/include/c++/13/array:
 
-/usr/include/eigen3/Eigen/src/Core/AssignEvaluator.h:
+/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp:
+
+/usr/include/c++/13/bit:
+
+/usr/include/c++/13/bits/allocated_ptr.h:
+
+/usr/include/c++/13/clocale:
 
 /usr/include/c++/13/bits/hash_bytes.h:
 
-/usr/include/alloca.h:
+/usr/include/eigen3/Eigen/src/Core/AssignEvaluator.h:
 
 /home/stephen/PyMPC/cpp_mpc/include/trajectory_moments.hpp:
 
@@ -1127,15 +1146,11 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 
 /usr/include/c++/13/tr1/legendre_function.tcc:
 
-/usr/include/c++/13/bits/stl_bvector.h:
+/usr/include/wchar.h:
 
-/usr/include/eigen3/Eigen/src/Core/arch/Default/ConjHelper.h:
+/usr/include/eigen3/Eigen/src/Core/PlainObjectBase.h:
 
-/home/stephen/PyMPC/cpp_mpc/include/collision_constraints.hpp:
-
-/usr/include/eigen3/Eigen/Jacobi:
-
-/usr/include/c++/13/pstl/pstl_config.h:
+/usr/include/c++/13/bits/shared_ptr_base.h:
 
 /usr/include/c++/13/bits/basic_ios.h:
 
@@ -1173,6 +1188,12 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 
 /usr/include/c++/13/bits/hashtable_policy.h:
 
+/usr/include/eigen3/Eigen/src/Core/VectorBlock.h:
+
+/usr/include/c++/13/bits/locale_conv.h:
+
+/usr/include/c++/13/bits/istream.tcc:
+
 /usr/include/c++/13/bits/exception_ptr.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/__locale_t.h:
@@ -1182,18 +1203,6 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 /usr/include/c++/13/bits/vector.tcc:
 
 /usr/include/c++/13/optional:
-
-/usr/include/eigen3/Eigen/src/Core/VectorBlock.h:
-
-/usr/include/c++/13/bits/istream.tcc:
-
-/usr/include/c++/13/bits/locale_conv.h:
-
-/usr/include/wchar.h:
-
-/usr/include/c++/13/bits/shared_ptr_base.h:
-
-/usr/include/eigen3/Eigen/src/Core/PlainObjectBase.h:
 
 /usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
 
@@ -1556,9 +1565,3 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: /home/stephen/
 /usr/include/c++/13/bits/charconv.h:
 
 /usr/include/eigen3/Eigen/src/Core/Product.h:
-
-/usr/include/eigen3/Eigen/src/SVD/UpperBidiagonalization.h:
-
-/usr/include/eigen3/Eigen/src/SVD/JacobiSVD.h:
-
-/usr/include/eigen3/Eigen/src/Core/ProductEvaluators.h:

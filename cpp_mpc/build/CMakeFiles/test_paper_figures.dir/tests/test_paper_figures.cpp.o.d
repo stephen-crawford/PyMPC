@@ -461,6 +461,7 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o: \
  /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp \
  /usr/include/eigen3/Eigen/Cholesky \
+ /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/config.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/optimal_transport_predictor.hpp \
  /usr/include/c++/13/deque /usr/include/c++/13/bits/stl_deque.h \

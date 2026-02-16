@@ -11,6 +11,7 @@ CMakeFiles/test_sqp_comparison.dir/tests/test_sqp_comparison.cpp.o: /home/stephe
   /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/types.hpp \
+  /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -786,8 +787,6 @@ CMakeFiles/test_sqp_comparison.dir/tests/test_sqp_comparison.cpp.o: /home/stephe
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:
 
-/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
-
 /usr/include/eigen3/Eigen/src/Core/functors/StlFunctors.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/AssignmentFunctors.h:
@@ -833,6 +832,8 @@ CMakeFiles/test_sqp_comparison.dir/tests/test_sqp_comparison.cpp.o: /home/stephe
 /usr/include/eigen3/Eigen/src/Core/SelfAdjointView.h:
 
 /usr/include/eigen3/Eigen/src/Core/Reverse.h:
+
+/usr/include/eigen3/Eigen/src/Core/Reshaped.h:
 
 /usr/include/x86_64-linux-gnu/bits/select2.h:
 
@@ -988,6 +989,8 @@ CMakeFiles/test_sqp_comparison.dir/tests/test_sqp_comparison.cpp.o: /home/stephe
 
 /usr/include/c++/13/bits/locale_facets_nonio.tcc:
 
+/usr/include/c++/13/bits/locale_facets_nonio.h:
+
 /usr/include/c++/13/bits/atomic_lockfree_defines.h:
 
 /usr/include/c++/13/bits/locale_facets.h:
@@ -1060,14 +1063,6 @@ CMakeFiles/test_sqp_comparison.dir/tests/test_sqp_comparison.cpp.o: /home/stephe
 
 /usr/include/c++/13/bits/codecvt.h:
 
-/home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp:
-
-/usr/include/x86_64-linux-gnu/sys/cdefs.h:
-
-/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
-
-/usr/include/c++/13/bits/locale_facets_nonio.h:
-
 /home/stephen/PyMPC/cpp_mpc/include/dynamics.hpp:
 
 /usr/include/c++/13/tr1/exp_integral.tcc:
@@ -1085,6 +1080,16 @@ CMakeFiles/test_sqp_comparison.dir/tests/test_sqp_comparison.cpp.o: /home/stephe
 /usr/include/x86_64-linux-gnu/c++/13/bits/basic_file.h:
 
 /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp:
+
+/home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp:
+
+/usr/include/x86_64-linux-gnu/sys/cdefs.h:
+
+/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
+
+/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp:
 
 /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseBinaryOps.h:
 
@@ -1477,8 +1482,6 @@ CMakeFiles/test_sqp_comparison.dir/tests/test_sqp_comparison.cpp.o: /home/stephe
 /usr/include/eigen3/Eigen/Householder:
 
 /usr/include/eigen3/Eigen/src/Core/DenseBase.h:
-
-/usr/include/eigen3/Eigen/src/Core/Reshaped.h:
 
 /usr/include/c++/13/functional:
 

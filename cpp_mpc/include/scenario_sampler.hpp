@@ -85,6 +85,31 @@ std::vector<Scenario> sample_scenarios_with_mode_coverage(
 );
 
 /**
+ * @brief Sample scenarios with pre-computed per-obstacle mode weights.
+ *
+ * Same as sample_scenarios() but uses externally provided weights (e.g. from DRO)
+ * instead of computing them from mode histories internally.
+ *
+ * @param obstacles Dict mapping obstacle_id to current ObstacleState
+ * @param mode_histories Dict mapping obstacle_id to ModeHistory
+ * @param per_obstacle_weights Pre-computed weights: obstacle_id -> {mode_id -> weight}
+ * @param horizon Prediction horizon N
+ * @param num_scenarios Number of scenarios to sample S
+ * @param ensure_mode_coverage If true, guarantee at least one scenario per mode
+ * @param rng Random number generator
+ * @return List of Scenario objects
+ */
+std::vector<Scenario> sample_scenarios_with_weights(
+    const std::map<int, ObstacleState>& obstacles,
+    const std::map<int, ModeHistory>& mode_histories,
+    const std::map<int, std::map<std::string, double>>& per_obstacle_weights,
+    int horizon,
+    int num_scenarios,
+    bool ensure_mode_coverage = false,
+    std::mt19937* rng = nullptr
+);
+
+/**
  * @brief Sample scenarios with time-varying mode sequences.
  *
  * More sophisticated version that samples a different mode for each timestep,

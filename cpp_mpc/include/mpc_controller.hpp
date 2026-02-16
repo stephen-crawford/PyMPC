@@ -23,6 +23,7 @@
 #include "collision_constraints.hpp"
 #include "scenario_pruning.hpp"
 #include "qp_solver.hpp"
+#include "wasserstein_dro.hpp"
 #include <random>
 #include <chrono>
 
@@ -115,6 +116,9 @@ public:
     /// Get current scenarios
     const std::vector<Scenario>& scenarios() const { return scenarios_; }
 
+    /// Get DRO module (for diagnostics)
+    const WassersteinDRO& dro() const { return dro_; }
+
 private:
     /**
      * @brief Initialize reference trajectory for constraint linearization.
@@ -197,6 +201,7 @@ private:
     std::map<std::string, ModeModel> default_modes_;
     std::map<int, ModeHistory> mode_histories_;
     std::vector<Scenario> scenarios_;
+    WassersteinDRO dro_;
     std::vector<EgoState> reference_trajectory_;
     std::mt19937 rng_;
     std::vector<double> solve_times_;

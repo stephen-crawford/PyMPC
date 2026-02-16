@@ -452,9 +452,10 @@ CMakeFiles/test_ot_predictor_integration.dir/tests/test_ot_predictor_integration
  /usr/include/c++/13/set /usr/include/c++/13/bits/stl_set.h \
  /usr/include/c++/13/bits/stl_multiset.h \
  /home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp \
- /usr/include/eigen3/Eigen/Cholesky /usr/include/c++/13/chrono \
- /usr/include/c++/13/bits/chrono.h /usr/include/c++/13/ratio \
- /usr/include/c++/13/bits/parse_numbers.h \
+ /usr/include/eigen3/Eigen/Cholesky \
+ /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
+ /usr/include/c++/13/chrono /usr/include/c++/13/bits/chrono.h \
+ /usr/include/c++/13/ratio /usr/include/c++/13/bits/parse_numbers.h \
  /home/stephen/PyMPC/cpp_mpc/include/reference_path.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/optimal_transport_predictor.hpp \
  /usr/include/c++/13/deque /usr/include/c++/13/bits/stl_deque.h \

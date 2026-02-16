@@ -31,6 +31,8 @@ set(SCENARIO_MPC_SOURCES
     src/contouring_mpc.cpp
     src/optimal_transport_predictor.cpp
     src/qp_solver.cpp
+    src/wasserstein_dro.cpp
+    src/experiment_harness.cpp
 )
 
 # Create the library
@@ -81,6 +83,18 @@ if(BUILD_TESTS)
 
     add_executable(test_mode_coverage tests/test_mode_coverage.cpp)
     target_link_libraries(test_mode_coverage PRIVATE scenario_mpc)
+
+    add_executable(test_results_section tests/test_results_section.cpp)
+    target_link_libraries(test_results_section PRIVATE scenario_mpc)
+
+    add_executable(test_statistical_power tests/test_statistical_power.cpp)
+    target_link_libraries(test_statistical_power PRIVATE scenario_mpc)
+
+    add_executable(test_dro_framework tests/test_dro_framework.cpp)
+    target_link_libraries(test_dro_framework PRIVATE scenario_mpc)
+
+    add_executable(experiment_runner tests/experiment_runner.cpp)
+    target_link_libraries(experiment_runner PRIVATE scenario_mpc)
 
     add_test(NAME CoreTests COMMAND test_core)
     add_test(NAME SafeHorizonContouringTests COMMAND test_safe_horizon_contouring)

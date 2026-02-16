@@ -1,0 +1,11 @@
+variant_a,variant_b,n10,n01,mcnemar_chi2,significant_p05
+Base(D=1,noDRO),Base(D=3,noDRO),4,100,89,yes
+Base(D=1,noDRO),DRO(D=1),11,14,0.36,no
+Base(D=1,noDRO),DRO(D=3),5,104,90,yes
+Base(D=1,noDRO),DRO(D=3)+SH,9,16,2,no
+Base(D=3,noDRO),DRO(D=1),100,7,81,yes
+Base(D=3,noDRO),DRO(D=3),22,25,0.19,no
+Base(D=3,noDRO),DRO(D=3)+SH,95,6,78,yes
+DRO(D=1),DRO(D=3),4,100,89,yes
+DRO(D=1),DRO(D=3)+SH,15,19,0.47,no
+DRO(D=3),DRO(D=3)+SH,95,3,86,yes

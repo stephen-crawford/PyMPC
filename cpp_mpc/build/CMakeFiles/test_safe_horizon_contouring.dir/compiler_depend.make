@@ -13,6 +13,7 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
   /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/types.hpp \
+  /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -788,8 +789,6 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:
 
-/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
-
 /usr/include/eigen3/Eigen/src/Core/functors/StlFunctors.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/AssignmentFunctors.h:
@@ -998,8 +997,6 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 
 /usr/include/c++/13/bits/locale_facets_nonio.h:
 
-/usr/include/c++/13/bits/atomic_lockfree_defines.h:
-
 /usr/include/c++/13/bits/locale_facets.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/NullaryFunctors.h:
@@ -1028,11 +1025,11 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 
 /usr/include/c++/13/iosfwd:
 
-/usr/include/eigen3/Eigen/src/Eigenvalues/Tridiagonalization.h:
+/usr/include/x86_64-linux-gnu/bits/posix2_lim.h:
 
-/usr/include/eigen3/Eigen/src/Core/VectorwiseOp.h:
+/usr/include/c++/13/bits/enable_special_members.h:
 
-/usr/include/c++/13/cstdio:
+/usr/include/c++/13/bits/atomic_lockfree_defines.h:
 
 /usr/include/c++/13/bits/allocated_ptr.h:
 
@@ -1042,9 +1039,11 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 
 /usr/include/eigen3/Eigen/src/Core/ArrayBase.h:
 
-/usr/include/x86_64-linux-gnu/bits/posix2_lim.h:
+/usr/include/eigen3/Eigen/src/Eigenvalues/Tridiagonalization.h:
 
-/usr/include/c++/13/bits/enable_special_members.h:
+/usr/include/eigen3/Eigen/src/Core/VectorwiseOp.h:
+
+/usr/include/c++/13/cstdio:
 
 /usr/include/c++/13/bits/stl_vector.h:
 
@@ -1072,11 +1071,15 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 
 /usr/include/c++/13/bits/refwrap.h:
 
-/home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp:
+/usr/include/c++/13/bits/stl_bvector.h:
 
-/usr/include/x86_64-linux-gnu/sys/cdefs.h:
+/usr/include/eigen3/Eigen/src/Core/arch/Default/ConjHelper.h:
 
-/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
+/home/stephen/PyMPC/cpp_mpc/include/collision_constraints.hpp:
+
+/usr/include/eigen3/Eigen/Jacobi:
+
+/usr/include/c++/13/pstl/pstl_config.h:
 
 /home/stephen/PyMPC/cpp_mpc/include/dynamics.hpp:
 
@@ -1096,6 +1099,20 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 
 /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp:
 
+/home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp:
+
+/usr/include/eigen3/Eigen/src/Core/Ref.h:
+
+/usr/include/c++/13/memory:
+
+/usr/include/x86_64-linux-gnu/sys/cdefs.h:
+
+/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
+
+/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp:
+
 /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseBinaryOps.h:
 
 /usr/include/c++/13/bits/stl_raw_storage_iter.h:
@@ -1104,9 +1121,9 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 
 /usr/include/c++/13/algorithm:
 
-/usr/include/c++/13/bits/fstream.tcc:
-
 /usr/include/alloca.h:
+
+/usr/include/c++/13/bits/fstream.tcc:
 
 /usr/include/c++/13/array:
 
@@ -1117,16 +1134,6 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 /usr/include/x86_64-linux-gnu/bits/uio_lim.h:
 
 /home/stephen/PyMPC/cpp_mpc/include/types.hpp:
-
-/usr/include/c++/13/bits/stl_bvector.h:
-
-/usr/include/eigen3/Eigen/src/Core/arch/Default/ConjHelper.h:
-
-/home/stephen/PyMPC/cpp_mpc/include/collision_constraints.hpp:
-
-/usr/include/eigen3/Eigen/Jacobi:
-
-/usr/include/c++/13/pstl/pstl_config.h:
 
 /usr/include/eigen3/Eigen/src/Core/Random.h:
 
@@ -1248,12 +1255,6 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 
 /usr/include/c++/13/bits/functional_hash.h:
 
-/usr/include/c++/13/compare:
-
-/usr/include/c++/13/system_error:
-
-/usr/include/eigen3/Eigen/Dense:
-
 /usr/include/c++/13/bits/ios_base.h:
 
 /usr/include/x86_64-linux-gnu/bits/timesize.h:
@@ -1265,6 +1266,12 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 /usr/include/c++/13/bits/uniform_int_dist.h:
 
 /usr/include/c++/13/bits/locale_classes.tcc:
+
+/usr/include/c++/13/system_error:
+
+/usr/include/eigen3/Eigen/Dense:
+
+/usr/include/c++/13/compare:
 
 /usr/include/c++/13/complex:
 
@@ -1519,10 +1526,6 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
 /usr/include/eigen3/Eigen/src/Core/BooleanRedux.h:
 
 /usr/include/eigen3/Eigen/src/Core/NestByValue.h:
-
-/usr/include/c++/13/memory:
-
-/usr/include/eigen3/Eigen/src/Core/Ref.h:
 
 /usr/include/eigen3/Eigen/Geometry:
 

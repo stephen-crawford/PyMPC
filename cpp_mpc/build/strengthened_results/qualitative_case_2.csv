@@ -1,0 +1,3 @@
+seed,method,S,eps_wass,sigma,shift_rho,shift_boost,ground_cost,collision,collision_step,min_clearance,min_clearance_step,total_progress,control_effort,constraint_active_count,missed_mode_steps,total_steps,avg_solve_ms,p50_solve_ms,p95_solve_ms,max_solve_ms,total_dro_injected,avg_safe_horizon,clearance_5pct
+99,no_injection,20,0.1000,1.0000,0.0000,0.0000,w2_bures,0,-1,1.2347,16,20.1590,645.7230,374,10,60,1.8365,1.5621,4.7246,5.6147,0,3.0000,1.2754
+99,dro_full,20,0.1000,1.0000,0.0000,0.0000,w2_bures,0,-1,1.2474,20,18.9731,617.0510,421,9,60,2.3271,1.9074,5.3584,6.3980,21,3.0000,1.3029

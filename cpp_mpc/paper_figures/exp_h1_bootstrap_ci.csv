@@ -1,0 +1,4 @@
+comparison,mean_diff,ci_lo,ci_hi,n_rollouts,n_resamples
+Base_vs_OT+Extremes,-0.0658944,-0.0853333,-0.0466667,1500,10000
+Base_vs_OT,0.000639133,-0.014,0.0153333,1500,10000
+Base_vs_Extremes,-0.0710473,-0.092,-0.0506667,1500,10000

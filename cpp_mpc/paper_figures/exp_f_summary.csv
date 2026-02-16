@@ -1,0 +1,11 @@
+metric,value
+paired_rollouts,150
+base_collisions,14
+ot_collisions,7
+extremes_collisions,5
+ot_extremes_collisions,11
+mcnemar_n10,10
+mcnemar_n01,7
+mcnemar_chi2,0.5294
+mcnemar_significant,no
+non_anticipativity,passed

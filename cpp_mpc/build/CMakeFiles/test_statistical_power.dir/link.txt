@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_statistical_power.dir/tests/test_statistical_power.cpp.o -o test_statistical_power  libscenario_mpc.a 

@@ -455,4 +455,5 @@ CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.c
  /usr/include/c++/13/bits/stl_multiset.h \
  /home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp \
  /usr/include/eigen3/Eigen/Cholesky \
+ /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/reference_path.hpp

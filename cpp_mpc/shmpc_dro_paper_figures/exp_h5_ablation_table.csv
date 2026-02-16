@@ -1,0 +1,6 @@
+variant,dro,num_discs,safe_horizon,collision_rate,ci_lo,ci_hi,missed_mode_rate,avg_clearance,avg_solve_ms,avg_progress
+Base(D=1,noDRO),no,1,no,0.0650,0.0384,0.1080,0.1868,1.3991,1.91,11.10
+Base(D=3,noDRO),no,3,no,0.5450,0.4758,0.6125,0.1950,0.7485,6.54,3.41
+DRO(D=1),yes,1,no,0.0800,0.0498,0.1260,0.1901,1.4899,1.76,8.59
+DRO(D=3),yes,3,no,0.5600,0.4907,0.6270,0.1896,0.7520,6.41,3.24
+DRO(D=3)+SH,yes,3,yes,0.1000,0.0657,0.1494,0.1744,2.3368,2.07,-0.25

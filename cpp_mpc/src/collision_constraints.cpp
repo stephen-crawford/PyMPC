@@ -45,7 +45,9 @@ std::optional<CollisionConstraint> compute_single_constraint(
     // where b = a^T @ p_obs + r_combined
     double b = a.dot(obstacle_position) + combined_radius;
 
-    return CollisionConstraint(k, obstacle_id, scenario_id, a, b);
+    CollisionConstraint c(k, obstacle_id, scenario_id, a, b);
+    c.linearization_point = ego_position;
+    return c;
 }
 
 /**

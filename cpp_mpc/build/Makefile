@@ -315,6 +315,58 @@ test_mode_coverage/fast:
 .PHONY : test_mode_coverage/fast
 
 #=============================================================================
+# Target rules for targets named test_results_section
+
+# Build rule for target.
+test_results_section: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_results_section
+.PHONY : test_results_section
+
+# fast build rule for target.
+test_results_section/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_results_section.dir/build.make CMakeFiles/test_results_section.dir/build
+.PHONY : test_results_section/fast
+
+#=============================================================================
+# Target rules for targets named test_statistical_power
+
+# Build rule for target.
+test_statistical_power: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_statistical_power
+.PHONY : test_statistical_power
+
+# fast build rule for target.
+test_statistical_power/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_statistical_power.dir/build.make CMakeFiles/test_statistical_power.dir/build
+.PHONY : test_statistical_power/fast
+
+#=============================================================================
+# Target rules for targets named test_dro_framework
+
+# Build rule for target.
+test_dro_framework: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_dro_framework
+.PHONY : test_dro_framework
+
+# fast build rule for target.
+test_dro_framework/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dro_framework.dir/build.make CMakeFiles/test_dro_framework.dir/build
+.PHONY : test_dro_framework/fast
+
+#=============================================================================
+# Target rules for targets named experiment_runner
+
+# Build rule for target.
+experiment_runner: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 experiment_runner
+.PHONY : experiment_runner
+
+# fast build rule for target.
+experiment_runner/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/build
+.PHONY : experiment_runner/fast
+
+#=============================================================================
 # Target rules for targets named run_tests
 
 # Build rule for target.
@@ -510,6 +562,30 @@ src/dynamics.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/dynamics.cpp.s
 .PHONY : src/dynamics.cpp.s
 
+src/experiment_harness.o: src/experiment_harness.cpp.o
+.PHONY : src/experiment_harness.o
+
+# target to build an object file
+src/experiment_harness.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o
+.PHONY : src/experiment_harness.cpp.o
+
+src/experiment_harness.i: src/experiment_harness.cpp.i
+.PHONY : src/experiment_harness.i
+
+# target to preprocess a source file
+src/experiment_harness.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.i
+.PHONY : src/experiment_harness.cpp.i
+
+src/experiment_harness.s: src/experiment_harness.cpp.s
+.PHONY : src/experiment_harness.s
+
+# target to generate assembly for a file
+src/experiment_harness.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.s
+.PHONY : src/experiment_harness.cpp.s
+
 src/mode_weights.o: src/mode_weights.cpp.o
 .PHONY : src/mode_weights.o
 
@@ -702,6 +778,54 @@ src/trajectory_moments.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.s
 .PHONY : src/trajectory_moments.cpp.s
 
+src/wasserstein_dro.o: src/wasserstein_dro.cpp.o
+.PHONY : src/wasserstein_dro.o
+
+# target to build an object file
+src/wasserstein_dro.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o
+.PHONY : src/wasserstein_dro.cpp.o
+
+src/wasserstein_dro.i: src/wasserstein_dro.cpp.i
+.PHONY : src/wasserstein_dro.i
+
+# target to preprocess a source file
+src/wasserstein_dro.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.i
+.PHONY : src/wasserstein_dro.cpp.i
+
+src/wasserstein_dro.s: src/wasserstein_dro.cpp.s
+.PHONY : src/wasserstein_dro.s
+
+# target to generate assembly for a file
+src/wasserstein_dro.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.s
+.PHONY : src/wasserstein_dro.cpp.s
+
+tests/experiment_runner.o: tests/experiment_runner.cpp.o
+.PHONY : tests/experiment_runner.o
+
+# target to build an object file
+tests/experiment_runner.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/tests/experiment_runner.cpp.o
+.PHONY : tests/experiment_runner.cpp.o
+
+tests/experiment_runner.i: tests/experiment_runner.cpp.i
+.PHONY : tests/experiment_runner.i
+
+# target to preprocess a source file
+tests/experiment_runner.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/tests/experiment_runner.cpp.i
+.PHONY : tests/experiment_runner.cpp.i
+
+tests/experiment_runner.s: tests/experiment_runner.cpp.s
+.PHONY : tests/experiment_runner.s
+
+# target to generate assembly for a file
+tests/experiment_runner.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/tests/experiment_runner.cpp.s
+.PHONY : tests/experiment_runner.cpp.s
+
 tests/test_core.o: tests/test_core.cpp.o
 .PHONY : tests/test_core.o
 
@@ -725,6 +849,30 @@ tests/test_core.s: tests/test_core.cpp.s
 tests/test_core.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_core.dir/build.make CMakeFiles/test_core.dir/tests/test_core.cpp.s
 .PHONY : tests/test_core.cpp.s
+
+tests/test_dro_framework.o: tests/test_dro_framework.cpp.o
+.PHONY : tests/test_dro_framework.o
+
+# target to build an object file
+tests/test_dro_framework.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dro_framework.dir/build.make CMakeFiles/test_dro_framework.dir/tests/test_dro_framework.cpp.o
+.PHONY : tests/test_dro_framework.cpp.o
+
+tests/test_dro_framework.i: tests/test_dro_framework.cpp.i
+.PHONY : tests/test_dro_framework.i
+
+# target to preprocess a source file
+tests/test_dro_framework.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dro_framework.dir/build.make CMakeFiles/test_dro_framework.dir/tests/test_dro_framework.cpp.i
+.PHONY : tests/test_dro_framework.cpp.i
+
+tests/test_dro_framework.s: tests/test_dro_framework.cpp.s
+.PHONY : tests/test_dro_framework.s
+
+# target to generate assembly for a file
+tests/test_dro_framework.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dro_framework.dir/build.make CMakeFiles/test_dro_framework.dir/tests/test_dro_framework.cpp.s
+.PHONY : tests/test_dro_framework.cpp.s
 
 tests/test_epsilon_guarantee.o: tests/test_epsilon_guarantee.cpp.o
 .PHONY : tests/test_epsilon_guarantee.o
@@ -870,6 +1018,30 @@ tests/test_paper_figures.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_paper_figures.dir/build.make CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.s
 .PHONY : tests/test_paper_figures.cpp.s
 
+tests/test_results_section.o: tests/test_results_section.cpp.o
+.PHONY : tests/test_results_section.o
+
+# target to build an object file
+tests/test_results_section.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_results_section.dir/build.make CMakeFiles/test_results_section.dir/tests/test_results_section.cpp.o
+.PHONY : tests/test_results_section.cpp.o
+
+tests/test_results_section.i: tests/test_results_section.cpp.i
+.PHONY : tests/test_results_section.i
+
+# target to preprocess a source file
+tests/test_results_section.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_results_section.dir/build.make CMakeFiles/test_results_section.dir/tests/test_results_section.cpp.i
+.PHONY : tests/test_results_section.cpp.i
+
+tests/test_results_section.s: tests/test_results_section.cpp.s
+.PHONY : tests/test_results_section.s
+
+# target to generate assembly for a file
+tests/test_results_section.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_results_section.dir/build.make CMakeFiles/test_results_section.dir/tests/test_results_section.cpp.s
+.PHONY : tests/test_results_section.cpp.s
+
 tests/test_safe_horizon_contouring.o: tests/test_safe_horizon_contouring.cpp.o
 .PHONY : tests/test_safe_horizon_contouring.o
 
@@ -918,6 +1090,30 @@ tests/test_sqp_comparison.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_sqp_comparison.dir/build.make CMakeFiles/test_sqp_comparison.dir/tests/test_sqp_comparison.cpp.s
 .PHONY : tests/test_sqp_comparison.cpp.s
 
+tests/test_statistical_power.o: tests/test_statistical_power.cpp.o
+.PHONY : tests/test_statistical_power.o
+
+# target to build an object file
+tests/test_statistical_power.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_statistical_power.dir/build.make CMakeFiles/test_statistical_power.dir/tests/test_statistical_power.cpp.o
+.PHONY : tests/test_statistical_power.cpp.o
+
+tests/test_statistical_power.i: tests/test_statistical_power.cpp.i
+.PHONY : tests/test_statistical_power.i
+
+# target to preprocess a source file
+tests/test_statistical_power.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_statistical_power.dir/build.make CMakeFiles/test_statistical_power.dir/tests/test_statistical_power.cpp.i
+.PHONY : tests/test_statistical_power.cpp.i
+
+tests/test_statistical_power.s: tests/test_statistical_power.cpp.s
+.PHONY : tests/test_statistical_power.s
+
+# target to generate assembly for a file
+tests/test_statistical_power.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_statistical_power.dir/build.make CMakeFiles/test_statistical_power.dir/tests/test_statistical_power.cpp.s
+.PHONY : tests/test_statistical_power.cpp.s
+
 tests/test_uncertainty_limits.o: tests/test_uncertainty_limits.cpp.o
 .PHONY : tests/test_uncertainty_limits.o
 
@@ -959,16 +1155,20 @@ help:
 	@echo "... ascii_visualize"
 	@echo "... demo_visualization"
 	@echo "... example_mpc"
+	@echo "... experiment_runner"
 	@echo "... scenario_mpc"
 	@echo "... test_core"
+	@echo "... test_dro_framework"
 	@echo "... test_epsilon_guarantee"
 	@echo "... test_mode_coverage"
 	@echo "... test_optimal_transport"
 	@echo "... test_ot_dynamics_verification"
 	@echo "... test_ot_predictor_integration"
 	@echo "... test_paper_figures"
+	@echo "... test_results_section"
 	@echo "... test_safe_horizon_contouring"
 	@echo "... test_sqp_comparison"
+	@echo "... test_statistical_power"
 	@echo "... test_uncertainty_limits"
 	@echo "... examples/ascii_visualize.o"
 	@echo "... examples/ascii_visualize.i"
@@ -988,6 +1188,9 @@ help:
 	@echo "... src/dynamics.o"
 	@echo "... src/dynamics.i"
 	@echo "... src/dynamics.s"
+	@echo "... src/experiment_harness.o"
+	@echo "... src/experiment_harness.i"
+	@echo "... src/experiment_harness.s"
 	@echo "... src/mode_weights.o"
 	@echo "... src/mode_weights.i"
 	@echo "... src/mode_weights.s"
@@ -1012,9 +1215,18 @@ help:
 	@echo "... src/trajectory_moments.o"
 	@echo "... src/trajectory_moments.i"
 	@echo "... src/trajectory_moments.s"
+	@echo "... src/wasserstein_dro.o"
+	@echo "... src/wasserstein_dro.i"
+	@echo "... src/wasserstein_dro.s"
+	@echo "... tests/experiment_runner.o"
+	@echo "... tests/experiment_runner.i"
+	@echo "... tests/experiment_runner.s"
 	@echo "... tests/test_core.o"
 	@echo "... tests/test_core.i"
 	@echo "... tests/test_core.s"
+	@echo "... tests/test_dro_framework.o"
+	@echo "... tests/test_dro_framework.i"
+	@echo "... tests/test_dro_framework.s"
 	@echo "... tests/test_epsilon_guarantee.o"
 	@echo "... tests/test_epsilon_guarantee.i"
 	@echo "... tests/test_epsilon_guarantee.s"
@@ -1033,12 +1245,18 @@ help:
 	@echo "... tests/test_paper_figures.o"
 	@echo "... tests/test_paper_figures.i"
 	@echo "... tests/test_paper_figures.s"
+	@echo "... tests/test_results_section.o"
+	@echo "... tests/test_results_section.i"
+	@echo "... tests/test_results_section.s"
 	@echo "... tests/test_safe_horizon_contouring.o"
 	@echo "... tests/test_safe_horizon_contouring.i"
 	@echo "... tests/test_safe_horizon_contouring.s"
 	@echo "... tests/test_sqp_comparison.o"
 	@echo "... tests/test_sqp_comparison.i"
 	@echo "... tests/test_sqp_comparison.s"
+	@echo "... tests/test_statistical_power.o"
+	@echo "... tests/test_statistical_power.i"
+	@echo "... tests/test_statistical_power.s"
 	@echo "... tests/test_uncertainty_limits.o"
 	@echo "... tests/test_uncertainty_limits.i"
 	@echo "... tests/test_uncertainty_limits.s"

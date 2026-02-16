@@ -9,6 +9,10 @@
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_uncertainty_limits.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_sqp_comparison.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_mode_coverage.dir
+/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_results_section.dir
+/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_statistical_power.dir
+/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_dro_framework.dir
+/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/experiment_runner.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/run_tests.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/example_mpc.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/demo_visualization.dir

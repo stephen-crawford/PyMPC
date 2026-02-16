@@ -452,4 +452,5 @@ CMakeFiles/ascii_visualize.dir/examples/ascii_visualize.cpp.o: \
  /usr/include/c++/13/set /usr/include/c++/13/bits/stl_set.h \
  /usr/include/c++/13/bits/stl_multiset.h \
  /home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp \
- /usr/include/eigen3/Eigen/Cholesky
+ /usr/include/eigen3/Eigen/Cholesky \
+ /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp

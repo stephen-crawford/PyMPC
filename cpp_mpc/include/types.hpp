@@ -259,6 +259,7 @@ struct Scenario {
     int scenario_id;                                      ///< Unique scenario identifier
     std::map<int, ObstacleTrajectory> trajectories;       ///< obstacle_id -> trajectory
     double probability = 1.0;                             ///< Combined probability
+    bool is_injected = false;                             ///< True if DRO worst-case injected (never prune)
 
     Scenario() : scenario_id(0) {}
     Scenario(int scenario_id, const std::map<int, ObstacleTrajectory>& trajectories,
@@ -328,6 +329,7 @@ struct CollisionConstraint {
     int scenario_id;          ///< Scenario this constraint belongs to
     Eigen::Vector2d a;        ///< Constraint normal vector (2,)
     double b;                 ///< Constraint offset (scalar)
+    Eigen::Vector2d linearization_point = Eigen::Vector2d::Zero();  ///< Ego disc position at linearization
 
     CollisionConstraint() : k(0), obstacle_id(0), scenario_id(0), b(0) {}
     CollisionConstraint(int k, int obstacle_id, int scenario_id,
@@ -354,6 +356,8 @@ struct MPCResult {
     std::vector<int> active_scenarios;      ///< Scenarios with binding constraints
     double solve_time = 0.0;                ///< Optimization solve time [s]
     double cost = std::numeric_limits<double>::infinity();  ///< Optimal cost value
+    int safe_horizon = -1;              ///< Truncated safe horizon used (-1 = full)
+    int num_dro_injected = 0;           ///< Number of DRO worst-case scenarios injected
 
     MPCResult() : success(false) {}
 

@@ -14,6 +14,7 @@ CMakeFiles/test_paper_figures.dir/tests/test_paper_figures.cpp.o
  /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp
  /home/stephen/PyMPC/cpp_mpc/include/trajectory_moments.hpp
  /home/stephen/PyMPC/cpp_mpc/include/types.hpp
+ /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp
  /usr/include/alloca.h
  /usr/include/asm-generic/errno-base.h
  /usr/include/asm-generic/errno.h

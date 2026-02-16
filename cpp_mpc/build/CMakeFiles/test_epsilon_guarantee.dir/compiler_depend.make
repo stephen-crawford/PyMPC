@@ -12,6 +12,7 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
   /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/types.hpp \
+  /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -774,8 +775,6 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:
 
-/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
-
 /usr/include/eigen3/Eigen/src/Core/functors/StlFunctors.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/AssignmentFunctors.h:
@@ -888,11 +887,11 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 
 /usr/include/eigen3/Eigen/src/Core/CwiseNullaryOp.h:
 
+/usr/include/c++/13/cstdint:
+
 /usr/include/eigen3/Eigen/src/Core/PermutationMatrix.h:
 
 /usr/include/c++/13/cstdlib:
-
-/usr/include/c++/13/cstdint:
 
 /usr/include/eigen3/Eigen/src/Core/util/Meta.h:
 
@@ -1018,10 +1017,6 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 
 /usr/include/c++/13/iosfwd:
 
-/usr/include/eigen3/Eigen/src/Core/Random.h:
-
-/usr/include/c++/13/bits/basic_ios.h:
-
 /usr/include/c++/13/bits/allocated_ptr.h:
 
 /usr/include/c++/13/bit:
@@ -1042,12 +1037,6 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 
 /usr/include/eigen3/Eigen/QR:
 
-/home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp:
-
-/usr/include/x86_64-linux-gnu/sys/cdefs.h:
-
-/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
-
 /home/stephen/PyMPC/cpp_mpc/include/dynamics.hpp:
 
 /usr/include/c++/13/tr1/exp_integral.tcc:
@@ -1058,7 +1047,21 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 
 /usr/include/c++/13/backward/auto_ptr.h:
 
+/usr/include/eigen3/Eigen/src/Core/SelfCwiseBinaryOp.h:
+
+/usr/include/c++/13/bits/concept_check.h:
+
 /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp:
+
+/home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp:
+
+/usr/include/x86_64-linux-gnu/sys/cdefs.h:
+
+/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
+
+/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp:
 
 /usr/include/eigen3/Eigen/src/plugins/MatrixCwiseBinaryOps.h:
 
@@ -1096,6 +1099,12 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 
 /usr/include/c++/13/bits/deque.tcc:
 
+/usr/include/c++/13/array:
+
+/usr/include/eigen3/Eigen/src/Core/AssignEvaluator.h:
+
+/usr/include/c++/13/bits/hash_bytes.h:
+
 /usr/include/alloca.h:
 
 /usr/include/c++/13/bits/stl_bvector.h:
@@ -1108,11 +1117,9 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 
 /usr/include/c++/13/pstl/pstl_config.h:
 
-/usr/include/c++/13/array:
+/usr/include/eigen3/Eigen/src/Core/Random.h:
 
-/usr/include/eigen3/Eigen/src/Core/AssignEvaluator.h:
-
-/usr/include/c++/13/bits/hash_bytes.h:
+/usr/include/c++/13/bits/basic_ios.h:
 
 /usr/include/c++/13/bits/streambuf.tcc:
 
@@ -1125,6 +1132,20 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 /usr/include/eigen3/Eigen/src/Eigenvalues/SelfAdjointEigenSolver.h:
 
 /usr/include/c++/13/tr1/poly_laguerre.tcc:
+
+/usr/include/c++/13/streambuf:
+
+/usr/include/c++/13/bits/memory_resource.h:
+
+/usr/include/eigen3/Eigen/src/Core/GlobalFunctions.h:
+
+/usr/include/eigen3/Eigen/src/Core/ArithmeticSequence.h:
+
+/usr/include/eigen3/Eigen/src/plugins/ArrayCwiseUnaryOps.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp:
+
+/usr/include/c++/13/bits/invoke.h:
 
 /usr/include/x86_64-linux-gnu/bits/endianness.h:
 
@@ -1199,20 +1220,6 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 /usr/include/c++/13/bits/uniform_int_dist.h:
 
 /usr/include/c++/13/bits/locale_classes.tcc:
-
-/usr/include/eigen3/Eigen/src/plugins/ArrayCwiseUnaryOps.h:
-
-/home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp:
-
-/usr/include/c++/13/bits/invoke.h:
-
-/usr/include/c++/13/streambuf:
-
-/usr/include/c++/13/bits/memory_resource.h:
-
-/usr/include/eigen3/Eigen/src/Core/GlobalFunctions.h:
-
-/usr/include/eigen3/Eigen/src/Core/ArithmeticSequence.h:
 
 /usr/include/c++/13/cstring:
 
@@ -1373,10 +1380,6 @@ CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.o: /home/
 /usr/include/eigen3/Eigen/Eigenvalues:
 
 /usr/include/c++/13/tr1/special_function_util.h:
-
-/usr/include/c++/13/bits/concept_check.h:
-
-/usr/include/eigen3/Eigen/src/Core/SelfCwiseBinaryOp.h:
 
 /usr/include/eigen3/Eigen/src/Core/arch/SSE/Complex.h:
 

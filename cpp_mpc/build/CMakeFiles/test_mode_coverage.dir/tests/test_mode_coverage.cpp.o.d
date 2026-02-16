@@ -455,7 +455,8 @@ CMakeFiles/test_mode_coverage.dir/tests/test_mode_coverage.cpp.o: \
  /home/stephen/PyMPC/cpp_mpc/include/collision_constraints.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/qp_solver.hpp \
- /usr/include/eigen3/Eigen/Cholesky /usr/include/c++/13/chrono \
- /usr/include/c++/13/bits/chrono.h /usr/include/c++/13/ratio \
- /usr/include/c++/13/bits/parse_numbers.h \
+ /usr/include/eigen3/Eigen/Cholesky \
+ /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
+ /usr/include/c++/13/chrono /usr/include/c++/13/bits/chrono.h \
+ /usr/include/c++/13/ratio /usr/include/c++/13/bits/parse_numbers.h \
  /home/stephen/PyMPC/cpp_mpc/include/config.hpp

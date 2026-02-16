@@ -12,6 +12,7 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
   /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/trajectory_moments.hpp \
   /home/stephen/PyMPC/cpp_mpc/include/types.hpp \
+  /home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp \
   /usr/include/alloca.h \
   /usr/include/asm-generic/errno-base.h \
   /usr/include/asm-generic/errno.h \
@@ -771,8 +772,6 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrix.h:
 
-/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
-
 /usr/include/eigen3/Eigen/src/Core/functors/StlFunctors.h:
 
 /usr/include/eigen3/Eigen/src/Core/functors/AssignmentFunctors.h:
@@ -805,11 +804,9 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
 
 /usr/include/eigen3/Eigen/src/Core/StlIterators.h:
 
-/usr/include/eigen3/Eigen/src/Core/arch/SSE/TypeCasting.h:
+/usr/include/eigen3/Eigen/src/Core/util/SymbolicIndex.h:
 
-/usr/include/c++/13/ctime:
-
-/usr/include/eigen3/Eigen/src/Core/SelfAdjointView.h:
+/usr/include/eigen3/Eigen/src/Core/SolverBase.h:
 
 /usr/include/eigen3/Eigen/src/Eigenvalues/Tridiagonalization.h:
 
@@ -838,10 +835,6 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
 /usr/include/c++/13/bits/unique_ptr.h:
 
 /usr/include/c++/13/bits/align.h:
-
-/usr/include/eigen3/Eigen/src/Core/util/SymbolicIndex.h:
-
-/usr/include/eigen3/Eigen/src/Core/SolverBase.h:
 
 /usr/include/c++/13/bits/unordered_map.h:
 
@@ -977,6 +970,8 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
 
 /usr/include/c++/13/bits/move.h:
 
+/usr/include/c++/13/bits/memoryfwd.h:
+
 /usr/include/c++/13/bits/atomic_lockfree_defines.h:
 
 /usr/include/c++/13/bits/locale_facets.h:
@@ -1010,10 +1005,6 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
 /usr/include/c++/13/bits/predefined_ops.h:
 
 /usr/include/c++/13/iosfwd:
-
-/usr/include/eigen3/Eigen/src/Core/Random.h:
-
-/usr/include/c++/13/bits/basic_ios.h:
 
 /usr/include/c++/13/bits/allocated_ptr.h:
 
@@ -1061,7 +1052,17 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
 
 /usr/include/c++/13/algorithm:
 
+/usr/include/c++/13/array:
+
+/usr/include/eigen3/Eigen/src/Core/AssignEvaluator.h:
+
+/usr/include/c++/13/bits/hash_bytes.h:
+
 /usr/include/alloca.h:
+
+/usr/include/eigen3/Eigen/src/Core/functors/UnaryFunctors.h:
+
+/home/stephen/PyMPC/cpp_mpc/include/wasserstein_dro.hpp:
 
 /home/stephen/PyMPC/cpp_mpc/include/trajectory_moments.hpp:
 
@@ -1083,11 +1084,9 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
 
 /usr/include/c++/13/pstl/pstl_config.h:
 
-/usr/include/c++/13/array:
+/usr/include/eigen3/Eigen/src/Core/Random.h:
 
-/usr/include/eigen3/Eigen/src/Core/AssignEvaluator.h:
-
-/usr/include/c++/13/bits/hash_bytes.h:
+/usr/include/c++/13/bits/basic_ios.h:
 
 /usr/include/c++/13/bits/streambuf.tcc:
 
@@ -1215,7 +1214,11 @@ CMakeFiles/test_core.dir/tests/test_core.cpp.o: /home/stephen/PyMPC/cpp_mpc/test
 
 /usr/include/eigen3/Eigen/src/Core/ArithmeticSequence.h:
 
-/usr/include/c++/13/bits/memoryfwd.h:
+/usr/include/eigen3/Eigen/src/Core/arch/SSE/TypeCasting.h:
+
+/usr/include/c++/13/ctime:
+
+/usr/include/eigen3/Eigen/src/Core/SelfAdjointView.h:
 
 /usr/include/x86_64-linux-gnu/sys/select.h:
 

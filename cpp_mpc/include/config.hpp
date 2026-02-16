@@ -15,6 +15,16 @@
 namespace scenario_mpc {
 
 /**
+ * @brief Injection mode for experiment ablation variants.
+ */
+enum class InjectionMode {
+    NONE,       ///< No DRO injection (base scenario MPC)
+    DRO,        ///< Standard DRO worst-case injection
+    RANDOM,     ///< Inject one random mode per step
+    ALL_MODES   ///< Inject all modes deterministically
+};
+
+/**
  * @brief Configuration parameters for Adaptive Scenario-Based MPC.
  */
 struct ScenarioMPCConfig {
@@ -44,8 +54,29 @@ struct ScenarioMPCConfig {
     bool enforce_all_scenarios = false;   ///< Use ALL scenarios as constraints (Theorem 1)
     bool enforce_scenario_count = false;  ///< Auto-increase scenarios if S < S_required
     bool ensure_mode_coverage = false;    ///< Guarantee ≥1 scenario per observed mode per obstacle
+
+    // OT-based dynamics learning (gated separately from DRO)
+    bool use_ot_sampling = false;         ///< Enable OT-based scenario reshaping (disabled by default)
     bool enable_dynamics_learning = false; ///< Enable OT-based dynamics parameter learning
     int dynamics_learning_interval = 10;  ///< Update dynamics every N timesteps
+
+    // DRO (Distributionally Robust Optimization) parameters
+    // OT (W2 Bures metric) is used ONLY as the ground cost D[i][j] in the
+    // Wasserstein ball.  Scenario sampling is NOT reshaped by OT.
+    bool enable_dro = false;                 ///< Enable Wasserstein DRO weight reweighting
+    double dro_epsilon_base = 0.1;           ///< Base Wasserstein ball radius
+    double dro_epsilon_min = 0.01;           ///< Minimum epsilon (clamped)
+    double dro_epsilon_max = 0.5;            ///< Maximum epsilon (clamped)
+    bool dro_adaptive_epsilon = true;        ///< Enable adaptive epsilon scaling
+    double dro_risk_sigma_scale = 1.0;       ///< Sigma scale for risk computation
+
+    // Multi-disc collision model (Section 7)
+    int num_discs = 3;                    ///< Number of discs for ego vehicle (D=3 default)
+    double vehicle_length = 4.0;          ///< Vehicle length for disc placement [m]
+
+    // Safe horizon truncation (SH-MPC)
+    bool safe_horizon_enabled = true;     ///< Enable safe horizon truncation
+    int safe_horizon_min = 3;             ///< Minimum truncated horizon steps
 
     // Constraint parameters
     double safety_margin = 0.1;       ///< Additional safety margin [m]
@@ -96,6 +127,26 @@ struct ScenarioMPCConfig {
     int compute_required_scenarios(int num_constraints, int num_removal = 0) const {
         return static_cast<int>(std::ceil(
             2.0 / epsilon() * (std::log(1.0 / beta) + num_constraints + num_removal)
+        ));
+    }
+
+    /**
+     * @brief Compute required scenarios using tighter bound (Eq. 25).
+     *
+     * S >= (2/eps)*ln(1/beta) + 2*nbar + (2*nbar/eps)*ln(2/eps)
+     *
+     * where nbar = support_rank_nbar (effective decision variable dimension,
+     * typically N * n_u for the condensed formulation).
+     *
+     * @param nbar Support rank (effective dimension)
+     * @return Minimum number of scenarios required
+     */
+    int compute_required_scenarios_tight(int nbar) const {
+        double eps = epsilon();
+        return static_cast<int>(std::ceil(
+            (2.0 / eps) * std::log(1.0 / beta)
+            + 2.0 * nbar
+            + (2.0 * nbar / eps) * std::log(2.0 / eps)
         ));
     }
 
