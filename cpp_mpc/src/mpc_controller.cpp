@@ -79,46 +79,55 @@ MPCResult AdaptiveScenarioMPC::solve(
     // Step 1: Initialize reference trajectory (warmstart from previous)
     initialize_reference_trajectory(ego_state, goal, reference_velocity);
 
-    // Step 2: Sample scenarios normally from P_hat (Algorithm 1)
-    if (config_.ensure_mode_coverage) {
-        scenarios_ = sample_scenarios_with_mode_coverage(
-            obstacles,
-            mode_histories_,
-            config_.horizon,
-            config_.num_scenarios,
-            config_.weight_type,
-            config_.recency_decay,
-            iteration_count_,
-            &rng_
-        );
-    } else {
-        scenarios_ = sample_scenarios(
-            obstacles,
-            mode_histories_,
-            config_.horizon,
-            config_.num_scenarios,
-            config_.weight_type,
-            config_.recency_decay,
-            iteration_count_,
-            &rng_
-        );
-    }
+    // Step 2: Sample scenarios (or use current for compiler; or custom weights for Conformal/Hazard/Bandit)
+    bool use_current = use_current_scenarios_next_;
+    use_current_scenarios_next_ = false;
 
-    // Pre-compute safe horizon N_s for DRO risk truncation (tighter bound, Eq. 25)
-    int pre_dro_safe_horizon = config_.horizon;
-    if (config_.safe_horizon_enabled) {
-        int n_u = 2;
-        int S_pre = static_cast<int>(scenarios_.size());
-        for (int N_try = config_.horizon; N_try >= config_.safe_horizon_min; --N_try) {
-            int nbar = N_try * n_u;
-            int S_req = config_.compute_required_scenarios_tight(nbar);
-            if (S_pre >= S_req) {
-                pre_dro_safe_horizon = N_try;
-                break;
+    if (!use_current && !custom_per_obstacle_weights_.empty()) {
+        std::map<int, std::map<std::string, double>> per_obs_weights;
+        for (const auto& [obs_id, _] : obstacles) {
+            auto custom_it = custom_per_obstacle_weights_.find(obs_id);
+            if (custom_it != custom_per_obstacle_weights_.end()) {
+                per_obs_weights[obs_id] = custom_it->second;
+            } else {
+                auto hist_it = mode_histories_.find(obs_id);
+                if (hist_it != mode_histories_.end()) {
+                    per_obs_weights[obs_id] = compute_mode_weights(
+                        hist_it->second, config_.weight_type,
+                        config_.recency_decay, iteration_count_
+                    );
+                }
             }
         }
-        pre_dro_safe_horizon = std::clamp(pre_dro_safe_horizon,
-            config_.safe_horizon_min, config_.horizon);
+        if (!per_obs_weights.empty()) {
+            scenarios_ = sample_scenarios_with_weights(
+                obstacles, mode_histories_, per_obs_weights,
+                config_.horizon, config_.num_scenarios,
+                config_.ensure_mode_coverage, &rng_
+            );
+        }
+    }
+    if (!use_current && (custom_per_obstacle_weights_.empty() || scenarios_.empty())) {
+        if (config_.ensure_mode_coverage) {
+            scenarios_ = sample_scenarios_with_mode_coverage(
+                obstacles, mode_histories_, config_.horizon,
+                config_.num_scenarios, config_.weight_type,
+                config_.recency_decay, iteration_count_, &rng_
+            );
+        } else {
+            scenarios_ = sample_scenarios(
+                obstacles, mode_histories_, config_.horizon,
+                config_.num_scenarios, config_.weight_type,
+                config_.recency_decay, iteration_count_, &rng_
+            );
+        }
+    }
+
+    // Pre-compute safe horizon N_s for DRO risk truncation
+    int pre_dro_safe_horizon = config_.horizon;
+    if (config_.safe_horizon_enabled) {
+        int S_pre = static_cast<int>(scenarios_.size());
+        pre_dro_safe_horizon = config_.compute_safe_horizon(S_pre);
     }
 
     // Step 2b: DRO worst-case scenario injection
@@ -158,12 +167,23 @@ MPCResult AdaptiveScenarioMPC::solve(
                 config_.vehicle_length
             );
 
-            // Generate and inject the worst-case scenario (if any risk exists)
-            Scenario wc = dro_.generate_worst_case_scenario(
-                dro_result, obs_id, obs_state,
-                hist_it->second.available_modes,
-                config_.horizon, next_id
-            );
+            // Generate and inject scenario based on injection mode
+            Scenario wc(next_id, {}, 0.0);
+            if (config_.injection_mode == InjectionMode::ADVERSARIAL) {
+                wc = dro_.generate_adversarial_scenario(
+                    dro_result, obs_id, obs_state,
+                    hist_it->second.available_modes,
+                    reference_trajectory_,
+                    config_.horizon, next_id,
+                    config_.adversarial_sigma_scale
+                );
+            } else {
+                wc = dro_.generate_worst_case_scenario(
+                    dro_result, obs_id, obs_state,
+                    hist_it->second.available_modes,
+                    config_.horizon, next_id
+                );
+            }
             if (!wc.trajectories.empty()) {
                 wc.is_injected = true;  // Protect from dominance pruning
                 scenarios_.push_back(std::move(wc));
@@ -241,6 +261,7 @@ MPCResult AdaptiveScenarioMPC::solve(
     }
 
     // Step 4: Compute linearized constraints (multi-disc D=num_discs)
+    auto constraint_start = std::chrono::high_resolution_clock::now();
     auto constraints = compute_linearized_constraints(
         reference_trajectory_,
         scenarios_,
@@ -249,30 +270,21 @@ MPCResult AdaptiveScenarioMPC::solve(
         config_.safety_margin,
         config_.num_discs
     );
+    if (!certificate_radii_.empty()) {
+        constraints = tighten_constraints_by_certificate(constraints, certificate_radii_);
+    }
 
     // Step 4b: Safe horizon truncation (SH-MPC)
-    // If S_actual < S_required(N), reduce the constraint horizon to N_safe
-    // such that S_actual >= S_required(N_safe). This enforces the epsilon
-    // guarantee from Theorem 1 while trading planning depth for safety.
-    //
-    // Uses tighter bound (Eq. 25): S >= (2/eps)*ln(1/beta) + 2*nbar + (2*nbar/eps)*ln(2/eps)
-    // where nbar = N_safe * n_u.  Binary search on N_safe.
+    // Reduce constraint horizon to N_safe based on configured mode:
+    // - PRACTICAL:          N_safe = min(N, floor(S / (2*n_u)))
+    // - THEORETICAL_SIMPLE: Eq. 23, S >= (2/eps)*(ln(1/beta) + d)
+    // - THEORETICAL_TIGHT:  Eq. 25 (very conservative)
     int effective_horizon = config_.horizon;
     if (config_.safe_horizon_enabled) {
-        int n_u = 2;  // decision variables per timestep
-        int S_actual = static_cast<int>(scenarios_.size());
-        // Binary search for largest N_safe such that S_actual >= S_required(N_safe)
-        int N_safe = config_.safe_horizon_min;
-        for (int N_try = config_.horizon; N_try >= config_.safe_horizon_min; --N_try) {
-            int nbar = N_try * n_u;
-            int S_req = config_.compute_required_scenarios_tight(nbar);
-            if (S_actual >= S_req) {
-                N_safe = N_try;
-                break;
-            }
-        }
-        N_safe = std::clamp(N_safe, config_.safe_horizon_min, config_.horizon);
-        effective_horizon = N_safe;
+        // Use pre-pruning scenario count: SH theory (Theorem 1) applies to
+        // the i.i.d. sampled scenarios, not the post-pruning support set.
+        int S_for_sh = config_.num_scenarios + dro_injected;
+        effective_horizon = config_.compute_safe_horizon(S_for_sh);
 
         if (effective_horizon < config_.horizon) {
             // Filter out constraints beyond the safe horizon
@@ -286,15 +298,24 @@ MPCResult AdaptiveScenarioMPC::solve(
         }
     }
 
+    auto constraint_end = std::chrono::high_resolution_clock::now();
+
     // Step 5: Solve optimization problem
+    auto qp_start = std::chrono::high_resolution_clock::now();
     MPCResult result = solve_optimization(
         ego_state, goal, reference_velocity, constraints,
         path_progress, path_length
     );
 
+    auto qp_end = std::chrono::high_resolution_clock::now();
+
     // Record safe horizon and DRO injection count
     result.safe_horizon = effective_horizon;
     result.num_dro_injected = dro_injected;
+    result.constraint_construction_time =
+        std::chrono::duration<double>(constraint_end - constraint_start).count();
+    result.qp_solve_time =
+        std::chrono::duration<double>(qp_end - qp_start).count();
 
     // Step 6: Remove inactive scenarios (Algorithm 4)
     if (result.success) {
@@ -927,6 +948,54 @@ MPCResult AdaptiveScenarioMPC::generate_safe_fallback(const EgoState& ego_state)
     result.cost = std::numeric_limits<double>::infinity();
 
     return result;
+}
+
+void AdaptiveScenarioMPC::set_dro_epsilon_override(std::optional<double> rho) {
+    if (rho.has_value()) {
+        dro_.set_epsilon_override(*rho);
+    } else {
+        dro_.clear_epsilon_override();
+    }
+}
+void AdaptiveScenarioMPC::clear_dro_epsilon_override() {
+    dro_.clear_epsilon_override();
+}
+
+void AdaptiveScenarioMPC::set_custom_mode_weights(int obstacle_id, const std::map<std::string, double>& weights) {
+    custom_per_obstacle_weights_[obstacle_id] = weights;
+}
+void AdaptiveScenarioMPC::clear_custom_mode_weights() {
+    custom_per_obstacle_weights_.clear();
+}
+
+void AdaptiveScenarioMPC::set_certificate_radii(const std::vector<double>& radii) {
+    certificate_radii_ = radii;
+}
+void AdaptiveScenarioMPC::clear_certificate_radii() {
+    certificate_radii_.clear();
+}
+
+void AdaptiveScenarioMPC::set_scenarios(const std::vector<Scenario>& scenarios) {
+    scenarios_ = scenarios;
+}
+void AdaptiveScenarioMPC::set_use_current_scenarios_next(bool use) {
+    use_current_scenarios_next_ = use;
+}
+
+void AdaptiveScenarioMPC::sample_and_set_scenarios(const std::map<int, ObstacleState>& obstacles, int N) {
+    if (N <= 0) return;
+    if (config_.ensure_mode_coverage) {
+        scenarios_ = sample_scenarios_with_mode_coverage(
+            obstacles, mode_histories_, config_.horizon, N,
+            config_.weight_type, config_.recency_decay, iteration_count_, &rng_
+        );
+    } else {
+        scenarios_ = sample_scenarios(
+            obstacles, mode_histories_, config_.horizon, N,
+            config_.weight_type, config_.recency_decay, iteration_count_, &rng_
+        );
+    }
+    use_current_scenarios_next_ = true;
 }
 
 MPCStatistics AdaptiveScenarioMPC::get_statistics() const {

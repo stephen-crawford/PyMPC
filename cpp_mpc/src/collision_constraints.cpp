@@ -117,6 +117,27 @@ std::vector<CollisionConstraint> compute_linearized_constraints(
     return constraints;
 }
 
+std::vector<CollisionConstraint> tighten_constraints_by_certificate(
+    const std::vector<CollisionConstraint>& constraints,
+    const std::vector<double>& radii
+) {
+    if (radii.empty()) return constraints;
+    std::vector<CollisionConstraint> out;
+    out.reserve(constraints.size());
+    for (const auto& c : constraints) {
+        CollisionConstraint c2 = c;
+        size_t k = static_cast<size_t>(c.k);
+        if (k < radii.size()) {
+            double r = radii[k];
+            double anorm = c.a.norm();
+            if (anorm > 1e-12)
+                c2.b = c.b - r * anorm;
+        }
+        out.push_back(c2);
+    }
+    return out;
+}
+
 std::vector<Eigen::Vector2d> compute_ego_disc_positions(
     const EgoState& state,
     int num_discs,

@@ -21,6 +21,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include <optional>
 
 namespace scenario_mpc {
 
@@ -134,6 +135,38 @@ public:
         int scenario_id
     );
 
+    /**
+     * @brief Generate an adversarial scenario for a single obstacle.
+     *
+     * For each mode, computes the approach direction from obstacle toward ego,
+     * projects the mode covariance onto that direction, and pushes the obstacle
+     * trajectory toward the ego along the most uncertain axis.
+     *
+     * adversarial_pos[k] = mean[k] + sigma_scale * sigma_along * approach_dir
+     *
+     * This creates geometrically-motivated dangerous tail trajectories.
+     *
+     * @param dro_result  Result from compute_worst_case_weights()
+     * @param obstacle_id Obstacle identifier
+     * @param obs_state   Current obstacle state
+     * @param mode_models Available mode dynamics
+     * @param ego_ref     Ego reference trajectory (for approach direction)
+     * @param horizon     Prediction horizon
+     * @param scenario_id ID to assign to the generated scenario
+     * @param sigma_scale How many sigma to push toward ego (default 1.5)
+     * @return Scenario with adversarial obstacle trajectory
+     */
+    Scenario generate_adversarial_scenario(
+        const DROResult& dro_result,
+        int obstacle_id,
+        const ObstacleState& obs_state,
+        const std::map<std::string, ModeModel>& mode_models,
+        const std::vector<EgoState>& ego_ref,
+        int horizon,
+        int scenario_id,
+        double sigma_scale = 1.5
+    );
+
     /// Get adaptive epsilon based on observation count and entropy
     double get_adaptive_epsilon() const;
 
@@ -142,6 +175,10 @@ public:
 
     /// Set the number of observations (for adaptive epsilon scaling)
     void set_observation_count(int n);
+
+    /// Optional per-step epsilon override (e.g. from adaptive shift detection).
+    void set_epsilon_override(double rho);
+    void clear_epsilon_override();
 
     /// Get config (const)
     const DROConfig& config() const { return config_; }
@@ -240,6 +277,7 @@ private:
 
     DROConfig config_;
     int observation_count_ = 0;
+    std::optional<double> epsilon_override_;
     double entropy_ = 0.0;      ///< Entropy of current nominal distribution
     double max_entropy_ = 1.0;  ///< log(M) for M modes
 };

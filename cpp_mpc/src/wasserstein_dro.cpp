@@ -135,7 +135,96 @@ Scenario WassersteinDRO::generate_worst_case_scenario(
     return Scenario(scenario_id, trajs, max_weight);
 }
 
+Scenario WassersteinDRO::generate_adversarial_scenario(
+    const DROResult& dro_result,
+    int obstacle_id,
+    const ObstacleState& obs_state,
+    const std::map<std::string, ModeModel>& mode_models,
+    const std::vector<EgoState>& ego_ref,
+    int horizon,
+    int scenario_id,
+    double sigma_scale
+) {
+    // Find worst-case mode m* = argmax_m Q*[m]
+    std::string worst_mode;
+    double max_weight = -1.0;
+    for (const auto& [mode_id, w] : dro_result.worst_case_weights) {
+        if (w > max_weight) {
+            max_weight = w;
+            worst_mode = mode_id;
+        }
+    }
+
+    if (worst_mode.empty() || dro_result.worst_case_risk < 1e-12 ||
+        mode_models.find(worst_mode) == mode_models.end()) {
+        return Scenario(scenario_id, {}, 0.0);
+    }
+
+    const ModeModel& mode = mode_models.at(worst_mode);
+
+    // Propagate mean trajectory and covariances
+    auto means = propagate_mode_mean(obs_state, mode, horizon);
+    auto covs = propagate_mode_covariance(mode, horizon);
+
+    // Build adversarial trajectory: push obstacle toward ego along uncertain axis
+    std::vector<PredictionStep> steps;
+    steps.reserve(horizon + 1);
+
+    // k=0: current position (no perturbation)
+    steps.emplace_back(0, means[0], covs[0]);
+
+    for (int k = 1; k <= horizon; ++k) {
+        Eigen::Vector2d ego_pos;
+        if (k < static_cast<int>(ego_ref.size())) {
+            ego_pos = ego_ref[k].position();
+        } else if (!ego_ref.empty()) {
+            ego_pos = ego_ref.back().position();
+        } else {
+            // Fallback: just use mean trajectory
+            steps.emplace_back(k, means[k], covs[k]);
+            continue;
+        }
+
+        // Approach direction: from obstacle mean toward ego
+        Eigen::Vector2d diff = ego_pos - means[k];
+        double dist = diff.norm();
+
+        if (dist < 1e-6) {
+            // Already on top of ego, no direction to push
+            steps.emplace_back(k, means[k], covs[k]);
+            continue;
+        }
+
+        Eigen::Vector2d approach_dir = diff / dist;
+
+        // Project covariance onto approach direction: sigma_along = sqrt(v^T * Cov * v)
+        double var_along = (approach_dir.transpose() * covs[k] * approach_dir)(0, 0);
+        double sigma_along = std::sqrt(std::max(0.0, var_along));
+
+        // Adversarial position: push mean toward ego by sigma_scale * sigma_along
+        Eigen::Vector2d adv_pos = means[k] + sigma_scale * sigma_along * approach_dir;
+
+        steps.emplace_back(k, adv_pos, covs[k]);
+    }
+
+    ObstacleTrajectory traj(obstacle_id, worst_mode, steps, max_weight);
+    std::map<int, ObstacleTrajectory> trajs;
+    trajs[obstacle_id] = traj;
+
+    return Scenario(scenario_id, trajs, max_weight);
+}
+
+void WassersteinDRO::set_epsilon_override(double rho) {
+    epsilon_override_ = rho;
+}
+void WassersteinDRO::clear_epsilon_override() {
+    epsilon_override_.reset();
+}
+
 double WassersteinDRO::get_adaptive_epsilon() const {
+    if (epsilon_override_.has_value()) {
+        return std::clamp(*epsilon_override_, config_.epsilon_min, config_.epsilon_max);
+    }
     double eps = config_.epsilon_base;
 
     if (config_.adaptive_epsilon) {

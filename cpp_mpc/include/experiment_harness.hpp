@@ -108,6 +108,14 @@ struct ExperimentConfig {
     };
     std::string rare_mode = "lane_change_left";
     double rare_switch_prob = 0.05;
+
+    // Scenario / edge-case tag (e.g. "baseline", "high_switch", "low_S", "distribution_shift")
+    std::string scenario_tag = "baseline";
+
+    // Tuning overrides (<= 0 means use default)
+    double certificate_radius_override = 0.0;  ///< default 0.15
+    double rta_threshold_override = 0.0;       ///< default 1.5
+    double bandit_beta_override = 0.0;          ///< default 1.0
 };
 
 /**
@@ -116,6 +124,7 @@ struct ExperimentConfig {
 struct RolloutRecord {
     unsigned seed = 0;
     std::string method;
+    std::string scenario = "baseline";
     int S = 0;
     double eps_wass = 0.0;
     double sigma = 0.0;
@@ -229,6 +238,16 @@ SeedBundle derive_seeds(unsigned master_seed, int idx);
 RolloutRecord run_experiment_rollout(
     const ExperimentConfig& config,
     unsigned seed
+);
+
+/**
+ * @brief Run a single rollout with a named method for Future SL MPC comparison.
+ * method: "SHMPC" (safe horizon, no DRO), "SHMPC_DRO", "SHMPC_AdaptiveDRO", "SHMPC_RTA".
+ */
+RolloutRecord run_experiment_rollout_future_sl(
+    const ExperimentConfig& config,
+    unsigned seed,
+    const std::string& method
 );
 
 }  // namespace scenario_mpc

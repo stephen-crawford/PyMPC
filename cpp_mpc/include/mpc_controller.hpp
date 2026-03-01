@@ -16,6 +16,7 @@
 #define SCENARIO_MPC_MPC_CONTROLLER_HPP
 
 #include "types.hpp"
+#include <map>
 #include "config.hpp"
 #include "dynamics.hpp"
 #include "mode_weights.hpp"
@@ -26,6 +27,8 @@
 #include "wasserstein_dro.hpp"
 #include <random>
 #include <chrono>
+#include <optional>
+#include <vector>
 
 namespace scenario_mpc {
 
@@ -119,6 +122,25 @@ public:
     /// Get DRO module (for diagnostics)
     const WassersteinDRO& dro() const { return dro_; }
 
+    /// Set DRO epsilon override for next solve (e.g. adaptive shift). Clear after solve.
+    void set_dro_epsilon_override(std::optional<double> rho);
+    void clear_dro_epsilon_override();
+
+    /// Custom mode weights for next solve (Conformal/Hazard/Bandit). If set, sampling uses these instead of history.
+    void set_custom_mode_weights(int obstacle_id, const std::map<std::string, double>& weights);
+    void clear_custom_mode_weights();
+
+    /// Certificate radii for constraint tightening (Certificate-First §7.1). Applied after linearization.
+    void set_certificate_radii(const std::vector<double>& radii);
+    void clear_certificate_radii();
+
+    /// Scenario compiler: set scenarios and skip sampling on next solve.
+    void set_scenarios(const std::vector<Scenario>& scenarios);
+    /// After set_scenarios(), next solve() uses current scenarios only (no sampling). Cleared after that solve.
+    void set_use_current_scenarios_next(bool use);
+    /// Sample N scenarios and set them for next solve (for compiler initial set). Call before solve().
+    void sample_and_set_scenarios(const std::map<int, ObstacleState>& obstacles, int N);
+
 private:
     /**
      * @brief Initialize reference trajectory for constraint linearization.
@@ -206,6 +228,10 @@ private:
     std::mt19937 rng_;
     std::vector<double> solve_times_;
     int iteration_count_ = 0;
+
+    std::map<int, std::map<std::string, double>> custom_per_obstacle_weights_;
+    std::vector<double> certificate_radii_;
+    bool use_current_scenarios_next_ = false;
 };
 
 }  // namespace scenario_mpc

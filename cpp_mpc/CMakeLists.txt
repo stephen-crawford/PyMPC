@@ -22,6 +22,14 @@ endif()
 set(SCENARIO_MPC_SOURCES
     src/dynamics.cpp
     src/mode_weights.cpp
+    src/conformal_safety.cpp
+    src/hazard_switch_sampling.cpp
+    src/risk_directed_bandit.cpp
+    src/adaptive_dro_shift.cpp
+    src/dual_risk_monitor.cpp
+    src/certificate_first.cpp
+    src/scenario_compiler.cpp
+    src/runtime_assurance.cpp
     src/trajectory_moments.cpp
     src/scenario_sampler.cpp
     src/collision_constraints.cpp
@@ -93,8 +101,29 @@ if(BUILD_TESTS)
     add_executable(test_dro_framework tests/test_dro_framework.cpp)
     target_link_libraries(test_dro_framework PRIVATE scenario_mpc)
 
+    add_executable(test_conformal_safety tests/test_conformal_safety.cpp)
+    target_link_libraries(test_conformal_safety PRIVATE scenario_mpc)
+
+    add_executable(test_hazard_switch_sampling tests/test_hazard_switch_sampling.cpp)
+    target_link_libraries(test_hazard_switch_sampling PRIVATE scenario_mpc)
+
+    add_executable(test_risk_directed_bandit tests/test_risk_directed_bandit.cpp)
+    target_link_libraries(test_risk_directed_bandit PRIVATE scenario_mpc)
+
+    add_executable(test_adaptive_dro_shift tests/test_adaptive_dro_shift.cpp)
+    target_link_libraries(test_adaptive_dro_shift PRIVATE scenario_mpc)
+
     add_executable(experiment_runner tests/experiment_runner.cpp)
     target_link_libraries(experiment_runner PRIVATE scenario_mpc)
+
+    add_executable(paper_experiment_runner tests/paper_experiment_runner.cpp)
+    target_link_libraries(paper_experiment_runner PRIVATE scenario_mpc)
+
+    add_executable(future_sl_experiments ${CMAKE_CURRENT_SOURCE_DIR}/../future_sl_mpc/experiments/run_future_sl_experiments.cpp)
+    target_link_libraries(future_sl_experiments PRIVATE scenario_mpc)
+
+    add_executable(future_sl_edge_tuning ${CMAKE_CURRENT_SOURCE_DIR}/../future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp)
+    target_link_libraries(future_sl_edge_tuning PRIVATE scenario_mpc)
 
     add_test(NAME CoreTests COMMAND test_core)
     add_test(NAME SafeHorizonContouringTests COMMAND test_safe_horizon_contouring)
@@ -103,6 +132,26 @@ if(BUILD_TESTS)
     add_test(NAME OTDynamicsVerificationTests COMMAND test_ot_dynamics_verification)
     add_test(NAME EpsilonGuaranteeTests COMMAND test_epsilon_guarantee)
     add_test(NAME PaperFigureTests COMMAND test_paper_figures)
+    add_test(NAME ConformalSafetyTests COMMAND test_conformal_safety)
+    add_test(NAME HazardSwitchSamplingTests COMMAND test_hazard_switch_sampling)
+    add_test(NAME RiskDirectedBanditTests COMMAND test_risk_directed_bandit)
+    add_test(NAME AdaptiveDROShiftTests COMMAND test_adaptive_dro_shift)
+    add_executable(test_dual_risk_monitor tests/test_dual_risk_monitor.cpp)
+    target_link_libraries(test_dual_risk_monitor PRIVATE scenario_mpc)
+
+    add_executable(test_certificate_first tests/test_certificate_first.cpp)
+    target_link_libraries(test_certificate_first PRIVATE scenario_mpc)
+
+    add_executable(test_scenario_compiler tests/test_scenario_compiler.cpp)
+    target_link_libraries(test_scenario_compiler PRIVATE scenario_mpc)
+
+    add_executable(test_runtime_assurance tests/test_runtime_assurance.cpp)
+    target_link_libraries(test_runtime_assurance PRIVATE scenario_mpc)
+
+    add_test(NAME DualRiskMonitorTests COMMAND test_dual_risk_monitor)
+    add_test(NAME CertificateFirstTests COMMAND test_certificate_first)
+    add_test(NAME ScenarioCompilerTests COMMAND test_scenario_compiler)
+    add_test(NAME RuntimeAssuranceTests COMMAND test_runtime_assurance)
 
     # Custom target to run tests
     add_custom_target(run_tests

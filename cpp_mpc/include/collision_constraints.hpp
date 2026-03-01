@@ -47,6 +47,17 @@ std::vector<CollisionConstraint> compute_linearized_constraints(
 );
 
 /**
+ * @brief Tighten constraints by certificate radii (Certificate-First, §7.1).
+ * For each constraint at timestep k: b_robust = b - radius[k] * ||a||.
+ * @param constraints Linearized constraints
+ * @param radii Per-timestep radii (index k); if empty, no tightening
+ */
+std::vector<CollisionConstraint> tighten_constraints_by_certificate(
+    const std::vector<CollisionConstraint>& constraints,
+    const std::vector<double>& radii
+);
+
+/**
  * @brief Compute ego disc positions for collision checking.
  *
  * Following Eq. 16:
