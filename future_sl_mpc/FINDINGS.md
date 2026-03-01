@@ -138,30 +138,31 @@ This document summarizes the implementations and preliminary testing for each ex
 
 ## Efficacy Comparison vs SHMPC
 
-Closed-loop rollouts (80 steps, **50 seeds per method**, rare-mode switching, same scenario count) compare **SHMPC** (safe horizon only, no DRO) to all extensions and Paradigm-Shift variants. Metrics: collision rate (95% Wilson CI), total progress (efficiency), avg solve time.
+Closed-loop rollouts (80 steps, rare-mode switching, same scenario count) compare **SHMPC** (safe horizon only, no DRO) to all extensions and Paradigm-Shift variants. Metrics: collision rate (95% Wilson CI), total progress (efficiency), avg solve time.
 
-### Results (50 rollouts per method)
+### Results (100 rollouts per method)
 
 | Method                | Collision rate (95% CI)   | Δ vs SHMPC (collision) | Progress (mean) | Δ progress | Avg solve (ms) | Δ solve (ms) |
 |-----------------------|---------------------------|-------------------------|-----------------|------------|----------------|--------------|
-| **SHMPC** (baseline)  | 28.0% [17.5, 41.7]       | —                       | 13.60           | —          | 4.75           | —            |
-| SHMPC_DRO             | 28.0% [17.5, 41.7]       | 0.0%                    | 13.66           | +0.05      | 4.82           | +0.07        |
-| SHMPC_AdaptiveDRO     | 34.0% [22.5, 47.9]       | −21.4%                  | 13.48           | −0.12      | 4.66           | −0.09        |
-| SHMPC_RTA             | 26.0% [15.9, 39.6]       | **+7.1%**               | 12.82           | −0.78      | 4.92           | +0.17        |
-| SHMPC_Conformal       | 26.0% [15.9, 39.6]       | **+7.1%**               | 13.81           | +0.20      | 4.60           | −0.14        |
-| SHMPC_Hazard          | 26.0% [15.9, 39.6]       | **+7.1%**               | 13.67           | +0.07      | 4.79           | +0.05        |
-| SHMPC_Bandit          | 24.0% [14.3, 37.4]       | **+14.3%**              | 13.66           | +0.06      | 5.01           | +0.26        |
-| SHMPC_Certificate     | 42.0% [29.4, 55.8]       | −50.0%                  | 13.11           | −0.49      | 4.88           | +0.14        |
-| SHMPC_Compiler        | 22.0% [12.8, 35.2]       | **+21.4%**              | 14.15           | +0.55      | 6.56           | +1.81        |
-| CertificateFirst      | 42.0% [29.4, 55.8]       | −50.0%                  | 13.45           | −0.16      | 4.73           | −0.01        |
-| ScenarioCompiler      | 22.0% [12.8, 35.2]       | **+21.4%**              | 14.09           | +0.49      | 6.96           | +2.21        |
+| **SHMPC** (baseline)  | 29.0% [21.0, 38.5]       | —                       | 13.77           | —          | 4.56           | —            |
+| SHMPC_DRO             | 26.0% [18.4, 35.4]       | **+10.3%**              | 14.17           | +0.40      | 4.64           | +0.07        |
+| SHMPC_AdaptiveDRO     | 29.0% [21.0, 38.5]       | 0.0%                    | 13.36           | −0.41      | 4.72           | +0.15        |
+| SHMPC_RTA             | 28.0% [20.1, 37.5]       | +3.4%                   | 12.92           | −0.85      | 4.98           | +0.42        |
+| SHMPC_Conformal       | 24.0% [16.7, 33.2]       | **+17.2%**              | 13.56           | −0.22      | 4.65           | +0.09        |
+| SHMPC_Hazard          | 32.0% [23.7, 41.7]       | −10.3%                  | 13.62           | −0.16      | 4.82           | +0.25        |
+| SHMPC_Bandit          | 25.0% [17.6, 34.3]       | **+13.8%**              | 13.77           | 0.00       | 4.96           | +0.39        |
+| SHMPC_Certificate     | 43.0% [33.7, 52.8]       | −48.3%                  | 13.52           | −0.25      | 4.97           | +0.41        |
+| SHMPC_Compiler        | 21.0% [14.2, 30.0]       | **+27.6%**              | 13.99           | +0.21      | 7.36           | +2.80        |
+| CertificateFirst      | 39.0% [30.0, 48.8]       | −34.5%                  | 13.59           | −0.18      | 5.12           | +0.56        |
+| ScenarioCompiler      | 23.0% [15.8, 32.2]       | **+20.7%**              | 14.06           | +0.29      | 8.43           | +3.87        |
 
-### Interpretation
+### Interpretation (extension-style vs Paradigm-Shift)
 
-- **Safer than SHMPC (positive Δ):** **SHMPC_Compiler** and **ScenarioCompiler** (+21.4% collision reduction) and **SHMPC_Bandit** (+14.3%) give the largest safety gains. **SHMPC_RTA**, **SHMPC_Conformal**, and **SHMPC_Hazard** each give +7.1%. Compiler variants also improve progress (+0.49–0.55) at higher solve cost (+1.8–2.2 ms).
-- **Similar to SHMPC:** **SHMPC_DRO** ties on collision and progress.
-- **Worse than SHMPC:** **SHMPC_AdaptiveDRO** (−21.4% in this run); **SHMPC_Certificate** and **CertificateFirst** (−50%)—fixed certificate radius is overly conservative here; tuning radii or data-driven calibration is needed.
-- **Efficiency vs safety:** RTA trades progress (−0.78) for safety; Bandit and Conformal improve or match progress with better safety; Compiler improves both at higher compute.
+- **Extension-style (add-ons to SHMPC):**  
+  - **SHMPC_Compiler** (+27.6% collision reduction) and **SHMPC_Conformal** (+17.2%) give the largest safety gains. **SHMPC_Bandit** (+13.8%) and **SHMPC_DRO** (+10.3%) also beat the baseline. **SHMPC_RTA** (+3.4%) is slightly safer with a clear progress cost (−0.85). **SHMPC_AdaptiveDRO** matches SHMPC; **SHMPC_Hazard** is worse (−10.3%) in this setup. **SHMPC_Certificate** (−48.3%) suffers from the fixed tube radius.
+- **Paradigm-Shift variants:**  
+  - **ScenarioCompiler** (+20.7%) mirrors the extension **SHMPC_Compiler** with similar safety and slightly better progress (+0.29) at higher solve cost (8.43 ms). **CertificateFirst** (−34.5%) is better than **SHMPC_Certificate** but still worse than SHMPC; both need radius tuning or data-driven certificates.
+- **Efficiency vs safety:** Compiler variants improve both collision rate and progress at ~2.8–3.9 ms extra solve time. RTA trades progress for safety. Bandit and Conformal improve safety with minimal progress cost. Certificate-based methods need smaller radii or learned certificates to avoid over-tightening.
 
 **Integration:** Custom mode weights (Conformal, Hazard, Bandit), certificate radii (CertificateFirst), and scenario compiler (set_scenarios / sample_and_set_scenarios) are wired in the controller and used in the rollout.
 
@@ -205,3 +206,9 @@ Closed-loop rollouts (80 steps, **50 seeds per method**, rare-mode switching, sa
    Writes edge_case_*, tradeoff_*, tuning_* summaries under `future_sl_mpc/experiments/results/`.
 
 All implementations are preliminary; unit tests validate interfaces. Run 50–100+ rollouts per method for stable efficacy comparison; use 25+ per cell for edge-case and tuning analysis.
+
+### Latest run summary
+
+- **Main efficacy:** `./future_sl_experiments ../../future_sl_mpc/experiments/results/ 100` → 100 rollouts × 11 methods. Analysis: `analyze_vs_shmpc.py` → `analysis_summary.txt`, `efficacy_vs_shmpc.csv`.
+- **Edge-case/tuning:** `./future_sl_edge_tuning ../../future_sl_mpc/experiments/results/ 30` (or 25) → edge scenarios + tuning sweeps. Analysis: `analyze_edge_and_tuning.py` → `edge_case_summary.csv`, `tradeoff_summary.csv`, `tuning_sensitivity.csv` (when tuning scenarios present).
+- **Unit tests:** All 8 Future SL C++ tests pass (ConformalSafety, HazardSwitchSampling, RiskDirectedBandit, AdaptiveDROShift, DualRiskMonitor, CertificateFirst, ScenarioCompiler, RuntimeAssurance).

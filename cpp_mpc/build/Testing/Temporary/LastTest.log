@@ -1,10 +1,10 @@
-Start testing: Feb 28 19:52 EST
+Start testing: Feb 28 20:27 EST
 ----------------------------------------------------------
 8/15 Testing: ConformalSafetyTests
 8/15 Test: ConformalSafetyTests
 Command: "/home/stephen/PyMPC/cpp_mpc/build/test_conformal_safety"
 Directory: /home/stephen/PyMPC/cpp_mpc/build
-"ConformalSafetyTests" start time: Feb 28 19:52 EST
+"ConformalSafetyTests" start time: Feb 28 20:27 EST
 Output:
 ----------------------------------------------------------
 Conformal safety tests
@@ -14,10 +14,10 @@ Conformal safety tests
   allocate_scenarios: rare=8 common=2
 All conformal safety tests passed.
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"ConformalSafetyTests" end time: Feb 28 19:52 EST
+"ConformalSafetyTests" end time: Feb 28 20:27 EST
 "ConformalSafetyTests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -25,16 +25,16 @@ Test Passed.
 9/15 Test: HazardSwitchSamplingTests
 Command: "/home/stephen/PyMPC/cpp_mpc/build/test_hazard_switch_sampling"
 Directory: /home/stephen/PyMPC/cpp_mpc/build
-"HazardSwitchSamplingTests" start time: Feb 28 19:52 EST
+"HazardSwitchSamplingTests" start time: Feb 28 20:27 EST
 Output:
 ----------------------------------------------------------
 Hazard reweight: A=0.511822 B=0.488178; alloc A=6 B=4
 All hazard switch sampling tests passed.
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"HazardSwitchSamplingTests" end time: Feb 28 19:52 EST
+"HazardSwitchSamplingTests" end time: Feb 28 20:27 EST
 "HazardSwitchSamplingTests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -42,16 +42,16 @@ Test Passed.
 10/15 Test: RiskDirectedBanditTests
 Command: "/home/stephen/PyMPC/cpp_mpc/build/test_risk_directed_bandit"
 Directory: /home/stephen/PyMPC/cpp_mpc/build
-"RiskDirectedBanditTests" start time: Feb 28 19:52 EST
+"RiskDirectedBanditTests" start time: Feb 28 20:27 EST
 Output:
 ----------------------------------------------------------
 UCB A=0.598625 B=1.59863; alloc A=2 B=6
 All risk-directed bandit tests passed.
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"RiskDirectedBanditTests" end time: Feb 28 19:52 EST
+"RiskDirectedBanditTests" end time: Feb 28 20:27 EST
 "RiskDirectedBanditTests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -59,16 +59,16 @@ Test Passed.
 11/15 Test: AdaptiveDROShiftTests
 Command: "/home/stephen/PyMPC/cpp_mpc/build/test_adaptive_dro_shift"
 Directory: /home/stephen/PyMPC/cpp_mpc/build
-"AdaptiveDROShiftTests" start time: Feb 28 19:52 EST
+"AdaptiveDROShiftTests" start time: Feb 28 20:27 EST
 Output:
 ----------------------------------------------------------
 Adaptive DRO: rho_low=0.01 rho_high=0.51
 All adaptive DRO shift tests passed.
 <end of output>
-Test time =   0.00 sec
+Test time =   0.02 sec
 ----------------------------------------------------------
 Test Passed.
-"AdaptiveDROShiftTests" end time: Feb 28 19:52 EST
+"AdaptiveDROShiftTests" end time: Feb 28 20:27 EST
 "AdaptiveDROShiftTests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -76,16 +76,16 @@ Test Passed.
 12/15 Test: DualRiskMonitorTests
 Command: "/home/stephen/PyMPC/cpp_mpc/build/test_dual_risk_monitor"
 Directory: /home/stephen/PyMPC/cpp_mpc/build
-"DualRiskMonitorTests" start time: Feb 28 19:52 EST
+"DualRiskMonitorTests" start time: Feb 28 20:27 EST
 Output:
 ----------------------------------------------------------
 Dual risk: r_loose=0.5 r_tight=0.689974
 All dual risk monitor tests passed.
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"DualRiskMonitorTests" end time: Feb 28 19:52 EST
+"DualRiskMonitorTests" end time: Feb 28 20:27 EST
 "DualRiskMonitorTests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -93,15 +93,15 @@ Test Passed.
 13/15 Test: CertificateFirstTests
 Command: "/home/stephen/PyMPC/cpp_mpc/build/test_certificate_first"
 Directory: /home/stephen/PyMPC/cpp_mpc/build
-"CertificateFirstTests" start time: Feb 28 19:52 EST
+"CertificateFirstTests" start time: Feb 28 20:27 EST
 Output:
 ----------------------------------------------------------
 Certificate-first tests passed.
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"CertificateFirstTests" end time: Feb 28 19:52 EST
+"CertificateFirstTests" end time: Feb 28 20:27 EST
 "CertificateFirstTests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -109,15 +109,15 @@ Test Passed.
 14/15 Test: ScenarioCompilerTests
 Command: "/home/stephen/PyMPC/cpp_mpc/build/test_scenario_compiler"
 Directory: /home/stephen/PyMPC/cpp_mpc/build
-"ScenarioCompilerTests" start time: Feb 28 19:52 EST
+"ScenarioCompilerTests" start time: Feb 28 20:27 EST
 Output:
 ----------------------------------------------------------
 Scenario compiler tests passed.
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"ScenarioCompilerTests" end time: Feb 28 19:52 EST
+"ScenarioCompilerTests" end time: Feb 28 20:27 EST
 "ScenarioCompilerTests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
@@ -125,16 +125,16 @@ Test Passed.
 15/15 Test: RuntimeAssuranceTests
 Command: "/home/stephen/PyMPC/cpp_mpc/build/test_runtime_assurance"
 Directory: /home/stephen/PyMPC/cpp_mpc/build
-"RuntimeAssuranceTests" start time: Feb 28 19:52 EST
+"RuntimeAssuranceTests" start time: Feb 28 20:27 EST
 Output:
 ----------------------------------------------------------
 Runtime assurance tests passed.
 <end of output>
-Test time =   0.00 sec
+Test time =   0.01 sec
 ----------------------------------------------------------
 Test Passed.
-"RuntimeAssuranceTests" end time: Feb 28 19:52 EST
+"RuntimeAssuranceTests" end time: Feb 28 20:27 EST
 "RuntimeAssuranceTests" time elapsed: 00:00:00
 ----------------------------------------------------------
 
-End testing: Feb 28 19:52 EST
+End testing: Feb 28 20:27 EST

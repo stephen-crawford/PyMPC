@@ -1,17 +1,17 @@
 Trade-off: safety vs progress vs solve time (scenario=baseline)
 ============================================================
 Pareto-efficient methods (no other method is strictly better on both collision and progress):
-  SHMPC
+  SHMPC_Conformal, SHMPC_Compiler
 
 Collision rate | Progress | Solve ms
-  SHMPC                      0.0000  17.22  5.19
-  SHMPC_DRO                  0.5000  13.51  4.65
-  SHMPC_AdaptiveDRO          0.5000  3.51  4.59
-  SHMPC_RTA                  0.0000  11.40  4.42
-  SHMPC_Conformal            0.0000  14.14  4.19
-  SHMPC_Hazard               0.5000  16.56  4.34
-  SHMPC_Bandit               0.5000  3.02  5.15
-  SHMPC_Certificate          0.5000  15.14  3.87
-  SHMPC_Compiler             0.0000  4.17  7.55
-  CertificateFirst           0.5000  6.42  4.32
-  ScenarioCompiler           0.0000  16.73  5.93
+  SHMPC                      0.3000  13.97  6.20
+  SHMPC_DRO                  0.2000  13.27  6.37
+  SHMPC_AdaptiveDRO          0.3000  12.59  7.86
+  SHMPC_RTA                  0.2667  12.00  7.81
+  SHMPC_Conformal            0.2000  15.65  6.92
+  SHMPC_Hazard               0.3333  12.68  6.04
+  SHMPC_Bandit               0.1333  11.69  6.01
+  SHMPC_Certificate          0.4000  12.39  6.82
+  SHMPC_Compiler             0.1000  13.97  8.86
+  CertificateFirst           0.4667  13.22  6.02
+  ScenarioCompiler           0.1000  12.81  8.49

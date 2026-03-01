@@ -80,6 +80,25 @@ Produces:
 
 Use 25–50+ rollouts per cell for stable edge-case and tuning comparisons.
 
+## Graphics (collision avoidance strategy types)
+
+From the efficacy CSV, generate figures that show strategy taxonomy, efficacy comparison, and conceptual flow:
+
+```bash
+python3 future_sl_mpc/experiments/plot_strategy_graphics.py future_sl_mpc/experiments/results/efficacy_vs_shmpc.csv --out future_sl_mpc/experiments/results
+```
+
+Outputs in the results directory:
+
+| Figure | Description |
+|--------|-------------|
+| `strategy_taxonomy.png` | Strategy types and method grouping (Baseline, DRO, Allocation, Certificate, Compiler, RTA). |
+| `strategy_collision_bars.png` | Collision rate by method with 95% CI, colored by type. |
+| `strategy_delta_vs_shmpc.png` | Effect vs SHMPC: Δ collision rate (horizontal bar; positive = safer). |
+| `strategy_tradeoff_scatter.png` | Safety (1 − collision rate) vs progress; bubble size ∝ solve time. |
+| `strategy_control_flow.png` | Control loop with intervention points (where each strategy type acts). |
+| `strategy_type_diagrams.png` | Conceptual diagrams per type: DRO, allocation, certificate, compiler, RTA. |
+
 ## Results summary
 
 See **FINDINGS.md** § "Efficacy Comparison vs SHMPC" and § "Edge cases, trade-offs, and tuning" for interpretation. In a 50-rollout run: RTA gave a solid collision-rate reduction vs SHMPC; Compiler and Bandit also improve safety. Edge-case runs stress-test methods under high switching, rare-mode bias, low scenario budget, and distribution shift; tuning sweeps show sensitivity to certificate radius, RTA threshold, and bandit β.
