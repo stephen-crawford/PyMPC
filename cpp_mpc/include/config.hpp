@@ -18,10 +18,20 @@ namespace scenario_mpc {
  * @brief Injection mode for experiment ablation variants.
  */
 enum class InjectionMode {
-    NONE,       ///< No DRO injection (base scenario MPC)
-    DRO,        ///< Standard DRO worst-case injection
-    RANDOM,     ///< Inject one random mode per step
-    ALL_MODES   ///< Inject all modes deterministically
+    NONE,         ///< No DRO injection (base scenario MPC)
+    DRO,          ///< Standard DRO worst-case injection (mean trajectory)
+    ADVERSARIAL,  ///< Geometrically-motivated adversarial injection (tail trajectory)
+    RANDOM,       ///< Inject one random mode per step
+    ALL_MODES     ///< Inject all modes deterministically
+};
+
+/**
+ * @brief Safe horizon computation mode.
+ */
+enum class SafeHorizonMode {
+    THEORETICAL_TIGHT,   ///< Tight bound (Eq. 25): very conservative
+    THEORETICAL_SIMPLE,  ///< Simple bound (Eq. 23): S >= (2/eps)*(ln(1/beta) + d)
+    PRACTICAL            ///< Practical: N_safe = min(N, floor(S / (2*n_u)))
 };
 
 /**
@@ -64,11 +74,13 @@ struct ScenarioMPCConfig {
     // OT (W2 Bures metric) is used ONLY as the ground cost D[i][j] in the
     // Wasserstein ball.  Scenario sampling is NOT reshaped by OT.
     bool enable_dro = false;                 ///< Enable Wasserstein DRO weight reweighting
+    InjectionMode injection_mode = InjectionMode::DRO;  ///< Injection strategy when enable_dro=true
     double dro_epsilon_base = 0.1;           ///< Base Wasserstein ball radius
     double dro_epsilon_min = 0.01;           ///< Minimum epsilon (clamped)
     double dro_epsilon_max = 0.5;            ///< Maximum epsilon (clamped)
     bool dro_adaptive_epsilon = true;        ///< Enable adaptive epsilon scaling
     double dro_risk_sigma_scale = 1.0;       ///< Sigma scale for risk computation
+    double adversarial_sigma_scale = 1.5;    ///< Scale for adversarial injection (sigma multiplier)
 
     // Multi-disc collision model (Section 7)
     int num_discs = 3;                    ///< Number of discs for ego vehicle (D=3 default)
@@ -77,6 +89,8 @@ struct ScenarioMPCConfig {
     // Safe horizon truncation (SH-MPC)
     bool safe_horizon_enabled = true;     ///< Enable safe horizon truncation
     int safe_horizon_min = 3;             ///< Minimum truncated horizon steps
+    SafeHorizonMode safe_horizon_mode = SafeHorizonMode::PRACTICAL;  ///< SH computation mode
+    int forced_safe_horizon = -1;         ///< Force N_safe to this value (-1 = auto)
 
     // Constraint parameters
     double safety_margin = 0.1;       ///< Additional safety margin [m]
@@ -148,6 +162,72 @@ struct ScenarioMPCConfig {
             + 2.0 * nbar
             + (2.0 * nbar / eps) * std::log(2.0 / eps)
         ));
+    }
+
+    /**
+     * @brief Compute required scenarios using simple bound (Eq. 23).
+     *
+     * S >= (2/eps) * (ln(1/beta) + d)
+     *
+     * @param d Decision variable dimension (N_safe * n_u for condensed)
+     * @return Minimum number of scenarios required
+     */
+    int compute_required_scenarios_simple(int d) const {
+        double eps = epsilon();
+        return static_cast<int>(std::ceil(
+            (2.0 / eps) * (std::log(1.0 / beta) + d)
+        ));
+    }
+
+    /**
+     * @brief Compute safe horizon N_safe based on configured mode.
+     *
+     * @param S_actual Number of scenarios available
+     * @param n_u Number of control inputs per timestep (typically 2)
+     * @return Safe horizon N_safe in [safe_horizon_min, horizon]
+     */
+    int compute_safe_horizon(int S_actual, int n_u = 2) const {
+        if (!safe_horizon_enabled) return horizon;
+
+        // If forced, use that value (clamped to valid range)
+        if (forced_safe_horizon >= 0) {
+            return std::clamp(forced_safe_horizon, safe_horizon_min, horizon);
+        }
+
+        int N_safe = safe_horizon_min;
+
+        switch (safe_horizon_mode) {
+            case SafeHorizonMode::PRACTICAL:
+                // N_safe = min(N, floor(S / (2*n_u)))
+                N_safe = std::min(horizon, S_actual / (2 * n_u));
+                break;
+
+            case SafeHorizonMode::THEORETICAL_SIMPLE:
+                // Find largest N_safe s.t. S >= (2/eps)*(ln(1/beta) + N_safe*n_u)
+                for (int N_try = horizon; N_try >= safe_horizon_min; --N_try) {
+                    int d = N_try * n_u;
+                    int S_req = compute_required_scenarios_simple(d);
+                    if (S_actual >= S_req) {
+                        N_safe = N_try;
+                        break;
+                    }
+                }
+                break;
+
+            case SafeHorizonMode::THEORETICAL_TIGHT:
+                // Find largest N_safe s.t. S >= tight bound(N_safe*n_u)
+                for (int N_try = horizon; N_try >= safe_horizon_min; --N_try) {
+                    int nbar = N_try * n_u;
+                    int S_req = compute_required_scenarios_tight(nbar);
+                    if (S_actual >= S_req) {
+                        N_safe = N_try;
+                        break;
+                    }
+                }
+                break;
+        }
+
+        return std::clamp(N_safe, safe_horizon_min, horizon);
     }
 
     /**

@@ -1,0 +1,13 @@
+scenario,tuning_type,parameter_value,method,n,collision_rate,total_progress_mean,avg_solve_ms
+tune_cert_10,cert,0.1,SHMPC_Certificate,2,0.0,20.169,3.43775
+tune_cert_10,cert,0.1,CertificateFirst,2,0.0,20.1927,2.9063
+tune_cert_15,cert,0.15,SHMPC_Certificate,2,0.5,20.2974,3.4703999999999997
+tune_cert_15,cert,0.15,CertificateFirst,2,0.5,20.309150000000002,3.9522500000000003
+tune_cert_25,cert,0.25,SHMPC_Certificate,2,0.5,2.50855,4.576549999999999
+tune_cert_25,cert,0.25,CertificateFirst,2,1.0,2.51255,4.71115
+tune_rta_10,rta,1.0,SHMPC_RTA,2,0.0,11.67415,4.09365
+tune_rta_15,rta,1.5,SHMPC_RTA,2,0.5,14.83445,4.45255
+tune_rta_20,rta,2.0,SHMPC_RTA,2,0.5,19.335549999999998,4.588699999999999
+tune_bandit_5,bandit,0.5,SHMPC_Bandit,2,1.0,7.12945,4.9665
+tune_bandit_10,bandit,1.0,SHMPC_Bandit,2,0.0,19.86955,3.8449
+tune_bandit_20,bandit,2.0,SHMPC_Bandit,2,0.0,11.306899999999999,4.36175

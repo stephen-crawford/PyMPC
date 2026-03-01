@@ -1,0 +1,67 @@
+Edge-case: collision rate by (scenario, method)
+============================================================
+
+--- baseline ---
+  SHMPC                      coll=0.0000  delta_vs_SHMPC=+0.0000  progress=17.22
+  SHMPC_DRO                  coll=0.5000  delta_vs_SHMPC=-0.5000  progress=13.51
+  SHMPC_AdaptiveDRO          coll=0.5000  delta_vs_SHMPC=-0.5000  progress=3.51
+  SHMPC_RTA                  coll=0.0000  delta_vs_SHMPC=+0.0000  progress=11.40
+  SHMPC_Conformal            coll=0.0000  delta_vs_SHMPC=+0.0000  progress=14.14
+  SHMPC_Hazard               coll=0.5000  delta_vs_SHMPC=-0.5000  progress=16.56
+  SHMPC_Bandit               coll=0.5000  delta_vs_SHMPC=-0.5000  progress=3.02
+  SHMPC_Certificate          coll=0.5000  delta_vs_SHMPC=-0.5000  progress=15.14
+  SHMPC_Compiler             coll=0.0000  delta_vs_SHMPC=+0.0000  progress=4.17
+  CertificateFirst           coll=0.5000  delta_vs_SHMPC=-0.5000  progress=6.42
+  ScenarioCompiler           coll=0.0000  delta_vs_SHMPC=+0.0000  progress=16.73
+
+--- high_switch ---
+  SHMPC                      coll=0.5000  delta_vs_SHMPC=+0.0000  progress=10.19
+  SHMPC_DRO                  coll=0.5000  delta_vs_SHMPC=+0.0000  progress=8.39
+  SHMPC_AdaptiveDRO          coll=1.0000  delta_vs_SHMPC=-0.5000  progress=17.89
+  SHMPC_RTA                  coll=0.0000  delta_vs_SHMPC=+0.5000  progress=15.41
+  SHMPC_Conformal            coll=0.5000  delta_vs_SHMPC=+0.0000  progress=20.51
+  SHMPC_Hazard               coll=0.0000  delta_vs_SHMPC=+0.5000  progress=7.22
+  SHMPC_Bandit               coll=0.5000  delta_vs_SHMPC=+0.0000  progress=19.91
+  SHMPC_Certificate          coll=0.5000  delta_vs_SHMPC=+0.0000  progress=12.07
+  SHMPC_Compiler             coll=0.0000  delta_vs_SHMPC=+0.5000  progress=17.82
+  CertificateFirst           coll=0.0000  delta_vs_SHMPC=+0.5000  progress=13.30
+  ScenarioCompiler           coll=0.5000  delta_vs_SHMPC=+0.0000  progress=13.34
+
+--- rare_heavy ---
+  SHMPC                      coll=0.0000  delta_vs_SHMPC=+0.0000  progress=20.10
+  SHMPC_DRO                  coll=0.0000  delta_vs_SHMPC=+0.0000  progress=20.11
+  SHMPC_AdaptiveDRO          coll=0.0000  delta_vs_SHMPC=+0.0000  progress=12.79
+  SHMPC_RTA                  coll=0.5000  delta_vs_SHMPC=-0.5000  progress=7.01
+  SHMPC_Conformal            coll=0.0000  delta_vs_SHMPC=+0.0000  progress=11.30
+  SHMPC_Hazard               coll=0.0000  delta_vs_SHMPC=+0.0000  progress=13.46
+  SHMPC_Bandit               coll=0.5000  delta_vs_SHMPC=-0.5000  progress=11.60
+  SHMPC_Certificate          coll=0.5000  delta_vs_SHMPC=-0.5000  progress=2.91
+  SHMPC_Compiler             coll=0.5000  delta_vs_SHMPC=-0.5000  progress=20.09
+  CertificateFirst           coll=0.0000  delta_vs_SHMPC=+0.0000  progress=11.52
+  ScenarioCompiler           coll=0.0000  delta_vs_SHMPC=+0.0000  progress=14.89
+
+--- low_S ---
+  SHMPC                      coll=0.5000  delta_vs_SHMPC=+0.0000  progress=6.29
+  SHMPC_DRO                  coll=0.0000  delta_vs_SHMPC=+0.5000  progress=2.06
+  SHMPC_AdaptiveDRO          coll=0.5000  delta_vs_SHMPC=+0.0000  progress=15.88
+  SHMPC_RTA                  coll=0.0000  delta_vs_SHMPC=+0.5000  progress=11.03
+  SHMPC_Conformal            coll=0.0000  delta_vs_SHMPC=+0.5000  progress=13.64
+  SHMPC_Hazard               coll=0.5000  delta_vs_SHMPC=+0.0000  progress=9.65
+  SHMPC_Bandit               coll=0.0000  delta_vs_SHMPC=+0.5000  progress=20.15
+  SHMPC_Certificate          coll=1.0000  delta_vs_SHMPC=-0.5000  progress=20.12
+  SHMPC_Compiler             coll=0.0000  delta_vs_SHMPC=+0.5000  progress=16.75
+  CertificateFirst           coll=0.5000  delta_vs_SHMPC=+0.0000  progress=7.58
+  ScenarioCompiler           coll=0.0000  delta_vs_SHMPC=+0.5000  progress=7.05
+
+--- distribution_shift ---
+  SHMPC                      coll=1.0000  delta_vs_SHMPC=+0.0000  progress=17.91
+  SHMPC_DRO                  coll=0.0000  delta_vs_SHMPC=+1.0000  progress=17.64
+  SHMPC_AdaptiveDRO          coll=0.0000  delta_vs_SHMPC=+1.0000  progress=6.52
+  SHMPC_RTA                  coll=1.0000  delta_vs_SHMPC=+0.0000  progress=11.01
+  SHMPC_Conformal            coll=0.0000  delta_vs_SHMPC=+1.0000  progress=4.46
+  SHMPC_Hazard               coll=0.5000  delta_vs_SHMPC=+0.5000  progress=3.44
+  SHMPC_Bandit               coll=0.5000  delta_vs_SHMPC=+0.5000  progress=7.94
+  SHMPC_Certificate          coll=0.5000  delta_vs_SHMPC=+0.5000  progress=13.42
+  SHMPC_Compiler             coll=0.0000  delta_vs_SHMPC=+1.0000  progress=11.53
+  CertificateFirst           coll=0.0000  delta_vs_SHMPC=+1.0000  progress=9.65
+  ScenarioCompiler           coll=0.0000  delta_vs_SHMPC=+1.0000  progress=6.22

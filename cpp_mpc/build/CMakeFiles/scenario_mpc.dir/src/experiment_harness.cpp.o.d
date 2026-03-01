@@ -453,6 +453,15 @@ CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o: \
  /home/stephen/PyMPC/cpp_mpc/include/dynamics.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/mode_weights.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/scenario_sampler.hpp \
+ /home/stephen/PyMPC/cpp_mpc/include/adaptive_dro_shift.hpp \
+ /usr/include/c++/13/deque /usr/include/c++/13/bits/stl_deque.h \
+ /usr/include/c++/13/bits/deque.tcc \
+ /home/stephen/PyMPC/cpp_mpc/include/runtime_assurance.hpp \
+ /home/stephen/PyMPC/cpp_mpc/include/conformal_safety.hpp \
+ /home/stephen/PyMPC/cpp_mpc/include/hazard_switch_sampling.hpp \
+ /home/stephen/PyMPC/cpp_mpc/include/risk_directed_bandit.hpp \
+ /home/stephen/PyMPC/cpp_mpc/include/certificate_first.hpp \
+ /home/stephen/PyMPC/cpp_mpc/include/scenario_compiler.hpp \
  /usr/include/c++/13/iomanip /usr/include/c++/13/locale \
  /usr/include/c++/13/bits/locale_facets_nonio.h \
  /usr/include/x86_64-linux-gnu/c++/13/bits/time_members.h \

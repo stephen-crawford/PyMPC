@@ -1,0 +1,80 @@
+============================================================
+Future SL MPC: Efficacy vs SHMPC Baseline
+============================================================
+
+Collision rate (lower is better)
+----------------------------------------
+  SHMPC                      0.2800  [0.1747, 0.4167]  n=50
+  SHMPC_DRO                  0.2800  [0.1747, 0.4167]  n=50
+  SHMPC_AdaptiveDRO          0.3400  [0.2244, 0.4785]  n=50
+  SHMPC_RTA                  0.2600  [0.1587, 0.3955]  n=50
+  SHMPC_Conformal            0.2600  [0.1587, 0.3955]  n=50
+  SHMPC_Hazard               0.2600  [0.1587, 0.3955]  n=50
+  SHMPC_Bandit               0.2400  [0.1430, 0.3741]  n=50
+  SHMPC_Certificate          0.4200  [0.2937, 0.5577]  n=50
+  SHMPC_Compiler             0.2200  [0.1275, 0.3524]  n=50
+  CertificateFirst           0.4200  [0.2937, 0.5577]  n=50
+  ScenarioCompiler           0.2200  [0.1275, 0.3524]  n=50
+
+Effect vs SHMPC (collision rate)
+  delta = SHMPC_rate - method_rate  (positive = method safer)
+  SHMPC_DRO                  delta=+0.0000  rel_improve=+0.0%
+  SHMPC_AdaptiveDRO          delta=-0.0600  rel_improve=-21.4%
+  SHMPC_RTA                  delta=+0.0200  rel_improve=+7.1%
+  SHMPC_Conformal            delta=+0.0200  rel_improve=+7.1%
+  SHMPC_Hazard               delta=+0.0200  rel_improve=+7.1%
+  SHMPC_Bandit               delta=+0.0400  rel_improve=+14.3%
+  SHMPC_Certificate          delta=-0.1400  rel_improve=-50.0%
+  SHMPC_Compiler             delta=+0.0600  rel_improve=+21.4%
+  CertificateFirst           delta=-0.1400  rel_improve=-50.0%
+  ScenarioCompiler           delta=+0.0600  rel_improve=+21.4%
+
+Total progress (higher is better)
+  SHMPC                      mean=13.60  std=7.11
+  SHMPC_DRO                  mean=13.66  std=7.21
+  SHMPC_AdaptiveDRO          mean=13.48  std=7.35
+  SHMPC_RTA                  mean=12.82  std=7.30
+  SHMPC_Conformal            mean=13.81  std=7.19
+  SHMPC_Hazard               mean=13.67  std=7.02
+  SHMPC_Bandit               mean=13.66  std=7.32
+  SHMPC_Certificate          mean=13.11  std=7.23
+  SHMPC_Compiler             mean=14.15  std=6.86
+  CertificateFirst           mean=13.45  std=7.30
+  ScenarioCompiler           mean=14.09  std=7.04
+  Effect vs SHMPC (progress delta):
+  SHMPC_DRO                  delta=+0.05
+  SHMPC_AdaptiveDRO          delta=-0.12
+  SHMPC_RTA                  delta=-0.78
+  SHMPC_Conformal            delta=+0.20
+  SHMPC_Hazard               delta=+0.07
+  SHMPC_Bandit               delta=+0.06
+  SHMPC_Certificate          delta=-0.49
+  SHMPC_Compiler             delta=+0.55
+  CertificateFirst           delta=-0.16
+  ScenarioCompiler           delta=+0.49
+
+Avg solve time [ms] (lower is better)
+  SHMPC                      mean=4.75
+  SHMPC_DRO                  mean=4.82
+  SHMPC_AdaptiveDRO          mean=4.66
+  SHMPC_RTA                  mean=4.92
+  SHMPC_Conformal            mean=4.60
+  SHMPC_Hazard               mean=4.79
+  SHMPC_Bandit               mean=5.01
+  SHMPC_Certificate          mean=4.88
+  SHMPC_Compiler             mean=6.56
+  CertificateFirst           mean=4.73
+  ScenarioCompiler           mean=6.96
+  Effect vs SHMPC (solve time delta ms):
+  SHMPC_DRO                  delta=+0.07 ms
+  SHMPC_AdaptiveDRO          delta=-0.09 ms
+  SHMPC_RTA                  delta=+0.17 ms
+  SHMPC_Conformal            delta=-0.14 ms
+  SHMPC_Hazard               delta=+0.05 ms
+  SHMPC_Bandit               delta=+0.26 ms
+  SHMPC_Certificate          delta=+0.14 ms
+  SHMPC_Compiler             delta=+1.81 ms
+  CertificateFirst           delta=-0.01 ms
+  ScenarioCompiler           delta=+2.21 ms
+
+============================================================

@@ -182,6 +182,23 @@ private:
 };
 
 // =============================================================================
+// Ground Cost Types
+// =============================================================================
+
+/**
+ * @brief Ground cost types for OT distance computation.
+ */
+enum class GroundCostType {
+    SQUARED_EUCLIDEAN,  ///< ||v_i - v_j||^2 (default, full W2 geometry)
+    MANHATTAN,          ///< L1 distance: |v_ix - v_jx| + |v_iy - v_jy|
+    FLAT,               ///< All pairs cost 1.0 (no spatial geometry)
+    MEAN_ONLY,          ///< Bypass OT, use L2 between distribution means
+    DIRECTIONAL,        ///< Cosine distance: 1 - cos(v_i, v_j)
+    RANDOM_PERMUTED,    ///< Randomly permute rows/cols of W2 cost matrix (breaks semantic alignment)
+    CONSTANT            ///< All entries = constant value (degenerate geometry)
+};
+
+// =============================================================================
 // Sinkhorn Algorithm for Optimal Transport
 // =============================================================================
 
@@ -196,7 +213,8 @@ private:
 Eigen::MatrixXd compute_cost_matrix(
     const Eigen::MatrixXd& source,
     const Eigen::MatrixXd& target,
-    int p = 2);
+    int p = 2,
+    GroundCostType cost_type = GroundCostType::SQUARED_EUCLIDEAN);
 
 /**
  * @brief Result of Sinkhorn algorithm.
@@ -247,7 +265,8 @@ double wasserstein_distance(
     const EmpiricalDistribution& source,
     const EmpiricalDistribution& target,
     double epsilon = 0.1,
-    int p = 2);
+    int p = 2,
+    GroundCostType cost_type = GroundCostType::SQUARED_EUCLIDEAN);
 
 // =============================================================================
 // Wasserstein Barycenter for Multi-Modal Predictions
@@ -370,7 +389,8 @@ public:
         double sinkhorn_epsilon = 0.1,
         int min_samples_for_ot = 10,
         double uncertainty_scale = 1.0,
-        OTWeightType weight_type = OTWeightType::WASSERSTEIN);
+        OTWeightType weight_type = OTWeightType::WASSERSTEIN,
+        GroundCostType ground_cost = GroundCostType::SQUARED_EUCLIDEAN);
 
     /**
      * @brief Record an observation of obstacle state.
@@ -544,6 +564,7 @@ private:
     int min_samples_for_ot_;        ///< Minimum samples for OT computation
     double uncertainty_scale_;      ///< Uncertainty scaling factor
     OTWeightType weight_type_;      ///< Mode weight computation strategy
+    GroundCostType ground_cost_;    ///< Ground cost type for OT distance
 
     /// Per-obstacle trajectory buffers
     std::map<int, TrajectoryBuffer> trajectory_buffers_;

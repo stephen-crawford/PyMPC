@@ -490,6 +490,114 @@ std::vector<Scenario> sample_scenarios_with_mode_coverage(
     return scenarios;
 }
 
+std::vector<Scenario> sample_scenarios_stratified(
+    const std::map<int, ObstacleState>& obstacles,
+    const std::map<int, ModeHistory>& mode_histories,
+    int horizon,
+    int num_scenarios,
+    WeightType weight_type,
+    double recency_decay,
+    int current_timestep,
+    std::mt19937* rng
+) {
+    std::mt19937 local_rng;
+    if (rng == nullptr) {
+        std::random_device rd;
+        local_rng = std::mt19937(rd());
+        rng = &local_rng;
+    }
+
+    // Build per-obstacle mode weights and stratified allocation
+    struct ObsStratInfo {
+        std::map<std::string, double> mode_weights;
+        std::vector<std::string> modes;
+        std::vector<int> allocations;  // scenarios per mode
+    };
+    std::map<int, ObsStratInfo> obs_info;
+
+    for (const auto& [obs_id, obs_state] : obstacles) {
+        auto hist_it = mode_histories.find(obs_id);
+        if (hist_it == mode_histories.end()) continue;
+
+        auto weights = compute_mode_weights(
+            hist_it->second, weight_type, recency_decay, current_timestep);
+        if (weights.empty()) continue;
+
+        ObsStratInfo info;
+        info.mode_weights = weights;
+        int total_allocated = 0;
+        for (const auto& [mode_id, w] : weights) {
+            info.modes.push_back(mode_id);
+            int alloc = static_cast<int>(std::floor(num_scenarios * w));
+            info.allocations.push_back(alloc);
+            total_allocated += alloc;
+        }
+        // Fill remainder: assign extra scenarios to highest-weight modes
+        int remainder = num_scenarios - total_allocated;
+        // Sort modes by weight descending for remainder allocation
+        std::vector<std::pair<double, int>> weight_idx;
+        for (size_t i = 0; i < info.modes.size(); ++i) {
+            weight_idx.push_back({weights[info.modes[i]], static_cast<int>(i)});
+        }
+        std::sort(weight_idx.begin(), weight_idx.end(), std::greater<>());
+        for (int r = 0; r < remainder && r < static_cast<int>(weight_idx.size()); ++r) {
+            info.allocations[weight_idx[r].second]++;
+        }
+        obs_info[obs_id] = std::move(info);
+    }
+
+    std::vector<Scenario> scenarios;
+    scenarios.reserve(num_scenarios);
+
+    for (int s = 0; s < num_scenarios; ++s) {
+        std::map<int, ObstacleTrajectory> trajectories;
+
+        for (const auto& [obs_id, obs_state] : obstacles) {
+            auto info_it = obs_info.find(obs_id);
+            if (info_it == obs_info.end()) continue;
+            const auto& info = info_it->second;
+            auto hist_it = mode_histories.find(obs_id);
+            const ModeHistory& mode_history = hist_it->second;
+
+            // Determine which mode this scenario should use based on stratified allocation
+            int cumulative = 0;
+            std::string forced_mode;
+            for (size_t i = 0; i < info.modes.size(); ++i) {
+                cumulative += info.allocations[i];
+                if (s < cumulative) {
+                    forced_mode = info.modes[i];
+                    break;
+                }
+            }
+            if (forced_mode.empty()) {
+                forced_mode = info.modes.back();
+            }
+
+            // Create forced weights for this mode
+            std::map<std::string, double> forced_weights;
+            for (const auto& [mode_id, _] : info.mode_weights) {
+                forced_weights[mode_id] = 0.0;
+            }
+            forced_weights[forced_mode] = 1.0;
+
+            ObstacleTrajectory trajectory = sample_obstacle_trajectory(
+                obs_id, obs_state, mode_history.available_modes, forced_weights,
+                horizon, *rng
+            );
+            trajectory.probability = info.mode_weights.at(forced_mode);
+            trajectories[obs_id] = trajectory;
+        }
+
+        double scenario_prob = 1.0;
+        for (const auto& [_, traj] : trajectories) {
+            scenario_prob *= traj.probability;
+        }
+        scenarios.emplace_back(s, trajectories, scenario_prob);
+    }
+
+    return scenarios;
+}
+
 int compute_required_scenarios(double epsilon, double beta, int num_decision_vars) {
     return static_cast<int>(std::ceil(
         2.0 / epsilon * (std::log(1.0 / beta) + num_decision_vars)

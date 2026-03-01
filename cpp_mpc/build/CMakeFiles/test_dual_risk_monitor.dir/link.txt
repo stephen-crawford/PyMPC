@@ -1,0 +1,1 @@
+/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_dual_risk_monitor.dir/tests/test_dual_risk_monitor.cpp.o -o test_dual_risk_monitor  libscenario_mpc.a 

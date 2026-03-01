@@ -133,6 +133,33 @@ std::vector<Scenario> sample_scenarios_with_mode_sequences(
 );
 
 /**
+ * @brief Sample scenarios with stratified allocation across modes.
+ *
+ * Allocates floor(S * w_m) scenarios per mode m, fills remainder proportionally.
+ * Guarantees representation proportional to mode weights.
+ *
+ * @param obstacles Dict mapping obstacle_id to current ObstacleState
+ * @param mode_histories Dict mapping obstacle_id to ModeHistory
+ * @param horizon Prediction horizon N
+ * @param num_scenarios Number of scenarios to sample S
+ * @param weight_type Strategy for computing mode weights
+ * @param recency_decay Decay factor for recency weighting
+ * @param current_timestep Current timestep for recency computation
+ * @param rng Random number generator
+ * @return List of Scenario objects with stratified mode allocation
+ */
+std::vector<Scenario> sample_scenarios_stratified(
+    const std::map<int, ObstacleState>& obstacles,
+    const std::map<int, ModeHistory>& mode_histories,
+    int horizon,
+    int num_scenarios,
+    WeightType weight_type = WeightType::FREQUENCY,
+    double recency_decay = 0.9,
+    int current_timestep = 0,
+    std::mt19937* rng = nullptr
+);
+
+/**
  * @brief Compute required number of scenarios using Theorem 1.
  *
  * Theorem 1: For epsilon-chance constraint satisfaction with confidence 1-beta,

@@ -1,13 +1,4 @@
-switch_prob,variant,missed_mode_rate,num_rollouts,z_vs_base,p_vs_base,cohens_h_vs_base,permutation_p_vs_base
-0.2,Base,0.279513,1000,0,1,0,1
-0.2,Extremes,0.284347,1000,0,1,0,0.07059
-0.2,OT,0.1877,1000,0,1,0,0.0002
-0.2,OT+Extremes,0.191633,1000,0,1,0,0.0002
-0.3,Base,0.294253,1000,0,1,0,1
-0.3,Extremes,0.29668,1000,0,1,0,0.3221
-0.3,OT,0.21436,1000,0,1,0,0.0002
-0.3,OT+Extremes,0.21872,1000,0,1,0,0.0002
-0.5,Base,0.311313,1000,0,1,0,1
-0.5,Extremes,0.314547,1000,0,1,0,0.1134
-0.5,OT,0.251613,1000,0,1,0,0.0002
-0.5,OT+Extremes,0.25548,1000,0,1,0,0.0002
+num_scenarios,base_collisions,dro_collisions,n10,n01,mcnemar_chi2,significant_p05
+10,10,6,6,2,2,no
+20,6,3,3,0,3,no
+40,7,7,5,5,0,no

@@ -1,0 +1,12 @@
+method,scenario,collision_rate,total_progress_mean,avg_solve_ms,missed_mode_rate,n
+SHMPC,baseline,0.0,17.21855,5.1858,0.14375,2
+SHMPC_DRO,baseline,0.5,13.50915,4.6450499999999995,0.2625,2
+SHMPC_AdaptiveDRO,baseline,0.5,3.50805,4.59445,0.1875,2
+SHMPC_RTA,baseline,0.0,11.39695,4.4169,0.25,2
+SHMPC_Conformal,baseline,0.0,14.13955,4.18915,0.35,2
+SHMPC_Hazard,baseline,0.5,16.5614,4.3389,0.31875,2
+SHMPC_Bandit,baseline,0.5,3.0241499999999997,5.15085,0.3875,2
+SHMPC_Certificate,baseline,0.5,15.13515,3.8654,0.25,2
+SHMPC_Compiler,baseline,0.0,4.1665,7.5535499999999995,0.0875,2
+CertificateFirst,baseline,0.5,6.4184,4.31765,0.2625,2
+ScenarioCompiler,baseline,0.0,16.73395,5.93355,0.0875,2

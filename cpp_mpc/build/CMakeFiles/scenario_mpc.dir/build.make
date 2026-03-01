@@ -97,10 +97,122 @@ CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/mode_weights.cpp -o CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.s
 
+CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/conformal_safety.cpp
+CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/conformal_safety.cpp
+
+CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/conformal_safety.cpp > CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/conformal_safety.cpp -o CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.s
+
+CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/hazard_switch_sampling.cpp
+CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/hazard_switch_sampling.cpp
+
+CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/hazard_switch_sampling.cpp > CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/hazard_switch_sampling.cpp -o CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.s
+
+CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/risk_directed_bandit.cpp
+CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/risk_directed_bandit.cpp
+
+CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/risk_directed_bandit.cpp > CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/risk_directed_bandit.cpp -o CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.s
+
+CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/adaptive_dro_shift.cpp
+CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/adaptive_dro_shift.cpp
+
+CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/adaptive_dro_shift.cpp > CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/adaptive_dro_shift.cpp -o CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.s
+
+CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/dual_risk_monitor.cpp
+CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/dual_risk_monitor.cpp
+
+CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/dual_risk_monitor.cpp > CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/dual_risk_monitor.cpp -o CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.s
+
+CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/certificate_first.cpp
+CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/certificate_first.cpp
+
+CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/certificate_first.cpp > CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/certificate_first.cpp -o CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.s
+
+CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/scenario_compiler.cpp
+CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/scenario_compiler.cpp
+
+CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/scenario_compiler.cpp > CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/scenario_compiler.cpp -o CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.s
+
+CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/runtime_assurance.cpp
+CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/runtime_assurance.cpp
+
+CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/runtime_assurance.cpp > CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/runtime_assurance.cpp -o CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.s
+
 CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/trajectory_moments.cpp
 CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Building CXX object CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/trajectory_moments.cpp
 
 CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.i: cmake_force
@@ -114,7 +226,7 @@ CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/scenario_sampler.cpp
 CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_4) "Building CXX object CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/scenario_sampler.cpp
 
 CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.i: cmake_force
@@ -128,7 +240,7 @@ CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/collision_constraints.cpp
 CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/collision_constraints.cpp
 
 CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.i: cmake_force
@@ -142,7 +254,7 @@ CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/scenario_pruning.cpp
 CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/scenario_pruning.cpp
 
 CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.i: cmake_force
@@ -156,7 +268,7 @@ CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/mpc_controller.cpp
 CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/mpc_controller.cpp
 
 CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.i: cmake_force
@@ -170,7 +282,7 @@ CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/reference_path.cpp
 CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/reference_path.cpp
 
 CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.i: cmake_force
@@ -184,7 +296,7 @@ CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/contouring_mpc.cpp
 CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/contouring_mpc.cpp
 
 CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.i: cmake_force
@@ -198,7 +310,7 @@ CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/optimal_transport_predictor.cpp
 CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Building CXX object CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/optimal_transport_predictor.cpp
 
 CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.i: cmake_force
@@ -212,7 +324,7 @@ CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/qp_solver.cpp
 CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_11) "Building CXX object CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/qp_solver.cpp
 
 CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.i: cmake_force
@@ -226,7 +338,7 @@ CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/wasserstein_dro.cpp
 CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/wasserstein_dro.cpp
 
 CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.i: cmake_force
@@ -240,7 +352,7 @@ CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.s: cmake_force
 CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/experiment_harness.cpp
 CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/experiment_harness.cpp
 
 CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.i: cmake_force
@@ -255,6 +367,14 @@ CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.s: cmake_force
 scenario_mpc_OBJECTS = \
 "CMakeFiles/scenario_mpc.dir/src/dynamics.cpp.o" \
 "CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o" \
 "CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o" \
 "CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o" \
 "CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o" \
@@ -272,6 +392,14 @@ scenario_mpc_EXTERNAL_OBJECTS =
 
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/dynamics.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o
@@ -285,7 +413,7 @@ libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/build.make
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Linking CXX static library libscenario_mpc.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Linking CXX static library libscenario_mpc.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/scenario_mpc.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/scenario_mpc.dir/link.txt --verbose=$(VERBOSE)
 

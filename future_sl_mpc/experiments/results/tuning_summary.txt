@@ -1,0 +1,20 @@
+Tuning sensitivity: collision rate vs parameter
+============================================================
+
+--- cert ---
+  SHMPC_Certificate          param=0.10  coll=0.0000  progress=20.17
+  SHMPC_Certificate          param=0.15  coll=0.5000  progress=20.30
+  SHMPC_Certificate          param=0.25  coll=0.5000  progress=2.51
+  CertificateFirst           param=0.10  coll=0.0000  progress=20.19
+  CertificateFirst           param=0.15  coll=0.5000  progress=20.31
+  CertificateFirst           param=0.25  coll=1.0000  progress=2.51
+
+--- rta ---
+  SHMPC_RTA                  param=1.00  coll=0.0000  progress=11.67
+  SHMPC_RTA                  param=1.50  coll=0.5000  progress=14.83
+  SHMPC_RTA                  param=2.00  coll=0.5000  progress=19.34
+
+--- bandit ---
+  SHMPC_Bandit               param=0.50  coll=1.0000  progress=7.13
+  SHMPC_Bandit               param=1.00  coll=0.0000  progress=19.87
+  SHMPC_Bandit               param=2.00  coll=0.0000  progress=11.31

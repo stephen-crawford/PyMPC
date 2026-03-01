@@ -312,10 +312,12 @@ struct TrajectoryMoments {
  * @brief Mode weight computation strategies.
  */
 enum class WeightType {
-    UNIFORM,      ///< Equal weights for all modes
-    RECENCY,      ///< Exponential decay weighting recent observations
-    FREQUENCY,    ///< Weights based on observation frequency
-    WASSERSTEIN   ///< OT-based inverse Wasserstein distance weights
+    UNIFORM,          ///< Equal weights for all modes
+    RECENCY,          ///< Exponential decay weighting recent observations
+    FREQUENCY,        ///< Weights based on observation frequency
+    WASSERSTEIN,      ///< OT-based inverse Wasserstein distance weights
+    TEMPERATURE,      ///< Temperature-scaled frequency: w'_m = exp(log(w_m)/T)
+    EPSILON_GREEDY    ///< Epsilon-greedy: w'_m = (1-eps)*w_m + eps/M
 };
 
 /**
@@ -358,6 +360,8 @@ struct MPCResult {
     double cost = std::numeric_limits<double>::infinity();  ///< Optimal cost value
     int safe_horizon = -1;              ///< Truncated safe horizon used (-1 = full)
     int num_dro_injected = 0;           ///< Number of DRO worst-case scenarios injected
+    double constraint_construction_time = 0.0;  ///< Time for constraint building [s]
+    double qp_solve_time = 0.0;                 ///< Time for QP/SQP solve [s]
 
     MPCResult() : success(false) {}
 

@@ -118,6 +118,38 @@ std::map<std::string, double> compute_mode_weights(
                 }
             }
             break;
+
+        case WeightType::TEMPERATURE:
+            // Temperature scaling (T=0.5): w'_m = exp(log(w_m)/T), sharpens distribution
+            {
+                const double T = 0.5;
+                auto freq_w = compute_frequency_weights(mode_history, modes);
+                double freq_total = 0;
+                for (auto& [_, w] : freq_w) freq_total += w;
+                if (freq_total > 0) for (auto& [_, w] : freq_w) w /= freq_total;
+                for (const auto& m : modes) {
+                    double w = freq_total > 0 ? freq_w[m] : 1.0 / num_modes;
+                    // Avoid log(0): clamp to small positive value
+                    w = std::max(w, 1e-10);
+                    weights[m] = std::exp(std::log(w) / T);
+                }
+            }
+            break;
+
+        case WeightType::EPSILON_GREEDY:
+            // Epsilon-greedy (eps=0.3): w'_m = (1-eps)*w_m + eps/M
+            {
+                const double eps = 0.3;
+                auto freq_w = compute_frequency_weights(mode_history, modes);
+                double freq_total = 0;
+                for (auto& [_, w] : freq_w) freq_total += w;
+                if (freq_total > 0) for (auto& [_, w] : freq_w) w /= freq_total;
+                for (const auto& m : modes) {
+                    double w = freq_total > 0 ? freq_w[m] : 1.0 / num_modes;
+                    weights[m] = (1.0 - eps) * w + eps / num_modes;
+                }
+            }
+            break;
     }
 
     // Normalize weights to sum to 1

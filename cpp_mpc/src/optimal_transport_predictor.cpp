@@ -88,7 +88,8 @@ Eigen::MatrixXd EmpiricalDistribution::covariance() const {
 Eigen::MatrixXd compute_cost_matrix(
     const Eigen::MatrixXd& source,
     const Eigen::MatrixXd& target,
-    int p) {
+    int p,
+    GroundCostType cost_type) {
 
     int n = static_cast<int>(source.rows());
     int m = static_cast<int>(target.rows());
@@ -101,13 +102,63 @@ Eigen::MatrixXd compute_cost_matrix(
 
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < m; ++j) {
-            double dist = (source.row(i) - target.row(j)).norm();
-            if (p == 2) {
-                cost(i, j) = dist * dist;
-            } else {
-                cost(i, j) = std::pow(dist, p);
+            switch (cost_type) {
+                case GroundCostType::SQUARED_EUCLIDEAN: {
+                    double dist = (source.row(i) - target.row(j)).norm();
+                    cost(i, j) = (p == 2) ? dist * dist : std::pow(dist, p);
+                    break;
+                }
+                case GroundCostType::MANHATTAN: {
+                    double l1 = (source.row(i) - target.row(j)).cwiseAbs().sum();
+                    cost(i, j) = (p == 2) ? l1 * l1 : std::pow(l1, p);
+                    break;
+                }
+                case GroundCostType::FLAT:
+                    cost(i, j) = 1.0;
+                    break;
+                case GroundCostType::DIRECTIONAL: {
+                    double dot = source.row(i).dot(target.row(j));
+                    double n1 = source.row(i).norm();
+                    double n2 = target.row(j).norm();
+                    double cos_sim = (n1 > 1e-8 && n2 > 1e-8) ?
+                        dot / (n1 * n2) : 0.0;
+                    cost(i, j) = 1.0 - cos_sim;  // cosine distance [0, 2]
+                    break;
+                }
+                case GroundCostType::MEAN_ONLY:
+                    // MEAN_ONLY is handled at a higher level; fall back to L2
+                    cost(i, j) = (source.row(i) - target.row(j)).squaredNorm();
+                    break;
+                case GroundCostType::RANDOM_PERMUTED:
+                case GroundCostType::CONSTANT:
+                    // Handled after the loop
+                    cost(i, j) = (source.row(i) - target.row(j)).squaredNorm();
+                    break;
             }
         }
+    }
+
+    // Post-process for special cost types
+    if (cost_type == GroundCostType::RANDOM_PERMUTED) {
+        // Compute W2 cost matrix first, then randomly permute rows and columns
+        // This breaks the semantic alignment while preserving the distribution of costs
+        std::mt19937 perm_rng(12345);  // Fixed seed for reproducibility
+        std::vector<int> row_perm(n), col_perm(m);
+        std::iota(row_perm.begin(), row_perm.end(), 0);
+        std::iota(col_perm.begin(), col_perm.end(), 0);
+        std::shuffle(row_perm.begin(), row_perm.end(), perm_rng);
+        std::shuffle(col_perm.begin(), col_perm.end(), perm_rng);
+
+        Eigen::MatrixXd permuted(n, m);
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < m; ++j) {
+                permuted(i, j) = cost(row_perm[i], col_perm[j]);
+            }
+        }
+        cost = permuted;
+    } else if (cost_type == GroundCostType::CONSTANT) {
+        // All entries set to 1.0 (constant cost, degenerate geometry)
+        cost.setConstant(1.0);
     }
 
     return cost;
@@ -189,14 +240,15 @@ double wasserstein_distance(
     const EmpiricalDistribution& source,
     const EmpiricalDistribution& target,
     double epsilon,
-    int p) {
+    int p,
+    GroundCostType cost_type) {
 
     if (source.is_empty() || target.is_empty()) {
         return 0.0;
     }
 
     Eigen::MatrixXd cost_matrix = compute_cost_matrix(
-        source.samples(), target.samples(), p);
+        source.samples(), target.samples(), p, cost_type);
 
     SinkhornResult result = sinkhorn_algorithm(
         source.weights(), target.weights(), cost_matrix, epsilon);
@@ -345,10 +397,11 @@ OptimalTransportPredictor::OptimalTransportPredictor(
     double sinkhorn_epsilon,
     int min_samples_for_ot,
     double uncertainty_scale,
-    OTWeightType weight_type)
+    OTWeightType weight_type,
+    GroundCostType ground_cost)
     : dt_(dt), buffer_size_(buffer_size), sinkhorn_epsilon_(sinkhorn_epsilon),
       min_samples_for_ot_(min_samples_for_ot), uncertainty_scale_(uncertainty_scale),
-      weight_type_(weight_type), current_timestep_(0) {}
+      weight_type_(weight_type), ground_cost_(ground_cost), current_timestep_(0) {}
 
 void OptimalTransportPredictor::observe(
     int obstacle_id,
@@ -476,7 +529,7 @@ std::map<std::string, double> OptimalTransportPredictor::compute_mode_weights(
     EmpiricalDistribution observed_dist =
         EmpiricalDistribution::from_samples(observed_velocities);
 
-    // Compute Wasserstein distance to each mode's distribution
+    // Compute distance to each mode's distribution
     for (const auto& mode_id : available_modes) {
         const EmpiricalDistribution* mode_dist =
             get_mode_velocity_distribution(obstacle_id, mode_id);
@@ -486,13 +539,21 @@ std::map<std::string, double> OptimalTransportPredictor::compute_mode_weights(
             continue;
         }
 
-        // Compute Wasserstein distance
-        double w_dist = wasserstein_distance(
-            observed_dist, *mode_dist, sinkhorn_epsilon_);
+        double dist;
+        if (ground_cost_ == GroundCostType::MEAN_ONLY) {
+            // Bypass OT: use L2 distance between distribution means
+            Eigen::VectorXd obs_mean = observed_dist.samples().colwise().mean();
+            Eigen::VectorXd mode_mean = mode_dist->samples().colwise().mean();
+            dist = (obs_mean - mode_mean).norm();
+        } else {
+            // Full OT with specified ground cost
+            dist = wasserstein_distance(
+                observed_dist, *mode_dist, sinkhorn_epsilon_, 2, ground_cost_);
+        }
 
         // Convert distance to weight: higher distance -> lower weight
         // Using exponential kernel: w = exp(-distance / scale)
-        weights[mode_id] = std::exp(-w_dist / (uncertainty_scale_ + 1e-6));
+        weights[mode_id] = std::exp(-dist / (uncertainty_scale_ + 1e-6));
     }
 
     // Normalize weights

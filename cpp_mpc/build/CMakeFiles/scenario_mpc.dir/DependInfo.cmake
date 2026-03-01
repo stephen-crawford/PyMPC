@@ -8,15 +8,23 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
+  "/home/stephen/PyMPC/cpp_mpc/src/adaptive_dro_shift.cpp" "CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o.d"
+  "/home/stephen/PyMPC/cpp_mpc/src/certificate_first.cpp" "CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/collision_constraints.cpp" "CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.o.d"
+  "/home/stephen/PyMPC/cpp_mpc/src/conformal_safety.cpp" "CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/contouring_mpc.cpp" "CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o.d"
+  "/home/stephen/PyMPC/cpp_mpc/src/dual_risk_monitor.cpp" "CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/dynamics.cpp" "CMakeFiles/scenario_mpc.dir/src/dynamics.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/dynamics.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/experiment_harness.cpp" "CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o.d"
+  "/home/stephen/PyMPC/cpp_mpc/src/hazard_switch_sampling.cpp" "CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/mode_weights.cpp" "CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/mpc_controller.cpp" "CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/mpc_controller.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/optimal_transport_predictor.cpp" "CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/qp_solver.cpp" "CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/reference_path.cpp" "CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.o.d"
+  "/home/stephen/PyMPC/cpp_mpc/src/risk_directed_bandit.cpp" "CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o.d"
+  "/home/stephen/PyMPC/cpp_mpc/src/runtime_assurance.cpp" "CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o.d"
+  "/home/stephen/PyMPC/cpp_mpc/src/scenario_compiler.cpp" "CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/scenario_pruning.cpp" "CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/scenario_pruning.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/scenario_sampler.cpp" "CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/scenario_sampler.cpp.o.d"
   "/home/stephen/PyMPC/cpp_mpc/src/trajectory_moments.cpp" "CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o" "gcc" "CMakeFiles/scenario_mpc.dir/src/trajectory_moments.cpp.o.d"

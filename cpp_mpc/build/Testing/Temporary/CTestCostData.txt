@@ -1,8 +1,18 @@
-CoreTests 15 0.000125325
-SafeHorizonContouringTests 10 2.14377
-OptimalTransportTests 10 0.00061435
-OTPredictorIntegrationTests 9 2.10835
-OTDynamicsVerificationTests 7 0.0471192
-EpsilonGuaranteeTests 5 0.000621563
-PaperFigureTests 3 2.59314
+CoreTests 16 0.000432437
+SafeHorizonContouringTests 10 0
+OptimalTransportTests 11 0.000301369
+OTPredictorIntegrationTests 9 0
+OTDynamicsVerificationTests 8 0.0469469
+EpsilonGuaranteeTests 6 0.000478511
+PaperFigureTests 4 2.44784
+ConformalSafetyTests 1 0.00281673
+HazardSwitchSamplingTests 1 0.0021816
+RiskDirectedBanditTests 1 0.002333
+AdaptiveDROShiftTests 1 0.00210541
+DualRiskMonitorTests 1 0.00190421
+CertificateFirstTests 1 0.001238
+ScenarioCompilerTests 1 0.00211934
+RuntimeAssuranceTests 1 0.00215456
 ---
+SafeHorizonContouringTests
+OTPredictorIntegrationTests

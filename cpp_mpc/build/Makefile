@@ -354,6 +354,58 @@ test_dro_framework/fast:
 .PHONY : test_dro_framework/fast
 
 #=============================================================================
+# Target rules for targets named test_conformal_safety
+
+# Build rule for target.
+test_conformal_safety: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_conformal_safety
+.PHONY : test_conformal_safety
+
+# fast build rule for target.
+test_conformal_safety/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_conformal_safety.dir/build.make CMakeFiles/test_conformal_safety.dir/build
+.PHONY : test_conformal_safety/fast
+
+#=============================================================================
+# Target rules for targets named test_hazard_switch_sampling
+
+# Build rule for target.
+test_hazard_switch_sampling: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_hazard_switch_sampling
+.PHONY : test_hazard_switch_sampling
+
+# fast build rule for target.
+test_hazard_switch_sampling/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_hazard_switch_sampling.dir/build.make CMakeFiles/test_hazard_switch_sampling.dir/build
+.PHONY : test_hazard_switch_sampling/fast
+
+#=============================================================================
+# Target rules for targets named test_risk_directed_bandit
+
+# Build rule for target.
+test_risk_directed_bandit: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_risk_directed_bandit
+.PHONY : test_risk_directed_bandit
+
+# fast build rule for target.
+test_risk_directed_bandit/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_risk_directed_bandit.dir/build.make CMakeFiles/test_risk_directed_bandit.dir/build
+.PHONY : test_risk_directed_bandit/fast
+
+#=============================================================================
+# Target rules for targets named test_adaptive_dro_shift
+
+# Build rule for target.
+test_adaptive_dro_shift: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_adaptive_dro_shift
+.PHONY : test_adaptive_dro_shift
+
+# fast build rule for target.
+test_adaptive_dro_shift/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_adaptive_dro_shift.dir/build.make CMakeFiles/test_adaptive_dro_shift.dir/build
+.PHONY : test_adaptive_dro_shift/fast
+
+#=============================================================================
 # Target rules for targets named experiment_runner
 
 # Build rule for target.
@@ -365,6 +417,97 @@ experiment_runner: cmake_check_build_system
 experiment_runner/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/build
 .PHONY : experiment_runner/fast
+
+#=============================================================================
+# Target rules for targets named paper_experiment_runner
+
+# Build rule for target.
+paper_experiment_runner: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 paper_experiment_runner
+.PHONY : paper_experiment_runner
+
+# fast build rule for target.
+paper_experiment_runner/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/paper_experiment_runner.dir/build.make CMakeFiles/paper_experiment_runner.dir/build
+.PHONY : paper_experiment_runner/fast
+
+#=============================================================================
+# Target rules for targets named future_sl_experiments
+
+# Build rule for target.
+future_sl_experiments: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 future_sl_experiments
+.PHONY : future_sl_experiments
+
+# fast build rule for target.
+future_sl_experiments/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_experiments.dir/build.make CMakeFiles/future_sl_experiments.dir/build
+.PHONY : future_sl_experiments/fast
+
+#=============================================================================
+# Target rules for targets named future_sl_edge_tuning
+
+# Build rule for target.
+future_sl_edge_tuning: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 future_sl_edge_tuning
+.PHONY : future_sl_edge_tuning
+
+# fast build rule for target.
+future_sl_edge_tuning/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_edge_tuning.dir/build.make CMakeFiles/future_sl_edge_tuning.dir/build
+.PHONY : future_sl_edge_tuning/fast
+
+#=============================================================================
+# Target rules for targets named test_dual_risk_monitor
+
+# Build rule for target.
+test_dual_risk_monitor: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_dual_risk_monitor
+.PHONY : test_dual_risk_monitor
+
+# fast build rule for target.
+test_dual_risk_monitor/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dual_risk_monitor.dir/build.make CMakeFiles/test_dual_risk_monitor.dir/build
+.PHONY : test_dual_risk_monitor/fast
+
+#=============================================================================
+# Target rules for targets named test_certificate_first
+
+# Build rule for target.
+test_certificate_first: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_certificate_first
+.PHONY : test_certificate_first
+
+# fast build rule for target.
+test_certificate_first/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_certificate_first.dir/build.make CMakeFiles/test_certificate_first.dir/build
+.PHONY : test_certificate_first/fast
+
+#=============================================================================
+# Target rules for targets named test_scenario_compiler
+
+# Build rule for target.
+test_scenario_compiler: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_scenario_compiler
+.PHONY : test_scenario_compiler
+
+# fast build rule for target.
+test_scenario_compiler/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_scenario_compiler.dir/build.make CMakeFiles/test_scenario_compiler.dir/build
+.PHONY : test_scenario_compiler/fast
+
+#=============================================================================
+# Target rules for targets named test_runtime_assurance
+
+# Build rule for target.
+test_runtime_assurance: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_runtime_assurance
+.PHONY : test_runtime_assurance
+
+# fast build rule for target.
+test_runtime_assurance/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_runtime_assurance.dir/build.make CMakeFiles/test_runtime_assurance.dir/build
+.PHONY : test_runtime_assurance/fast
 
 #=============================================================================
 # Target rules for targets named run_tests
@@ -490,6 +633,102 @@ examples/example_mpc.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/example_mpc.dir/build.make CMakeFiles/example_mpc.dir/examples/example_mpc.cpp.s
 .PHONY : examples/example_mpc.cpp.s
 
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.o: home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.o
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.o
+
+# target to build an object file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_edge_tuning.dir/build.make CMakeFiles/future_sl_edge_tuning.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.o
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.o
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.i: home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.i
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.i
+
+# target to preprocess a source file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_edge_tuning.dir/build.make CMakeFiles/future_sl_edge_tuning.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.i
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.i
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.s: home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.s
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.s
+
+# target to generate assembly for a file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_edge_tuning.dir/build.make CMakeFiles/future_sl_edge_tuning.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.s
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp.s
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.o: home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.o
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.o
+
+# target to build an object file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_experiments.dir/build.make CMakeFiles/future_sl_experiments.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.o
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.o
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.i: home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.i
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.i
+
+# target to preprocess a source file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_experiments.dir/build.make CMakeFiles/future_sl_experiments.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.i
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.i
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.s: home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.s
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.s
+
+# target to generate assembly for a file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_experiments.dir/build.make CMakeFiles/future_sl_experiments.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.s
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.s
+
+src/adaptive_dro_shift.o: src/adaptive_dro_shift.cpp.o
+.PHONY : src/adaptive_dro_shift.o
+
+# target to build an object file
+src/adaptive_dro_shift.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.o
+.PHONY : src/adaptive_dro_shift.cpp.o
+
+src/adaptive_dro_shift.i: src/adaptive_dro_shift.cpp.i
+.PHONY : src/adaptive_dro_shift.i
+
+# target to preprocess a source file
+src/adaptive_dro_shift.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.i
+.PHONY : src/adaptive_dro_shift.cpp.i
+
+src/adaptive_dro_shift.s: src/adaptive_dro_shift.cpp.s
+.PHONY : src/adaptive_dro_shift.s
+
+# target to generate assembly for a file
+src/adaptive_dro_shift.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/adaptive_dro_shift.cpp.s
+.PHONY : src/adaptive_dro_shift.cpp.s
+
+src/certificate_first.o: src/certificate_first.cpp.o
+.PHONY : src/certificate_first.o
+
+# target to build an object file
+src/certificate_first.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.o
+.PHONY : src/certificate_first.cpp.o
+
+src/certificate_first.i: src/certificate_first.cpp.i
+.PHONY : src/certificate_first.i
+
+# target to preprocess a source file
+src/certificate_first.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.i
+.PHONY : src/certificate_first.cpp.i
+
+src/certificate_first.s: src/certificate_first.cpp.s
+.PHONY : src/certificate_first.s
+
+# target to generate assembly for a file
+src/certificate_first.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/certificate_first.cpp.s
+.PHONY : src/certificate_first.cpp.s
+
 src/collision_constraints.o: src/collision_constraints.cpp.o
 .PHONY : src/collision_constraints.o
 
@@ -514,6 +753,30 @@ src/collision_constraints.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/collision_constraints.cpp.s
 .PHONY : src/collision_constraints.cpp.s
 
+src/conformal_safety.o: src/conformal_safety.cpp.o
+.PHONY : src/conformal_safety.o
+
+# target to build an object file
+src/conformal_safety.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.o
+.PHONY : src/conformal_safety.cpp.o
+
+src/conformal_safety.i: src/conformal_safety.cpp.i
+.PHONY : src/conformal_safety.i
+
+# target to preprocess a source file
+src/conformal_safety.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.i
+.PHONY : src/conformal_safety.cpp.i
+
+src/conformal_safety.s: src/conformal_safety.cpp.s
+.PHONY : src/conformal_safety.s
+
+# target to generate assembly for a file
+src/conformal_safety.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/conformal_safety.cpp.s
+.PHONY : src/conformal_safety.cpp.s
+
 src/contouring_mpc.o: src/contouring_mpc.cpp.o
 .PHONY : src/contouring_mpc.o
 
@@ -537,6 +800,30 @@ src/contouring_mpc.s: src/contouring_mpc.cpp.s
 src/contouring_mpc.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.s
 .PHONY : src/contouring_mpc.cpp.s
+
+src/dual_risk_monitor.o: src/dual_risk_monitor.cpp.o
+.PHONY : src/dual_risk_monitor.o
+
+# target to build an object file
+src/dual_risk_monitor.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.o
+.PHONY : src/dual_risk_monitor.cpp.o
+
+src/dual_risk_monitor.i: src/dual_risk_monitor.cpp.i
+.PHONY : src/dual_risk_monitor.i
+
+# target to preprocess a source file
+src/dual_risk_monitor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.i
+.PHONY : src/dual_risk_monitor.cpp.i
+
+src/dual_risk_monitor.s: src/dual_risk_monitor.cpp.s
+.PHONY : src/dual_risk_monitor.s
+
+# target to generate assembly for a file
+src/dual_risk_monitor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/dual_risk_monitor.cpp.s
+.PHONY : src/dual_risk_monitor.cpp.s
 
 src/dynamics.o: src/dynamics.cpp.o
 .PHONY : src/dynamics.o
@@ -585,6 +872,30 @@ src/experiment_harness.s: src/experiment_harness.cpp.s
 src/experiment_harness.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.s
 .PHONY : src/experiment_harness.cpp.s
+
+src/hazard_switch_sampling.o: src/hazard_switch_sampling.cpp.o
+.PHONY : src/hazard_switch_sampling.o
+
+# target to build an object file
+src/hazard_switch_sampling.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o
+.PHONY : src/hazard_switch_sampling.cpp.o
+
+src/hazard_switch_sampling.i: src/hazard_switch_sampling.cpp.i
+.PHONY : src/hazard_switch_sampling.i
+
+# target to preprocess a source file
+src/hazard_switch_sampling.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.i
+.PHONY : src/hazard_switch_sampling.cpp.i
+
+src/hazard_switch_sampling.s: src/hazard_switch_sampling.cpp.s
+.PHONY : src/hazard_switch_sampling.s
+
+# target to generate assembly for a file
+src/hazard_switch_sampling.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.s
+.PHONY : src/hazard_switch_sampling.cpp.s
 
 src/mode_weights.o: src/mode_weights.cpp.o
 .PHONY : src/mode_weights.o
@@ -706,6 +1017,78 @@ src/reference_path.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/reference_path.cpp.s
 .PHONY : src/reference_path.cpp.s
 
+src/risk_directed_bandit.o: src/risk_directed_bandit.cpp.o
+.PHONY : src/risk_directed_bandit.o
+
+# target to build an object file
+src/risk_directed_bandit.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.o
+.PHONY : src/risk_directed_bandit.cpp.o
+
+src/risk_directed_bandit.i: src/risk_directed_bandit.cpp.i
+.PHONY : src/risk_directed_bandit.i
+
+# target to preprocess a source file
+src/risk_directed_bandit.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.i
+.PHONY : src/risk_directed_bandit.cpp.i
+
+src/risk_directed_bandit.s: src/risk_directed_bandit.cpp.s
+.PHONY : src/risk_directed_bandit.s
+
+# target to generate assembly for a file
+src/risk_directed_bandit.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/risk_directed_bandit.cpp.s
+.PHONY : src/risk_directed_bandit.cpp.s
+
+src/runtime_assurance.o: src/runtime_assurance.cpp.o
+.PHONY : src/runtime_assurance.o
+
+# target to build an object file
+src/runtime_assurance.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.o
+.PHONY : src/runtime_assurance.cpp.o
+
+src/runtime_assurance.i: src/runtime_assurance.cpp.i
+.PHONY : src/runtime_assurance.i
+
+# target to preprocess a source file
+src/runtime_assurance.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.i
+.PHONY : src/runtime_assurance.cpp.i
+
+src/runtime_assurance.s: src/runtime_assurance.cpp.s
+.PHONY : src/runtime_assurance.s
+
+# target to generate assembly for a file
+src/runtime_assurance.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/runtime_assurance.cpp.s
+.PHONY : src/runtime_assurance.cpp.s
+
+src/scenario_compiler.o: src/scenario_compiler.cpp.o
+.PHONY : src/scenario_compiler.o
+
+# target to build an object file
+src/scenario_compiler.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.o
+.PHONY : src/scenario_compiler.cpp.o
+
+src/scenario_compiler.i: src/scenario_compiler.cpp.i
+.PHONY : src/scenario_compiler.i
+
+# target to preprocess a source file
+src/scenario_compiler.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.i
+.PHONY : src/scenario_compiler.cpp.i
+
+src/scenario_compiler.s: src/scenario_compiler.cpp.s
+.PHONY : src/scenario_compiler.s
+
+# target to generate assembly for a file
+src/scenario_compiler.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/scenario_compiler.cpp.s
+.PHONY : src/scenario_compiler.cpp.s
+
 src/scenario_pruning.o: src/scenario_pruning.cpp.o
 .PHONY : src/scenario_pruning.o
 
@@ -826,6 +1209,102 @@ tests/experiment_runner.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/experiment_runner.dir/build.make CMakeFiles/experiment_runner.dir/tests/experiment_runner.cpp.s
 .PHONY : tests/experiment_runner.cpp.s
 
+tests/paper_experiment_runner.o: tests/paper_experiment_runner.cpp.o
+.PHONY : tests/paper_experiment_runner.o
+
+# target to build an object file
+tests/paper_experiment_runner.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/paper_experiment_runner.dir/build.make CMakeFiles/paper_experiment_runner.dir/tests/paper_experiment_runner.cpp.o
+.PHONY : tests/paper_experiment_runner.cpp.o
+
+tests/paper_experiment_runner.i: tests/paper_experiment_runner.cpp.i
+.PHONY : tests/paper_experiment_runner.i
+
+# target to preprocess a source file
+tests/paper_experiment_runner.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/paper_experiment_runner.dir/build.make CMakeFiles/paper_experiment_runner.dir/tests/paper_experiment_runner.cpp.i
+.PHONY : tests/paper_experiment_runner.cpp.i
+
+tests/paper_experiment_runner.s: tests/paper_experiment_runner.cpp.s
+.PHONY : tests/paper_experiment_runner.s
+
+# target to generate assembly for a file
+tests/paper_experiment_runner.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/paper_experiment_runner.dir/build.make CMakeFiles/paper_experiment_runner.dir/tests/paper_experiment_runner.cpp.s
+.PHONY : tests/paper_experiment_runner.cpp.s
+
+tests/test_adaptive_dro_shift.o: tests/test_adaptive_dro_shift.cpp.o
+.PHONY : tests/test_adaptive_dro_shift.o
+
+# target to build an object file
+tests/test_adaptive_dro_shift.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_adaptive_dro_shift.dir/build.make CMakeFiles/test_adaptive_dro_shift.dir/tests/test_adaptive_dro_shift.cpp.o
+.PHONY : tests/test_adaptive_dro_shift.cpp.o
+
+tests/test_adaptive_dro_shift.i: tests/test_adaptive_dro_shift.cpp.i
+.PHONY : tests/test_adaptive_dro_shift.i
+
+# target to preprocess a source file
+tests/test_adaptive_dro_shift.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_adaptive_dro_shift.dir/build.make CMakeFiles/test_adaptive_dro_shift.dir/tests/test_adaptive_dro_shift.cpp.i
+.PHONY : tests/test_adaptive_dro_shift.cpp.i
+
+tests/test_adaptive_dro_shift.s: tests/test_adaptive_dro_shift.cpp.s
+.PHONY : tests/test_adaptive_dro_shift.s
+
+# target to generate assembly for a file
+tests/test_adaptive_dro_shift.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_adaptive_dro_shift.dir/build.make CMakeFiles/test_adaptive_dro_shift.dir/tests/test_adaptive_dro_shift.cpp.s
+.PHONY : tests/test_adaptive_dro_shift.cpp.s
+
+tests/test_certificate_first.o: tests/test_certificate_first.cpp.o
+.PHONY : tests/test_certificate_first.o
+
+# target to build an object file
+tests/test_certificate_first.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_certificate_first.dir/build.make CMakeFiles/test_certificate_first.dir/tests/test_certificate_first.cpp.o
+.PHONY : tests/test_certificate_first.cpp.o
+
+tests/test_certificate_first.i: tests/test_certificate_first.cpp.i
+.PHONY : tests/test_certificate_first.i
+
+# target to preprocess a source file
+tests/test_certificate_first.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_certificate_first.dir/build.make CMakeFiles/test_certificate_first.dir/tests/test_certificate_first.cpp.i
+.PHONY : tests/test_certificate_first.cpp.i
+
+tests/test_certificate_first.s: tests/test_certificate_first.cpp.s
+.PHONY : tests/test_certificate_first.s
+
+# target to generate assembly for a file
+tests/test_certificate_first.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_certificate_first.dir/build.make CMakeFiles/test_certificate_first.dir/tests/test_certificate_first.cpp.s
+.PHONY : tests/test_certificate_first.cpp.s
+
+tests/test_conformal_safety.o: tests/test_conformal_safety.cpp.o
+.PHONY : tests/test_conformal_safety.o
+
+# target to build an object file
+tests/test_conformal_safety.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_conformal_safety.dir/build.make CMakeFiles/test_conformal_safety.dir/tests/test_conformal_safety.cpp.o
+.PHONY : tests/test_conformal_safety.cpp.o
+
+tests/test_conformal_safety.i: tests/test_conformal_safety.cpp.i
+.PHONY : tests/test_conformal_safety.i
+
+# target to preprocess a source file
+tests/test_conformal_safety.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_conformal_safety.dir/build.make CMakeFiles/test_conformal_safety.dir/tests/test_conformal_safety.cpp.i
+.PHONY : tests/test_conformal_safety.cpp.i
+
+tests/test_conformal_safety.s: tests/test_conformal_safety.cpp.s
+.PHONY : tests/test_conformal_safety.s
+
+# target to generate assembly for a file
+tests/test_conformal_safety.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_conformal_safety.dir/build.make CMakeFiles/test_conformal_safety.dir/tests/test_conformal_safety.cpp.s
+.PHONY : tests/test_conformal_safety.cpp.s
+
 tests/test_core.o: tests/test_core.cpp.o
 .PHONY : tests/test_core.o
 
@@ -874,6 +1353,30 @@ tests/test_dro_framework.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dro_framework.dir/build.make CMakeFiles/test_dro_framework.dir/tests/test_dro_framework.cpp.s
 .PHONY : tests/test_dro_framework.cpp.s
 
+tests/test_dual_risk_monitor.o: tests/test_dual_risk_monitor.cpp.o
+.PHONY : tests/test_dual_risk_monitor.o
+
+# target to build an object file
+tests/test_dual_risk_monitor.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dual_risk_monitor.dir/build.make CMakeFiles/test_dual_risk_monitor.dir/tests/test_dual_risk_monitor.cpp.o
+.PHONY : tests/test_dual_risk_monitor.cpp.o
+
+tests/test_dual_risk_monitor.i: tests/test_dual_risk_monitor.cpp.i
+.PHONY : tests/test_dual_risk_monitor.i
+
+# target to preprocess a source file
+tests/test_dual_risk_monitor.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dual_risk_monitor.dir/build.make CMakeFiles/test_dual_risk_monitor.dir/tests/test_dual_risk_monitor.cpp.i
+.PHONY : tests/test_dual_risk_monitor.cpp.i
+
+tests/test_dual_risk_monitor.s: tests/test_dual_risk_monitor.cpp.s
+.PHONY : tests/test_dual_risk_monitor.s
+
+# target to generate assembly for a file
+tests/test_dual_risk_monitor.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_dual_risk_monitor.dir/build.make CMakeFiles/test_dual_risk_monitor.dir/tests/test_dual_risk_monitor.cpp.s
+.PHONY : tests/test_dual_risk_monitor.cpp.s
+
 tests/test_epsilon_guarantee.o: tests/test_epsilon_guarantee.cpp.o
 .PHONY : tests/test_epsilon_guarantee.o
 
@@ -897,6 +1400,30 @@ tests/test_epsilon_guarantee.s: tests/test_epsilon_guarantee.cpp.s
 tests/test_epsilon_guarantee.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_epsilon_guarantee.dir/build.make CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.s
 .PHONY : tests/test_epsilon_guarantee.cpp.s
+
+tests/test_hazard_switch_sampling.o: tests/test_hazard_switch_sampling.cpp.o
+.PHONY : tests/test_hazard_switch_sampling.o
+
+# target to build an object file
+tests/test_hazard_switch_sampling.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_hazard_switch_sampling.dir/build.make CMakeFiles/test_hazard_switch_sampling.dir/tests/test_hazard_switch_sampling.cpp.o
+.PHONY : tests/test_hazard_switch_sampling.cpp.o
+
+tests/test_hazard_switch_sampling.i: tests/test_hazard_switch_sampling.cpp.i
+.PHONY : tests/test_hazard_switch_sampling.i
+
+# target to preprocess a source file
+tests/test_hazard_switch_sampling.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_hazard_switch_sampling.dir/build.make CMakeFiles/test_hazard_switch_sampling.dir/tests/test_hazard_switch_sampling.cpp.i
+.PHONY : tests/test_hazard_switch_sampling.cpp.i
+
+tests/test_hazard_switch_sampling.s: tests/test_hazard_switch_sampling.cpp.s
+.PHONY : tests/test_hazard_switch_sampling.s
+
+# target to generate assembly for a file
+tests/test_hazard_switch_sampling.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_hazard_switch_sampling.dir/build.make CMakeFiles/test_hazard_switch_sampling.dir/tests/test_hazard_switch_sampling.cpp.s
+.PHONY : tests/test_hazard_switch_sampling.cpp.s
 
 tests/test_mode_coverage.o: tests/test_mode_coverage.cpp.o
 .PHONY : tests/test_mode_coverage.o
@@ -1042,6 +1569,54 @@ tests/test_results_section.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_results_section.dir/build.make CMakeFiles/test_results_section.dir/tests/test_results_section.cpp.s
 .PHONY : tests/test_results_section.cpp.s
 
+tests/test_risk_directed_bandit.o: tests/test_risk_directed_bandit.cpp.o
+.PHONY : tests/test_risk_directed_bandit.o
+
+# target to build an object file
+tests/test_risk_directed_bandit.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_risk_directed_bandit.dir/build.make CMakeFiles/test_risk_directed_bandit.dir/tests/test_risk_directed_bandit.cpp.o
+.PHONY : tests/test_risk_directed_bandit.cpp.o
+
+tests/test_risk_directed_bandit.i: tests/test_risk_directed_bandit.cpp.i
+.PHONY : tests/test_risk_directed_bandit.i
+
+# target to preprocess a source file
+tests/test_risk_directed_bandit.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_risk_directed_bandit.dir/build.make CMakeFiles/test_risk_directed_bandit.dir/tests/test_risk_directed_bandit.cpp.i
+.PHONY : tests/test_risk_directed_bandit.cpp.i
+
+tests/test_risk_directed_bandit.s: tests/test_risk_directed_bandit.cpp.s
+.PHONY : tests/test_risk_directed_bandit.s
+
+# target to generate assembly for a file
+tests/test_risk_directed_bandit.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_risk_directed_bandit.dir/build.make CMakeFiles/test_risk_directed_bandit.dir/tests/test_risk_directed_bandit.cpp.s
+.PHONY : tests/test_risk_directed_bandit.cpp.s
+
+tests/test_runtime_assurance.o: tests/test_runtime_assurance.cpp.o
+.PHONY : tests/test_runtime_assurance.o
+
+# target to build an object file
+tests/test_runtime_assurance.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_runtime_assurance.dir/build.make CMakeFiles/test_runtime_assurance.dir/tests/test_runtime_assurance.cpp.o
+.PHONY : tests/test_runtime_assurance.cpp.o
+
+tests/test_runtime_assurance.i: tests/test_runtime_assurance.cpp.i
+.PHONY : tests/test_runtime_assurance.i
+
+# target to preprocess a source file
+tests/test_runtime_assurance.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_runtime_assurance.dir/build.make CMakeFiles/test_runtime_assurance.dir/tests/test_runtime_assurance.cpp.i
+.PHONY : tests/test_runtime_assurance.cpp.i
+
+tests/test_runtime_assurance.s: tests/test_runtime_assurance.cpp.s
+.PHONY : tests/test_runtime_assurance.s
+
+# target to generate assembly for a file
+tests/test_runtime_assurance.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_runtime_assurance.dir/build.make CMakeFiles/test_runtime_assurance.dir/tests/test_runtime_assurance.cpp.s
+.PHONY : tests/test_runtime_assurance.cpp.s
+
 tests/test_safe_horizon_contouring.o: tests/test_safe_horizon_contouring.cpp.o
 .PHONY : tests/test_safe_horizon_contouring.o
 
@@ -1065,6 +1640,30 @@ tests/test_safe_horizon_contouring.s: tests/test_safe_horizon_contouring.cpp.s
 tests/test_safe_horizon_contouring.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_safe_horizon_contouring.dir/build.make CMakeFiles/test_safe_horizon_contouring.dir/tests/test_safe_horizon_contouring.cpp.s
 .PHONY : tests/test_safe_horizon_contouring.cpp.s
+
+tests/test_scenario_compiler.o: tests/test_scenario_compiler.cpp.o
+.PHONY : tests/test_scenario_compiler.o
+
+# target to build an object file
+tests/test_scenario_compiler.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_scenario_compiler.dir/build.make CMakeFiles/test_scenario_compiler.dir/tests/test_scenario_compiler.cpp.o
+.PHONY : tests/test_scenario_compiler.cpp.o
+
+tests/test_scenario_compiler.i: tests/test_scenario_compiler.cpp.i
+.PHONY : tests/test_scenario_compiler.i
+
+# target to preprocess a source file
+tests/test_scenario_compiler.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_scenario_compiler.dir/build.make CMakeFiles/test_scenario_compiler.dir/tests/test_scenario_compiler.cpp.i
+.PHONY : tests/test_scenario_compiler.cpp.i
+
+tests/test_scenario_compiler.s: tests/test_scenario_compiler.cpp.s
+.PHONY : tests/test_scenario_compiler.s
+
+# target to generate assembly for a file
+tests/test_scenario_compiler.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_scenario_compiler.dir/build.make CMakeFiles/test_scenario_compiler.dir/tests/test_scenario_compiler.cpp.s
+.PHONY : tests/test_scenario_compiler.cpp.s
 
 tests/test_sqp_comparison.o: tests/test_sqp_comparison.cpp.o
 .PHONY : tests/test_sqp_comparison.o
@@ -1156,17 +1755,28 @@ help:
 	@echo "... demo_visualization"
 	@echo "... example_mpc"
 	@echo "... experiment_runner"
+	@echo "... future_sl_edge_tuning"
+	@echo "... future_sl_experiments"
+	@echo "... paper_experiment_runner"
 	@echo "... scenario_mpc"
+	@echo "... test_adaptive_dro_shift"
+	@echo "... test_certificate_first"
+	@echo "... test_conformal_safety"
 	@echo "... test_core"
 	@echo "... test_dro_framework"
+	@echo "... test_dual_risk_monitor"
 	@echo "... test_epsilon_guarantee"
+	@echo "... test_hazard_switch_sampling"
 	@echo "... test_mode_coverage"
 	@echo "... test_optimal_transport"
 	@echo "... test_ot_dynamics_verification"
 	@echo "... test_ot_predictor_integration"
 	@echo "... test_paper_figures"
 	@echo "... test_results_section"
+	@echo "... test_risk_directed_bandit"
+	@echo "... test_runtime_assurance"
 	@echo "... test_safe_horizon_contouring"
+	@echo "... test_scenario_compiler"
 	@echo "... test_sqp_comparison"
 	@echo "... test_statistical_power"
 	@echo "... test_uncertainty_limits"
@@ -1179,18 +1789,39 @@ help:
 	@echo "... examples/example_mpc.o"
 	@echo "... examples/example_mpc.i"
 	@echo "... examples/example_mpc.s"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.o"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.i"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_edge_and_tuning.s"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.o"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.i"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.s"
+	@echo "... src/adaptive_dro_shift.o"
+	@echo "... src/adaptive_dro_shift.i"
+	@echo "... src/adaptive_dro_shift.s"
+	@echo "... src/certificate_first.o"
+	@echo "... src/certificate_first.i"
+	@echo "... src/certificate_first.s"
 	@echo "... src/collision_constraints.o"
 	@echo "... src/collision_constraints.i"
 	@echo "... src/collision_constraints.s"
+	@echo "... src/conformal_safety.o"
+	@echo "... src/conformal_safety.i"
+	@echo "... src/conformal_safety.s"
 	@echo "... src/contouring_mpc.o"
 	@echo "... src/contouring_mpc.i"
 	@echo "... src/contouring_mpc.s"
+	@echo "... src/dual_risk_monitor.o"
+	@echo "... src/dual_risk_monitor.i"
+	@echo "... src/dual_risk_monitor.s"
 	@echo "... src/dynamics.o"
 	@echo "... src/dynamics.i"
 	@echo "... src/dynamics.s"
 	@echo "... src/experiment_harness.o"
 	@echo "... src/experiment_harness.i"
 	@echo "... src/experiment_harness.s"
+	@echo "... src/hazard_switch_sampling.o"
+	@echo "... src/hazard_switch_sampling.i"
+	@echo "... src/hazard_switch_sampling.s"
 	@echo "... src/mode_weights.o"
 	@echo "... src/mode_weights.i"
 	@echo "... src/mode_weights.s"
@@ -1206,6 +1837,15 @@ help:
 	@echo "... src/reference_path.o"
 	@echo "... src/reference_path.i"
 	@echo "... src/reference_path.s"
+	@echo "... src/risk_directed_bandit.o"
+	@echo "... src/risk_directed_bandit.i"
+	@echo "... src/risk_directed_bandit.s"
+	@echo "... src/runtime_assurance.o"
+	@echo "... src/runtime_assurance.i"
+	@echo "... src/runtime_assurance.s"
+	@echo "... src/scenario_compiler.o"
+	@echo "... src/scenario_compiler.i"
+	@echo "... src/scenario_compiler.s"
 	@echo "... src/scenario_pruning.o"
 	@echo "... src/scenario_pruning.i"
 	@echo "... src/scenario_pruning.s"
@@ -1221,15 +1861,33 @@ help:
 	@echo "... tests/experiment_runner.o"
 	@echo "... tests/experiment_runner.i"
 	@echo "... tests/experiment_runner.s"
+	@echo "... tests/paper_experiment_runner.o"
+	@echo "... tests/paper_experiment_runner.i"
+	@echo "... tests/paper_experiment_runner.s"
+	@echo "... tests/test_adaptive_dro_shift.o"
+	@echo "... tests/test_adaptive_dro_shift.i"
+	@echo "... tests/test_adaptive_dro_shift.s"
+	@echo "... tests/test_certificate_first.o"
+	@echo "... tests/test_certificate_first.i"
+	@echo "... tests/test_certificate_first.s"
+	@echo "... tests/test_conformal_safety.o"
+	@echo "... tests/test_conformal_safety.i"
+	@echo "... tests/test_conformal_safety.s"
 	@echo "... tests/test_core.o"
 	@echo "... tests/test_core.i"
 	@echo "... tests/test_core.s"
 	@echo "... tests/test_dro_framework.o"
 	@echo "... tests/test_dro_framework.i"
 	@echo "... tests/test_dro_framework.s"
+	@echo "... tests/test_dual_risk_monitor.o"
+	@echo "... tests/test_dual_risk_monitor.i"
+	@echo "... tests/test_dual_risk_monitor.s"
 	@echo "... tests/test_epsilon_guarantee.o"
 	@echo "... tests/test_epsilon_guarantee.i"
 	@echo "... tests/test_epsilon_guarantee.s"
+	@echo "... tests/test_hazard_switch_sampling.o"
+	@echo "... tests/test_hazard_switch_sampling.i"
+	@echo "... tests/test_hazard_switch_sampling.s"
 	@echo "... tests/test_mode_coverage.o"
 	@echo "... tests/test_mode_coverage.i"
 	@echo "... tests/test_mode_coverage.s"
@@ -1248,9 +1906,18 @@ help:
 	@echo "... tests/test_results_section.o"
 	@echo "... tests/test_results_section.i"
 	@echo "... tests/test_results_section.s"
+	@echo "... tests/test_risk_directed_bandit.o"
+	@echo "... tests/test_risk_directed_bandit.i"
+	@echo "... tests/test_risk_directed_bandit.s"
+	@echo "... tests/test_runtime_assurance.o"
+	@echo "... tests/test_runtime_assurance.i"
+	@echo "... tests/test_runtime_assurance.s"
 	@echo "... tests/test_safe_horizon_contouring.o"
 	@echo "... tests/test_safe_horizon_contouring.i"
 	@echo "... tests/test_safe_horizon_contouring.s"
+	@echo "... tests/test_scenario_compiler.o"
+	@echo "... tests/test_scenario_compiler.i"
+	@echo "... tests/test_scenario_compiler.s"
 	@echo "... tests/test_sqp_comparison.o"
 	@echo "... tests/test_sqp_comparison.i"
 	@echo "... tests/test_sqp_comparison.s"
