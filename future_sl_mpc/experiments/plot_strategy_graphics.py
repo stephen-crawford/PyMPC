@@ -39,6 +39,12 @@ STRATEGY_GROUPS = {
     "Certificate / tube": ["SHMPC_Certificate", "CertificateFirst"],
     "Compiler / witness": ["SHMPC_Compiler", "ScenarioCompiler"],
     "Runtime assurance": ["SHMPC_RTA"],
+    "GAN scenarios": ["SHMPC_GAN"],
+    "Reservoir scenarios": ["SHMPC_Reservoir"],
+    "Seek-avoid (pursuit)": ["SHMPC_SeekAvoid"],
+    "Seek-avoid ML": ["SHMPC_SeekAvoidML"],
+    "Quotient-space (efficiency)": ["SHMPC_QuotientSpace"],
+    "Double dual": ["SHMPC_DoubleDual"],
 }
 TYPE_COLORS = {
     "Baseline": "#2c3e50",
@@ -47,6 +53,12 @@ TYPE_COLORS = {
     "Certificate / tube": "#9b59b6",
     "Compiler / witness": "#27ae60",
     "Runtime assurance": "#f39c12",
+    "GAN scenarios": "#16a085",
+    "Reservoir scenarios": "#c0392b",
+    "Seek-avoid (pursuit)": "#8e44ad",
+    "Seek-avoid ML": "#1abc9c",
+    "Quotient-space (efficiency)": "#7f8c8d",
+    "Double dual": "#d35400",
 }
 METHOD_DISPLAY = {
     "SHMPC": "SHMPC",
@@ -60,6 +72,14 @@ METHOD_DISPLAY = {
     "SHMPC_Compiler": "Compiler",
     "CertificateFirst": "Cert.First",
     "ScenarioCompiler": "Scenario Comp.",
+    "SHMPC_GAN": "GAN",
+    "SHMPC_GAN_Reduced": "GAN Red.",
+    "SHMPC_GAN_Quotient": "GAN Quot.",
+    "SHMPC_Reservoir": "Reservoir",
+    "SHMPC_SeekAvoid": "SeekAvoid",
+    "SHMPC_SeekAvoidML": "SeekAvoid ML",
+    "SHMPC_QuotientSpace": "QuotientSpace",
+    "SHMPC_DoubleDual": "DoubleDual",
 }
 
 

@@ -21,6 +21,11 @@ This directory contains implementations of the extensions and paradigm-shift ide
 | `09_certificate_first` | 7.1 | Certificate-first learning (tubes + calibration as first-class outputs) |
 | `10_scenario_compiler` | 7.2 | Minimal witness set + constraint generation + stopping rule |
 | `11_runtime_assurance` | 7.4 | RTA wrapper: monitor + fallback controller |
+| `09_gan_adversarial_scenarios` | — | GAN-generated adversarial obstacle trajectories → CSV → SHMPC scenarios |
+| `10_reservoir_adversarial_scenarios` | — | Reservoir-computing (echo state) adversarial trajectories → same CSV → SHMPC_Reservoir |
+| `11_seek_avoid_scenarios` | — | Seek-avoid (pursuit) game: obstacles pursue vehicle → scenarios → SHMPC_SeekAvoid |
+| `12_seek_avoid_ml_scenarios` | — | ML trained on seek-avoid data → predict adversarial trajectories → SHMPC_SeekAvoidML |
+| `13_quotient_space_efficiency` | — | Quotient-space scenario reduction (low-dim clustering) → SHMPC_QuotientSpace for faster solve |
 
 ## Building and Testing
 

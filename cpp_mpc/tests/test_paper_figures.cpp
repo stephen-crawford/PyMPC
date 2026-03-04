@@ -373,6 +373,10 @@ TEST(scenario_pruning) {
     std::cout << " [paper_fig_pruning.csv, " << original.size() << " -> "
               << after_dominance.size() << " -> " << after_inactive.size() << "]";
     ASSERT_TRUE(original.size() == static_cast<size_t>(num_scenarios));
+
+    auto quotient = reduce_scenarios_quotient_space(original, 10, horizon);
+    ASSERT_TRUE(quotient.size() == 10u);
+    std::cout << " [quotient: " << original.size() << " -> " << quotient.size() << "]";
 }
 
 // ============================================================================

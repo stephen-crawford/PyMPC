@@ -349,10 +349,24 @@ CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/wasserstein_dro.cpp -o CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.s
 
+CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
+CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/gan_scenario_loader.cpp
+CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/gan_scenario_loader.cpp
+
+CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/stephen/PyMPC/cpp_mpc/src/gan_scenario_loader.cpp > CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.i
+
+CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/stephen/PyMPC/cpp_mpc/src/gan_scenario_loader.cpp -o CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.s
+
 CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o: CMakeFiles/scenario_mpc.dir/flags.make
 CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o: /home/stephen/PyMPC/cpp_mpc/src/experiment_harness.cpp
 CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o: CMakeFiles/scenario_mpc.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building CXX object CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o -MF CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o.d -o CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o -c /home/stephen/PyMPC/cpp_mpc/src/experiment_harness.cpp
 
 CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.i: cmake_force
@@ -385,6 +399,7 @@ scenario_mpc_OBJECTS = \
 "CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o" \
 "CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o" \
 "CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o" \
+"CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o" \
 "CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o"
 
 # External object files for target scenario_mpc
@@ -410,10 +425,11 @@ libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/contouring_mpc.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/optimal_transport_predictor.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/qp_solver.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/wasserstein_dro.cpp.o
+libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/build.make
 libscenario_mpc.a: CMakeFiles/scenario_mpc.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Linking CXX static library libscenario_mpc.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Linking CXX static library libscenario_mpc.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/scenario_mpc.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/scenario_mpc.dir/link.txt --verbose=$(VERBOSE)
 

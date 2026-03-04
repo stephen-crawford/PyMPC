@@ -20,10 +20,13 @@
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/paper_experiment_runner.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/future_sl_experiments.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/future_sl_edge_tuning.dir
+/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/run_gan_realtime_sweep.dir
+/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/target_collision_benchmark.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_dual_risk_monitor.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_certificate_first.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_scenario_compiler.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_runtime_assurance.dir
+/home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/test_gan_efficiency.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/run_tests.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/example_mpc.dir
 /home/stephen/PyMPC/cpp_mpc/build/CMakeFiles/demo_visualization.dir

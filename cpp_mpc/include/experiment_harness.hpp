@@ -116,6 +116,20 @@ struct ExperimentConfig {
     double certificate_radius_override = 0.0;  ///< default 0.15
     double rta_threshold_override = 0.0;       ///< default 1.5
     double bandit_beta_override = 0.0;          ///< default 1.0
+    // Quotient-space reduction (SHMPC_QuotientSpace): reduce S scenarios to K for efficiency
+    int quotient_num_override = 0;              ///< if > 0, number of quotient representatives K; else K = max(1, 40% of num_scenarios)
+
+    // GAN adversarial scenarios (optional path to CSV from gan_adversarial.py)
+    std::string gan_scenario_csv_path;
+    bool use_gan_cache = true;           ///< if true, load CSV once per rollout and reuse (faster)
+    int gan_num_scenarios_override = 0;   ///< if > 0, use this many GAN scenarios per solve (fewer = faster)
+    int gan_reduced_num_scenarios = 12;    ///< SHMPC_GAN_Reduced uses this (12 = real-time: >=50% safety, <10ms)
+    // Reservoir adversarial scenarios (optional path to CSV from reservoir_adversarial.py; same format)
+    std::string reservoir_scenario_csv_path;
+    // Seek-avoid (pursuit) scenarios from seek_avoid.py
+    std::string seek_avoid_scenario_csv_path;
+    // ML model trained on seek-avoid data (seek_avoid_ml.py)
+    std::string seek_avoid_ml_scenario_csv_path;
 };
 
 /**

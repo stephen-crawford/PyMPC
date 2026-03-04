@@ -36,6 +36,10 @@ int main(int argc, char** argv) {
     config.rare_switch_prob = 0.05;
     config.obs_modes = {"constant_velocity", "turn_left", "turn_right", "decelerating"};
     config.rare_mode = "lane_change_left";
+    config.gan_scenario_csv_path = out_dir + "gan_scenarios.csv";
+    config.reservoir_scenario_csv_path = out_dir + "reservoir_scenarios.csv";
+    config.seek_avoid_scenario_csv_path = out_dir + "seek_avoid_scenarios.csv";
+    config.seek_avoid_ml_scenario_csv_path = out_dir + "seek_avoid_ml_scenarios.csv";
 
     fs::create_directories(out_dir);
     std::string csv_path = out_dir + "future_sl_rollouts.csv";
@@ -45,7 +49,8 @@ int main(int argc, char** argv) {
     std::vector<std::string> methods = {
         "SHMPC", "SHMPC_DRO", "SHMPC_AdaptiveDRO", "SHMPC_RTA",
         "SHMPC_Conformal", "SHMPC_Hazard", "SHMPC_Bandit", "SHMPC_Certificate", "SHMPC_Compiler",
-        "CertificateFirst", "ScenarioCompiler"
+        "CertificateFirst", "ScenarioCompiler", "SHMPC_GAN", "SHMPC_GAN_Reduced", "SHMPC_GAN_Quotient",
+        "SHMPC_Reservoir", "SHMPC_SeekAvoid", "SHMPC_SeekAvoidML", "SHMPC_QuotientSpace", "SHMPC_DoubleDual"
     };
     unsigned seed_base = 12345u;
 

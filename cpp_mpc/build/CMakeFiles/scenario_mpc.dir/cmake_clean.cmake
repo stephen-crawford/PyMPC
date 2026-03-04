@@ -15,6 +15,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/scenario_mpc.dir/src/dynamics.cpp.o.d"
   "CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o"
   "CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o.d"
+  "CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o"
+  "CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o.d"
   "CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o"
   "CMakeFiles/scenario_mpc.dir/src/hazard_switch_sampling.cpp.o.d"
   "CMakeFiles/scenario_mpc.dir/src/mode_weights.cpp.o"

@@ -16,6 +16,8 @@
 #include "risk_directed_bandit.hpp"
 #include "certificate_first.hpp"
 #include "scenario_compiler.hpp"
+#include "gan_scenario_loader.hpp"
+#include "scenario_pruning.hpp"
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -564,6 +566,9 @@ RolloutRecord run_experiment_rollout_future_sl(
     const int compiler_initial_S = 5;
     const int compiler_max_iter = 5;
 
+    // Double-dual: persist mode weights from previous step's active (binding) scenarios
+    std::map<int, std::map<std::string, double>> dual_mode_weights;
+
     for (int i = 0; i < 5; ++i) {
         controller.update_mode_observation(obs_id, obs_sim.current_mode, i);
     }
@@ -573,6 +578,15 @@ RolloutRecord run_experiment_rollout_future_sl(
     std::vector<int> safe_horizons;
     double control_effort = 0.0;
     int constraint_active_total = 0;
+
+    // GAN cache: load CSV once per rollout for GAN variants (avoids file I/O every step)
+    std::optional<GANScenarioCache> gan_cache;
+    if ((method == "SHMPC_GAN" || method == "SHMPC_GAN_Quotient" || method == "SHMPC_GAN_Reduced") &&
+        config.use_gan_cache && !config.gan_scenario_csv_path.empty()) {
+        gan_cache.emplace();
+        if (!gan_cache->load(config.gan_scenario_csv_path, config.horizon))
+            gan_cache.reset();
+    }
 
     for (int step = 0; step < config.rollout_steps; ++step) {
         if (!config.rare_mode.empty() && config.rare_switch_prob > 0) {
@@ -632,6 +646,10 @@ RolloutRecord run_experiment_rollout_future_sl(
             for (const auto& [_, Sm] : alloc) sum += Sm;
             for (const auto& [mid, Sm] : alloc) weights[mid] = (sum > 0) ? (static_cast<double>(Sm) / sum) : (1.0 / alloc.size());
             controller.set_custom_mode_weights(obs_id, weights);
+        } else if (method == "SHMPC_DoubleDual") {
+            auto it = dual_mode_weights.find(obs_id);
+            if (it != dual_mode_weights.end() && !it->second.empty())
+                controller.set_custom_mode_weights(obs_id, it->second);
         } else if (method == "SHMPC_Certificate" || method == "CertificateFirst") {
             std::vector<double> radii(static_cast<size_t>(config.horizon + 1), cert_radius);
             controller.set_certificate_radii(radii);
@@ -641,7 +659,95 @@ RolloutRecord run_experiment_rollout_future_sl(
         obstacles[obs_id] = obs_sim.state;
 
         MPCResult mpc_result;
-        if (method == "SHMPC_Compiler" || method == "ScenarioCompiler") {
+        if (method == "SHMPC_GAN" && !config.gan_scenario_csv_path.empty()) {
+            std::vector<Scenario> gan_scenarios;
+            int S_use = config.gan_num_scenarios_override > 0 ? config.gan_num_scenarios_override : config.num_scenarios;
+            if (gan_cache) {
+                gan_scenarios = gan_cache->materialize(obstacles, config.horizon, S_use);
+            } else {
+                gan_scenarios = load_scenarios_from_gan_csv(config.gan_scenario_csv_path, obstacles, config.horizon);
+                if (static_cast<int>(gan_scenarios.size()) > S_use)
+                    gan_scenarios.resize(S_use);
+            }
+            if (!gan_scenarios.empty()) {
+                controller.set_scenarios(gan_scenarios);
+                controller.set_use_current_scenarios_next(true);
+            }
+            mpc_result = controller.solve(ego, obstacles, goal, 1.5);
+        } else if (method == "SHMPC_GAN_Reduced" && !config.gan_scenario_csv_path.empty()) {
+            std::vector<Scenario> gan_scenarios;
+            const int S_reduced = config.gan_reduced_num_scenarios > 0 ? config.gan_reduced_num_scenarios : 12;
+            if (gan_cache) {
+                gan_scenarios = gan_cache->materialize(obstacles, config.horizon, S_reduced);
+            } else {
+                auto full = load_scenarios_from_gan_csv(config.gan_scenario_csv_path, obstacles, config.horizon);
+                if (static_cast<int>(full.size()) > S_reduced)
+                    gan_scenarios.assign(full.begin(), full.begin() + S_reduced);
+                else
+                    gan_scenarios = full;
+            }
+            if (!gan_scenarios.empty()) {
+                controller.set_scenarios(gan_scenarios);
+                controller.set_use_current_scenarios_next(true);
+            }
+            mpc_result = controller.solve(ego, obstacles, goal, 1.5);
+        } else if (method == "SHMPC_GAN_Quotient" && !config.gan_scenario_csv_path.empty()) {
+            std::vector<Scenario> gan_scenarios;
+            if (gan_cache) {
+                gan_scenarios = gan_cache->materialize(obstacles, config.horizon, config.num_scenarios);
+            } else {
+                gan_scenarios = load_scenarios_from_gan_csv(config.gan_scenario_csv_path, obstacles, config.horizon);
+            }
+            const int K_quotient = config.quotient_num_override > 0 ? config.quotient_num_override : std::max(1, static_cast<int>(0.4 * config.num_scenarios));
+            if (static_cast<int>(gan_scenarios.size()) > K_quotient) {
+                std::vector<Scenario> reduced = reduce_scenarios_quotient_space(gan_scenarios, K_quotient, config.horizon);
+                controller.set_scenarios(reduced);
+                controller.set_use_current_scenarios_next(true);
+            } else if (!gan_scenarios.empty()) {
+                controller.set_scenarios(gan_scenarios);
+                controller.set_use_current_scenarios_next(true);
+            }
+            mpc_result = controller.solve(ego, obstacles, goal, 1.5);
+        } else if (method == "SHMPC_Reservoir" && !config.reservoir_scenario_csv_path.empty()) {
+            auto res_scenarios = load_scenarios_from_gan_csv(config.reservoir_scenario_csv_path, obstacles, config.horizon);
+            if (!res_scenarios.empty()) {
+                int S_use = std::min(config.num_scenarios, static_cast<int>(res_scenarios.size()));
+                std::vector<Scenario> selected(res_scenarios.begin(), res_scenarios.begin() + S_use);
+                controller.set_scenarios(selected);
+                controller.set_use_current_scenarios_next(true);
+            }
+            mpc_result = controller.solve(ego, obstacles, goal, 1.5);
+        } else if (method == "SHMPC_SeekAvoid" && !config.seek_avoid_scenario_csv_path.empty()) {
+            auto seek_scenarios = load_scenarios_from_gan_csv(config.seek_avoid_scenario_csv_path, obstacles, config.horizon);
+            if (!seek_scenarios.empty()) {
+                int S_use = std::min(config.num_scenarios, static_cast<int>(seek_scenarios.size()));
+                std::vector<Scenario> selected(seek_scenarios.begin(), seek_scenarios.begin() + S_use);
+                controller.set_scenarios(selected);
+                controller.set_use_current_scenarios_next(true);
+            }
+            mpc_result = controller.solve(ego, obstacles, goal, 1.5);
+        } else if (method == "SHMPC_SeekAvoidML" && !config.seek_avoid_ml_scenario_csv_path.empty()) {
+            auto ml_scenarios = load_scenarios_from_gan_csv(config.seek_avoid_ml_scenario_csv_path, obstacles, config.horizon);
+            if (!ml_scenarios.empty()) {
+                int S_use = std::min(config.num_scenarios, static_cast<int>(ml_scenarios.size()));
+                std::vector<Scenario> selected(ml_scenarios.begin(), ml_scenarios.begin() + S_use);
+                controller.set_scenarios(selected);
+                controller.set_use_current_scenarios_next(true);
+            }
+            mpc_result = controller.solve(ego, obstacles, goal, 1.5);
+        } else if (method == "SHMPC_QuotientSpace") {
+            controller.sample_and_set_scenarios(obstacles, config.num_scenarios);
+            const std::vector<Scenario>& full = controller.scenarios();
+            int K = config.quotient_num_override > 0
+                ? config.quotient_num_override
+                : std::max(1, static_cast<int>(0.4 * config.num_scenarios));
+            if (static_cast<int>(full.size()) > K) {
+                std::vector<Scenario> reduced = reduce_scenarios_quotient_space(full, K, config.horizon);
+                controller.set_scenarios(reduced);
+                controller.set_use_current_scenarios_next(true);
+            }
+            mpc_result = controller.solve(ego, obstacles, goal, 1.5);
+        } else if (method == "SHMPC_Compiler" || method == "ScenarioCompiler") {
             controller.sample_and_set_scenarios(obstacles, compiler_initial_S);
             mpc_result = controller.solve(ego, obstacles, goal, 1.5);
             for (int comp_iter = 0; comp_iter < compiler_max_iter - 1 && mpc_result.success; ++comp_iter) {
@@ -670,6 +776,23 @@ RolloutRecord run_experiment_rollout_future_sl(
 
         if (method == "SHMPC_AdaptiveDRO") controller.clear_dro_epsilon_override();
         if (method == "SHMPC_Conformal" || method == "SHMPC_Hazard" || method == "SHMPC_Bandit") controller.clear_custom_mode_weights();
+        if (method == "SHMPC_DoubleDual" && mpc_result.success) {
+            std::map<std::string, double> count_per_mode;
+            for (const auto& m : obs_sim.available_modes) count_per_mode[m] = 0.0;
+            for (const auto& sc : controller.scenarios()) {
+                auto it = sc.trajectories.find(obs_id);
+                if (it != sc.trajectories.end())
+                    count_per_mode[it->second.mode_id] += 1.0;
+            }
+            const double floor = 0.1;
+            double sum = 0.0;
+            for (const auto& m : obs_sim.available_modes)
+                sum += count_per_mode[m] + floor;
+            std::map<std::string, double> weights;
+            for (const auto& m : obs_sim.available_modes)
+                weights[m] = (count_per_mode[m] + floor) / (sum > 0 ? sum : 1.0);
+            dual_mode_weights[obs_id] = std::move(weights);
+        }
         if (method == "SHMPC_Certificate" || method == "CertificateFirst") controller.clear_certificate_radii();
 
         solve_times.push_back(mpc_result.solve_time * 1000.0);

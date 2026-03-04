@@ -140,31 +140,58 @@ This document summarizes the implementations and preliminary testing for each ex
 
 Closed-loop rollouts (80 steps, rare-mode switching, same scenario count) compare **SHMPC** (safe horizon only, no DRO) to all extensions and Paradigm-Shift variants. Metrics: collision rate (95% Wilson CI), total progress (efficiency), avg solve time.
 
-### Results (100 rollouts per method)
+### Results (50 rollouts per method; includes GAN, Reservoir, Seek-Avoid, Seek-Avoid ML)
 
 | Method                | Collision rate (95% CI)   | Δ vs SHMPC (collision) | Progress (mean) | Δ progress | Avg solve (ms) | Δ solve (ms) |
 |-----------------------|---------------------------|-------------------------|-----------------|------------|----------------|--------------|
-| **SHMPC** (baseline)  | 29.0% [21.0, 38.5]       | —                       | 13.77           | —          | 4.56           | —            |
-| SHMPC_DRO             | 26.0% [18.4, 35.4]       | **+10.3%**              | 14.17           | +0.40      | 4.64           | +0.07        |
-| SHMPC_AdaptiveDRO     | 29.0% [21.0, 38.5]       | 0.0%                    | 13.36           | −0.41      | 4.72           | +0.15        |
-| SHMPC_RTA             | 28.0% [20.1, 37.5]       | +3.4%                   | 12.92           | −0.85      | 4.98           | +0.42        |
-| SHMPC_Conformal       | 24.0% [16.7, 33.2]       | **+17.2%**              | 13.56           | −0.22      | 4.65           | +0.09        |
-| SHMPC_Hazard          | 32.0% [23.7, 41.7]       | −10.3%                  | 13.62           | −0.16      | 4.82           | +0.25        |
-| SHMPC_Bandit          | 25.0% [17.6, 34.3]       | **+13.8%**              | 13.77           | 0.00       | 4.96           | +0.39        |
-| SHMPC_Certificate     | 43.0% [33.7, 52.8]       | −48.3%                  | 13.52           | −0.25      | 4.97           | +0.41        |
-| SHMPC_Compiler        | 21.0% [14.2, 30.0]       | **+27.6%**              | 13.99           | +0.21      | 7.36           | +2.80        |
-| CertificateFirst      | 39.0% [30.0, 48.8]       | −34.5%                  | 13.59           | −0.18      | 5.12           | +0.56        |
-| ScenarioCompiler      | 23.0% [15.8, 32.2]       | **+20.7%**              | 14.06           | +0.29      | 8.43           | +3.87        |
+| **SHMPC** (baseline)  | 26.0% [15.9, 39.6]       | —                       | 13.43           | —          | 5.22           | —            |
+| SHMPC_DRO             | 26.0% [15.9, 39.6]       | 0.0%                    | 13.40           | −0.03      | 4.64           | −0.59        |
+| SHMPC_AdaptiveDRO     | 26.0% [15.9, 39.6]       | 0.0%                    | 13.58           | +0.15      | 4.68           | −0.54        |
+| SHMPC_RTA             | 22.0% [12.8, 35.2]       | +15.4%                  | 12.94           | −0.49      | 4.79           | −0.44        |
+| SHMPC_Conformal       | 28.0% [17.5, 41.7]       | −7.7%                   | 13.47           | +0.03      | 4.56           | −0.67        |
+| SHMPC_Hazard          | 28.0% [17.5, 41.7]       | −7.7%                   | 14.11           | +0.67      | 4.63           | −0.59        |
+| SHMPC_Bandit          | 32.0% [20.8, 45.8]       | −23.1%                  | 13.63           | +0.19      | 4.71           | −0.52        |
+| SHMPC_Certificate     | 44.0% [31.2, 57.7]       | −69.2%                  | 13.24           | −0.19      | 4.73           | −0.49        |
+| SHMPC_Compiler        | 22.0% [12.8, 35.2]       | +15.4%                  | 13.95           | +0.51      | 6.58           | +1.36        |
+| CertificateFirst      | 38.0% [25.9, 51.9]       | −46.2%                  | 13.28           | −0.16      | 4.57           | −0.65        |
+| ScenarioCompiler      | 24.0% [14.3, 37.4]       | +7.7%                   | 13.81           | +0.38      | 6.44           | +1.22        |
+| **SHMPC_GAN**         | **4.0% [1.1, 13.5]**     | **+84.6%**              | 13.78           | +0.34      | 12.84          | +7.62        |
+| **SHMPC_Reservoir**   | 24.0% [14.3, 37.4]       | +7.7%                   | 13.73           | +0.30      | 4.71           | −0.52        |
+| **SHMPC_SeekAvoid**   | 22.0% [12.8, 35.2]       | +26.7%                  | 14.83           | +1.26      | 4.37           | −0.73        |
+| **SHMPC_SeekAvoidML** | 18.0% [9.8, 30.8]        | +40.0%                  | 12.25           | −1.32      | 13.90          | +8.81        |
+| **SHMPC_QuotientSpace** | 26.0% [15.9, 39.6]     | +7.1%                   | 13.78           | +0.23      | 5.34           | +0.27        |
+| **SHMPC_DoubleDual**   | (run experiments)     | —                       | —               | —          | —               | —            |
 
-### Interpretation (extension-style vs Paradigm-Shift)
+### Double-dual scenario allocation
 
+**SHMPC_DoubleDual** uses binding-constraint (dual) information to drive scenario allocation: after each solve, the controller’s active scenarios (those that remained after `remove_inactive_scenarios`) are counted by mode; those counts (plus a floor) form mode weights for the next step. Modes that were constraining the plan get more scenarios on the next sample. No extra solve; same cost as baseline SHMPC per step. See `14_double_dual_scenarios/README.md`. Results will appear in the table after running the efficacy experiment.
+
+### Interpretation (extension-style vs Paradigm-Shift vs adversarial scenario generation)
+
+- **SHMPC_GAN (GAN adversarial scenarios):**  
+  - **Largest collision reduction** (+84.6% vs SHMPC): 4% collision vs 26% baseline. Scenarios are loaded from a GAN-trained generator that produces adversarial obstacle trajectories (relative waypoints); the controller plans against these challenging futures. Progress is similar or slightly better than SHMPC (+0.34); **solve time is ~2.5× higher** (12.84 ms) because scenarios are fixed each step (no sampling shortcut). Regenerate `gan_scenarios.csv` with `gan_adversarial.py` before experiments; if missing, SHMPC_GAN falls back to normal sampling.
+- **SHMPC_Reservoir:** Modest safety gain; scenarios from reservoir readout.
+- **SHMPC_SeekAvoid (pursuit game):** Obstacles actively pursue the vehicle; +26.7% collision reduction, faster solve, higher progress. Generate `seek_avoid_scenarios.csv` with `11_seek_avoid_scenarios/seek_avoid.py`.
+- **SHMPC_SeekAvoidML (ML on seek-avoid data):** +40.0% collision reduction; higher solve time, lower progress. Generate `seek_avoid_ml_scenarios.csv` with `12_seek_avoid_ml_scenarios/seek_avoid_ml.py`.
+- **SHMPC_QuotientSpace (quotient-space efficiency):** Scenarios are mapped to a **low-dimensional quotient** (mean/end obstacle positions), clustered, and reduced to K representatives (default K = 40% of S). MPC solves with fewer scenarios for lower problem size. In runs: modest safety gain (+7.1%), solve time similar to baseline (+0.27 ms), progress +0.23. Config: `quotient_num_override` in ExperimentConfig to set K explicitly. See `13_quotient_space_efficiency/README.md`.
 - **Extension-style (add-ons to SHMPC):**  
-  - **SHMPC_Compiler** (+27.6% collision reduction) and **SHMPC_Conformal** (+17.2%) give the largest safety gains. **SHMPC_Bandit** (+13.8%) and **SHMPC_DRO** (+10.3%) also beat the baseline. **SHMPC_RTA** (+3.4%) is slightly safer with a clear progress cost (−0.85). **SHMPC_AdaptiveDRO** matches SHMPC; **SHMPC_Hazard** is worse (−10.3%) in this setup. **SHMPC_Certificate** (−48.3%) suffers from the fixed tube radius.
-- **Paradigm-Shift variants:**  
-  - **ScenarioCompiler** (+20.7%) mirrors the extension **SHMPC_Compiler** with similar safety and slightly better progress (+0.29) at higher solve cost (8.43 ms). **CertificateFirst** (−34.5%) is better than **SHMPC_Certificate** but still worse than SHMPC; both need radius tuning or data-driven certificates.
-- **Efficiency vs safety:** Compiler variants improve both collision rate and progress at ~2.8–3.9 ms extra solve time. RTA trades progress for safety. Bandit and Conformal improve safety with minimal progress cost. Certificate-based methods need smaller radii or learned certificates to avoid over-tightening.
+  - **SHMPC_Compiler** (+15.4%), **SHMPC_RTA** (+15.4%), **ScenarioCompiler** (+7.7%) beat the baseline in this run. **SHMPC_Conformal**, **SHMPC_Hazard**, **SHMPC_Bandit** and **SHMPC_Certificate** / **CertificateFirst** need tuning or different seeds to show consistent gains.
+- **Efficiency vs safety:** GAN scenarios trade compute (≈+7.6 ms/solve) for large safety gain. Reservoir gives a small safety gain at lower solve time. Compiler variants add ~1.2–1.4 ms. Certificate-based methods need smaller radii or learned certificates to avoid over-tightening.
 
-**Integration:** Custom mode weights (Conformal, Hazard, Bandit), certificate radii (CertificateFirst), and scenario compiler (set_scenarios / sample_and_set_scenarios) are wired in the controller and used in the rollout.
+### GAN computational efficiency (investigation and variants)
+
+To improve GAN solve time without losing safety, the following were implemented and tested:
+
+1. **Cached loader (`GANScenarioCache`):** Load the GAN CSV **once per rollout** and call `materialize(obstacles, horizon, max_scenarios)` each step instead of re-reading the file. Removes per-step file I/O. Enabled by default (`use_gan_cache = true`).
+2. **SHMPC_GAN_Reduced:** Use only **12** GAN scenarios per solve (instead of 30). Fewer constraints ⇒ faster QP. In a 25-rollout run: **4% collision** (vs 8% full GAN, 20% SHMPC), **4.77 ms** solve (vs 12.98 ms full GAN), **+4.34** progress vs SHMPC. So **fewer scenarios** gave better safety, much lower solve time, and higher progress in that run.
+3. **SHMPC_GAN_Quotient:** Load all GAN scenarios, then **reduce to K via quotient-space** (low-dim clustering) before solve. In the same run: faster than full GAN (5.10 ms) but **36% collision** (worse than baseline); quotient representatives may miss critical adversarial modes. Use with care or tune K/features.
+4. **Config:** `gan_num_scenarios_override` caps how many GAN scenarios are used per solve; `use_gan_cache` toggles the cache (default true).
+
+**Takeaway:** For GAN-based SHMPC, **SHMPC_GAN_Reduced** (12 scenarios) is a promising efficiency variant: similar or better safety and progress with solve time close to baseline. Run `test_gan_efficiency` for cache unit tests.
+
+**Real-time deployment (≥50% improvement, <10 ms):** A sweep (`run_gan_realtime_sweep`) over S = 8–30 found **S=12** is the smallest config meeting both constraints. SHMPC_GAN_Reduced uses 12 by default (~86% improvement, ~4.8 ms solve). See `09_gan_adversarial_scenarios/REALTIME_DEPLOYMENT.md`.
+
+**Integration:** Custom mode weights (Conformal, Hazard, Bandit), certificate radii (CertificateFirst), scenario compiler (set_scenarios / sample_and_set_scenarios), scenario CSV loading (GAN, Reservoir, Seek-Avoid, Seek-Avoid ML), and quotient-space reduction (SHMPC_QuotientSpace) are wired in the controller and used in the rollout.
 
 ---
 
@@ -190,7 +217,7 @@ Closed-loop rollouts (80 steps, rare-mode switching, same scenario count) compar
 1. **Run rollouts** (from repo root):  
    `cd cpp_mpc/build && ./future_sl_experiments <output_dir> <num_rollouts>`  
    Example: `./future_sl_experiments ../../future_sl_mpc/experiments/results/ 100`  
-   Methods: SHMPC, SHMPC_DRO, SHMPC_AdaptiveDRO, SHMPC_RTA, SHMPC_Conformal, SHMPC_Hazard, SHMPC_Bandit, SHMPC_Certificate, SHMPC_Compiler, CertificateFirst, ScenarioCompiler.  
+   Methods: SHMPC, SHMPC_DRO, SHMPC_AdaptiveDRO, SHMPC_RTA, SHMPC_Conformal, SHMPC_Hazard, SHMPC_Bandit, SHMPC_Certificate, SHMPC_Compiler, CertificateFirst, ScenarioCompiler, SHMPC_GAN. For SHMPC_GAN, generate `gan_scenarios.csv` first with `python3 future_sl_mpc/09_gan_adversarial_scenarios/gan_adversarial.py --num 30 --horizon 20 --out future_sl_mpc/experiments/results/gan_scenarios.csv`.  
    Writes `future_sl_rollouts.csv` with one row per (seed, method).
 
 2. **Analyze vs SHMPC**:  
@@ -209,6 +236,7 @@ All implementations are preliminary; unit tests validate interfaces. Run 50–10
 
 ### Latest run summary
 
-- **Main efficacy:** `./future_sl_experiments ../../future_sl_mpc/experiments/results/ 100` → 100 rollouts × 11 methods. Analysis: `analyze_vs_shmpc.py` → `analysis_summary.txt`, `efficacy_vs_shmpc.csv`.
+- **Main efficacy:** `./future_sl_experiments ../../future_sl_mpc/experiments/results/ 50` (or 100) → rollouts × 18 methods (includes SHMPC_GAN, SHMPC_GAN_Reduced, SHMPC_GAN_Quotient, SHMPC_QuotientSpace; generate scenario CSVs for GAN, Reservoir, Seek-Avoid, Seek-Avoid ML as needed). Analysis: `analyze_vs_shmpc.py` → `analysis_summary.txt`, `efficacy_vs_shmpc.csv`. Strategy charts: `plot_strategy_graphics.py` → `strategy_*.png`.
+- **GAN efficiency tests:** C++ `test_gan_efficiency` (cache load/materialize). Run: `cd cpp_mpc/build && ./test_gan_efficiency`.
 - **Edge-case/tuning:** `./future_sl_edge_tuning ../../future_sl_mpc/experiments/results/ 30` (or 25) → edge scenarios + tuning sweeps. Analysis: `analyze_edge_and_tuning.py` → `edge_case_summary.csv`, `tradeoff_summary.csv`, `tuning_sensitivity.csv` (when tuning scenarios present).
 - **Unit tests:** All 8 Future SL C++ tests pass (ConformalSafety, HazardSwitchSampling, RiskDirectedBandit, AdaptiveDROShift, DualRiskMonitor, CertificateFirst, ScenarioCompiler, RuntimeAssurance).

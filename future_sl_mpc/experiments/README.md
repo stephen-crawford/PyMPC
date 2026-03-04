@@ -21,6 +21,16 @@ Rollouts and analysis comparing **SHMPC** (safe-horizon scenario MPC baseline) t
 - **CertificateFirst**: Same as SHMPC_Certificate (Paradigm-Shift 7.1).
 - **ScenarioCompiler**: Same as SHMPC_Compiler (Paradigm-Shift 7.2).
 
+**Adversarial scenario generation (GAN, Reservoir, Seek-Avoid, Seek-Avoid ML)**
+- **SHMPC_GAN**: Scenarios from a GAN-generated CSV (cached per rollout for efficiency). Generate with `python3 future_sl_mpc/09_gan_adversarial_scenarios/gan_adversarial.py --num 30 --horizon 20 --out future_sl_mpc/experiments/results/gan_scenarios.csv`.
+- **SHMPC_GAN_Reduced**: Same GAN scenarios but only **12** per solve. **Recommended for real-time deployment:** ≥50% collision improvement vs SHMPC, solve time ~5 ms (<10 ms). Config: `gan_reduced_num_scenarios` (default 12). Run `./run_gan_realtime_sweep` to sweep and validate.
+- **SHMPC_GAN_Quotient**: GAN scenarios reduced via quotient-space to K representatives before solve (fewer constraints; tune K for safety).
+- **SHMPC_Reservoir**: Scenarios from reservoir-computing (echo state); same CSV format. Generate with `python3 future_sl_mpc/10_reservoir_adversarial_scenarios/reservoir_adversarial.py --num 30 --horizon 20 --out future_sl_mpc/experiments/results/reservoir_scenarios.csv`.
+- **SHMPC_SeekAvoid**: Pursuit game (obstacles actively chase the vehicle). Generate with `python3 future_sl_mpc/11_seek_avoid_scenarios/seek_avoid.py --num 30 --horizon 20 --out future_sl_mpc/experiments/results/seek_avoid_scenarios.csv`.
+- **SHMPC_SeekAvoidML**: ML model trained on seek-avoid data to predict adversarial trajectories. Generate with `python3 future_sl_mpc/12_seek_avoid_ml_scenarios/seek_avoid_ml.py --num 30 --horizon 20 --out future_sl_mpc/experiments/results/seek_avoid_ml_scenarios.csv`.
+- **SHMPC_QuotientSpace**: Quotient-space reduction for **computational efficiency**: scenarios are mapped to low-dim features, clustered, and reduced to K representatives (default K = 40% of num_scenarios). Fewer constraints per solve. No CSV required; set `quotient_num_override` in config to fix K.
+  If any scenario CSV is missing, that method falls back to normal sampling.
+
 ## Build and run
 
 ```bash
@@ -102,3 +112,25 @@ Outputs in the results directory:
 ## Results summary
 
 See **FINDINGS.md** § "Efficacy Comparison vs SHMPC" and § "Edge cases, trade-offs, and tuning" for interpretation. In a 50-rollout run: RTA gave a solid collision-rate reduction vs SHMPC; Compiler and Bandit also improve safety. Edge-case runs stress-test methods under high switching, rare-mode bias, low scenario budget, and distribution shift; tuning sweeps show sensitivity to certificate radius, RTA threshold, and bandit β.
+
+## Target collision benchmark (≤ 2% with CI)
+
+This benchmark answers: **Which technique reaches a collision rate under a target (default 2%) with minimal compute cost?**
+
+- **Criterion**: declare success only when the **upper bound** of the **95% Wilson CI** is ≤ target (avoids “0/10 = 0%” false confidence).
+- **Output**: a sweep CSV plus a “best per method” table and a cost vs safety plot.
+
+Run (from `cpp_mpc/build`):
+
+```bash
+make target_collision_benchmark
+./target_collision_benchmark ../../future_sl_mpc/experiments/results/ 250 0.02
+python3 ../../future_sl_mpc/experiments/analyze_target_collision.py ../../future_sl_mpc/experiments/results/target_collision_benchmark.csv --out ../../future_sl_mpc/experiments/results
+```
+
+Produces:
+
+- `target_collision_benchmark.csv`: per-(method, knob) sweep results with CI + solve time.
+- `target_collision_best_per_method.csv`: best (lowest solve time) config among those meeting target.
+- `target_collision_summary.txt`: readable summary.
+- `target_collision_cost_vs_safety.png`: scatter of compute vs certified safety.

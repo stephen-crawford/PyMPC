@@ -458,6 +458,32 @@ future_sl_edge_tuning/fast:
 .PHONY : future_sl_edge_tuning/fast
 
 #=============================================================================
+# Target rules for targets named run_gan_realtime_sweep
+
+# Build rule for target.
+run_gan_realtime_sweep: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 run_gan_realtime_sweep
+.PHONY : run_gan_realtime_sweep
+
+# fast build rule for target.
+run_gan_realtime_sweep/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_gan_realtime_sweep.dir/build.make CMakeFiles/run_gan_realtime_sweep.dir/build
+.PHONY : run_gan_realtime_sweep/fast
+
+#=============================================================================
+# Target rules for targets named target_collision_benchmark
+
+# Build rule for target.
+target_collision_benchmark: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 target_collision_benchmark
+.PHONY : target_collision_benchmark
+
+# fast build rule for target.
+target_collision_benchmark/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/target_collision_benchmark.dir/build.make CMakeFiles/target_collision_benchmark.dir/build
+.PHONY : target_collision_benchmark/fast
+
+#=============================================================================
 # Target rules for targets named test_dual_risk_monitor
 
 # Build rule for target.
@@ -508,6 +534,19 @@ test_runtime_assurance: cmake_check_build_system
 test_runtime_assurance/fast:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_runtime_assurance.dir/build.make CMakeFiles/test_runtime_assurance.dir/build
 .PHONY : test_runtime_assurance/fast
+
+#=============================================================================
+# Target rules for targets named test_gan_efficiency
+
+# Build rule for target.
+test_gan_efficiency: cmake_check_build_system
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test_gan_efficiency
+.PHONY : test_gan_efficiency
+
+# fast build rule for target.
+test_gan_efficiency/fast:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_gan_efficiency.dir/build.make CMakeFiles/test_gan_efficiency.dir/build
+.PHONY : test_gan_efficiency/fast
 
 #=============================================================================
 # Target rules for targets named run_tests
@@ -680,6 +719,54 @@ home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.s: home/s
 home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/future_sl_experiments.dir/build.make CMakeFiles/future_sl_experiments.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.s
 .PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.cpp.s
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.o: home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.o
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.o
+
+# target to build an object file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_gan_realtime_sweep.dir/build.make CMakeFiles/run_gan_realtime_sweep.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.o
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.o
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.i: home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.i
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.i
+
+# target to preprocess a source file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_gan_realtime_sweep.dir/build.make CMakeFiles/run_gan_realtime_sweep.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.i
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.i
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.s: home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.s
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.s
+
+# target to generate assembly for a file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/run_gan_realtime_sweep.dir/build.make CMakeFiles/run_gan_realtime_sweep.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.s
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.cpp.s
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.o: home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.o
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.o
+
+# target to build an object file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/target_collision_benchmark.dir/build.make CMakeFiles/target_collision_benchmark.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.o
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.o
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.i: home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.i
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.i
+
+# target to preprocess a source file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/target_collision_benchmark.dir/build.make CMakeFiles/target_collision_benchmark.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.i
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.i
+
+home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.s: home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.s
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.s
+
+# target to generate assembly for a file
+home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/target_collision_benchmark.dir/build.make CMakeFiles/target_collision_benchmark.dir/home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.s
+.PHONY : home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.cpp.s
 
 src/adaptive_dro_shift.o: src/adaptive_dro_shift.cpp.o
 .PHONY : src/adaptive_dro_shift.o
@@ -872,6 +959,30 @@ src/experiment_harness.s: src/experiment_harness.cpp.s
 src/experiment_harness.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.s
 .PHONY : src/experiment_harness.cpp.s
+
+src/gan_scenario_loader.o: src/gan_scenario_loader.cpp.o
+.PHONY : src/gan_scenario_loader.o
+
+# target to build an object file
+src/gan_scenario_loader.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.o
+.PHONY : src/gan_scenario_loader.cpp.o
+
+src/gan_scenario_loader.i: src/gan_scenario_loader.cpp.i
+.PHONY : src/gan_scenario_loader.i
+
+# target to preprocess a source file
+src/gan_scenario_loader.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.i
+.PHONY : src/gan_scenario_loader.cpp.i
+
+src/gan_scenario_loader.s: src/gan_scenario_loader.cpp.s
+.PHONY : src/gan_scenario_loader.s
+
+# target to generate assembly for a file
+src/gan_scenario_loader.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/scenario_mpc.dir/build.make CMakeFiles/scenario_mpc.dir/src/gan_scenario_loader.cpp.s
+.PHONY : src/gan_scenario_loader.cpp.s
 
 src/hazard_switch_sampling.o: src/hazard_switch_sampling.cpp.o
 .PHONY : src/hazard_switch_sampling.o
@@ -1401,6 +1512,30 @@ tests/test_epsilon_guarantee.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_epsilon_guarantee.dir/build.make CMakeFiles/test_epsilon_guarantee.dir/tests/test_epsilon_guarantee.cpp.s
 .PHONY : tests/test_epsilon_guarantee.cpp.s
 
+tests/test_gan_efficiency.o: tests/test_gan_efficiency.cpp.o
+.PHONY : tests/test_gan_efficiency.o
+
+# target to build an object file
+tests/test_gan_efficiency.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_gan_efficiency.dir/build.make CMakeFiles/test_gan_efficiency.dir/tests/test_gan_efficiency.cpp.o
+.PHONY : tests/test_gan_efficiency.cpp.o
+
+tests/test_gan_efficiency.i: tests/test_gan_efficiency.cpp.i
+.PHONY : tests/test_gan_efficiency.i
+
+# target to preprocess a source file
+tests/test_gan_efficiency.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_gan_efficiency.dir/build.make CMakeFiles/test_gan_efficiency.dir/tests/test_gan_efficiency.cpp.i
+.PHONY : tests/test_gan_efficiency.cpp.i
+
+tests/test_gan_efficiency.s: tests/test_gan_efficiency.cpp.s
+.PHONY : tests/test_gan_efficiency.s
+
+# target to generate assembly for a file
+tests/test_gan_efficiency.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/test_gan_efficiency.dir/build.make CMakeFiles/test_gan_efficiency.dir/tests/test_gan_efficiency.cpp.s
+.PHONY : tests/test_gan_efficiency.cpp.s
+
 tests/test_hazard_switch_sampling.o: tests/test_hazard_switch_sampling.cpp.o
 .PHONY : tests/test_hazard_switch_sampling.o
 
@@ -1758,7 +1893,9 @@ help:
 	@echo "... future_sl_edge_tuning"
 	@echo "... future_sl_experiments"
 	@echo "... paper_experiment_runner"
+	@echo "... run_gan_realtime_sweep"
 	@echo "... scenario_mpc"
+	@echo "... target_collision_benchmark"
 	@echo "... test_adaptive_dro_shift"
 	@echo "... test_certificate_first"
 	@echo "... test_conformal_safety"
@@ -1766,6 +1903,7 @@ help:
 	@echo "... test_dro_framework"
 	@echo "... test_dual_risk_monitor"
 	@echo "... test_epsilon_guarantee"
+	@echo "... test_gan_efficiency"
 	@echo "... test_hazard_switch_sampling"
 	@echo "... test_mode_coverage"
 	@echo "... test_optimal_transport"
@@ -1795,6 +1933,12 @@ help:
 	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.o"
 	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.i"
 	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_future_sl_experiments.s"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.o"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.i"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_gan_realtime_sweep.s"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.o"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.i"
+	@echo "... home/stephen/PyMPC/future_sl_mpc/experiments/run_target_collision_benchmark.s"
 	@echo "... src/adaptive_dro_shift.o"
 	@echo "... src/adaptive_dro_shift.i"
 	@echo "... src/adaptive_dro_shift.s"
@@ -1819,6 +1963,9 @@ help:
 	@echo "... src/experiment_harness.o"
 	@echo "... src/experiment_harness.i"
 	@echo "... src/experiment_harness.s"
+	@echo "... src/gan_scenario_loader.o"
+	@echo "... src/gan_scenario_loader.i"
+	@echo "... src/gan_scenario_loader.s"
 	@echo "... src/hazard_switch_sampling.o"
 	@echo "... src/hazard_switch_sampling.i"
 	@echo "... src/hazard_switch_sampling.s"
@@ -1885,6 +2032,9 @@ help:
 	@echo "... tests/test_epsilon_guarantee.o"
 	@echo "... tests/test_epsilon_guarantee.i"
 	@echo "... tests/test_epsilon_guarantee.s"
+	@echo "... tests/test_gan_efficiency.o"
+	@echo "... tests/test_gan_efficiency.i"
+	@echo "... tests/test_gan_efficiency.s"
 	@echo "... tests/test_hazard_switch_sampling.o"
 	@echo "... tests/test_hazard_switch_sampling.i"
 	@echo "... tests/test_hazard_switch_sampling.s"

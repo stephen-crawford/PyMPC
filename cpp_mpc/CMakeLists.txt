@@ -40,6 +40,7 @@ set(SCENARIO_MPC_SOURCES
     src/optimal_transport_predictor.cpp
     src/qp_solver.cpp
     src/wasserstein_dro.cpp
+    src/gan_scenario_loader.cpp
     src/experiment_harness.cpp
 )
 
@@ -125,6 +126,12 @@ if(BUILD_TESTS)
     add_executable(future_sl_edge_tuning ${CMAKE_CURRENT_SOURCE_DIR}/../future_sl_mpc/experiments/run_future_sl_edge_and_tuning.cpp)
     target_link_libraries(future_sl_edge_tuning PRIVATE scenario_mpc)
 
+    add_executable(run_gan_realtime_sweep ${CMAKE_CURRENT_SOURCE_DIR}/../future_sl_mpc/experiments/run_gan_realtime_sweep.cpp)
+    target_link_libraries(run_gan_realtime_sweep PRIVATE scenario_mpc)
+
+    add_executable(target_collision_benchmark ${CMAKE_CURRENT_SOURCE_DIR}/../future_sl_mpc/experiments/run_target_collision_benchmark.cpp)
+    target_link_libraries(target_collision_benchmark PRIVATE scenario_mpc)
+
     add_test(NAME CoreTests COMMAND test_core)
     add_test(NAME SafeHorizonContouringTests COMMAND test_safe_horizon_contouring)
     add_test(NAME OptimalTransportTests COMMAND test_optimal_transport)
@@ -148,10 +155,14 @@ if(BUILD_TESTS)
     add_executable(test_runtime_assurance tests/test_runtime_assurance.cpp)
     target_link_libraries(test_runtime_assurance PRIVATE scenario_mpc)
 
+    add_executable(test_gan_efficiency tests/test_gan_efficiency.cpp)
+    target_link_libraries(test_gan_efficiency PRIVATE scenario_mpc)
+
     add_test(NAME DualRiskMonitorTests COMMAND test_dual_risk_monitor)
     add_test(NAME CertificateFirstTests COMMAND test_certificate_first)
     add_test(NAME ScenarioCompilerTests COMMAND test_scenario_compiler)
     add_test(NAME RuntimeAssuranceTests COMMAND test_runtime_assurance)
+    add_test(NAME GANEfficiencyTests COMMAND test_gan_efficiency WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
     # Custom target to run tests
     add_custom_target(run_tests

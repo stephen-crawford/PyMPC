@@ -462,6 +462,8 @@ CMakeFiles/scenario_mpc.dir/src/experiment_harness.cpp.o: \
  /home/stephen/PyMPC/cpp_mpc/include/risk_directed_bandit.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/certificate_first.hpp \
  /home/stephen/PyMPC/cpp_mpc/include/scenario_compiler.hpp \
+ /home/stephen/PyMPC/cpp_mpc/include/gan_scenario_loader.hpp \
+ /home/stephen/PyMPC/cpp_mpc/include/scenario_pruning.hpp \
  /usr/include/c++/13/iomanip /usr/include/c++/13/locale \
  /usr/include/c++/13/bits/locale_facets_nonio.h \
  /usr/include/x86_64-linux-gnu/c++/13/bits/time_members.h \

@@ -51,7 +51,8 @@ int main(int argc, char** argv) {
     const std::vector<std::string> all_methods = {
         "SHMPC", "SHMPC_DRO", "SHMPC_AdaptiveDRO", "SHMPC_RTA",
         "SHMPC_Conformal", "SHMPC_Hazard", "SHMPC_Bandit", "SHMPC_Certificate", "SHMPC_Compiler",
-        "CertificateFirst", "ScenarioCompiler"
+        "CertificateFirst", "ScenarioCompiler", "SHMPC_GAN", "SHMPC_GAN_Reduced", "SHMPC_GAN_Quotient",
+        "SHMPC_Reservoir", "SHMPC_SeekAvoid", "SHMPC_SeekAvoidML", "SHMPC_QuotientSpace", "SHMPC_DoubleDual"
     };
     unsigned seed_base = 40000u;
 
@@ -85,6 +86,10 @@ int main(int argc, char** argv) {
     for (const auto& spec : scenarios) {
         auto config = make_baseline();
         spec.apply(config);
+        config.gan_scenario_csv_path = out_dir + "gan_scenarios.csv";
+        config.reservoir_scenario_csv_path = out_dir + "reservoir_scenarios.csv";
+        config.seek_avoid_scenario_csv_path = out_dir + "seek_avoid_scenarios.csv";
+        config.seek_avoid_ml_scenario_csv_path = out_dir + "seek_avoid_ml_scenarios.csv";
         for (const auto& method : all_methods) {
             for (int r = 0; r < rollouts_per_cell; ++r) {
                 unsigned seed = seed_base + 1000u * static_cast<unsigned>(r) + static_cast<unsigned>(std::hash<std::string>{}(spec.tag + method));
